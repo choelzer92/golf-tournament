@@ -80,14 +80,13 @@ document.addEventListener('DOMContentLoaded', () => {
             bonusHtml += `<div class="bonus-leader-row"><span class="bonus-label">D1 Best Stableford:</span> <span class="${teamCls}"><b>${names}</b> (${d1ind.total} pts) — ${pts}</span></div>`;
         }
 
-        // Day 2 match results
+        // Day 2 hole-by-hole results
         const d2 = scoring.calcDay2();
-        if (d2.hsFront !== 0 || d2.jdFront !== 0 || d2.hsBack !== 0 || d2.jdBack !== 0) {
-            const fWin = d2.hsFront < d2.jdFront ? 'hs' : (d2.jdFront < d2.hsFront ? 'jd' : 'tie');
-            const bWin = d2.hsBack < d2.jdBack ? 'hs' : (d2.jdBack < d2.hsBack ? 'jd' : 'tie');
-            const oWin = (d2.hsFront + d2.hsBack) < (d2.jdFront + d2.jdBack) ? 'hs' : ((d2.jdFront + d2.jdBack) < (d2.hsFront + d2.hsBack) ? 'jd' : 'tie');
-            const fmtWin = (w) => w === 'hs' ? '<span class="hs-pts">HS</span>' : (w === 'jd' ? '<span class="jd-pts">JD</span>' : 'Tied');
-            bonusHtml += `<div class="bonus-leader-row"><span class="bonus-label">D2 Nines:</span> Front: ${fmtWin(fWin)} (${d2.hsFront} vs ${d2.jdFront}) | Back: ${fmtWin(bWin)} (${d2.hsBack} vs ${d2.jdBack}) | Overall: ${fmtWin(oWin)}</div>`;
+        if (d2.holesPlayed > 0) {
+            const lead = d2.hsPoints > d2.jdPoints ? 'hs' : (d2.jdPoints > d2.hsPoints ? 'jd' : 'tie');
+            const cls = lead === 'hs' ? 'hs-pts' : (lead === 'jd' ? 'jd-pts' : '');
+            const txt = lead === 'tie' ? 'Tied' : (lead === 'hs' ? 'HS leads' : 'JD leads');
+            bonusHtml += `<div class="bonus-leader-row"><span class="bonus-label">D2 Holes (${d2.holesPlayed}/18):</span> <span class="${cls}"><b>${d2.hsPoints}</b> - <b>${d2.jdPoints}</b> (${txt})</span></div>`;
         }
 
         // Day 2 junk
@@ -515,9 +514,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Running total
         const d2 = scoring.calcDay2();
         html += `<div class="match-status">
-            <span class="hs-pts">HS: ${d2.hsFront + d2.hsBack >= 0 ? '+' : ''}${d2.hsFront + d2.hsBack}</span>
-            <span>vs par</span>
-            <span class="jd-pts">JD: ${d2.jdFront + d2.jdBack >= 0 ? '+' : ''}${d2.jdFront + d2.jdBack}</span>
+            <span class="hs-pts">HS: ${d2.hsPoints}</span>
+            <span>${d2.holesPlayed}/18 holes</span>
+            <span class="jd-pts">JD: ${d2.jdPoints}</span>
         </div>`;
 
         return html;
@@ -564,9 +563,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const d2 = scoring.calcDay2();
         html += `<div class="match-status">
-            <span class="hs-pts">HS: ${d2.hsFront + d2.hsBack >= 0 ? '+' : ''}${d2.hsFront + d2.hsBack}</span>
-            <span>vs par</span>
-            <span class="jd-pts">JD: ${d2.jdFront + d2.jdBack >= 0 ? '+' : ''}${d2.jdFront + d2.jdBack}</span>
+            <span class="hs-pts">HS: ${d2.hsPoints}</span>
+            <span>${d2.holesPlayed}/18 holes</span>
+            <span class="jd-pts">JD: ${d2.jdPoints}</span>
         </div>`;
 
         return html;
@@ -601,8 +600,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         html += '</div>';
         html += `<div class="match-status">
-            <div><div class="hs-pts">F: ${d2.hsFront >= 0 ? '+' : ''}${d2.hsFront} | B: ${d2.hsBack >= 0 ? '+' : ''}${d2.hsBack}</div><div class="hs-pts"><b>HS: ${d2.hsPoints} pts</b></div></div>
-            <div style="text-align:right"><div class="jd-pts">F: ${d2.jdFront >= 0 ? '+' : ''}${d2.jdFront} | B: ${d2.jdBack >= 0 ? '+' : ''}${d2.jdBack}</div><div class="jd-pts"><b>JD: ${d2.jdPoints} pts</b></div></div>
+            <span class="hs-pts">HS: ${d2.hsPoints}</span>
+            <span>${d2.holesPlayed}/18 holes</span>
+            <span class="jd-pts">JD: ${d2.jdPoints}</span>
         </div>`;
         return html;
     }
@@ -1427,8 +1427,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Summary comparison
         const d2 = scoring.calcDay2();
         html += `<div class="match-status">
-            <div><div class="hs-pts">F: ${d2.hsFront >= 0 ? '+' : ''}${d2.hsFront} | B: ${d2.hsBack >= 0 ? '+' : ''}${d2.hsBack}</div><div class="hs-pts"><b>HS: ${d2.hsPoints} pts</b></div></div>
-            <div style="text-align:right"><div class="jd-pts">F: ${d2.jdFront >= 0 ? '+' : ''}${d2.jdFront} | B: ${d2.jdBack >= 0 ? '+' : ''}${d2.jdBack}</div><div class="jd-pts"><b>JD: ${d2.jdPoints} pts</b></div></div>
+            <span class="hs-pts"><b>HS: ${d2.hsPoints} pts</b></span>
+            <span>${d2.holesPlayed}/18 holes</span>
+            <span class="jd-pts"><b>JD: ${d2.jdPoints} pts</b></span>
         </div>`;
 
         return html;

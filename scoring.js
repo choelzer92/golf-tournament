@@ -180,17 +180,16 @@ class TournamentScoring {
 
     // ==================== DAY 2 ====================
     calcDay2() {
-        if (!this.scores.day2 || !this.scores.day2.hs || !this.scores.day2.jd) return { hsPoints: 0, jdPoints: 0, hsFront: 0, jdFront: 0, hsBack: 0, jdBack: 0 };
+        if (!this.scores.day2 || !this.scores.day2.hs || !this.scores.day2.jd) return { hsPoints: 0, jdPoints: 0, hsHoles: 0, jdHoles: 0, holesPlayed: 0, junkHs: 0, junkJd: 0, junkHsDetail: {}, junkJdDetail: {} };
         const course = CONFIG.courses[CONFIG.days.day2.course];
         const hsPlayers = ['bodner', 'burns', 'smith', 'ross'];
         const jdPlayers = ['craig', 'casey', 'enterlin', 'lacy'];
 
-        // Get lowest course hcap in the entire group (off the low)
         const allPlayerKeys = [...hsPlayers, ...jdPlayers];
         const allHcaps = allPlayerKeys.map(p => getPlayerCourseHcap(p, CONFIG.days.day2.course, CONFIG.days.day2.allowance));
         const lowestHcap = Math.min(...allHcaps);
 
-        let hsFront = 0, hsBack = 0, jdFront = 0, jdBack = 0;
+        let hsPoints = 0, jdPoints = 0, holesPlayed = 0;
 
         for (let hole = 0; hole < 18; hole++) {
             const hsHoleScores = this.scores.day2.hs[hole];
@@ -229,53 +228,21 @@ class TournamentScoring {
             const hsTotal = bestCombo(hsCalc);
             const jdTotal = bestCombo(jdCalc);
 
-            if (hole < 9) { hsFront += hsTotal; jdFront += jdTotal; }
-            else { hsBack += hsTotal; jdBack += jdTotal; }
+            holesPlayed++;
+            if (hsTotal < jdTotal) hsPoints += 2;
+            else if (jdTotal < hsTotal) jdPoints += 2;
+            else { hsPoints += 1; jdPoints += 1; }
         }
 
-        // Count holes with actual scores
-        let frontHolesPlayed = 0, backHolesPlayed = 0;
-        for (let hole = 0; hole < 18; hole++) {
-            const hsHoleScores = this.scores.day2.hs[hole];
-            const jdHoleScores = this.scores.day2.jd[hole];
-            if (!hsHoleScores || !jdHoleScores) continue;
-            if (hsHoleScores.every(v => v === null) || jdHoleScores.every(v => v === null)) continue;
-            if (hole < 9) frontHolesPlayed++; else backHolesPlayed++;
-        }
-
-        let hsPoints = 0, jdPoints = 0;
-        const s = CONFIG.days.day2.scoring;
-
-        if (frontHolesPlayed > 0) {
-            const frontWinner = hsFront < jdFront ? 'hs' : (jdFront < hsFront ? 'jd' : 'tie');
-            if (frontWinner === 'hs') hsPoints += s.front;
-            else if (frontWinner === 'jd') jdPoints += s.front;
-            else { hsPoints += s.front / 2; jdPoints += s.front / 2; }
-        }
-
-        if (backHolesPlayed > 0) {
-            const backWinner = hsBack < jdBack ? 'hs' : (jdBack < hsBack ? 'jd' : 'tie');
-            if (backWinner === 'hs') hsPoints += s.back;
-            else if (backWinner === 'jd') jdPoints += s.back;
-            else { hsPoints += s.back / 2; jdPoints += s.back / 2; }
-        }
-
-        if (frontHolesPlayed > 0 || backHolesPlayed > 0) {
-            const overallWinner = (hsFront + hsBack) < (jdFront + jdBack) ? 'hs' : ((jdFront + jdBack) < (hsFront + hsBack) ? 'jd' : 'tie');
-            if (overallWinner === 'hs') hsPoints += s.overall;
-            else if (overallWinner === 'jd') jdPoints += s.overall;
-            else { hsPoints += s.overall / 2; jdPoints += s.overall / 2; }
-        }
-
-        // Junk - auto-calculated from scores
+        // Junk (2 pts)
         const junk = this.calcDay2Junk();
         if (junk.hs > 0 || junk.jd > 0) {
-            if (junk.hs > junk.jd) hsPoints += s.junk;
-            else if (junk.jd > junk.hs) jdPoints += s.junk;
-            else { hsPoints += s.junk / 2; jdPoints += s.junk / 2; }
+            if (junk.hs > junk.jd) hsPoints += 2;
+            else if (junk.jd > junk.hs) jdPoints += 2;
+            else { hsPoints += 1; jdPoints += 1; }
         }
 
-        return { hsPoints, jdPoints, hsFront, jdFront, hsBack, jdBack, junkHs: junk.hs, junkJd: junk.jd, junkHsDetail: junk.hsDetail, junkJdDetail: junk.jdDetail };
+        return { hsPoints, jdPoints, hsHoles: hsPoints, jdHoles: jdPoints, holesPlayed, junkHs: junk.hs, junkJd: junk.jd, junkHsDetail: junk.hsDetail, junkJdDetail: junk.jdDetail };
     }
 
     calcDay2Junk() {

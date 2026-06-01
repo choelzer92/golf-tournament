@@ -74,13 +74,7 @@ const CONFIG = {
             course: "springCreek",
             format: "2 Best Balls (Net + Gross)",
             allowance: 0.8,
-            totalPoints: 40,
-            scoring: {
-                front: 16,
-                back: 16,
-                overall: 4,
-                junk: 2
-            }
+            totalPoints: 40
         },
         day3: {
             course: "glenmore",
