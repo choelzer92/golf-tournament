@@ -51,18 +51,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Bonus leaders
         let bonusHtml = '';
+
+        // Day 1 match bonuses
+        const d1m1 = scoring.calcDay1Match('match1');
+        const d1m2 = scoring.calcDay1Match('match2');
+        if (d1m1.holesPlayed > 0) {
+            const winner = d1m1.hsPoints > d1m2.hsPoints ? 'HS' : (d1m1.jdPoints > d1m1.hsPoints ? 'JD' : null);
+            // Match bonus is baked into hsPoints/jdPoints, show who's winning
+            const m1lead = d1m1.hsPoints > d1m1.jdPoints ? 'hs' : (d1m1.jdPoints > d1m1.hsPoints ? 'jd' : 'tie');
+            const m1cls = m1lead === 'hs' ? 'hs-pts' : (m1lead === 'jd' ? 'jd-pts' : '');
+            const m1txt = m1lead === 'tie' ? 'Tied' : (m1lead === 'hs' ? 'HS leads' : 'JD leads');
+            bonusHtml += `<div class="bonus-leader-row"><span class="bonus-label">D1 Match 1:</span> <span class="${m1cls}"><b>${d1m1.hsPoints}</b> - <b>${d1m1.jdPoints}</b> (${m1txt})</span></div>`;
+        }
+        if (d1m2.holesPlayed > 0) {
+            const m2lead = d1m2.hsPoints > d1m2.jdPoints ? 'hs' : (d1m2.jdPoints > d1m2.hsPoints ? 'jd' : 'tie');
+            const m2cls = m2lead === 'hs' ? 'hs-pts' : (m2lead === 'jd' ? 'jd-pts' : '');
+            const m2txt = m2lead === 'tie' ? 'Tied' : (m2lead === 'hs' ? 'HS leads' : 'JD leads');
+            bonusHtml += `<div class="bonus-leader-row"><span class="bonus-label">D1 Match 2:</span> <span class="${m2cls}"><b>${d1m2.hsPoints}</b> - <b>${d1m2.jdPoints}</b> (${m2txt})</span></div>`;
+        }
+
+        // Day 1 individual stableford bonus
         const d1ind = scoring.calcDay1Individual();
         if (d1ind.winners.length > 0) {
             const names = d1ind.winners.map(w => allPlayers[w.playerKey].name.split(' ').pop()).join(', ');
-            const teamCls = d1ind.winners[0].team === 'hs' ? 'hs-pts' : (d1ind.winners.every(w => w.team === 'jd') ? 'jd-pts' : '');
+            const teamCls = d1ind.winners.every(w => w.team === 'hs') ? 'hs-pts' : (d1ind.winners.every(w => w.team === 'jd') ? 'jd-pts' : '');
             const pts = d1ind.winners.length > 1 ? `${(2 / d1ind.winners.length).toFixed(1)} pts each` : '2 pts';
             bonusHtml += `<div class="bonus-leader-row"><span class="bonus-label">D1 Best Stableford:</span> <span class="${teamCls}"><b>${names}</b> (${d1ind.total} pts) — ${pts}</span></div>`;
         }
 
+        // Day 2 match results
+        const d2 = scoring.calcDay2();
+        if (d2.hsFront !== 0 || d2.jdFront !== 0 || d2.hsBack !== 0 || d2.jdBack !== 0) {
+            const fWin = d2.hsFront < d2.jdFront ? 'hs' : (d2.jdFront < d2.hsFront ? 'jd' : 'tie');
+            const bWin = d2.hsBack < d2.jdBack ? 'hs' : (d2.jdBack < d2.hsBack ? 'jd' : 'tie');
+            const oWin = (d2.hsFront + d2.hsBack) < (d2.jdFront + d2.jdBack) ? 'hs' : ((d2.jdFront + d2.jdBack) < (d2.hsFront + d2.hsBack) ? 'jd' : 'tie');
+            const fmtWin = (w) => w === 'hs' ? '<span class="hs-pts">HS</span>' : (w === 'jd' ? '<span class="jd-pts">JD</span>' : 'Tied');
+            bonusHtml += `<div class="bonus-leader-row"><span class="bonus-label">D2 Nines:</span> Front: ${fmtWin(fWin)} (${d2.hsFront} vs ${d2.jdFront}) | Back: ${fmtWin(bWin)} (${d2.hsBack} vs ${d2.jdBack}) | Overall: ${fmtWin(oWin)}</div>`;
+        }
+
+        // Day 2 junk
+        if (d2.junkHs > 0 || d2.junkJd > 0) {
+            const jWin = d2.junkHs > d2.junkJd ? 'hs' : (d2.junkJd > d2.junkHs ? 'jd' : 'tie');
+            const jCls = jWin === 'hs' ? 'hs-pts' : (jWin === 'jd' ? 'jd-pts' : '');
+            bonusHtml += `<div class="bonus-leader-row"><span class="bonus-label">D2 Junk:</span> <span class="${jCls}">HS: ${d2.junkHs} | JD: ${d2.junkJd}</span></div>`;
+        }
+
+        // Day 2 individual net bonus
         const d2ind = scoring.calcDay2Individual();
         if (d2ind.winners.length > 0) {
             const names = d2ind.winners.map(w => allPlayers[w.playerKey].name.split(' ').pop()).join(', ');
-            const teamCls = d2ind.winners[0].team === 'hs' ? 'hs-pts' : (d2ind.winners.every(w => w.team === 'jd') ? 'jd-pts' : '');
+            const teamCls = d2ind.winners.every(w => w.team === 'hs') ? 'hs-pts' : (d2ind.winners.every(w => w.team === 'jd') ? 'jd-pts' : '');
             const pts = d2ind.winners.length > 1 ? `${(2 / d2ind.winners.length).toFixed(1)} pts each` : '2 pts';
             bonusHtml += `<div class="bonus-leader-row"><span class="bonus-label">D2 Best Net:</span> <span class="${teamCls}"><b>${names}</b> (${d2ind.total} net) — ${pts}</span></div>`;
         }
