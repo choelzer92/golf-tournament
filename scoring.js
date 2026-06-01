@@ -8,13 +8,24 @@ class TournamentScoring {
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
-                // Validate structure - if it's the old format, reset
-                if (parsed.day1 && parsed.day1.match1 && parsed.day1.match1.hs && Array.isArray(parsed.day1.match1.hs)) {
-                    return parsed;
-                }
+                if (this.validateScores(parsed)) return parsed;
             } catch(e) {}
         }
         return this.getDefaultScores();
+    }
+
+    validateScores(data) {
+        return data &&
+            data.day1 && data.day1.match1 && data.day1.match2 &&
+            data.day1.match1.hs && data.day1.match1.jd &&
+            data.day2 && data.day2.hs && data.day2.jd &&
+            data.day3 && data.day3.front && data.day3.back;
+    }
+
+    mergeWithDefaults(data) {
+        const defaults = this.getDefaultScores();
+        if (!data || !this.validateScores(data)) return defaults;
+        return data;
     }
 
     getDefaultScores() {

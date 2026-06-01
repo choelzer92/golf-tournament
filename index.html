@@ -299,10 +299,13 @@
             window.firebaseSave = saveScores;
             onScoresUpdate((data) => {
                 const scoring = window.tournamentScoring;
-                if (scoring) {
+                if (scoring && data && scoring.validateScores(data)) {
                     scoring.scores = data;
                     localStorage.setItem('golf-tournament-2026', JSON.stringify(data));
                     if (window.renderAll) window.renderAll();
+                } else if (scoring && (!data || Object.keys(data).length === 0)) {
+                    // Firebase is empty, push our defaults
+                    saveScores(scoring.scores);
                 }
             });
         }
