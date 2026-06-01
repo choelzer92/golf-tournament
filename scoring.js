@@ -5,7 +5,15 @@ class TournamentScoring {
 
     loadScores() {
         const saved = localStorage.getItem('golf-tournament-2026');
-        if (saved) return JSON.parse(saved);
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                // Validate structure - if it's the old format, reset
+                if (parsed.day1 && parsed.day1.match1 && parsed.day1.match1.hs && Array.isArray(parsed.day1.match1.hs)) {
+                    return parsed;
+                }
+            } catch(e) {}
+        }
         return this.getDefaultScores();
     }
 

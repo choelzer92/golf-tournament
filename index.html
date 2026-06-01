@@ -275,9 +275,10 @@
     <script type="module">
         import { saveScores, onScoresUpdate } from './firebase.js';
 
-        (async () => {
+        async function init() {
             if (await checkAuth()) {
                 showApp();
+                if (window.renderAll) window.renderAll();
             } else {
                 showLoginScreen();
             }
@@ -285,6 +286,7 @@
                 const pin = document.getElementById('pin-input').value;
                 if (await attemptLogin(pin)) {
                     showApp();
+                    if (window.renderAll) window.renderAll();
                 } else {
                     document.getElementById('pin-error').textContent = 'Wrong PIN';
                 }
@@ -303,7 +305,13 @@
                     if (window.renderAll) window.renderAll();
                 }
             });
-        })();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
     </script>
 </body>
 </html>
