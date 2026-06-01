@@ -415,10 +415,12 @@ class TournamentScoring {
                 else { mHs += 0.5; mJd += 0.5; }
             }
 
-            // Match bonus
-            if (mHs > mJd) mHs += 1;
-            else if (mJd > mHs) mJd += 1;
-            else { mHs += 0.5; mJd += 0.5; }
+            // Match bonus - only if holes were played
+            if (mHs > 0 || mJd > 0) {
+                if (mHs > mJd) mHs += 1;
+                else if (mJd > mHs) mJd += 1;
+                else { mHs += 0.5; mJd += 0.5; }
+            }
 
             hsTotalPts += mHs;
             jdTotalPts += mJd;
