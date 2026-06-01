@@ -122,11 +122,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const rankings = scoring.calcDay1AllIndividuals();
         let indHtml = '';
         if (rankings.length > 0 && rankings[0].holesPlayed > 0) {
+            const topTotal = rankings[0].total;
             indHtml = '<div class="individual-rankings">';
             rankings.forEach((r, idx) => {
                 const name = allPlayers[r.playerKey].name;
                 const cls = r.team === 'hs' ? 'hs-pts' : 'jd-pts';
-                const leader = idx === 0 ? ' leader' : '';
+                const leader = r.total === topTotal ? ' leader' : '';
                 indHtml += `<div class="ind-row${leader}">
                     <span class="ind-rank">${idx + 1}.</span>
                     <span class="ind-name ${cls}">${name}</span>

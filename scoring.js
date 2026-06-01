@@ -126,10 +126,12 @@ class TournamentScoring {
     }
 
     calcDay1Individual() {
-        if (!this.scores.day1) return { player: null, total: 0, team: null };
+        if (!this.scores.day1) return { winners: [], total: 0 };
         const rankings = this.calcDay1AllIndividuals();
-        if (rankings.length === 0) return { player: null, total: 0, team: null };
-        return { player: rankings[0].playerKey, total: rankings[0].total, team: rankings[0].team };
+        if (rankings.length === 0 || rankings[0].holesPlayed === 0) return { winners: [], total: 0 };
+        const topTotal = rankings[0].total;
+        const winners = rankings.filter(r => r.total === topTotal && r.holesPlayed > 0);
+        return { winners, total: topTotal };
     }
 
     calcDay1AllIndividuals() {
@@ -502,9 +504,12 @@ class TournamentScoring {
 
         let d1hs = d1m1.hsPoints + d1m2.hsPoints;
         let d1jd = d1m1.jdPoints + d1m2.jdPoints;
-        if (d1ind.player) {
-            if (d1ind.team === 'hs') d1hs += 2;
-            else if (d1ind.team === 'jd') d1jd += 2;
+        if (d1ind.winners.length > 0) {
+            const hsWinners = d1ind.winners.filter(w => w.team === 'hs').length;
+            const jdWinners = d1ind.winners.filter(w => w.team === 'jd').length;
+            const totalTied = d1ind.winners.length;
+            d1hs += (2 * hsWinners) / totalTied;
+            d1jd += (2 * jdWinners) / totalTied;
         }
 
         const d2 = this.calcDay2();
