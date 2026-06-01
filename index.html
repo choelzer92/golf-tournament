@@ -297,16 +297,27 @@
 
             // Sync with Firebase
             window.firebaseSave = saveScores;
+
+            // Reset Firebase with clean default data
+            const scoring = window.tournamentScoring;
+            if (scoring) {
+                scoring.scores = scoring.getDefaultScores();
+                scoring.saveScores();
+            }
+
             onScoresUpdate((data) => {
-                const scoring = window.tournamentScoring;
-                if (scoring && data && scoring.validateScores(data)) {
-                    scoring.scores = data;
+                const s = window.tournamentScoring;
+                if (!s) return;
+                if (data && s.validateScores(data)) {
+                    s.scores = data;
                     localStorage.setItem('golf-tournament-2026', JSON.stringify(data));
-                    if (window.renderAll) window.renderAll();
-                } else if (scoring && (!data || Object.keys(data).length === 0)) {
-                    // Firebase is empty, push our defaults
-                    saveScores(scoring.scores);
+                } else {
+                    // Bad or empty data, push defaults
+                    s.scores = s.getDefaultScores();
+                    saveScores(s.scores);
+                    localStorage.setItem('golf-tournament-2026', JSON.stringify(s.scores));
                 }
+                if (window.renderAll) window.renderAll();
             });
         }
 

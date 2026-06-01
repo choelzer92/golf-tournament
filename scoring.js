@@ -92,6 +92,7 @@ class TournamentScoring {
 
     // ==================== DAY 1 ====================
     calcDay1Match(matchKey) {
+        if (!this.scores.day1 || !this.scores.day1[matchKey]) return { hsPoints: 0, jdPoints: 0, holesPlayed: 0 };
         const match = matchKey === 'match1' ? CONFIG.days.day1.matches[0] : CONFIG.days.day1.matches[1];
         const course = CONFIG.courses[CONFIG.days.day1.course];
         let hsPoints = 0, jdPoints = 0, holesPlayed = 0;
@@ -125,6 +126,7 @@ class TournamentScoring {
     }
 
     calcDay1Individual() {
+        if (!this.scores.day1) return { player: null, total: 0, team: null };
         const course = CONFIG.courses[CONFIG.days.day1.course];
         const totals = {};
 
@@ -162,6 +164,7 @@ class TournamentScoring {
 
     // ==================== DAY 2 ====================
     calcDay2() {
+        if (!this.scores.day2 || !this.scores.day2.hs || !this.scores.day2.jd) return { hsPoints: 0, jdPoints: 0, hsFront: 0, jdFront: 0, hsBack: 0, jdBack: 0 };
         const course = CONFIG.courses[CONFIG.days.day2.course];
         const hsPlayers = ['bodner', 'burns', 'smith', 'ross'];
         const jdPlayers = ['craig', 'casey', 'enterlin', 'lacy'];
@@ -245,6 +248,7 @@ class TournamentScoring {
 
     // ==================== DAY 3 FRONT ====================
     calcDay3Front() {
+        if (!this.scores.day3 || !this.scores.day3.front) return { hsPoints: 0, jdPoints: 0 };
         const course = CONFIG.courses[CONFIG.days.day3.course];
         let hsTotalPts = 0, jdTotalPts = 0;
 
@@ -303,6 +307,7 @@ class TournamentScoring {
 
     // ==================== DAY 3 BACK ====================
     calcDay3Back() {
+        if (!this.scores.day3 || !this.scores.day3.back) return { hsPoints: 0, jdPoints: 0 };
         const course = CONFIG.courses[CONFIG.days.day3.course];
         let hsTotalPts = 0, jdTotalPts = 0;
 
