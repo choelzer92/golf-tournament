@@ -1,0 +1,219 @@
+const PAIRINGS_KEY = 'golf-tournament-2026-pairings';
+
+function getDefaultPairings() {
+    return {
+        day1: {
+            matches: [
+                { hs: ["bodner", "keith"], jd: ["craig", "casey"] },
+                { hs: ["burns", "smith"], jd: ["enterlin", "lacy"] }
+            ]
+        },
+        day3: {
+            front: [
+                { hs: ["bodner", "smith"], jd: ["craig", "lacy"] },
+                { hs: ["burns", "ross"], jd: ["enterlin", "casey"] }
+            ],
+            back: [
+                { hs: "bodner", jd: "craig" },
+                { hs: "smith", jd: "lacy" },
+                { hs: "burns", jd: "enterlin" },
+                { hs: "ross", jd: "casey" }
+            ]
+        }
+    };
+}
+
+function loadPairings() {
+    const saved = localStorage.getItem(PAIRINGS_KEY);
+    if (saved) {
+        try { return JSON.parse(saved); } catch(e) {}
+    }
+    return getDefaultPairings();
+}
+
+function savePairings(pairings) {
+    localStorage.setItem(PAIRINGS_KEY, JSON.stringify(pairings));
+    if (window.firebaseSavePairings) {
+        window.firebaseSavePairings(pairings);
+    }
+}
+
+function applyPairings() {
+    const p = loadPairings();
+    CONFIG.days.day1.matches[0].hs = p.day1.matches[0].hs;
+    CONFIG.days.day1.matches[0].jd = p.day1.matches[0].jd;
+    CONFIG.days.day1.matches[1].hs = p.day1.matches[1].hs;
+    CONFIG.days.day1.matches[1].jd = p.day1.matches[1].jd;
+    CONFIG.days.day3.front.matches[0].hs = p.day3.front[0].hs;
+    CONFIG.days.day3.front.matches[0].jd = p.day3.front[0].jd;
+    CONFIG.days.day3.front.matches[1].hs = p.day3.front[1].hs;
+    CONFIG.days.day3.front.matches[1].jd = p.day3.front[1].jd;
+    CONFIG.days.day3.back.matches[0].hs = p.day3.back[0].hs;
+    CONFIG.days.day3.back.matches[0].jd = p.day3.back[0].jd;
+    CONFIG.days.day3.back.matches[1].hs = p.day3.back[1].hs;
+    CONFIG.days.day3.back.matches[1].jd = p.day3.back[1].jd;
+    CONFIG.days.day3.back.matches[2].hs = p.day3.back[2].hs;
+    CONFIG.days.day3.back.matches[2].jd = p.day3.back[2].jd;
+    CONFIG.days.day3.back.matches[3].hs = p.day3.back[3].hs;
+    CONFIG.days.day3.back.matches[3].jd = p.day3.back[3].jd;
+}
+
+function renderPairingsPage() {
+    const allPlayers = { ...CONFIG.teams.hogSuckers.players, ...CONFIG.teams.junkyardDawgs.players };
+    const pairings = loadPairings();
+    const container = document.getElementById('pairings-content');
+
+    let html = '';
+
+    // Day 1
+    html += '<div class="pairings-day"><h3>Day 1 - Old Trail</h3>';
+    html += '<p class="pairings-format">2v2 Combined Stableford</p>';
+    for (let m = 0; m < 2; m++) {
+        const match = pairings.day1.matches[m];
+        html += `<div class="pairings-match" data-day="1" data-match="${m}">`;
+        html += `<div class="pairings-match-header">Match ${m + 1}</div>`;
+        html += '<div class="pairings-teams">';
+        html += renderTeamSlots('hs', match.hs, allPlayers, `d1m${m}`);
+        html += '<div class="pairings-vs">vs</div>';
+        html += renderTeamSlots('jd', match.jd, allPlayers, `d1m${m}`);
+        html += '</div></div>';
+    }
+    html += '</div>';
+
+    // Day 2 - no pairings needed (all 8 play together)
+    html += '<div class="pairings-day"><h3>Day 2 - Spring Creek</h3>';
+    html += '<p class="pairings-format">All players play together (no pairings needed)</p></div>';
+
+    // Day 3 Front
+    html += '<div class="pairings-day"><h3>Day 3 Front 9 - Glenmore</h3>';
+    html += '<p class="pairings-format">2v2 Best Ball Match Play</p>';
+    for (let m = 0; m < 2; m++) {
+        const match = pairings.day3.front[m];
+        html += `<div class="pairings-match" data-day="3f" data-match="${m}">`;
+        html += `<div class="pairings-match-header">Match ${String.fromCharCode(65 + m)}</div>`;
+        html += '<div class="pairings-teams">';
+        html += renderTeamSlots('hs', match.hs, allPlayers, `d3f${m}`);
+        html += '<div class="pairings-vs">vs</div>';
+        html += renderTeamSlots('jd', match.jd, allPlayers, `d3f${m}`);
+        html += '</div></div>';
+    }
+    html += '</div>';
+
+    // Day 3 Back
+    html += '<div class="pairings-day"><h3>Day 3 Back 9 - Glenmore</h3>';
+    html += '<p class="pairings-format">1v1 Match Play</p>';
+    for (let m = 0; m < 4; m++) {
+        const match = pairings.day3.back[m];
+        html += `<div class="pairings-match" data-day="3b" data-match="${m}">`;
+        html += `<div class="pairings-match-header">Match ${m + 1}</div>`;
+        html += '<div class="pairings-teams">';
+        html += renderTeamSlots('hs', [match.hs], allPlayers, `d3b${m}`);
+        html += '<div class="pairings-vs">vs</div>';
+        html += renderTeamSlots('jd', [match.jd], allPlayers, `d3b${m}`);
+        html += '</div></div>';
+    }
+    html += '</div>';
+
+    html += '<div class="pairings-actions">';
+    html += '<button id="pairings-save-btn" class="pairings-save-btn">Save Pairings</button>';
+    html += '<button id="pairings-reset-btn" class="pairings-reset-btn">Reset to Default</button>';
+    html += '</div>';
+
+    container.innerHTML = html;
+    attachPairingsEvents(container, pairings, allPlayers);
+}
+
+function renderTeamSlots(team, players, allPlayers, prefix) {
+    const teamClass = team === 'hs' ? 'pairings-hs' : 'pairings-jd';
+    const teamPlayers = team === 'hs' ? CONFIG.teams.hogSuckers.players : CONFIG.teams.junkyardDawgs.players;
+    let html = `<div class="pairings-team-col ${teamClass}">`;
+    for (let i = 0; i < players.length; i++) {
+        const playerKey = players[i];
+        const player = allPlayers[playerKey];
+        html += `<div class="pairings-slot" data-prefix="${prefix}" data-team="${team}" data-slot="${i}">`;
+        html += `<select class="pairings-select" data-prefix="${prefix}" data-team="${team}" data-slot="${i}">`;
+        for (const [key, p] of Object.entries(teamPlayers)) {
+            const selected = key === playerKey ? ' selected' : '';
+            html += `<option value="${key}"${selected}>${p.name} (${p.index})</option>`;
+        }
+        html += '</select></div>';
+    }
+    html += '</div>';
+    return html;
+}
+
+function attachPairingsEvents(container, pairings, allPlayers) {
+    container.querySelectorAll('.pairings-select').forEach(select => {
+        select.addEventListener('change', () => {
+            // Mark unsaved changes
+            document.getElementById('pairings-save-btn').classList.add('unsaved');
+        });
+    });
+
+    document.getElementById('pairings-save-btn').addEventListener('click', async () => {
+        const pin = prompt('Enter PIN to save pairings:');
+        if (!pin) return;
+        const valid = await attemptLogin(pin);
+        if (!valid) {
+            alert('Invalid PIN');
+            return;
+        }
+        if (!confirm('Are you sure you want to change the pairings? This will affect all scoring.')) return;
+
+        const updated = readPairingsFromUI();
+        savePairings(updated);
+        applyPairings();
+        document.getElementById('pairings-save-btn').classList.remove('unsaved');
+        if (window.renderAll) window.renderAll();
+        alert('Pairings saved!');
+    });
+
+    document.getElementById('pairings-reset-btn').addEventListener('click', async () => {
+        const pin = prompt('Enter PIN to reset pairings:');
+        if (!pin) return;
+        const valid = await attemptLogin(pin);
+        if (!valid) {
+            alert('Invalid PIN');
+            return;
+        }
+        if (!confirm('Reset all pairings to defaults?')) return;
+
+        const defaults = getDefaultPairings();
+        savePairings(defaults);
+        applyPairings();
+        renderPairingsPage();
+        if (window.renderAll) window.renderAll();
+        alert('Pairings reset to defaults!');
+    });
+}
+
+function readPairingsFromUI() {
+    const pairings = { day1: { matches: [{}, {}] }, day3: { front: [{}, {}], back: [{}, {}, {}, {}] } };
+
+    // Day 1
+    for (let m = 0; m < 2; m++) {
+        pairings.day1.matches[m].hs = getSelectValues(`d1m${m}`, 'hs');
+        pairings.day1.matches[m].jd = getSelectValues(`d1m${m}`, 'jd');
+    }
+
+    // Day 3 Front
+    for (let m = 0; m < 2; m++) {
+        pairings.day3.front[m].hs = getSelectValues(`d3f${m}`, 'hs');
+        pairings.day3.front[m].jd = getSelectValues(`d3f${m}`, 'jd');
+    }
+
+    // Day 3 Back
+    for (let m = 0; m < 4; m++) {
+        const hsVals = getSelectValues(`d3b${m}`, 'hs');
+        const jdVals = getSelectValues(`d3b${m}`, 'jd');
+        pairings.day3.back[m].hs = hsVals[0];
+        pairings.day3.back[m].jd = jdVals[0];
+    }
+
+    return pairings;
+}
+
+function getSelectValues(prefix, team) {
+    const selects = document.querySelectorAll(`.pairings-select[data-prefix="${prefix}"][data-team="${team}"]`);
+    return Array.from(selects).map(s => s.value);
+}

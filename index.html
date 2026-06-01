@@ -29,6 +29,7 @@
             <button class="nav-btn" data-view="day1">Day 1</button>
             <button class="nav-btn" data-view="day2">Day 2</button>
             <button class="nav-btn" data-view="day3">Day 3</button>
+            <button class="nav-btn" data-view="pairings">Pairings</button>
             <button class="nav-btn" data-view="rules">Rules</button>
         </nav>
     </header>
@@ -190,6 +191,13 @@
                 </div>
             </div>
         </section>
+        <section id="pairings" class="view">
+            <div class="day-header">
+                <h2>Pairings</h2>
+                <p class="subtitle">Adjust foursomes and matchups per day</p>
+            </div>
+            <div id="pairings-content"></div>
+        </section>
         <section id="rules" class="view">
             <div class="day-header">
                 <h2>Tournament Format</h2>
@@ -280,10 +288,11 @@
 
     <script src="auth.js"></script>
     <script src="config.js"></script>
+    <script src="pairings.js"></script>
     <script src="scoring.js"></script>
     <script src="app.js"></script>
     <script type="module">
-        import { saveScores, onScoresUpdate } from './firebase.js';
+        import { saveScores, savePairings, onScoresUpdate, onPairingsUpdate } from './firebase.js';
 
         async function init() {
             if (await checkAuth()) {
@@ -307,6 +316,15 @@
 
             // Sync with Firebase
             window.firebaseSave = saveScores;
+            window.firebaseSavePairings = savePairings;
+
+            onPairingsUpdate((data) => {
+                if (data) {
+                    localStorage.setItem('golf-tournament-2026-pairings', JSON.stringify(data));
+                    applyPairings();
+                    if (window.renderAll) window.renderAll();
+                }
+            });
 
             // Force reset Firebase with clean data on first load
             const sc = window.tournamentScoring;

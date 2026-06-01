@@ -19,8 +19,19 @@ export function saveScores(scores) {
     set(ref(db, 'scores'), scores);
 }
 
+export function savePairings(pairings) {
+    set(ref(db, 'pairings'), pairings);
+}
+
 export function onScoresUpdate(callback) {
     onValue(ref(db, 'scores'), (snapshot) => {
+        const data = snapshot.val();
+        if (data) callback(data);
+    });
+}
+
+export function onPairingsUpdate(callback) {
+    onValue(ref(db, 'pairings'), (snapshot) => {
         const data = snapshot.val();
         if (data) callback(data);
     });
