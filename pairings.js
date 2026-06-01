@@ -76,12 +76,16 @@ function updateMatchHeaders() {
         }
     }
 
-    // Day 3 front match headers
+    // Day 3 front match headers (also serves as group header in scorer mode)
     for (let m = 0; m < 2; m++) {
         const match = CONFIG.days.day3.front.matches[m];
         const el = document.getElementById(`d3-front-match${m + 1}-teams`);
         if (el) {
             el.innerHTML = `<span class="team-label hs">${fmt(match.hs)}</span><span class="vs-small">vs</span><span class="team-label jd">${fmt(match.jd)}</span>`;
+        }
+        const headerEl = document.getElementById(`d3-front-match${m + 1}-header`);
+        if (headerEl) {
+            headerEl.textContent = `Group ${m + 1}`;
         }
     }
 

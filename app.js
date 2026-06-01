@@ -455,37 +455,257 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderDay3() {
         const course = CONFIG.courses[CONFIG.days.day3.course];
 
-        // Front 9 matches
-        for (let m = 0; m < 2; m++) {
-            const matchEl = document.getElementById(`d3-front-match${m + 1}`);
-            const container = matchEl.querySelector('.scorecard-container');
-            const matchKey = `match${m + 1}`;
-            const holeKey = `day3f${m + 1}`;
-            const matchConfig = CONFIG.days.day3.front.matches[m];
-
-            if (scorerMode) {
-                container.innerHTML = renderDay3FrontScorer(m, matchKey, holeKey, matchConfig, course);
-                attachDay3FrontEvents(m, matchKey, holeKey, matchConfig, course);
-            } else {
+        if (scorerMode) {
+            // Unified scorer: 2 groups, 18 holes each, 4 players per group
+            for (let m = 0; m < 2; m++) {
+                const matchEl = document.getElementById(`d3-front-match${m + 1}`);
+                const container = matchEl.querySelector('.scorecard-container');
+                const matchConfig = CONFIG.days.day3.front.matches[m];
+                const matchKey = `match${m + 1}`;
+                const holeKey = `day3f${m + 1}`;
+                container.innerHTML = renderDay3GroupScorer(m, matchKey, holeKey, matchConfig, course);
+                attachDay3GroupEvents(m, matchKey, holeKey, matchConfig, course);
+            }
+            // Hide back 9 match containers in scorer mode
+            for (let m = 0; m < 4; m++) {
+                const matchEl = document.getElementById(`d3-back-match${m + 1}`);
+                if (matchEl) matchEl.style.display = 'none';
+            }
+            // Hide the back 9 header
+            document.querySelectorAll('#day3 .nine-header').forEach((el, idx) => {
+                if (idx === 1) el.style.display = 'none';
+            });
+        } else {
+            // View mode: show front and back separately as before
+            for (let m = 0; m < 2; m++) {
+                const matchEl = document.getElementById(`d3-front-match${m + 1}`);
+                const container = matchEl.querySelector('.scorecard-container');
+                const matchKey = `match${m + 1}`;
+                const matchConfig = CONFIG.days.day3.front.matches[m];
                 container.innerHTML = renderDay3FrontView(m, matchKey, matchConfig, course);
             }
-        }
-
-        // Back 9 matches
-        for (let m = 0; m < 4; m++) {
-            const matchEl = document.getElementById(`d3-back-match${m + 1}`);
-            const container = matchEl.querySelector('.scorecard-container');
-            const matchKey = `match${m + 1}`;
-            const holeKey = `day3b${m + 1}`;
-            const matchConfig = CONFIG.days.day3.back.matches[m];
-
-            if (scorerMode) {
-                container.innerHTML = renderDay3BackScorer(m, matchKey, holeKey, matchConfig, course);
-                attachDay3BackEvents(m, matchKey, holeKey, matchConfig, course);
-            } else {
+            for (let m = 0; m < 4; m++) {
+                const matchEl = document.getElementById(`d3-back-match${m + 1}`);
+                if (matchEl) matchEl.style.display = '';
+                const container = matchEl.querySelector('.scorecard-container');
+                const matchKey = `match${m + 1}`;
+                const matchConfig = CONFIG.days.day3.back.matches[m];
                 container.innerHTML = renderDay3BackView(m, matchKey, matchConfig, course);
             }
+            document.querySelectorAll('#day3 .nine-header').forEach(el => el.style.display = '');
         }
+    }
+
+    function renderDay3GroupScorer(matchIdx, matchKey, holeKey, matchConfig, course) {
+        const hole = currentHole[holeKey];
+        const par = course.pars[hole];
+        const strokeIdx = course.strokeIndex[hole];
+
+        // Determine which data to use based on front/back
+        const isFront = hole < 9;
+        let holeScores;
+        if (isFront) {
+            holeScores = scoring.scores.day3.front[matchKey][hole] || [null, null, null, null];
+        } else {
+            // Back 9: reconstruct from back match data
+            const backHole = hole - 9;
+            const backMatch1Key = `match${matchIdx * 2 + 1}`;
+            const backMatch2Key = `match${matchIdx * 2 + 2}`;
+            const bm1 = scoring.scores.day3.back[backMatch1Key][backHole] || [null, null];
+            const bm2 = scoring.scores.day3.back[backMatch2Key][backHole] || [null, null];
+            holeScores = [bm1[0], bm2[0], bm1[1], bm2[1]];
+        }
+
+        // Handicap info for display
+        const allMatchPlayers = [...matchConfig.hs, ...matchConfig.jd];
+        const frontHcaps = allMatchPlayers.map(p => getPlayerCourseHcap(p, CONFIG.days.day3.course, CONFIG.days.day3.front.allowance));
+        const lowestFrontHcap = Math.min(...frontHcaps);
+
+        let html = renderHoleNav(holeKey, hole, 17);
+        html += `<div class="hole-par-info">Par ${par} | Stroke Index ${strokeIdx} | ${isFront ? 'Front 9 (Best Ball)' : 'Back 9 (1v1)'}</div>`;
+        html += renderDots(holeKey, 18, hole, (h) => {
+            if (h < 9) {
+                const s = scoring.scores.day3.front[matchKey][h];
+                return s && s.some(v => v !== null);
+            } else {
+                const bh = h - 9;
+                const bk1 = `match${matchIdx * 2 + 1}`;
+                const bk2 = `match${matchIdx * 2 + 2}`;
+                const s1 = scoring.scores.day3.back[bk1][bh];
+                const s2 = scoring.scores.day3.back[bk2][bh];
+                return (s1 && s1.some(v => v !== null)) || (s2 && s2.some(v => v !== null));
+            }
+        });
+
+        html += '<div class="player-scores">';
+
+        // HS players
+        html += '<div class="team-section hs-section"><div class="team-section-label">Hog Suckers</div>';
+        for (let p = 0; p < 2; p++) {
+            const playerKey = matchConfig.hs[p];
+            let hcapDisplay, strokesDisplay;
+            if (isFront) {
+                const hcap = getPlayerCourseHcap(playerKey, CONFIG.days.day3.course, CONFIG.days.day3.front.allowance);
+                const adj = hcap - lowestFrontHcap;
+                const strokes = getStrokesOnHole(adj, strokeIdx);
+                hcapDisplay = `${adj} off low`;
+                strokesDisplay = strokes;
+            } else {
+                const hsHcap = getPlayerCourseHcap(matchConfig.hs[p], CONFIG.days.day3.course, 1.0);
+                const jdHcap = getPlayerCourseHcap(matchConfig.jd[p], CONFIG.days.day3.course, 1.0);
+                const diff = Math.abs(hsHcap - jdHcap);
+                const hsGetsStrokes = hsHcap > jdHcap;
+                const strokes = hsGetsStrokes ? getStrokesOnHole(diff, strokeIdx) : 0;
+                hcapDisplay = `${hsHcap} hcp`;
+                strokesDisplay = strokes;
+            }
+            const currentVal = holeScores[p];
+            const netScore = currentVal !== null ? currentVal - strokesDisplay : null;
+
+            html += `<div class="player-row">
+                <div class="player-info">
+                    <span class="player-name">${allPlayers[playerKey].name}</span>
+                    <span class="player-hcap">${hcapDisplay}${strokesDisplay > 0 ? ' | <b class="stroke-dot">+' + strokesDisplay + '</b>' : ''}</span>
+                </div>
+                <div class="score-buttons">
+                    ${renderScoreButtons(`data-day="3g" data-match="${matchKey}" data-group="${matchIdx}" data-hole="${hole}" data-player="${p}"`, currentVal, par)}
+                </div>
+                ${currentVal !== null ? `<div class="stableford-result visible">Net: ${netScore}</div>` : ''}
+            </div>`;
+        }
+        html += '</div>';
+
+        // JD players
+        html += '<div class="team-section jd-section"><div class="team-section-label">Junkyard Dawgs</div>';
+        for (let p = 0; p < 2; p++) {
+            const playerKey = matchConfig.jd[p];
+            let hcapDisplay, strokesDisplay;
+            if (isFront) {
+                const hcap = getPlayerCourseHcap(playerKey, CONFIG.days.day3.course, CONFIG.days.day3.front.allowance);
+                const adj = hcap - lowestFrontHcap;
+                const strokes = getStrokesOnHole(adj, strokeIdx);
+                hcapDisplay = `${adj} off low`;
+                strokesDisplay = strokes;
+            } else {
+                const jdHcap = getPlayerCourseHcap(matchConfig.jd[p], CONFIG.days.day3.course, 1.0);
+                const hsHcap = getPlayerCourseHcap(matchConfig.hs[p], CONFIG.days.day3.course, 1.0);
+                const diff = Math.abs(hsHcap - jdHcap);
+                const jdGetsStrokes = jdHcap > hsHcap;
+                const strokes = jdGetsStrokes ? getStrokesOnHole(diff, strokeIdx) : 0;
+                hcapDisplay = `${jdHcap} hcp`;
+                strokesDisplay = strokes;
+            }
+            const currentVal = holeScores[p + 2];
+            const netScore = currentVal !== null ? currentVal - strokesDisplay : null;
+
+            html += `<div class="player-row">
+                <div class="player-info">
+                    <span class="player-name">${allPlayers[playerKey].name}</span>
+                    <span class="player-hcap">${hcapDisplay}${strokesDisplay > 0 ? ' | <b class="stroke-dot">+' + strokesDisplay + '</b>' : ''}</span>
+                </div>
+                <div class="score-buttons">
+                    ${renderScoreButtons(`data-day="3g" data-match="${matchKey}" data-group="${matchIdx}" data-hole="${hole}" data-player="${p + 2}"`, currentVal, par)}
+                </div>
+                ${currentVal !== null ? `<div class="stableford-result visible">Net: ${netScore}</div>` : ''}
+            </div>`;
+        }
+        html += '</div></div>';
+
+        // Hole result
+        if (isFront) {
+            const result = scoring.getDay3FrontHoleResult(matchIdx, hole);
+            if (result) {
+                let cls = 'halve-result', txt = 'Halved';
+                if (result === 'hs') { cls = 'hs-result'; txt = 'Hog Suckers win hole'; }
+                else if (result === 'jd') { cls = 'jd-result'; txt = 'Junkyard Dawgs win hole'; }
+                html += `<div class="hole-result ${cls}">${txt}</div>`;
+            }
+            let mHs = 0, mJd = 0;
+            for (let h = 0; h < 9; h++) {
+                const r = scoring.getDay3FrontHoleResult(matchIdx, h);
+                if (r === 'hs') mHs += 1;
+                else if (r === 'jd') mJd += 1;
+                else if (r === 'halve') { mHs += 0.5; mJd += 0.5; }
+            }
+            html += `<div class="match-status"><span class="hs-pts">HS: ${mHs}</span><span class="jd-pts">JD: ${mJd}</span></div>`;
+        } else {
+            // Show both 1v1 results for this hole
+            const backHole = hole - 9;
+            const bm1Idx = matchIdx * 2;
+            const bm2Idx = matchIdx * 2 + 1;
+            const r1 = scoring.getDay3BackHoleResult(bm1Idx, backHole);
+            const r2 = scoring.getDay3BackHoleResult(bm2Idx, backHole);
+            const p1hs = allPlayers[matchConfig.hs[0]].name.split(' ').pop();
+            const p1jd = allPlayers[matchConfig.jd[0]].name.split(' ').pop();
+            const p2hs = allPlayers[matchConfig.hs[1]].name.split(' ').pop();
+            const p2jd = allPlayers[matchConfig.jd[1]].name.split(' ').pop();
+
+            let r1html = '', r2html = '';
+            if (r1) {
+                if (r1 === 'hs') r1html = `<span class="hs-pts">${p1hs} wins</span>`;
+                else if (r1 === 'jd') r1html = `<span class="jd-pts">${p1jd} wins</span>`;
+                else r1html = 'Halved';
+            }
+            if (r2) {
+                if (r2 === 'hs') r2html = `<span class="hs-pts">${p2hs} wins</span>`;
+                else if (r2 === 'jd') r2html = `<span class="jd-pts">${p2jd} wins</span>`;
+                else r2html = 'Halved';
+            }
+            html += `<div class="hole-result">${p1hs} vs ${p1jd}: ${r1html || '—'} | ${p2hs} vs ${p2jd}: ${r2html || '—'}</div>`;
+
+            // Running totals for back 9 matches
+            let m1Hs = 0, m1Jd = 0, m2Hs = 0, m2Jd = 0;
+            for (let h = 0; h < 9; h++) {
+                const res1 = scoring.getDay3BackHoleResult(bm1Idx, h);
+                if (res1 === 'hs') m1Hs += 1; else if (res1 === 'jd') m1Jd += 1; else if (res1 === 'halve') { m1Hs += 0.5; m1Jd += 0.5; }
+                const res2 = scoring.getDay3BackHoleResult(bm2Idx, h);
+                if (res2 === 'hs') m2Hs += 1; else if (res2 === 'jd') m2Jd += 1; else if (res2 === 'halve') { m2Hs += 0.5; m2Jd += 0.5; }
+            }
+            html += `<div class="match-status">
+                <span>${p1hs}: ${m1Hs} vs ${p1jd}: ${m1Jd}</span> |
+                <span>${p2hs}: ${m2Hs} vs ${p2jd}: ${m2Jd}</span>
+            </div>`;
+        }
+
+        return html;
+    }
+
+    function attachDay3GroupEvents(matchIdx, matchKey, holeKey, matchConfig, course) {
+        document.querySelectorAll(`.score-btn[data-day="3g"][data-match="${matchKey}"]`).forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const hole = parseInt(e.target.dataset.hole);
+                const player = parseInt(e.target.dataset.player);
+                const score = parseInt(e.target.dataset.score);
+
+                if (hole < 9) {
+                    // Front 9: store in day3.front
+                    if (!scoring.scores.day3.front[matchKey][hole]) scoring.scores.day3.front[matchKey][hole] = [null, null, null, null];
+                    scoring.scores.day3.front[matchKey][hole][player] = scoring.scores.day3.front[matchKey][hole][player] === score ? null : score;
+                } else {
+                    // Back 9: store in day3.back (map 4 players to 2 matches)
+                    const backHole = hole - 9;
+                    const backMatch1Key = `match${matchIdx * 2 + 1}`;
+                    const backMatch2Key = `match${matchIdx * 2 + 2}`;
+                    if (player === 0) {
+                        if (!scoring.scores.day3.back[backMatch1Key][backHole]) scoring.scores.day3.back[backMatch1Key][backHole] = [null, null];
+                        scoring.scores.day3.back[backMatch1Key][backHole][0] = scoring.scores.day3.back[backMatch1Key][backHole][0] === score ? null : score;
+                    } else if (player === 1) {
+                        if (!scoring.scores.day3.back[backMatch2Key][backHole]) scoring.scores.day3.back[backMatch2Key][backHole] = [null, null];
+                        scoring.scores.day3.back[backMatch2Key][backHole][0] = scoring.scores.day3.back[backMatch2Key][backHole][0] === score ? null : score;
+                    } else if (player === 2) {
+                        if (!scoring.scores.day3.back[backMatch1Key][backHole]) scoring.scores.day3.back[backMatch1Key][backHole] = [null, null];
+                        scoring.scores.day3.back[backMatch1Key][backHole][1] = scoring.scores.day3.back[backMatch1Key][backHole][1] === score ? null : score;
+                    } else if (player === 3) {
+                        if (!scoring.scores.day3.back[backMatch2Key][backHole]) scoring.scores.day3.back[backMatch2Key][backHole] = [null, null];
+                        scoring.scores.day3.back[backMatch2Key][backHole][1] = scoring.scores.day3.back[backMatch2Key][backHole][1] === score ? null : score;
+                    }
+                }
+
+                scoring.saveScores();
+                renderAll();
+            });
+        });
+        attachNavEvents(holeKey, 17);
     }
 
     // Day 3 Front Scorer
