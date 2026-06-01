@@ -87,7 +87,8 @@ class TournamentScoring {
         if (diff === -1) return 3;
         if (diff === 0) return 2;
         if (diff === 1) return 1;
-        return 0;
+        if (diff === 2) return 0;
+        return -1;
     }
 
     // ==================== DAY 1 ====================
