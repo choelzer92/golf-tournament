@@ -459,6 +459,233 @@ main {
     font-size: 13px !important;
 }
 
+/* Hole-by-hole scorer */
+.hole-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.hole-nav-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: var(--green-dark);
+    color: white;
+    border-radius: 50%;
+    font-size: 20px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.hole-nav-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.hole-info {
+    text-align: center;
+}
+
+.hole-number {
+    display: block;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--green-dark);
+}
+
+.hole-par {
+    font-size: 13px;
+    color: var(--text-light);
+}
+
+.hole-dots {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #e0e0e0;
+    cursor: pointer;
+}
+
+.dot.filled {
+    background: var(--green-light);
+}
+
+.dot.current {
+    border: 2px solid var(--green-dark);
+    transform: scale(1.3);
+}
+
+.player-scores {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.team-section {
+    border-radius: 8px;
+    padding: 8px;
+}
+
+.hs-section {
+    background: rgba(192, 57, 43, 0.04);
+    border: 1px solid rgba(192, 57, 43, 0.15);
+}
+
+.jd-section {
+    background: rgba(41, 128, 185, 0.04);
+    border: 1px solid rgba(41, 128, 185, 0.15);
+}
+
+.team-section-label {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    padding-left: 4px;
+}
+
+.hs-section .team-section-label { color: var(--hs-color); }
+.jd-section .team-section-label { color: var(--jd-color); }
+
+.player-row {
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.player-row:last-child {
+    border-bottom: none;
+}
+
+.player-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.player-name {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.player-hcap {
+    font-size: 11px;
+    color: var(--text-light);
+}
+
+.stroke-dot {
+    color: var(--green-mid);
+    font-size: 12px;
+}
+
+.score-buttons {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.score-btn {
+    min-width: 36px;
+    height: 36px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    background: white;
+    transition: all 0.1s;
+}
+
+.score-btn.eagle-btn { border-color: #f0c040; }
+.score-btn.birdie-btn { border-color: #4caf50; }
+.score-btn.par-btn { border-color: #90caf9; }
+.score-btn.bogey-btn { border-color: #ffab91; }
+.score-btn.dbl-btn { border-color: #e57373; }
+
+.score-btn.selected {
+    color: white;
+}
+.score-btn.eagle-btn.selected { background: #f0c040; border-color: #f0c040; }
+.score-btn.birdie-btn.selected { background: #4caf50; border-color: #4caf50; }
+.score-btn.par-btn.selected { background: #42a5f5; border-color: #42a5f5; }
+.score-btn.bogey-btn.selected { background: #ff7043; border-color: #ff7043; }
+.score-btn.dbl-btn.selected { background: #e53935; border-color: #e53935; }
+
+.stableford-result {
+    font-size: 12px;
+    color: var(--text-light);
+    text-align: right;
+    padding-top: 4px;
+    visibility: hidden;
+}
+
+.stableford-result.visible {
+    visibility: visible;
+}
+
+.hole-result {
+    text-align: center;
+    padding: 10px;
+    border-radius: 8px;
+    margin-top: 12px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.hs-result { background: rgba(192, 57, 43, 0.1); color: var(--hs-color); }
+.jd-result { background: rgba(41, 128, 185, 0.1); color: var(--jd-color); }
+.halve-result { background: rgba(212, 168, 67, 0.1); color: #8b7020; }
+
+.hole-breakdown {
+    margin-top: 10px;
+    padding: 8px;
+    background: #f8f8f8;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.breakdown-team {
+    padding: 4px 0;
+}
+
+.hs-breakdown { color: var(--hs-color); }
+.jd-breakdown { color: var(--jd-color); }
+
+/* Summary holes (view mode) */
+.summary-holes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.summary-hole {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #f0f0f0;
+    color: var(--text-light);
+}
+
+.summary-hole.hs-win { background: var(--hs-color); color: white; }
+.summary-hole.jd-win { background: var(--jd-color); color: white; }
+.summary-hole.halved { background: var(--gold); color: white; }
+.summary-hole.filled { background: #c8e6c9; color: var(--green-dark); }
+
 /* Scorer mode grid */
 .scorer-grid {
     display: flex;
