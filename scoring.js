@@ -242,14 +242,62 @@ class TournamentScoring {
         else if (overallWinner === 'jd') jdPoints += s.overall;
         else { hsPoints += s.overall / 2; jdPoints += s.overall / 2; }
 
-        // Junk
-        const junkHs = this.scores.day2.junk.hs || 0;
-        const junkJd = this.scores.day2.junk.jd || 0;
-        if (junkHs > junkJd) hsPoints += s.junk;
-        else if (junkJd > junkHs) jdPoints += s.junk;
+        // Junk - auto-calculated from scores
+        const junk = this.calcDay2Junk();
+        if (junk.hs > junk.jd) hsPoints += s.junk;
+        else if (junk.jd > junk.hs) jdPoints += s.junk;
         else { hsPoints += s.junk / 2; jdPoints += s.junk / 2; }
 
-        return { hsPoints, jdPoints, hsFront, jdFront, hsBack, jdBack };
+        return { hsPoints, jdPoints, hsFront, jdFront, hsBack, jdBack, junkHs: junk.hs, junkJd: junk.jd, junkHsDetail: junk.hsDetail, junkJdDetail: junk.jdDetail };
+    }
+
+    calcDay2Junk() {
+        if (!this.scores.day2 || !this.scores.day2.hs || !this.scores.day2.jd) return { hs: 0, jd: 0, hsDetail: {}, jdDetail: {} };
+        const course = CONFIG.courses[CONFIG.days.day2.course];
+        const hsPlayers = ['bodner', 'burns', 'smith', 'ross'];
+        const jdPlayers = ['craig', 'casey', 'enterlin', 'lacy'];
+
+        let hsBirdies = 0, hsEagles = 0, hsGroupHugs = 0;
+        let jdBirdies = 0, jdEagles = 0, jdGroupHugs = 0;
+
+        for (let hole = 0; hole < 18; hole++) {
+            const par = course.pars[hole];
+            const hsHole = this.scores.day2.hs[hole];
+            const jdHole = this.scores.day2.jd[hole];
+
+            // HS junk
+            if (hsHole && hsHole.some(v => v !== null)) {
+                let allParOrBetter = true;
+                for (let p = 0; p < 4; p++) {
+                    if (hsHole[p] === null) { allParOrBetter = false; continue; }
+                    const diff = hsHole[p] - par;
+                    if (diff <= -2) hsEagles++;
+                    else if (diff === -1) hsBirdies++;
+                    if (diff > 0) allParOrBetter = false;
+                }
+                if (allParOrBetter && hsHole.every(v => v !== null)) hsGroupHugs++;
+            }
+
+            // JD junk
+            if (jdHole && jdHole.some(v => v !== null)) {
+                let allParOrBetter = true;
+                for (let p = 0; p < 4; p++) {
+                    if (jdHole[p] === null) { allParOrBetter = false; continue; }
+                    const diff = jdHole[p] - par;
+                    if (diff <= -2) jdEagles++;
+                    else if (diff === -1) jdBirdies++;
+                    if (diff > 0) allParOrBetter = false;
+                }
+                if (allParOrBetter && jdHole.every(v => v !== null)) jdGroupHugs++;
+            }
+        }
+
+        return {
+            hs: hsBirdies + (hsEagles * 2) + hsGroupHugs,
+            jd: jdBirdies + (jdEagles * 2) + jdGroupHugs,
+            hsDetail: { birdies: hsBirdies, eagles: hsEagles, groupHugs: hsGroupHugs },
+            jdDetail: { birdies: jdBirdies, eagles: jdEagles, groupHugs: jdGroupHugs }
+        };
     }
 
     // ==================== DAY 3 FRONT ====================

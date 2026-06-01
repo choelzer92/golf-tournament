@@ -277,22 +277,10 @@ document.addEventListener('DOMContentLoaded', () => {
             container.innerHTML = renderDay2View(course, hsPlayers, jdPlayers);
         }
 
-        // Junk
-        if (scorerMode) {
-            document.getElementById('d2-junk-hs').innerHTML = `<input type="number" class="junk-input" id="junk-hs-input" value="${scoring.scores.day2.junk.hs || 0}" inputmode="numeric">`;
-            document.getElementById('d2-junk-jd').innerHTML = `<input type="number" class="junk-input" id="junk-jd-input" value="${scoring.scores.day2.junk.jd || 0}" inputmode="numeric">`;
-            document.getElementById('junk-hs-input').addEventListener('change', (e) => {
-                scoring.scores.day2.junk.hs = parseInt(e.target.value) || 0;
-                scoring.saveScores(); renderLeaderboard();
-            });
-            document.getElementById('junk-jd-input').addEventListener('change', (e) => {
-                scoring.scores.day2.junk.jd = parseInt(e.target.value) || 0;
-                scoring.saveScores(); renderLeaderboard();
-            });
-        } else {
-            document.getElementById('d2-junk-hs').textContent = scoring.scores.day2.junk.hs || 0;
-            document.getElementById('d2-junk-jd').textContent = scoring.scores.day2.junk.jd || 0;
-        }
+        // Junk - auto-calculated
+        const junk = scoring.calcDay2Junk();
+        document.getElementById('d2-junk-hs').innerHTML = `<span class="junk-total">${junk.hs}</span><span class="junk-detail">${junk.hsDetail.birdies}B ${junk.hsDetail.eagles}E ${junk.hsDetail.groupHugs}GH</span>`;
+        document.getElementById('d2-junk-jd').innerHTML = `<span class="junk-total">${junk.jd}</span><span class="junk-detail">${junk.jdDetail.birdies}B ${junk.jdDetail.eagles}E ${junk.jdDetail.groupHugs}GH</span>`;
     }
 
     function renderDay2Scorer(course, hsPlayers, jdPlayers) {
