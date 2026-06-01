@@ -500,6 +500,23 @@ main {
     color: var(--text-light);
 }
 
+.hole-par-info {
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 8px;
+}
+
+.junk-input {
+    width: 60px;
+    height: 40px;
+    text-align: center;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 22px;
+    font-weight: 700;
+}
+
 .hole-dots {
     display: flex;
     justify-content: center;

@@ -6,15 +6,51 @@ class TournamentScoring {
     loadScores() {
         const saved = localStorage.getItem('golf-tournament-2026');
         if (saved) return JSON.parse(saved);
+        return this.getDefaultScores();
+    }
+
+    getDefaultScores() {
         return {
-            day1: { match1: { hs: Array(18).fill(null), jd: Array(18).fill(null) },
-                    match2: { hs: Array(18).fill(null), jd: Array(18).fill(null) },
-                    individual: {} },
-            day2: { hs: {}, jd: {}, junk: { hs: 0, jd: 0 } },
-            day3: { front: { match1: Array(9).fill(null), match2: Array(9).fill(null) },
-                    back: { match1: Array(9).fill(null), match2: Array(9).fill(null),
-                            match3: Array(9).fill(null), match4: Array(9).fill(null) } }
+            day1: {
+                match1: { hs: this.emptyHoles(18), jd: this.emptyHoles(18) },
+                match2: { hs: this.emptyHoles(18), jd: this.emptyHoles(18) }
+            },
+            day2: {
+                hs: this.emptyHoles4(18),
+                jd: this.emptyHoles4(18),
+                junk: { hs: 0, jd: 0 }
+            },
+            day3: {
+                front: {
+                    match1: this.emptyHoles4(9),
+                    match2: this.emptyHoles4(9)
+                },
+                back: {
+                    match1: this.emptyHoles2(9),
+                    match2: this.emptyHoles2(9),
+                    match3: this.emptyHoles2(9),
+                    match4: this.emptyHoles2(9)
+                }
+            }
         };
+    }
+
+    emptyHoles(n) {
+        const arr = [];
+        for (let i = 0; i < n; i++) arr.push([null, null]);
+        return arr;
+    }
+
+    emptyHoles4(n) {
+        const arr = [];
+        for (let i = 0; i < n; i++) arr.push([null, null, null, null]);
+        return arr;
+    }
+
+    emptyHoles2(n) {
+        const arr = [];
+        for (let i = 0; i < n; i++) arr.push([null, null]);
+        return arr;
     }
 
     saveScores() {
@@ -24,92 +60,74 @@ class TournamentScoring {
         }
     }
 
-    // Day 1: Combined Stableford per hole comparison
     stablefordPoints(grossScore, par, strokesOnHole) {
         const netScore = grossScore - strokesOnHole;
         const diff = netScore - par;
-        if (diff <= -3) return 5; // albatross
-        if (diff === -2) return 4; // eagle
-        if (diff === -1) return 3; // birdie
-        if (diff === 0) return 2;  // par
-        if (diff === 1) return 1;  // bogey
-        return 0; // double or worse
+        if (diff <= -3) return 5;
+        if (diff === -2) return 4;
+        if (diff === -1) return 3;
+        if (diff === 0) return 2;
+        if (diff === 1) return 1;
+        return 0;
     }
 
+    // ==================== DAY 1 ====================
     calcDay1Match(matchKey) {
         const match = matchKey === 'match1' ? CONFIG.days.day1.matches[0] : CONFIG.days.day1.matches[1];
         const course = CONFIG.courses[CONFIG.days.day1.course];
-        let hsPoints = 0;
-        let jdPoints = 0;
-        let holesPlayed = 0;
-
-        const hsPlayers = match.hs;
-        const jdPlayers = match.jd;
+        let hsPoints = 0, jdPoints = 0, holesPlayed = 0;
 
         for (let hole = 0; hole < 18; hole++) {
             const scores = this.scores.day1[matchKey];
-            if (!scores || !scores.hs || !scores.jd) break;
+            const hsHole = scores.hs[hole];
+            const jdHole = scores.jd[hole];
 
-            const hsScores = scores.hs[hole];
-            const jdScores = scores.jd[hole];
-            if (!hsScores || !jdScores) continue;
+            if (!hsHole || !jdHole || hsHole[0] === null || hsHole[1] === null || jdHole[0] === null || jdHole[1] === null) continue;
 
             holesPlayed++;
-            let hsStableford = 0;
-            let jdStableford = 0;
+            let hsStableford = 0, jdStableford = 0;
 
-            // Calculate combined stableford for each team on this hole
             for (let p = 0; p < 2; p++) {
-                if (hsScores[p] !== null) {
-                    const hcap = getPlayerCourseHcap(hsPlayers[p], CONFIG.days.day1.course, CONFIG.days.day1.allowance);
-                    const strokes = getStrokesOnHole(hcap, course.strokeIndex[hole]);
-                    hsStableford += this.stablefordPoints(hsScores[p], course.pars[hole], strokes);
-                }
-                if (jdScores[p] !== null) {
-                    const hcap = getPlayerCourseHcap(jdPlayers[p], CONFIG.days.day1.course, CONFIG.days.day1.allowance);
-                    const strokes = getStrokesOnHole(hcap, course.strokeIndex[hole]);
-                    jdStableford += this.stablefordPoints(jdScores[p], course.pars[hole], strokes);
-                }
+                const hcap = getPlayerCourseHcap(match.hs[p], CONFIG.days.day1.course, CONFIG.days.day1.allowance);
+                const strokes = getStrokesOnHole(hcap, course.strokeIndex[hole]);
+                hsStableford += this.stablefordPoints(hsHole[p], course.pars[hole], strokes);
+
+                const hcapJ = getPlayerCourseHcap(match.jd[p], CONFIG.days.day1.course, CONFIG.days.day1.allowance);
+                const strokesJ = getStrokesOnHole(hcapJ, course.strokeIndex[hole]);
+                jdStableford += this.stablefordPoints(jdHole[p], course.pars[hole], strokesJ);
             }
 
-            if (hsStableford > jdStableford) {
-                hsPoints += 1;
-            } else if (jdStableford > hsStableford) {
-                jdPoints += 1;
-            } else {
-                hsPoints += 0.5;
-                jdPoints += 0.5;
-            }
+            if (hsStableford > jdStableford) hsPoints += 1;
+            else if (jdStableford > hsStableford) jdPoints += 1;
+            else { hsPoints += 0.5; jdPoints += 0.5; }
         }
 
         return { hsPoints, jdPoints, holesPlayed };
     }
 
     calcDay1Individual() {
-        // Track each player's total stableford across 18 holes
-        const totals = {};
         const course = CONFIG.courses[CONFIG.days.day1.course];
+        const totals = {};
 
         for (const matchKey of ['match1', 'match2']) {
             const match = matchKey === 'match1' ? CONFIG.days.day1.matches[0] : CONFIG.days.day1.matches[1];
-            const allPlayers = [...match.hs, ...match.jd];
+            const players = [...match.hs, ...match.jd];
             const teams = ['hs', 'hs', 'jd', 'jd'];
 
             for (let pIdx = 0; pIdx < 4; pIdx++) {
-                const playerKey = allPlayers[pIdx];
-                const teamIdx = pIdx < 2 ? 'hs' : 'jd';
+                const playerKey = players[pIdx];
+                const team = teams[pIdx];
                 const pInTeam = pIdx < 2 ? pIdx : pIdx - 2;
-                totals[playerKey] = { total: 0, team: teamIdx };
+                totals[playerKey] = { total: 0, team };
 
                 for (let hole = 0; hole < 18; hole++) {
                     const scores = this.scores.day1[matchKey];
-                    if (!scores || !scores[teamIdx] || !scores[teamIdx][hole]) continue;
-                    const gross = scores[teamIdx][hole][pInTeam];
-                    if (gross === null) continue;
+                    const teamScores = scores[team][hole];
+                    if (!teamScores || teamScores[pInTeam] === null) continue;
 
                     const hcap = getPlayerCourseHcap(playerKey, CONFIG.days.day1.course, CONFIG.days.day1.allowance);
                     const strokes = getStrokesOnHole(hcap, course.strokeIndex[hole]);
-                    totals[playerKey].total += this.stablefordPoints(gross, course.pars[hole], strokes);
+                    totals[playerKey].total += this.stablefordPoints(teamScores[pInTeam], course.pars[hole], strokes);
                 }
             }
         }
@@ -123,11 +141,16 @@ class TournamentScoring {
         return best;
     }
 
-    // Day 2: Best Net + Best Gross (different players) per hole
+    // ==================== DAY 2 ====================
     calcDay2() {
         const course = CONFIG.courses[CONFIG.days.day2.course];
-        const hsPlayers = Object.keys(CONFIG.teams.hogSuckers.players).filter(k => k !== 'keith');
-        const jdPlayers = Object.keys(CONFIG.teams.junkyardDawgs.players);
+        const hsPlayers = ['bodner', 'burns', 'smith', 'ross'];
+        const jdPlayers = ['craig', 'casey', 'enterlin', 'lacy'];
+
+        // Get lowest course hcap in the entire group (off the low)
+        const allPlayerKeys = [...hsPlayers, ...jdPlayers];
+        const allHcaps = allPlayerKeys.map(p => getPlayerCourseHcap(p, CONFIG.days.day2.course, CONFIG.days.day2.allowance));
+        const lowestHcap = Math.min(...allHcaps);
 
         let hsFront = 0, hsBack = 0, jdFront = 0, jdBack = 0;
 
@@ -135,159 +158,257 @@ class TournamentScoring {
             const hsHoleScores = this.scores.day2.hs[hole];
             const jdHoleScores = this.scores.day2.jd[hole];
             if (!hsHoleScores || !jdHoleScores) continue;
+            if (hsHoleScores.every(v => v === null) || jdHoleScores.every(v => v === null)) continue;
 
             const par = course.pars[hole];
             const strokeIdx = course.strokeIndex[hole];
 
-            // Calc net and gross for each HS player
-            const hsCalc = hsPlayers.map((p, i) => {
-                const gross = hsHoleScores[i];
+            const calcPlayer = (playerKey, gross) => {
                 if (gross === null) return null;
-                const hcap = getPlayerCourseHcap(p, CONFIG.days.day2.course, CONFIG.days.day2.allowance);
-                const strokes = getStrokesOnHole(hcap, strokeIdx);
-                return { player: p, gross, net: gross - strokes, idx: i };
-            }).filter(Boolean);
+                const hcap = getPlayerCourseHcap(playerKey, CONFIG.days.day2.course, CONFIG.days.day2.allowance);
+                const adjustedHcap = hcap - lowestHcap;
+                const strokes = getStrokesOnHole(adjustedHcap, strokeIdx);
+                return { gross, net: gross - strokes };
+            };
 
-            const jdCalc = jdPlayers.map((p, i) => {
-                const gross = jdHoleScores[i];
-                if (gross === null) return null;
-                const hcap = getPlayerCourseHcap(p, CONFIG.days.day2.course, CONFIG.days.day2.allowance);
-                const strokes = getStrokesOnHole(hcap, strokeIdx);
-                return { player: p, gross, net: gross - strokes, idx: i };
-            }).filter(Boolean);
+            const hsCalc = hsPlayers.map((p, i) => calcPlayer(p, hsHoleScores[i])).filter(Boolean);
+            const jdCalc = jdPlayers.map((p, i) => calcPlayer(p, jdHoleScores[i])).filter(Boolean);
 
-            // Best net and best gross must be different players
+            if (hsCalc.length < 2 || jdCalc.length < 2) continue;
+
             const bestCombo = (calcs) => {
-                if (calcs.length < 2) return { netScore: 99, grossScore: 99 };
                 let bestTotal = 999;
-                let result = { netScore: 99, grossScore: 99 };
                 for (let i = 0; i < calcs.length; i++) {
                     for (let j = 0; j < calcs.length; j++) {
                         if (i === j) continue;
                         const total = (calcs[i].net - par) + (calcs[j].gross - par);
-                        if (total < bestTotal) {
-                            bestTotal = total;
-                            result = { netScore: calcs[i].net - par, grossScore: calcs[j].gross - par };
-                        }
+                        if (total < bestTotal) bestTotal = total;
                     }
                 }
-                return result;
+                return bestTotal;
             };
 
-            const hsCombo = bestCombo(hsCalc);
-            const jdCombo = bestCombo(jdCalc);
-            const hsTotal = hsCombo.netScore + hsCombo.grossScore;
-            const jdTotal = jdCombo.netScore + jdCombo.grossScore;
+            const hsTotal = bestCombo(hsCalc);
+            const jdTotal = bestCombo(jdCalc);
 
-            if (hole < 9) {
-                hsFront += hsTotal;
-                jdFront += jdTotal;
-            } else {
-                hsBack += hsTotal;
-                jdBack += jdTotal;
-            }
+            if (hole < 9) { hsFront += hsTotal; jdFront += jdTotal; }
+            else { hsBack += hsTotal; jdBack += jdTotal; }
         }
 
         const frontWinner = hsFront < jdFront ? 'hs' : (jdFront < hsFront ? 'jd' : 'tie');
         const backWinner = hsBack < jdBack ? 'hs' : (jdBack < hsBack ? 'jd' : 'tie');
-        const overallHs = hsFront + hsBack;
-        const overallJd = jdFront + jdBack;
-        const overallWinner = overallHs < overallJd ? 'hs' : (overallJd < overallHs ? 'jd' : 'tie');
+        const overallWinner = (hsFront + hsBack) < (jdFront + jdBack) ? 'hs' : ((jdFront + jdBack) < (hsFront + hsBack) ? 'jd' : 'tie');
 
         let hsPoints = 0, jdPoints = 0;
-        const scoring = CONFIG.days.day2.scoring;
+        const s = CONFIG.days.day2.scoring;
 
-        if (frontWinner === 'hs') hsPoints += scoring.front;
-        else if (frontWinner === 'jd') jdPoints += scoring.front;
-        else { hsPoints += scoring.front / 2; jdPoints += scoring.front / 2; }
+        if (frontWinner === 'hs') hsPoints += s.front;
+        else if (frontWinner === 'jd') jdPoints += s.front;
+        else { hsPoints += s.front / 2; jdPoints += s.front / 2; }
 
-        if (backWinner === 'hs') hsPoints += scoring.back;
-        else if (backWinner === 'jd') jdPoints += scoring.back;
-        else { hsPoints += scoring.back / 2; jdPoints += scoring.back / 2; }
+        if (backWinner === 'hs') hsPoints += s.back;
+        else if (backWinner === 'jd') jdPoints += s.back;
+        else { hsPoints += s.back / 2; jdPoints += s.back / 2; }
 
-        if (overallWinner === 'hs') hsPoints += scoring.overall;
-        else if (overallWinner === 'jd') jdPoints += scoring.overall;
-        else { hsPoints += scoring.overall / 2; jdPoints += scoring.overall / 2; }
+        if (overallWinner === 'hs') hsPoints += s.overall;
+        else if (overallWinner === 'jd') jdPoints += s.overall;
+        else { hsPoints += s.overall / 2; jdPoints += s.overall / 2; }
 
         // Junk
         const junkHs = this.scores.day2.junk.hs || 0;
         const junkJd = this.scores.day2.junk.jd || 0;
-        if (junkHs > junkJd) hsPoints += scoring.junk;
-        else if (junkJd > junkHs) jdPoints += scoring.junk;
-        else { hsPoints += scoring.junk / 2; jdPoints += scoring.junk / 2; }
+        if (junkHs > junkJd) hsPoints += s.junk;
+        else if (junkJd > junkHs) jdPoints += s.junk;
+        else { hsPoints += s.junk / 2; jdPoints += s.junk / 2; }
 
         return { hsPoints, jdPoints, hsFront, jdFront, hsBack, jdBack };
     }
 
-    // Day 3 Front: 2v2 best ball match play
+    // ==================== DAY 3 FRONT ====================
     calcDay3Front() {
+        const course = CONFIG.courses[CONFIG.days.day3.course];
         let hsTotalPts = 0, jdTotalPts = 0;
 
         for (let m = 0; m < 2; m++) {
             const matchKey = `match${m + 1}`;
             const matchConfig = CONFIG.days.day3.front.matches[m];
-            const course = CONFIG.courses[CONFIG.days.day3.course];
+            const allMatchPlayers = [...matchConfig.hs, ...matchConfig.jd];
 
-            for (let hole = 0; hole < 9; hole++) {
-                const result = this.scores.day3.front[matchKey] ? this.scores.day3.front[matchKey][hole] : null;
-                if (result === null || result === undefined) continue;
+            // Off the low in this match
+            const matchHcaps = allMatchPlayers.map(p =>
+                getPlayerCourseHcap(p, CONFIG.days.day3.course, CONFIG.days.day3.front.allowance));
+            const lowestHcap = Math.min(...matchHcaps);
 
-                if (result === 'hs') { hsTotalPts += 1; }
-                else if (result === 'jd') { jdTotalPts += 1; }
-                else { hsTotalPts += 0.5; jdTotalPts += 0.5; }
-            }
-        }
-
-        // Bonus: winner of each match gets +1
-        for (let m = 0; m < 2; m++) {
-            const matchKey = `match${m + 1}`;
             let mHs = 0, mJd = 0;
+
             for (let hole = 0; hole < 9; hole++) {
-                const result = this.scores.day3.front[matchKey] ? this.scores.day3.front[matchKey][hole] : null;
-                if (result === 'hs') mHs += 1;
-                else if (result === 'jd') mJd += 1;
-                else if (result === 'halve') { mHs += 0.5; mJd += 0.5; }
+                const holeScores = this.scores.day3.front[matchKey][hole];
+                if (!holeScores || holeScores.every(v => v === null)) continue;
+
+                const strokeIdx = course.strokeIndex[hole];
+
+                // Calc net for each player off the low
+                const nets = allMatchPlayers.map((p, i) => {
+                    if (holeScores[i] === null) return null;
+                    const hcap = getPlayerCourseHcap(p, CONFIG.days.day3.course, CONFIG.days.day3.front.allowance);
+                    const adjustedHcap = hcap - lowestHcap;
+                    const strokes = getStrokesOnHole(adjustedHcap, strokeIdx);
+                    return holeScores[i] - strokes;
+                });
+
+                // Best ball: HS is players 0,1; JD is players 2,3
+                const hsNets = [nets[0], nets[1]].filter(v => v !== null);
+                const jdNets = [nets[2], nets[3]].filter(v => v !== null);
+
+                if (hsNets.length === 0 || jdNets.length === 0) continue;
+
+                const hsBest = Math.min(...hsNets);
+                const jdBest = Math.min(...jdNets);
+
+                if (hsBest < jdBest) { mHs += 1; }
+                else if (jdBest < hsBest) { mJd += 1; }
+                else { mHs += 0.5; mJd += 0.5; }
             }
-            if (mHs > mJd) hsTotalPts += 1;
-            else if (mJd > mHs) jdTotalPts += 1;
-            else { hsTotalPts += 0.5; jdTotalPts += 0.5; }
+
+            // Match bonus
+            if (mHs > mJd) mHs += 1;
+            else if (mJd > mHs) mJd += 1;
+            else { mHs += 0.5; mJd += 0.5; }
+
+            hsTotalPts += mHs;
+            jdTotalPts += mJd;
         }
 
         return { hsPoints: hsTotalPts, jdPoints: jdTotalPts };
     }
 
-    // Day 3 Back: 1v1 match play
+    // ==================== DAY 3 BACK ====================
     calcDay3Back() {
+        const course = CONFIG.courses[CONFIG.days.day3.course];
         let hsTotalPts = 0, jdTotalPts = 0;
 
         for (let m = 0; m < 4; m++) {
             const matchKey = `match${m + 1}`;
+            const matchConfig = CONFIG.days.day3.back.matches[m];
+            const hsPlayer = matchConfig.hs;
+            const jdPlayer = matchConfig.jd;
+
+            // Strokes = difference, applied to back 9 (holes 9-17 in the array)
+            const hsHcap = getPlayerCourseHcap(hsPlayer, CONFIG.days.day3.course, 1.0);
+            const jdHcap = getPlayerCourseHcap(jdPlayer, CONFIG.days.day3.course, 1.0);
+            const diff = Math.abs(hsHcap - jdHcap);
+            const hsGetsStrokes = hsHcap > jdHcap;
+
             let mHs = 0, mJd = 0;
 
             for (let hole = 0; hole < 9; hole++) {
-                const result = this.scores.day3.back[matchKey] ? this.scores.day3.back[matchKey][hole] : null;
-                if (result === null || result === undefined) continue;
+                const holeScores = this.scores.day3.back[matchKey][hole];
+                if (!holeScores || holeScores[0] === null || holeScores[1] === null) continue;
 
-                if (result === 'hs') { hsTotalPts += 1; mHs += 1; }
-                else if (result === 'jd') { jdTotalPts += 1; mJd += 1; }
-                else { hsTotalPts += 0.5; jdTotalPts += 0.5; mHs += 0.5; mJd += 0.5; }
+                const courseHoleIdx = hole + 9; // back 9 holes
+                const strokeIdx = course.strokeIndex[courseHoleIdx];
+
+                // Strokes on this hole based on diff
+                const strokes = getStrokesOnHole(diff, strokeIdx);
+                let hsNet = holeScores[0];
+                let jdNet = holeScores[1];
+
+                if (hsGetsStrokes) hsNet -= strokes;
+                else jdNet -= strokes;
+
+                if (hsNet < jdNet) mHs += 1;
+                else if (jdNet < hsNet) mJd += 1;
+                else { mHs += 0.5; mJd += 0.5; }
             }
 
-            // Bonus: winner of each match gets +1
-            if (mHs > mJd) hsTotalPts += 1;
-            else if (mJd > mHs) jdTotalPts += 1;
-            else { hsTotalPts += 0.5; jdTotalPts += 0.5; }
+            // Match bonus
+            if (mHs > mJd) mHs += 1;
+            else if (mJd > mHs) mJd += 1;
+            else { mHs += 0.5; mJd += 0.5; }
+
+            hsTotalPts += mHs;
+            jdTotalPts += mJd;
         }
 
         return { hsPoints: hsTotalPts, jdPoints: jdTotalPts };
+    }
+
+    // Helper to get hole result for Day 3 front (for display)
+    getDay3FrontHoleResult(matchIdx, hole) {
+        const course = CONFIG.courses[CONFIG.days.day3.course];
+        const matchKey = `match${matchIdx + 1}`;
+        const matchConfig = CONFIG.days.day3.front.matches[matchIdx];
+        const allMatchPlayers = [...matchConfig.hs, ...matchConfig.jd];
+
+        const matchHcaps = allMatchPlayers.map(p =>
+            getPlayerCourseHcap(p, CONFIG.days.day3.course, CONFIG.days.day3.front.allowance));
+        const lowestHcap = Math.min(...matchHcaps);
+
+        const holeScores = this.scores.day3.front[matchKey][hole];
+        if (!holeScores || holeScores.every(v => v === null)) return null;
+
+        const strokeIdx = course.strokeIndex[hole];
+        const nets = allMatchPlayers.map((p, i) => {
+            if (holeScores[i] === null) return null;
+            const hcap = getPlayerCourseHcap(p, CONFIG.days.day3.course, CONFIG.days.day3.front.allowance);
+            const adjustedHcap = hcap - lowestHcap;
+            const strokes = getStrokesOnHole(adjustedHcap, strokeIdx);
+            return holeScores[i] - strokes;
+        });
+
+        const hsNets = [nets[0], nets[1]].filter(v => v !== null);
+        const jdNets = [nets[2], nets[3]].filter(v => v !== null);
+        if (hsNets.length === 0 || jdNets.length === 0) return null;
+
+        const hsBest = Math.min(...hsNets);
+        const jdBest = Math.min(...jdNets);
+
+        if (hsBest < jdBest) return 'hs';
+        if (jdBest < hsBest) return 'jd';
+        return 'halve';
+    }
+
+    // Helper to get hole result for Day 3 back (for display)
+    getDay3BackHoleResult(matchIdx, hole) {
+        const course = CONFIG.courses[CONFIG.days.day3.course];
+        const matchKey = `match${matchIdx + 1}`;
+        const matchConfig = CONFIG.days.day3.back.matches[matchIdx];
+        const hsPlayer = matchConfig.hs;
+        const jdPlayer = matchConfig.jd;
+
+        const hsHcap = getPlayerCourseHcap(hsPlayer, CONFIG.days.day3.course, 1.0);
+        const jdHcap = getPlayerCourseHcap(jdPlayer, CONFIG.days.day3.course, 1.0);
+        const diff = Math.abs(hsHcap - jdHcap);
+        const hsGetsStrokes = hsHcap > jdHcap;
+
+        const holeScores = this.scores.day3.back[matchKey][hole];
+        if (!holeScores || holeScores[0] === null || holeScores[1] === null) return null;
+
+        const courseHoleIdx = hole + 9;
+        const strokeIdx = course.strokeIndex[courseHoleIdx];
+        const strokes = getStrokesOnHole(diff, strokeIdx);
+
+        let hsNet = holeScores[0];
+        let jdNet = holeScores[1];
+        if (hsGetsStrokes) hsNet -= strokes;
+        else jdNet -= strokes;
+
+        if (hsNet < jdNet) return 'hs';
+        if (jdNet < hsNet) return 'jd';
+        return 'halve';
     }
 
     getTournamentTotals() {
         const d1m1 = this.calcDay1Match('match1');
         const d1m2 = this.calcDay1Match('match2');
         const d1ind = this.calcDay1Individual();
-        const d1hs = d1m1.hsPoints + d1m2.hsPoints + (d1ind.team === 'hs' ? 2 : (d1ind.team === 'jd' ? 0 : 1));
-        const d1jd = d1m1.jdPoints + d1m2.jdPoints + (d1ind.team === 'jd' ? 2 : (d1ind.team === 'hs' ? 0 : 1));
+
+        let d1hs = d1m1.hsPoints + d1m2.hsPoints;
+        let d1jd = d1m1.jdPoints + d1m2.jdPoints;
+        if (d1ind.player) {
+            if (d1ind.team === 'hs') d1hs += 2;
+            else if (d1ind.team === 'jd') d1jd += 2;
+        }
 
         const d2 = this.calcDay2();
         const d3f = this.calcDay3Front();
