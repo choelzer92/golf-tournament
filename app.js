@@ -285,6 +285,56 @@ document.addEventListener('DOMContentLoaded', () => {
         const junk = scoring.calcDay2Junk();
         document.getElementById('d2-junk-hs').innerHTML = `<span class="junk-total">${junk.hs}</span><span class="junk-detail">${junk.hsDetail.birdies}B ${junk.hsDetail.eagles}E ${junk.hsDetail.groupHugs}GH</span>`;
         document.getElementById('d2-junk-jd').innerHTML = `<span class="junk-total">${junk.jd}</span><span class="junk-detail">${junk.jdDetail.birdies}B ${junk.jdDetail.eagles}E ${junk.jdDetail.groupHugs}GH</span>`;
+
+        // Individual net bonus
+        const d2ind = scoring.calcDay2Individual();
+        let indHtml = '';
+        if (d2ind.winners.length > 0) {
+            indHtml = '<div class="individual-rankings">';
+            const allRankPlayers = [...hsPlayers, ...jdPlayers];
+            const allHcaps2 = allRankPlayers.map(p => getPlayerCourseHcap(p, CONFIG.days.day2.course, CONFIG.days.day2.allowance));
+            const lowestH = Math.min(...allHcaps2);
+
+            // Build full rankings for display
+            const rankings = [];
+            for (let t = 0; t < 2; t++) {
+                const teamPlayers = t === 0 ? hsPlayers : jdPlayers;
+                const team = t === 0 ? 'hs' : 'jd';
+                for (let p = 0; p < 4; p++) {
+                    const pk = teamPlayers[p];
+                    let netTotal = 0, holesPlayed = 0;
+                    for (let h = 0; h < 18; h++) {
+                        const holeScores = scoring.scores.day2[team][h];
+                        if (!holeScores || holeScores[p] === null) continue;
+                        holesPlayed++;
+                        const hcap = getPlayerCourseHcap(pk, CONFIG.days.day2.course, CONFIG.days.day2.allowance);
+                        const adj = hcap - lowestH;
+                        const strokes = getStrokesOnHole(adj, course.strokeIndex[h]);
+                        netTotal += holeScores[p] - strokes;
+                    }
+                    rankings.push({ playerKey: pk, team, netTotal, holesPlayed });
+                }
+            }
+            rankings.sort((a, b) => a.netTotal - b.netTotal);
+            const topNet = rankings[0].netTotal;
+
+            rankings.forEach((r, idx) => {
+                if (r.holesPlayed === 0) return;
+                const name = allPlayers[r.playerKey].name;
+                const cls = r.team === 'hs' ? 'hs-pts' : 'jd-pts';
+                const leader = r.netTotal === topNet ? ' leader' : '';
+                indHtml += `<div class="ind-row${leader}">
+                    <span class="ind-rank">${idx + 1}.</span>
+                    <span class="ind-name ${cls}">${name}</span>
+                    <span class="ind-holes">${r.holesPlayed}h</span>
+                    <span class="ind-total ${cls}"><b>${r.netTotal}</b> net</span>
+                </div>`;
+            });
+            indHtml += '</div>';
+        } else {
+            indHtml = 'No scores yet';
+        }
+        document.getElementById('d2-individual-leader').innerHTML = indHtml;
     }
 
     function renderDay2Scorer(course, hsPlayers, jdPlayers) {

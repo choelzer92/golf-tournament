@@ -55,17 +55,17 @@ const CONFIG = {
             course: "oldTrail",
             format: "2v2 Combined Stableford",
             allowance: 1.0,
-            totalPoints: 38,
+            totalPoints: 40,
             matches: [
                 {
                     hs: ["bodner", "keith"],
                     jd: ["craig", "casey"],
-                    points: 18
+                    points: 19
                 },
                 {
                     hs: ["burns", "smith"],
                     jd: ["enterlin", "lacy"],
-                    points: 18
+                    points: 19
                 }
             ],
             bonus: { type: "individual", points: 2 }
@@ -74,7 +74,7 @@ const CONFIG = {
             course: "springCreek",
             format: "2 Best Balls (Net + Gross)",
             allowance: 0.8,
-            totalPoints: 38,
+            totalPoints: 40,
             scoring: {
                 front: 16,
                 back: 16,

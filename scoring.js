@@ -123,6 +123,13 @@ class TournamentScoring {
             else { hsPoints += 0.5; jdPoints += 0.5; }
         }
 
+        // Match winner bonus
+        if (holesPlayed > 0) {
+            if (hsPoints > jdPoints) hsPoints += 1;
+            else if (jdPoints > hsPoints) jdPoints += 1;
+            else { hsPoints += 0.5; jdPoints += 0.5; }
+        }
+
         return { hsPoints, jdPoints, holesPlayed };
     }
 
@@ -320,6 +327,47 @@ class TournamentScoring {
         };
     }
 
+    calcDay2Individual() {
+        if (!this.scores.day2 || !this.scores.day2.hs || !this.scores.day2.jd) return { winners: [], total: 0 };
+        const course = CONFIG.courses[CONFIG.days.day2.course];
+        const hsPlayers = ['bodner', 'burns', 'smith', 'ross'];
+        const jdPlayers = ['craig', 'casey', 'enterlin', 'lacy'];
+        const allPlayerKeys = [...hsPlayers, ...jdPlayers];
+        const allHcaps = allPlayerKeys.map(p => getPlayerCourseHcap(p, CONFIG.days.day2.course, CONFIG.days.day2.allowance));
+        const lowestHcap = Math.min(...allHcaps);
+
+        const totals = [];
+        const teams = [...hsPlayers.map(() => 'hs'), ...jdPlayers.map(() => 'jd')];
+        const players = [...hsPlayers, ...jdPlayers];
+
+        for (let pIdx = 0; pIdx < players.length; pIdx++) {
+            const playerKey = players[pIdx];
+            const team = teams[pIdx];
+            const teamKey = team;
+            const teamPlayers = teamKey === 'hs' ? hsPlayers : jdPlayers;
+            const posInTeam = teamKey === 'hs' ? pIdx : pIdx - 4;
+            let netTotal = 0, holesPlayed = 0;
+
+            for (let hole = 0; hole < 18; hole++) {
+                const holeScores = this.scores.day2[teamKey][hole];
+                if (!holeScores || holeScores[posInTeam] === null) continue;
+                holesPlayed++;
+                const hcap = getPlayerCourseHcap(playerKey, CONFIG.days.day2.course, CONFIG.days.day2.allowance);
+                const adjustedHcap = hcap - lowestHcap;
+                const strokes = getStrokesOnHole(adjustedHcap, course.strokeIndex[hole]);
+                netTotal += holeScores[posInTeam] - strokes;
+            }
+
+            totals.push({ playerKey, team, netTotal, holesPlayed });
+        }
+
+        totals.sort((a, b) => a.netTotal - b.netTotal);
+        if (totals.length === 0 || totals[0].holesPlayed === 0) return { winners: [], total: 0 };
+        const bestNet = totals[0].netTotal;
+        const winners = totals.filter(r => r.netTotal === bestNet && r.holesPlayed > 0);
+        return { winners, total: bestNet };
+    }
+
     // ==================== DAY 3 FRONT ====================
     calcDay3Front() {
         if (!this.scores.day3 || !this.scores.day3.front) return { hsPoints: 0, jdPoints: 0 };
@@ -514,16 +562,26 @@ class TournamentScoring {
         }
 
         const d2 = this.calcDay2();
+        const d2ind = this.calcDay2Individual();
+        let d2hs = d2.hsPoints, d2jd = d2.jdPoints;
+        if (d2ind.winners.length > 0) {
+            const hsWinners = d2ind.winners.filter(w => w.team === 'hs').length;
+            const jdWinners = d2ind.winners.filter(w => w.team === 'jd').length;
+            const totalTied = d2ind.winners.length;
+            d2hs += (2 * hsWinners) / totalTied;
+            d2jd += (2 * jdWinners) / totalTied;
+        }
+
         const d3f = this.calcDay3Front();
         const d3b = this.calcDay3Back();
 
         return {
             day1: { hs: d1hs, jd: d1jd },
-            day2: { hs: d2.hsPoints, jd: d2.jdPoints },
+            day2: { hs: d2hs, jd: d2jd },
             day3: { hs: d3f.hsPoints + d3b.hsPoints, jd: d3f.jdPoints + d3b.jdPoints },
             total: {
-                hs: d1hs + d2.hsPoints + d3f.hsPoints + d3b.hsPoints,
-                jd: d1jd + d2.jdPoints + d3f.jdPoints + d3b.jdPoints
+                hs: d1hs + d2hs + d3f.hsPoints + d3b.hsPoints,
+                jd: d1jd + d2jd + d3f.jdPoints + d3b.jdPoints
             }
         };
     }
