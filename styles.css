@@ -459,6 +459,49 @@ main {
     font-size: 13px !important;
 }
 
+/* Individual rankings */
+.individual-rankings {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.ind-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.ind-row.leader {
+    background: rgba(212, 168, 67, 0.15);
+    border: 1px solid var(--gold);
+}
+
+.ind-rank {
+    width: 20px;
+    font-weight: 700;
+    color: var(--text-light);
+}
+
+.ind-name {
+    flex: 1;
+    font-weight: 600;
+}
+
+.ind-holes {
+    font-size: 11px;
+    color: var(--text-light);
+}
+
+.ind-total {
+    width: 50px;
+    text-align: right;
+}
+
 /* Hole-by-hole scorer */
 .hole-nav {
     display: flex;

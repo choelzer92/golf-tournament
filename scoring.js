@@ -127,10 +127,18 @@ class TournamentScoring {
 
     calcDay1Individual() {
         if (!this.scores.day1) return { player: null, total: 0, team: null };
+        const rankings = this.calcDay1AllIndividuals();
+        if (rankings.length === 0) return { player: null, total: 0, team: null };
+        return { player: rankings[0].playerKey, total: rankings[0].total, team: rankings[0].team };
+    }
+
+    calcDay1AllIndividuals() {
+        if (!this.scores.day1) return [];
         const course = CONFIG.courses[CONFIG.days.day1.course];
-        const totals = {};
+        const totals = [];
 
         for (const matchKey of ['match1', 'match2']) {
+            if (!this.scores.day1[matchKey]) continue;
             const match = matchKey === 'match1' ? CONFIG.days.day1.matches[0] : CONFIG.days.day1.matches[1];
             const players = [...match.hs, ...match.jd];
             const teams = ['hs', 'hs', 'jd', 'jd'];
@@ -139,27 +147,25 @@ class TournamentScoring {
                 const playerKey = players[pIdx];
                 const team = teams[pIdx];
                 const pInTeam = pIdx < 2 ? pIdx : pIdx - 2;
-                totals[playerKey] = { total: 0, team };
+                let total = 0, holesPlayed = 0;
 
                 for (let hole = 0; hole < 18; hole++) {
                     const scores = this.scores.day1[matchKey];
                     const teamScores = scores[team][hole];
                     if (!teamScores || teamScores[pInTeam] === null) continue;
 
+                    holesPlayed++;
                     const hcap = getPlayerCourseHcap(playerKey, CONFIG.days.day1.course, CONFIG.days.day1.allowance);
                     const strokes = getStrokesOnHole(hcap, course.strokeIndex[hole]);
-                    totals[playerKey].total += this.stablefordPoints(teamScores[pInTeam], course.pars[hole], strokes);
+                    total += this.stablefordPoints(teamScores[pInTeam], course.pars[hole], strokes);
                 }
+
+                totals.push({ playerKey, team, total, holesPlayed });
             }
         }
 
-        let best = { player: null, total: 0, team: null };
-        for (const [key, val] of Object.entries(totals)) {
-            if (val.total > best.total) {
-                best = { player: key, total: val.total, team: val.team };
-            }
-        }
-        return best;
+        totals.sort((a, b) => b.total - a.total);
+        return totals;
     }
 
     // ==================== DAY 2 ====================

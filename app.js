@@ -119,13 +119,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        const indResult = scoring.calcDay1Individual();
-        if (indResult.player && indResult.total > 0) {
-            const playerName = allPlayers[indResult.player].name;
-            const teamLabel = indResult.team === 'hs' ? 'Hog Suckers' : 'Junkyard Dawgs';
-            document.getElementById('d1-individual-leader').innerHTML =
-                `<span class="${indResult.team === 'hs' ? 'hs-pts' : 'jd-pts'}">${playerName} - ${indResult.total} pts (${teamLabel})</span>`;
+        const rankings = scoring.calcDay1AllIndividuals();
+        let indHtml = '';
+        if (rankings.length > 0 && rankings[0].holesPlayed > 0) {
+            indHtml = '<div class="individual-rankings">';
+            rankings.forEach((r, idx) => {
+                const name = allPlayers[r.playerKey].name;
+                const cls = r.team === 'hs' ? 'hs-pts' : 'jd-pts';
+                const leader = idx === 0 ? ' leader' : '';
+                indHtml += `<div class="ind-row${leader}">
+                    <span class="ind-rank">${idx + 1}.</span>
+                    <span class="ind-name ${cls}">${name}</span>
+                    <span class="ind-holes">${r.holesPlayed}h</span>
+                    <span class="ind-total ${cls}"><b>${r.total}</b> pts</span>
+                </div>`;
+            });
+            indHtml += '</div>';
+        } else {
+            indHtml = 'No scores yet';
         }
+        document.getElementById('d1-individual-leader').innerHTML = indHtml;
     }
 
     function renderDay1Scorer(matchKey, holeKey, match, course) {
