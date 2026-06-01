@@ -694,11 +694,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const matchKey = `match${matchIdx}`;
             const match = CONFIG.days.day1.matches[matchIdx - 1];
             const scores = scoring.scores.day1[matchKey];
-            const players = [...match.hs, ...match.jd];
-            const teams = ['hs', 'hs', 'jd', 'jd'];
 
             html += `<div class="sc-match-header">Match ${matchIdx}</div>`;
-            html += '<div class="sc-table-wrap"><table class="sc-table">';
+            html += '<div class="sc-table-wrap"><table class="sc-table sc-table-detailed">';
 
             // Header row
             html += '<tr><th class="sc-player-col">Hole</th>';
@@ -715,33 +713,122 @@ document.addEventListener('DOMContentLoaded', () => {
             for (let h = 9; h < 18; h++) { html += `<td>${course.pars[h]}</td>`; bPar += course.pars[h]; }
             html += `<td><b>${bPar}</b></td><td><b>${fPar + bPar}</b></td></tr>`;
 
-            // Player rows
-            for (let pIdx = 0; pIdx < 4; pIdx++) {
-                const playerKey = players[pIdx];
-                const team = teams[pIdx];
-                const pInTeam = pIdx < 2 ? pIdx : pIdx - 2;
+            // HS Players - gross scores and individual stableford
+            for (let p = 0; p < 2; p++) {
+                const playerKey = match.hs[p];
                 const hcap = getPlayerCourseHcap(playerKey, CONFIG.days.day1.course, CONFIG.days.day1.allowance);
-                const cls = team === 'hs' ? 'sc-hs' : 'sc-jd';
 
-                html += `<tr class="${cls}"><td class="sc-player-col">${allPlayers[playerKey].name.split(' ')[1]} (${hcap})</td>`;
+                // Gross score row
+                html += `<tr class="sc-hs"><td class="sc-player-col">${allPlayers[playerKey].name.split(' ')[1]} (${hcap})</td>`;
                 let fTotal = 0, bTotal = 0;
                 for (let h = 0; h < 18; h++) {
-                    const teamScores = scores[team][h];
-                    const gross = teamScores ? teamScores[pInTeam] : null;
+                    const teamScores = scores.hs[h];
+                    const gross = teamScores ? teamScores[p] : null;
                     const getsStroke = getStrokesOnHole(hcap, course.strokeIndex[h]) > 0;
-                    let cellContent = gross !== null ? gross : '';
-                    let cellClass = getsStroke ? 'sc-stroke' : '';
-                    if (gross !== null) {
-                        if (h < 9) fTotal += gross; else bTotal += gross;
-                    }
-                    html += `<td class="${cellClass}">${cellContent}${getsStroke && gross !== null ? '*' : ''}</td>`;
+                    if (gross !== null) { if (h < 9) fTotal += gross; else bTotal += gross; }
+                    html += `<td class="${getsStroke ? 'sc-stroke' : ''}">${gross !== null ? gross : ''}${getsStroke && gross !== null ? '*' : ''}</td>`;
                     if (h === 8) html += `<td><b>${fTotal || ''}</b></td>`;
                 }
                 html += `<td><b>${bTotal || ''}</b></td><td><b>${(fTotal + bTotal) || ''}</b></td></tr>`;
+
+                // Individual stableford points row
+                html += `<tr class="sc-pts-row sc-hs-pts"><td class="sc-player-col sc-pts-label">pts</td>`;
+                let fPts = 0, bPts = 0;
+                for (let h = 0; h < 18; h++) {
+                    const teamScores = scores.hs[h];
+                    const gross = teamScores ? teamScores[p] : null;
+                    const strokes = getStrokesOnHole(hcap, course.strokeIndex[h]);
+                    let pts = '';
+                    if (gross !== null) {
+                        const sp = scoring.stablefordPoints(gross, course.pars[h], strokes);
+                        pts = sp;
+                        if (h < 9) fPts += sp; else bPts += sp;
+                    }
+                    html += `<td>${pts}</td>`;
+                    if (h === 8) html += `<td><b>${fPts || ''}</b></td>`;
+                }
+                html += `<td><b>${bPts || ''}</b></td><td><b>${(fPts + bPts) || ''}</b></td></tr>`;
             }
 
-            // Team stableford result row
-            html += '<tr class="sc-result-row"><td>Result</td>';
+            // HS Combined stableford row
+            html += '<tr class="sc-combined-row sc-hs-combined"><td class="sc-player-col">HS Comb</td>';
+            let hsFComb = 0, hsBComb = 0;
+            for (let h = 0; h < 18; h++) {
+                const hsHole = scores.hs[h];
+                let comb = '';
+                if (hsHole && hsHole[0] !== null && hsHole[1] !== null) {
+                    let total = 0;
+                    for (let p = 0; p < 2; p++) {
+                        const hcap = getPlayerCourseHcap(match.hs[p], CONFIG.days.day1.course, CONFIG.days.day1.allowance);
+                        total += scoring.stablefordPoints(hsHole[p], course.pars[h], getStrokesOnHole(hcap, course.strokeIndex[h]));
+                    }
+                    comb = total;
+                    if (h < 9) hsFComb += total; else hsBComb += total;
+                }
+                html += `<td>${comb}</td>`;
+                if (h === 8) html += `<td><b>${hsFComb || ''}</b></td>`;
+            }
+            html += `<td><b>${hsBComb || ''}</b></td><td><b>${(hsFComb + hsBComb) || ''}</b></td></tr>`;
+
+            // JD Players - gross scores and individual stableford
+            for (let p = 0; p < 2; p++) {
+                const playerKey = match.jd[p];
+                const hcap = getPlayerCourseHcap(playerKey, CONFIG.days.day1.course, CONFIG.days.day1.allowance);
+
+                // Gross score row
+                html += `<tr class="sc-jd"><td class="sc-player-col">${allPlayers[playerKey].name.split(' ')[1]} (${hcap})</td>`;
+                let fTotal = 0, bTotal = 0;
+                for (let h = 0; h < 18; h++) {
+                    const teamScores = scores.jd[h];
+                    const gross = teamScores ? teamScores[p] : null;
+                    const getsStroke = getStrokesOnHole(hcap, course.strokeIndex[h]) > 0;
+                    if (gross !== null) { if (h < 9) fTotal += gross; else bTotal += gross; }
+                    html += `<td class="${getsStroke ? 'sc-stroke' : ''}">${gross !== null ? gross : ''}${getsStroke && gross !== null ? '*' : ''}</td>`;
+                    if (h === 8) html += `<td><b>${fTotal || ''}</b></td>`;
+                }
+                html += `<td><b>${bTotal || ''}</b></td><td><b>${(fTotal + bTotal) || ''}</b></td></tr>`;
+
+                // Individual stableford points row
+                html += `<tr class="sc-pts-row sc-jd-pts"><td class="sc-player-col sc-pts-label">pts</td>`;
+                let fPts = 0, bPts = 0;
+                for (let h = 0; h < 18; h++) {
+                    const teamScores = scores.jd[h];
+                    const gross = teamScores ? teamScores[p] : null;
+                    const strokes = getStrokesOnHole(hcap, course.strokeIndex[h]);
+                    let pts = '';
+                    if (gross !== null) {
+                        const sp = scoring.stablefordPoints(gross, course.pars[h], strokes);
+                        pts = sp;
+                        if (h < 9) fPts += sp; else bPts += sp;
+                    }
+                    html += `<td>${pts}</td>`;
+                    if (h === 8) html += `<td><b>${fPts || ''}</b></td>`;
+                }
+                html += `<td><b>${bPts || ''}</b></td><td><b>${(fPts + bPts) || ''}</b></td></tr>`;
+            }
+
+            // JD Combined stableford row
+            html += '<tr class="sc-combined-row sc-jd-combined"><td class="sc-player-col">JD Comb</td>';
+            let jdFComb = 0, jdBComb = 0;
+            for (let h = 0; h < 18; h++) {
+                const jdHole = scores.jd[h];
+                let comb = '';
+                if (jdHole && jdHole[0] !== null && jdHole[1] !== null) {
+                    let total = 0;
+                    for (let p = 0; p < 2; p++) {
+                        const hcap = getPlayerCourseHcap(match.jd[p], CONFIG.days.day1.course, CONFIG.days.day1.allowance);
+                        total += scoring.stablefordPoints(jdHole[p], course.pars[h], getStrokesOnHole(hcap, course.strokeIndex[h]));
+                    }
+                    comb = total;
+                    if (h < 9) jdFComb += total; else jdBComb += total;
+                }
+                html += `<td>${comb}</td>`;
+                if (h === 8) html += `<td><b>${jdFComb || ''}</b></td>`;
+            }
+            html += `<td><b>${jdBComb || ''}</b></td><td><b>${(jdFComb + jdBComb) || ''}</b></td></tr>`;
+
+            // Hole winner row
+            html += '<tr class="sc-result-row"><td class="sc-player-col">Winner</td>';
             let hsRunning = 0, jdRunning = 0;
             for (let h = 0; h < 18; h++) {
                 const hsHole = scores.hs[h];
@@ -775,47 +862,143 @@ document.addEventListener('DOMContentLoaded', () => {
         const allHcaps = allPKeys.map(p => getPlayerCourseHcap(p, CONFIG.days.day2.course, CONFIG.days.day2.allowance));
         const lowestHcap = Math.min(...allHcaps);
 
-        let html = '<div class="sc-table-wrap"><table class="sc-table">';
-
-        // Header
-        html += '<tr><th class="sc-player-col">Hole</th>';
-        for (let h = 1; h <= 9; h++) html += `<th>${h}</th>`;
-        html += '<th>Out</th>';
-        for (let h = 10; h <= 18; h++) html += `<th>${h}</th>`;
-        html += '<th>In</th><th>Tot</th></tr>';
-
-        // Par
-        html += '<tr class="sc-par-row"><td>Par</td>';
-        let fPar = 0, bPar = 0;
-        for (let h = 0; h < 9; h++) { html += `<td>${course.pars[h]}</td>`; fPar += course.pars[h]; }
-        html += `<td><b>${fPar}</b></td>`;
-        for (let h = 9; h < 18; h++) { html += `<td>${course.pars[h]}</td>`; bPar += course.pars[h]; }
-        html += `<td><b>${bPar}</b></td><td><b>${fPar + bPar}</b></td></tr>`;
-
-        // All 8 players
-        for (const playerKey of allPKeys) {
-            const isHs = hsPlayers.includes(playerKey);
-            const team = isHs ? 'hs' : 'jd';
-            const pIdx = isHs ? hsPlayers.indexOf(playerKey) : jdPlayers.indexOf(playerKey);
-            const hcap = getPlayerCourseHcap(playerKey, CONFIG.days.day2.course, CONFIG.days.day2.allowance);
-            const adjustedHcap = hcap - lowestHcap;
-            const cls = isHs ? 'sc-hs' : 'sc-jd';
-
-            html += `<tr class="${cls}"><td class="sc-player-col">${allPlayers[playerKey].name.split(' ')[1]} (${adjustedHcap})</td>`;
-            let fTotal = 0, bTotal = 0;
+        // Pre-calculate best gross/net selections per hole for each team
+        function calcBestCombo(teamPlayers, team) {
+            const selections = []; // per hole: { bestNetIdx, bestGrossIdx }
             for (let h = 0; h < 18; h++) {
                 const holeScores = scoring.scores.day2[team][h];
-                const gross = holeScores ? holeScores[pIdx] : null;
-                const getsStroke = getStrokesOnHole(adjustedHcap, course.strokeIndex[h]) > 0;
-                let cellContent = gross !== null ? gross : '';
-                if (gross !== null) { if (h < 9) fTotal += gross; else bTotal += gross; }
-                html += `<td class="${getsStroke ? 'sc-stroke' : ''}">${cellContent}${getsStroke && gross !== null ? '*' : ''}</td>`;
-                if (h === 8) html += `<td><b>${fTotal || ''}</b></td>`;
+                if (!holeScores) { selections.push(null); continue; }
+
+                const calcs = teamPlayers.map((playerKey, i) => {
+                    const gross = holeScores[i];
+                    if (gross === null) return null;
+                    const hcap = getPlayerCourseHcap(playerKey, CONFIG.days.day2.course, CONFIG.days.day2.allowance);
+                    const adjustedHcap = hcap - lowestHcap;
+                    const strokes = getStrokesOnHole(adjustedHcap, course.strokeIndex[h]);
+                    return { gross, net: gross - strokes, idx: i };
+                });
+
+                const valid = calcs.filter(Boolean);
+                if (valid.length < 2) { selections.push(null); continue; }
+
+                // Find best combination: best net from one player, best gross from a DIFFERENT player
+                let bestTotal = 999, bestNetIdx = -1, bestGrossIdx = -1;
+                for (let i = 0; i < valid.length; i++) {
+                    for (let j = 0; j < valid.length; j++) {
+                        if (i === j) continue;
+                        const total = (valid[i].net - course.pars[h]) + (valid[j].gross - course.pars[h]);
+                        if (total < bestTotal) {
+                            bestTotal = total;
+                            bestNetIdx = valid[i].idx;
+                            bestGrossIdx = valid[j].idx;
+                        }
+                    }
+                }
+                selections.push({ bestNetIdx, bestGrossIdx, bestTotal });
             }
-            html += `<td><b>${bTotal || ''}</b></td><td><b>${(fTotal + bTotal) || ''}</b></td></tr>`;
+            return selections;
         }
 
-        html += '</table></div>';
+        const hsSelections = calcBestCombo(hsPlayers, 'hs');
+        const jdSelections = calcBestCombo(jdPlayers, 'jd');
+
+        let html = '';
+
+        // Render team section
+        function renderTeamSection(teamPlayers, team, teamLabel, selections) {
+            let teamHtml = `<div class="sc-match-header">${teamLabel}</div>`;
+            teamHtml += '<div class="sc-table-wrap"><table class="sc-table sc-table-detailed">';
+
+            // Header
+            teamHtml += '<tr><th class="sc-player-col">Hole</th>';
+            for (let h = 1; h <= 9; h++) teamHtml += `<th>${h}</th>`;
+            teamHtml += '<th>Out</th>';
+            for (let h = 10; h <= 18; h++) teamHtml += `<th>${h}</th>`;
+            teamHtml += '<th>In</th><th>Tot</th></tr>';
+
+            // Par
+            teamHtml += '<tr class="sc-par-row"><td>Par</td>';
+            let fPar = 0, bPar = 0;
+            for (let h = 0; h < 9; h++) { teamHtml += `<td>${course.pars[h]}</td>`; fPar += course.pars[h]; }
+            teamHtml += `<td><b>${fPar}</b></td>`;
+            for (let h = 9; h < 18; h++) { teamHtml += `<td>${course.pars[h]}</td>`; bPar += course.pars[h]; }
+            teamHtml += `<td><b>${bPar}</b></td><td><b>${fPar + bPar}</b></td></tr>`;
+
+            const cls = team === 'hs' ? 'sc-hs' : 'sc-jd';
+
+            // Player rows
+            for (let pIdx = 0; pIdx < teamPlayers.length; pIdx++) {
+                const playerKey = teamPlayers[pIdx];
+                const hcap = getPlayerCourseHcap(playerKey, CONFIG.days.day2.course, CONFIG.days.day2.allowance);
+                const adjustedHcap = hcap - lowestHcap;
+
+                teamHtml += `<tr class="${cls}"><td class="sc-player-col">${allPlayers[playerKey].name.split(' ')[1]} (${adjustedHcap})</td>`;
+                let fTotal = 0, bTotal = 0;
+                for (let h = 0; h < 18; h++) {
+                    const holeScores = scoring.scores.day2[team][h];
+                    const gross = holeScores ? holeScores[pIdx] : null;
+                    const getsStroke = getStrokesOnHole(adjustedHcap, course.strokeIndex[h]) > 0;
+                    if (gross !== null) { if (h < 9) fTotal += gross; else bTotal += gross; }
+
+                    // Determine if this player's score is selected as best gross or best net
+                    let cellClass = getsStroke ? 'sc-stroke' : '';
+                    let markers = '';
+                    if (gross !== null && selections[h]) {
+                        if (selections[h].bestGrossIdx === pIdx && selections[h].bestNetIdx === pIdx) {
+                            // Should not happen (different player rule) but handle gracefully
+                            cellClass += ' sc-best-gross sc-best-net';
+                            markers = '<span class="sc-marker-gross">G</span><span class="sc-marker-net">N</span>';
+                        } else if (selections[h].bestGrossIdx === pIdx) {
+                            cellClass += ' sc-best-gross';
+                            markers = '<span class="sc-marker-gross">G</span>';
+                        } else if (selections[h].bestNetIdx === pIdx) {
+                            cellClass += ' sc-best-net';
+                            markers = '<span class="sc-marker-net">N</span>';
+                        }
+                    }
+
+                    teamHtml += `<td class="${cellClass}">${gross !== null ? gross : ''}${getsStroke && gross !== null ? '*' : ''}${markers}</td>`;
+                    if (h === 8) teamHtml += `<td><b>${fTotal || ''}</b></td>`;
+                }
+                teamHtml += `<td><b>${bTotal || ''}</b></td><td><b>${(fTotal + bTotal) || ''}</b></td></tr>`;
+            }
+
+            // Team combined score vs par row
+            teamHtml += `<tr class="sc-combined-row ${team === 'hs' ? 'sc-hs-combined' : 'sc-jd-combined'}"><td class="sc-player-col">vs Par</td>`;
+            let fVsPar = 0, bVsPar = 0;
+            for (let h = 0; h < 18; h++) {
+                let cellVal = '';
+                if (selections[h] && selections[h].bestTotal !== undefined) {
+                    const holeVsPar = selections[h].bestTotal;
+                    cellVal = holeVsPar === 0 ? 'E' : (holeVsPar > 0 ? '+' + holeVsPar : holeVsPar);
+                    if (h < 9) fVsPar += holeVsPar; else bVsPar += holeVsPar;
+                }
+                teamHtml += `<td>${cellVal}</td>`;
+                if (h === 8) {
+                    const fStr = fVsPar === 0 ? 'E' : (fVsPar > 0 ? '+' + fVsPar : fVsPar);
+                    teamHtml += `<td><b>${fVsPar !== 0 || selections.slice(0,9).some(s => s) ? fStr : ''}</b></td>`;
+                }
+            }
+            const bStr = bVsPar === 0 ? 'E' : (bVsPar > 0 ? '+' + bVsPar : bVsPar);
+            const tVsPar = fVsPar + bVsPar;
+            const tStr = tVsPar === 0 ? 'E' : (tVsPar > 0 ? '+' + tVsPar : tVsPar);
+            const hasAnyScore = selections.some(s => s);
+            teamHtml += `<td><b>${hasAnyScore ? bStr : ''}</b></td><td><b>${hasAnyScore ? tStr : ''}</b></td></tr>`;
+
+            teamHtml += '</table></div>';
+            return teamHtml;
+        }
+
+        html += renderTeamSection(hsPlayers, 'hs', 'Hog Suckers', hsSelections);
+        html += renderTeamSection(jdPlayers, 'jd', 'Junkyard Dawgs', jdSelections);
+
+        // Summary comparison
+        const d2 = scoring.calcDay2();
+        html += `<div class="match-status">
+            <div><div class="hs-pts">F: ${d2.hsFront >= 0 ? '+' : ''}${d2.hsFront} | B: ${d2.hsBack >= 0 ? '+' : ''}${d2.hsBack}</div><div class="hs-pts"><b>HS: ${d2.hsPoints} pts</b></div></div>
+            <div style="text-align:right"><div class="jd-pts">F: ${d2.jdFront >= 0 ? '+' : ''}${d2.jdFront} | B: ${d2.jdBack >= 0 ? '+' : ''}${d2.jdBack}</div><div class="jd-pts"><b>JD: ${d2.jdPoints} pts</b></div></div>
+        </div>`;
+
         return html;
     }
 
