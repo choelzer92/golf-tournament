@@ -29,6 +29,7 @@
             <button class="nav-btn" data-view="day1">Day 1</button>
             <button class="nav-btn" data-view="day2">Day 2</button>
             <button class="nav-btn" data-view="day3">Day 3</button>
+            <button class="nav-btn" data-view="rules">Rules</button>
         </nav>
     </header>
 
@@ -176,6 +177,87 @@
                 <div class="match" id="d3-back-match4">
                     <h4>Match 4: Ross vs Lacy (7 strokes to Ross)</h4>
                     <div class="scorecard-container"></div>
+                </div>
+            </div>
+        </section>
+        <section id="rules" class="view">
+            <div class="day-header">
+                <h2>Tournament Format</h2>
+                <p class="subtitle">Hog Suckers vs Junkyard Dawgs | 136 Total Points</p>
+            </div>
+            <div class="rules-container">
+                <div class="rule-card">
+                    <h3>Day 1 - Old Trail | Thu June 11</h3>
+                    <p class="rule-format">2v2 Combined Stableford (38 pts)</p>
+                    <ul>
+                        <li>Two matches, each pair combines their stableford points per hole</li>
+                        <li>Higher combined team wins the hole (1 pt), tie = 0.5 each</li>
+                        <li>18 holes = 18 pts per match (36 total)</li>
+                        <li>Best individual stableford round = 2 pts to that player's team</li>
+                        <li>Full handicap (100%)</li>
+                    </ul>
+                    <div class="stableford-chart">
+                        <p><b>Stableford Points (net score):</b></p>
+                        <span>Double+: 0</span> <span>Bogey: 1</span> <span>Par: 2</span>
+                        <span>Birdie: 3</span> <span>Eagle: 4</span> <span>Albatross: 5</span>
+                    </div>
+                </div>
+
+                <div class="rule-card">
+                    <h3>Day 2 - Spring Creek | Fri June 12</h3>
+                    <p class="rule-format">Best Net + Best Gross per Hole (38 pts)</p>
+                    <ul>
+                        <li>Each team plays as a foursome, all play own ball</li>
+                        <li>Per hole: take the best NET score (1 player) and best GROSS score (a different player)</li>
+                        <li>Sum both scores vs par, compare teams per nine</li>
+                        <li>Front 9 winner: 16 pts | Back 9 winner: 16 pts | Overall: 4 pts</li>
+                        <li>Junk (2 pts): gross birdies (1), eagles (2), team pars (1)</li>
+                        <li>CTP front and back are side bets only</li>
+                        <li>80% handicap</li>
+                    </ul>
+                </div>
+
+                <div class="rule-card">
+                    <h3>Day 3 - Glenmore | Sat June 13</h3>
+                    <p class="rule-format">2v2 Best Ball + 1v1 Match Play (60 pts)</p>
+                    <div class="rule-subsection">
+                        <p><b>Front 9: 2v2 Best Ball Match Play</b></p>
+                        <ul>
+                            <li>2 matches, best ball per team per hole</li>
+                            <li>Win hole = 1 pt, halve = 0.5 each</li>
+                            <li>Match winner gets +1 bonus point</li>
+                            <li>Total front: ~20 pts distributed</li>
+                            <li>90% handicap, strokes from lowest player</li>
+                        </ul>
+                    </div>
+                    <div class="rule-subsection">
+                        <p><b>Back 9: 1v1 Match Play</b></p>
+                        <ul>
+                            <li>4 individual matches</li>
+                            <li>Win hole = 1 pt, halve = 0.5 each</li>
+                            <li>Match winner gets +1 bonus point</li>
+                            <li>Total back: ~40 pts distributed</li>
+                            <li>100% of handicap difference, strokes on hardest holes</li>
+                            <li>Back 9 strokes = floor(diff/2) — odd holes go to front</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="rule-card">
+                    <h3>Handicaps</h3>
+                    <table class="handicap-table">
+                        <tr><th>Player</th><th>Index</th><th>Old Trail</th><th>Spring Creek</th><th>Glenmore</th></tr>
+                        <tr><td>Nick Bodner</td><td>8.5</td><td>8</td><td>8</td><td>9 (F:4)</td></tr>
+                        <tr><td>Nick Burns</td><td>15.5</td><td>16</td><td>15</td><td>17 (F:8)</td></tr>
+                        <tr><td>Mike Smith</td><td>10.7</td><td>11</td><td>10</td><td>12 (F:5)</td></tr>
+                        <tr><td>Keith Hoelzer</td><td>14.5</td><td>15</td><td>—</td><td>—</td></tr>
+                        <tr><td>Alex Ross</td><td>21.0</td><td>—</td><td>20</td><td>24 (F:11)</td></tr>
+                        <tr class="jd-row"><td>Craig Hoelzer</td><td>9.6</td><td>9</td><td>9</td><td>10 (F:5)</td></tr>
+                        <tr class="jd-row"><td>Chris Casey</td><td>12.8</td><td>13</td><td>12</td><td>14 (F:6)</td></tr>
+                        <tr class="jd-row"><td>Jake Enterlin</td><td>4.6</td><td>4</td><td>4</td><td>4 (F:2)</td></tr>
+                        <tr class="jd-row"><td>Micajah Lacy</td><td>10.0</td><td>10</td><td>9</td><td>11 (F:5)</td></tr>
+                    </table>
+                    <p class="rule-note">Old Trail: 100% | Spring Creek: 80% | Glenmore Front: 90% | Glenmore Back: 100% diff</p>
                 </div>
             </div>
         </section>

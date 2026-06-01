@@ -459,6 +459,220 @@ main {
     font-size: 13px !important;
 }
 
+/* Scorer mode grid */
+.scorer-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.scorer-hole-header {
+    display: grid;
+    grid-template-columns: 40px repeat(4, 1fr) 50px;
+    gap: 4px;
+    padding: 6px 0;
+    font-size: 11px;
+    font-weight: 600;
+    border-bottom: 2px solid #ddd;
+}
+
+.scorer-hole-header.d2-header {
+    grid-template-columns: 40px repeat(8, 1fr);
+}
+
+.scorer-hole-row {
+    display: grid;
+    grid-template-columns: 40px repeat(4, 1fr) 50px;
+    gap: 4px;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.scorer-hole-row.d2-row {
+    grid-template-columns: 40px repeat(8, 1fr);
+}
+
+.hole-num-cell {
+    font-weight: 700;
+    font-size: 13px;
+    text-align: center;
+    line-height: 1.2;
+}
+
+.hole-num-cell small {
+    color: var(--text-light);
+    font-weight: 400;
+}
+
+.result-cell {
+    font-size: 11px;
+    text-align: center;
+}
+
+.hs-label {
+    color: var(--hs-color);
+    font-size: 11px;
+    text-align: center;
+}
+
+.jd-label {
+    color: var(--jd-color);
+    font-size: 11px;
+    text-align: center;
+}
+
+.nine-divider {
+    text-align: center;
+    padding: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--green-dark);
+    background: #f0f8f0;
+    border-radius: 4px;
+    margin: 4px 0;
+}
+
+.halve-pts {
+    color: var(--gold);
+}
+
+/* Day 3 scorer */
+.d3-scorer {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.d3-hole-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.d3-hole-row .hole-num-cell {
+    width: 30px;
+}
+
+.d3-btn {
+    flex: 1;
+    padding: 10px 8px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    background: white;
+    transition: all 0.15s;
+}
+
+.d3-btn.hs-btn.selected {
+    background: var(--hs-color);
+    color: white;
+    border-color: var(--hs-color);
+}
+
+.d3-btn.jd-btn.selected {
+    background: var(--jd-color);
+    color: white;
+    border-color: var(--jd-color);
+}
+
+.d3-btn.halve-btn.selected {
+    background: var(--gold);
+    color: white;
+    border-color: var(--gold);
+}
+
+/* Rules page */
+.rules-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.rule-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.rule-card h3 {
+    font-size: 15px;
+    color: var(--green-dark);
+    margin-bottom: 4px;
+}
+
+.rule-format {
+    font-size: 13px;
+    color: var(--gold);
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.rule-card ul {
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 1.8;
+}
+
+.rule-subsection {
+    margin: 10px 0;
+    padding-left: 8px;
+    border-left: 3px solid var(--green-light);
+}
+
+.rule-subsection p {
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.stableford-chart {
+    margin-top: 10px;
+    padding: 8px;
+    background: #f8f8f8;
+    border-radius: 6px;
+    font-size: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.stableford-chart p {
+    width: 100%;
+    margin-bottom: 4px;
+}
+
+.handicap-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 8px;
+}
+
+.handicap-table th, .handicap-table td {
+    padding: 6px 4px;
+    text-align: center;
+    border: 1px solid #e0e0e0;
+}
+
+.handicap-table th {
+    background: var(--green-dark);
+    color: white;
+}
+
+.handicap-table .jd-row {
+    background: rgba(41, 128, 185, 0.05);
+}
+
+.rule-note {
+    font-size: 11px;
+    color: var(--text-light);
+    margin-top: 8px;
+    text-align: center;
+}
+
 /* Responsive */
 @media (max-width: 400px) {
     .standings-container {
