@@ -1089,6 +1089,126 @@ main {
     text-align: center;
 }
 
+/* Handicap Comparison */
+.handicap-compare-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.hcap-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.hcap-mode-label {
+    font-size: 13px;
+    color: var(--text);
+}
+
+.hcap-toggle-btn {
+    background: var(--green-dark);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.hcap-toggle-btn:active {
+    background: var(--green-mid);
+}
+
+.handicap-compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    margin-bottom: 16px;
+}
+
+.handicap-compare-table th,
+.handicap-compare-table td {
+    padding: 5px 3px;
+    text-align: center;
+    border: 1px solid #e0e0e0;
+}
+
+.handicap-compare-table th {
+    background: var(--green-dark);
+    color: white;
+    font-size: 10px;
+}
+
+.handicap-compare-table .jd-row {
+    background: rgba(41, 128, 185, 0.05);
+}
+
+.hcap-mult {
+    font-weight: normal;
+    font-size: 9px;
+    opacity: 0.8;
+}
+
+.hcap-val {
+    display: block;
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.hcap-sub {
+    display: block;
+    font-size: 9px;
+    color: var(--text-light);
+}
+
+.hcap-diffs {
+    border-top: 1px solid #e0e0e0;
+    padding-top: 12px;
+}
+
+.hcap-diffs h4 {
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.hcap-diff-day {
+    margin-bottom: 10px;
+    font-size: 12px;
+}
+
+.hcap-diff-day b {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    color: var(--text-light);
+}
+
+.hcap-diff-match {
+    padding: 3px 0;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.hcap-diff-label {
+    font-weight: 600;
+}
+
+.hs-name {
+    color: var(--hs-color);
+    font-weight: 500;
+}
+
+.jd-name {
+    color: var(--jd-color);
+    font-weight: 500;
+}
+
 /* Day 1 Scorecard - Stableford points sub-rows */
 .sc-pts-row td {
     font-size: 9px;

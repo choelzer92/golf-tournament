@@ -99,6 +99,144 @@ function updateMatchHeaders() {
     }
 }
 
+let handicapMode = 'course'; // 'course' or 'index'
+
+function renderHandicapComparison() {
+    const container = document.getElementById('handicap-comparison');
+    if (!container) return;
+
+    const allPlayers = { ...CONFIG.teams.hogSuckers.players, ...CONFIG.teams.junkyardDawgs.players };
+    const hsKeys = Object.keys(CONFIG.teams.hogSuckers.players);
+    const jdKeys = Object.keys(CONFIG.teams.junkyardDawgs.players);
+    const playerKeys = [...hsKeys, ...jdKeys];
+
+    const courses = [
+        { key: 'oldTrail', label: 'Old Trail', allowance: CONFIG.days.day1.allowance },
+        { key: 'springCreek', label: 'Spring Creek', allowance: CONFIG.days.day2.allowance },
+        { key: 'glenmore', label: 'Glenmore F9', allowance: CONFIG.days.day3.front.allowance },
+        { key: 'glenmore', label: 'Glenmore B9', allowance: CONFIG.days.day3.back.allowance }
+    ];
+
+    const useIndex = handicapMode === 'index';
+    const modeLabel = useIndex ? 'Player Index' : 'Course Handicap';
+    const altLabel = useIndex ? 'Course Handicap' : 'Player Index';
+
+    let html = '<div class="handicap-compare-card">';
+    html += '<div class="hcap-toggle-row">';
+    html += `<span class="hcap-mode-label">Using: <b>${modeLabel}</b></span>`;
+    html += `<button id="hcap-toggle-btn" class="hcap-toggle-btn">Switch to ${altLabel}</button>`;
+    html += '</div>';
+
+    html += '<table class="handicap-compare-table">';
+    html += '<thead><tr><th>Player</th><th>Index</th>';
+    courses.forEach(c => {
+        html += `<th>${c.label}<br><span class="hcap-mult">${Math.round(c.allowance * 100)}%</span></th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    playerKeys.forEach(key => {
+        const player = allPlayers[key];
+        const isJD = jdKeys.includes(key);
+        const rowClass = isJD ? ' class="jd-row"' : '';
+
+        html += `<tr${rowClass}>`;
+        html += `<td>${player.name}</td>`;
+        html += `<td>${player.index}</td>`;
+
+        courses.forEach(c => {
+            const course = CONFIG.courses[c.key];
+            const rawCourse = calcCourseHandicap(player.index, course.slope, course.rating, course.par);
+            const adjusted = Math.round(rawCourse * c.allowance);
+
+            if (useIndex) {
+                const adjustedIndex = Math.round(player.index * c.allowance * 10) / 10;
+                html += `<td><span class="hcap-val">${adjustedIndex}</span><span class="hcap-sub">adj idx</span></td>`;
+            } else {
+                html += `<td><span class="hcap-val">${adjusted}</span><span class="hcap-sub">raw ${rawCourse}</span></td>`;
+            }
+        });
+        html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+
+    // Differences section - show matchup diffs for each day
+    html += '<div class="hcap-diffs">';
+    html += '<h4>Matchup Stroke Differences</h4>';
+    const pairings = loadPairings();
+
+    // Day 1
+    html += '<div class="hcap-diff-day"><b>Day 1 - Old Trail (100%)</b>';
+    pairings.day1.matches.forEach((match, i) => {
+        html += renderMatchDiffs(match.hs, match.jd, 'oldTrail', CONFIG.days.day1.allowance, allPlayers, useIndex, `Match ${i + 1}`);
+    });
+    html += '</div>';
+
+    // Day 3 Front
+    html += '<div class="hcap-diff-day"><b>Day 3 Front - Glenmore (90%)</b>';
+    pairings.day3.front.forEach((match, i) => {
+        html += renderMatchDiffs(match.hs, match.jd, 'glenmore', CONFIG.days.day3.front.allowance, allPlayers, useIndex, `Match ${String.fromCharCode(65 + i)}`);
+    });
+    html += '</div>';
+
+    // Day 3 Back
+    html += '<div class="hcap-diff-day"><b>Day 3 Back - Glenmore (100% diff)</b>';
+    pairings.day3.back.forEach((match, i) => {
+        const hs = typeof match.hs === 'string' ? [match.hs] : match.hs;
+        const jd = typeof match.jd === 'string' ? [match.jd] : match.jd;
+        html += renderMatchDiffs(hs, jd, 'glenmore', CONFIG.days.day3.back.allowance, allPlayers, useIndex, `Match ${i + 1}`);
+    });
+    html += '</div>';
+
+    html += '</div>';
+    html += '</div>';
+
+    container.innerHTML = html;
+
+    document.getElementById('hcap-toggle-btn').addEventListener('click', () => {
+        handicapMode = handicapMode === 'course' ? 'index' : 'course';
+        renderHandicapComparison();
+    });
+}
+
+function renderMatchDiffs(hsKeys, jdKeys, courseKey, allowance, allPlayers, useIndex, label) {
+    const course = CONFIG.courses[courseKey];
+
+    function getVal(playerKey) {
+        const p = allPlayers[playerKey];
+        if (useIndex) {
+            return Math.round(p.index * allowance * 10) / 10;
+        }
+        return Math.round(calcCourseHandicap(p.index, course.slope, course.rating, course.par) * allowance);
+    }
+
+    let html = `<div class="hcap-diff-match"><span class="hcap-diff-label">${label}:</span> `;
+
+    if (hsKeys.length === 1 && jdKeys.length === 1) {
+        const hsVal = getVal(hsKeys[0]);
+        const jdVal = getVal(jdKeys[0]);
+        const diff = Math.abs(hsVal - jdVal);
+        const higher = hsVal > jdVal ? allPlayers[hsKeys[0]].name.split(' ').pop() : allPlayers[jdKeys[0]].name.split(' ').pop();
+        const strokes = Math.round(diff);
+        html += `<span class="hs-name">${allPlayers[hsKeys[0]].name.split(' ').pop()} (${hsVal})</span>`;
+        html += ` vs `;
+        html += `<span class="jd-name">${allPlayers[jdKeys[0]].name.split(' ').pop()} (${jdVal})</span>`;
+        html += ` &mdash; <b>${strokes} strokes</b> to ${higher}`;
+    } else {
+        const hsVals = hsKeys.map(k => ({ key: k, val: getVal(k) }));
+        const jdVals = jdKeys.map(k => ({ key: k, val: getVal(k) }));
+        const hsTotal = hsVals.reduce((s, v) => s + v.val, 0);
+        const jdTotal = jdVals.reduce((s, v) => s + v.val, 0);
+        const hsNames = hsVals.map(v => `${allPlayers[v.key].name.split(' ').pop()} (${v.val})`).join(' + ');
+        const jdNames = jdVals.map(v => `${allPlayers[v.key].name.split(' ').pop()} (${v.val})`).join(' + ');
+        html += `<span class="hs-name">${hsNames}</span> vs <span class="jd-name">${jdNames}</span>`;
+        html += ` &mdash; combined: ${Math.round(hsTotal)} vs ${Math.round(jdTotal)}`;
+    }
+
+    html += '</div>';
+    return html;
+}
+
 function renderPairingsPage() {
     const allPlayers = { ...CONFIG.teams.hogSuckers.players, ...CONFIG.teams.junkyardDawgs.players };
     const pairings = loadPairings();
@@ -162,6 +300,7 @@ function renderPairingsPage() {
 
     container.innerHTML = html;
     attachPairingsEvents(container, pairings, allPlayers);
+    renderHandicapComparison();
 }
 
 function renderTeamSlots(team, players, allPlayers, prefix) {
