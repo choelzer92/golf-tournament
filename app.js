@@ -25,10 +25,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function renderAll() {
-        renderLeaderboard();
-        renderDay1();
-        renderDay2();
-        renderDay3();
+        try {
+            renderLeaderboard();
+            renderDay1();
+            renderDay2();
+            renderDay3();
+        } catch(e) {
+            console.error('Render error:', e);
+        }
     }
 
     function renderLeaderboard() {
