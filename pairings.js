@@ -58,6 +58,43 @@ function applyPairings() {
     CONFIG.days.day3.back.matches[3].jd = p.day3.back[3].jd;
 }
 
+function updateMatchHeaders() {
+    const allPlayers = { ...CONFIG.teams.hogSuckers.players, ...CONFIG.teams.junkyardDawgs.players };
+    const fmt = (keys) => keys.map(k => {
+        const p = allPlayers[k];
+        const last = p.name.split(' ').pop();
+        return `${last} (${Math.round(p.index)})`;
+    }).join(' + ');
+    const fmtSingle = (k) => allPlayers[k].name.split(' ').pop();
+
+    // Day 1 match headers
+    for (let m = 0; m < 2; m++) {
+        const match = CONFIG.days.day1.matches[m];
+        const el = document.getElementById(`d1-match${m + 1}-teams`);
+        if (el) {
+            el.innerHTML = `<span class="team-label hs">${fmt(match.hs)}</span><span class="vs-small">vs</span><span class="team-label jd">${fmt(match.jd)}</span>`;
+        }
+    }
+
+    // Day 3 front match headers
+    for (let m = 0; m < 2; m++) {
+        const match = CONFIG.days.day3.front.matches[m];
+        const el = document.getElementById(`d3-front-match${m + 1}-teams`);
+        if (el) {
+            el.innerHTML = `<span class="team-label hs">${fmt(match.hs)}</span><span class="vs-small">vs</span><span class="team-label jd">${fmt(match.jd)}</span>`;
+        }
+    }
+
+    // Day 3 back match headers
+    for (let m = 0; m < 4; m++) {
+        const match = CONFIG.days.day3.back.matches[m];
+        const el = document.getElementById(`d3-back-match${m + 1}-header`);
+        if (el) {
+            el.textContent = `Match ${m + 1}: ${fmtSingle(match.hs)} vs ${fmtSingle(match.jd)}`;
+        }
+    }
+}
+
 function renderPairingsPage() {
     const allPlayers = { ...CONFIG.teams.hogSuckers.players, ...CONFIG.teams.junkyardDawgs.players };
     const pairings = loadPairings();

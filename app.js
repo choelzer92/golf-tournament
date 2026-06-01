@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderAll() {
         try {
+            updateMatchHeaders();
             renderLeaderboard();
             renderDay1();
             renderDay2();
