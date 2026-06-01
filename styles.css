@@ -1192,6 +1192,46 @@ main {
     position: relative;
 }
 
+/* Collapsible Matches (Scorer Mode) */
+.match.collapsed h3,
+.match.collapsed h4 {
+    position: relative;
+    padding-right: 24px;
+}
+
+.match.collapsed h3::after,
+.match.collapsed h4::after {
+    content: '▸';
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+    color: var(--text-light);
+}
+
+.match:not(.collapsed) h3[data-collapsible="true"]::after,
+.match:not(.collapsed) h4[data-collapsible="true"]::after {
+    content: '▾';
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+    color: var(--text-light);
+}
+
+.match:not(.collapsed) h3[data-collapsible="true"],
+.match:not(.collapsed) h4[data-collapsible="true"] {
+    position: relative;
+    padding-right: 24px;
+}
+
+.match.collapsed .match-teams {
+    opacity: 0.7;
+    font-size: 11px;
+}
+
 /* Pairings Page */
 .pairings-day {
     background: var(--card-bg);

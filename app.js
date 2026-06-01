@@ -104,6 +104,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Collapsible match state
+    const expandedMatch = { day1: null, day2: null, day3: null };
+
+    function setupCollapsibleMatches(dayKey, matchEls) {
+        if (!scorerMode) {
+            matchEls.forEach(el => {
+                el.classList.remove('collapsed');
+                el.querySelector('.scorecard-container').style.display = '';
+            });
+            return;
+        }
+        matchEls.forEach((el, idx) => {
+            const isExpanded = expandedMatch[dayKey] === idx;
+            el.classList.toggle('collapsed', !isExpanded);
+            el.querySelector('.scorecard-container').style.display = isExpanded ? '' : 'none';
+
+            const header = el.querySelector('h3, h4');
+            if (header && !header.dataset.collapsible) {
+                header.dataset.collapsible = 'true';
+                header.style.cursor = 'pointer';
+                header.addEventListener('click', () => {
+                    expandedMatch[dayKey] = expandedMatch[dayKey] === idx ? null : idx;
+                    renderAll();
+                });
+            }
+        });
+    }
+
     // ==================== DAY 1 ====================
     function renderDay1() {
         for (const matchIdx of [1, 2]) {
@@ -121,6 +149,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 container.innerHTML = renderDay1View(matchKey, match, course);
             }
         }
+
+        setupCollapsibleMatches('day1', [
+            document.getElementById('d1-match1'),
+            document.getElementById('d1-match2')
+        ]);
 
         const rankings = scoring.calcDay1AllIndividuals();
         let indHtml = '';
@@ -269,15 +302,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ==================== DAY 2 ====================
     function renderDay2() {
-        const container = document.querySelector('#d2-team .scorecard-container');
         const course = CONFIG.courses[CONFIG.days.day2.course];
         const hsPlayers = ['bodner', 'burns', 'smith', 'ross'];
         const jdPlayers = ['craig', 'casey', 'enterlin', 'lacy'];
 
         if (scorerMode) {
-            container.innerHTML = renderDay2Scorer(course, hsPlayers, jdPlayers);
+            document.getElementById('d2-team').style.display = 'none';
+            document.getElementById('d2-hs').style.display = '';
+            document.getElementById('d2-jd').style.display = '';
+
+            const hsContainer = document.querySelector('#d2-hs .scorecard-container');
+            const jdContainer = document.querySelector('#d2-jd .scorecard-container');
+            hsContainer.innerHTML = renderDay2TeamScorer(course, hsPlayers, 'hs');
+            jdContainer.innerHTML = renderDay2TeamScorer(course, jdPlayers, 'jd');
             attachDay2Events(course, hsPlayers, jdPlayers);
+
+            setupCollapsibleMatches('day2', [
+                document.getElementById('d2-hs'),
+                document.getElementById('d2-jd')
+            ]);
         } else {
+            document.getElementById('d2-team').style.display = '';
+            document.getElementById('d2-hs').style.display = 'none';
+            document.getElementById('d2-jd').style.display = 'none';
+            const container = document.getElementById('d2-full-container');
             container.innerHTML = renderDay2View(course, hsPlayers, jdPlayers);
         }
 
@@ -416,6 +464,55 @@ document.addEventListener('DOMContentLoaded', () => {
         return html;
     }
 
+    function renderDay2TeamScorer(course, teamPlayers, teamKey) {
+        const hole = currentHole.day2;
+        const par = course.pars[hole];
+        const strokeIdx = course.strokeIndex[hole];
+        const holeScores = scoring.scores.day2[teamKey][hole] || [null, null, null, null];
+
+        const allPKeys = ['bodner', 'burns', 'smith', 'ross', 'craig', 'casey', 'enterlin', 'lacy'];
+        const allHcaps = allPKeys.map(p => getPlayerCourseHcap(p, CONFIG.days.day2.course, CONFIG.days.day2.allowance));
+        const lowestHcap = Math.min(...allHcaps);
+
+        let html = renderHoleNav('day2', hole, 17);
+        html += `<div class="hole-par-info">Par ${par} | Stroke Index ${strokeIdx}</div>`;
+        html += renderDots('day2', 18, hole, (h) => {
+            const s = scoring.scores.day2[teamKey][h];
+            return s && s.some(v => v !== null);
+        });
+
+        html += '<div class="player-scores">';
+        for (let p = 0; p < 4; p++) {
+            const playerKey = teamPlayers[p];
+            const hcap = getPlayerCourseHcap(playerKey, CONFIG.days.day2.course, CONFIG.days.day2.allowance);
+            const adjustedHcap = hcap - lowestHcap;
+            const strokes = getStrokesOnHole(adjustedHcap, strokeIdx);
+            const currentVal = holeScores[p];
+            const netScore = currentVal !== null ? currentVal - strokes : null;
+
+            html += `<div class="player-row">
+                <div class="player-info">
+                    <span class="player-name">${allPlayers[playerKey].name}</span>
+                    <span class="player-hcap">${hcap} (${adjustedHcap} off low)${strokes > 0 ? ' | <b class="stroke-dot">+' + strokes + '</b>' : ''}</span>
+                </div>
+                <div class="score-buttons">
+                    ${renderScoreButtons(`data-day="2" data-team="${teamKey}" data-hole="${hole}" data-player="${p}"`, currentVal, par)}
+                </div>
+                ${currentVal !== null ? `<div class="stableford-result visible">Gross: ${currentVal} | Net: ${netScore}</div>` : ''}
+            </div>`;
+        }
+        html += '</div>';
+
+        const d2 = scoring.calcDay2();
+        html += `<div class="match-status">
+            <span class="hs-pts">HS: ${d2.hsFront + d2.hsBack >= 0 ? '+' : ''}${d2.hsFront + d2.hsBack}</span>
+            <span>vs par</span>
+            <span class="jd-pts">JD: ${d2.jdFront + d2.jdBack >= 0 ? '+' : ''}${d2.jdFront + d2.jdBack}</span>
+        </div>`;
+
+        return html;
+    }
+
     function attachDay2Events(course, hsPlayers, jdPlayers) {
         document.querySelectorAll('.score-btn[data-day="2"]').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -466,15 +563,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 container.innerHTML = renderDay3GroupScorer(m, matchKey, holeKey, matchConfig, course);
                 attachDay3GroupEvents(m, matchKey, holeKey, matchConfig, course);
             }
-            // Hide back 9 match containers in scorer mode
+            // Hide back 9 match containers and all nine-headers in scorer mode
             for (let m = 0; m < 4; m++) {
                 const matchEl = document.getElementById(`d3-back-match${m + 1}`);
                 if (matchEl) matchEl.style.display = 'none';
             }
-            // Hide the back 9 header
-            document.querySelectorAll('#day3 .nine-header').forEach((el, idx) => {
-                if (idx === 1) el.style.display = 'none';
-            });
+            document.querySelectorAll('#day3 .nine-header').forEach(el => el.style.display = 'none');
+
+            setupCollapsibleMatches('day3', [
+                document.getElementById('d3-front-match1'),
+                document.getElementById('d3-front-match2')
+            ]);
         } else {
             // View mode: show front and back separately as before
             for (let m = 0; m < 2; m++) {
