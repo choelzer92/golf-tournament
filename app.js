@@ -677,6 +677,289 @@ document.addEventListener('DOMContentLoaded', () => {
         return html;
     }
 
+    // ==================== SCORECARD VIEW ====================
+    let currentRound = 1;
+
+    document.querySelectorAll('.round-tab').forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            document.querySelectorAll('.round-tab').forEach(t => t.classList.remove('active'));
+            e.target.classList.add('active');
+            currentRound = parseInt(e.target.dataset.round);
+            renderScorecard();
+        });
+    });
+
+    function renderScorecard() {
+        const display = document.getElementById('scorecard-display');
+        if (!display) return;
+
+        if (currentRound === 1) display.innerHTML = renderScorecardDay1();
+        else if (currentRound === 2) display.innerHTML = renderScorecardDay2();
+        else display.innerHTML = renderScorecardDay3();
+    }
+
+    function renderScorecardDay1() {
+        const course = CONFIG.courses[CONFIG.days.day1.course];
+        let html = '';
+
+        for (const matchIdx of [1, 2]) {
+            const matchKey = `match${matchIdx}`;
+            const match = CONFIG.days.day1.matches[matchIdx - 1];
+            const scores = scoring.scores.day1[matchKey];
+            const players = [...match.hs, ...match.jd];
+            const teams = ['hs', 'hs', 'jd', 'jd'];
+
+            html += `<div class="sc-match-header">Match ${matchIdx}</div>`;
+            html += '<div class="sc-table-wrap"><table class="sc-table">';
+
+            // Header row
+            html += '<tr><th class="sc-player-col">Hole</th>';
+            for (let h = 1; h <= 9; h++) html += `<th>${h}</th>`;
+            html += '<th>Out</th>';
+            for (let h = 10; h <= 18; h++) html += `<th>${h}</th>`;
+            html += '<th>In</th><th>Tot</th></tr>';
+
+            // Par row
+            html += '<tr class="sc-par-row"><td>Par</td>';
+            let fPar = 0, bPar = 0;
+            for (let h = 0; h < 9; h++) { html += `<td>${course.pars[h]}</td>`; fPar += course.pars[h]; }
+            html += `<td><b>${fPar}</b></td>`;
+            for (let h = 9; h < 18; h++) { html += `<td>${course.pars[h]}</td>`; bPar += course.pars[h]; }
+            html += `<td><b>${bPar}</b></td><td><b>${fPar + bPar}</b></td></tr>`;
+
+            // Player rows
+            for (let pIdx = 0; pIdx < 4; pIdx++) {
+                const playerKey = players[pIdx];
+                const team = teams[pIdx];
+                const pInTeam = pIdx < 2 ? pIdx : pIdx - 2;
+                const hcap = getPlayerCourseHcap(playerKey, CONFIG.days.day1.course, CONFIG.days.day1.allowance);
+                const cls = team === 'hs' ? 'sc-hs' : 'sc-jd';
+
+                html += `<tr class="${cls}"><td class="sc-player-col">${allPlayers[playerKey].name.split(' ')[1]} (${hcap})</td>`;
+                let fTotal = 0, bTotal = 0;
+                for (let h = 0; h < 18; h++) {
+                    const teamScores = scores[team][h];
+                    const gross = teamScores ? teamScores[pInTeam] : null;
+                    const getsStroke = getStrokesOnHole(hcap, course.strokeIndex[h]) > 0;
+                    let cellContent = gross !== null ? gross : '';
+                    let cellClass = getsStroke ? 'sc-stroke' : '';
+                    if (gross !== null) {
+                        if (h < 9) fTotal += gross; else bTotal += gross;
+                    }
+                    html += `<td class="${cellClass}">${cellContent}${getsStroke && gross !== null ? '*' : ''}</td>`;
+                    if (h === 8) html += `<td><b>${fTotal || ''}</b></td>`;
+                }
+                html += `<td><b>${bTotal || ''}</b></td><td><b>${(fTotal + bTotal) || ''}</b></td></tr>`;
+            }
+
+            // Team stableford result row
+            html += '<tr class="sc-result-row"><td>Result</td>';
+            let hsRunning = 0, jdRunning = 0;
+            for (let h = 0; h < 18; h++) {
+                const hsHole = scores.hs[h];
+                const jdHole = scores.jd[h];
+                let cellVal = '', cellClass = '';
+                if (hsHole && jdHole && hsHole[0] !== null && hsHole[1] !== null && jdHole[0] !== null && jdHole[1] !== null) {
+                    let hsS = 0, jdS = 0;
+                    for (let p = 0; p < 2; p++) {
+                        hsS += scoring.stablefordPoints(hsHole[p], course.pars[h], getStrokesOnHole(getPlayerCourseHcap(match.hs[p], CONFIG.days.day1.course, CONFIG.days.day1.allowance), course.strokeIndex[h]));
+                        jdS += scoring.stablefordPoints(jdHole[p], course.pars[h], getStrokesOnHole(getPlayerCourseHcap(match.jd[p], CONFIG.days.day1.course, CONFIG.days.day1.allowance), course.strokeIndex[h]));
+                    }
+                    if (hsS > jdS) { cellVal = 'HS'; cellClass = 'sc-win-hs'; hsRunning++; }
+                    else if (jdS > hsS) { cellVal = 'JD'; cellClass = 'sc-win-jd'; jdRunning++; }
+                    else { cellVal = '-'; cellClass = 'sc-halve'; hsRunning += 0.5; jdRunning += 0.5; }
+                }
+                html += `<td class="${cellClass}">${cellVal}</td>`;
+                if (h === 8) html += '<td></td>';
+            }
+            html += `<td></td><td class="sc-total">${hsRunning}-${jdRunning}</td></tr>`;
+            html += '</table></div>';
+        }
+
+        return html;
+    }
+
+    function renderScorecardDay2() {
+        const course = CONFIG.courses[CONFIG.days.day2.course];
+        const hsPlayers = ['bodner', 'burns', 'smith', 'ross'];
+        const jdPlayers = ['craig', 'casey', 'enterlin', 'lacy'];
+        const allPKeys = [...hsPlayers, ...jdPlayers];
+        const allHcaps = allPKeys.map(p => getPlayerCourseHcap(p, CONFIG.days.day2.course, CONFIG.days.day2.allowance));
+        const lowestHcap = Math.min(...allHcaps);
+
+        let html = '<div class="sc-table-wrap"><table class="sc-table">';
+
+        // Header
+        html += '<tr><th class="sc-player-col">Hole</th>';
+        for (let h = 1; h <= 9; h++) html += `<th>${h}</th>`;
+        html += '<th>Out</th>';
+        for (let h = 10; h <= 18; h++) html += `<th>${h}</th>`;
+        html += '<th>In</th><th>Tot</th></tr>';
+
+        // Par
+        html += '<tr class="sc-par-row"><td>Par</td>';
+        let fPar = 0, bPar = 0;
+        for (let h = 0; h < 9; h++) { html += `<td>${course.pars[h]}</td>`; fPar += course.pars[h]; }
+        html += `<td><b>${fPar}</b></td>`;
+        for (let h = 9; h < 18; h++) { html += `<td>${course.pars[h]}</td>`; bPar += course.pars[h]; }
+        html += `<td><b>${bPar}</b></td><td><b>${fPar + bPar}</b></td></tr>`;
+
+        // All 8 players
+        for (const playerKey of allPKeys) {
+            const isHs = hsPlayers.includes(playerKey);
+            const team = isHs ? 'hs' : 'jd';
+            const pIdx = isHs ? hsPlayers.indexOf(playerKey) : jdPlayers.indexOf(playerKey);
+            const hcap = getPlayerCourseHcap(playerKey, CONFIG.days.day2.course, CONFIG.days.day2.allowance);
+            const adjustedHcap = hcap - lowestHcap;
+            const cls = isHs ? 'sc-hs' : 'sc-jd';
+
+            html += `<tr class="${cls}"><td class="sc-player-col">${allPlayers[playerKey].name.split(' ')[1]} (${adjustedHcap})</td>`;
+            let fTotal = 0, bTotal = 0;
+            for (let h = 0; h < 18; h++) {
+                const holeScores = scoring.scores.day2[team][h];
+                const gross = holeScores ? holeScores[pIdx] : null;
+                const getsStroke = getStrokesOnHole(adjustedHcap, course.strokeIndex[h]) > 0;
+                let cellContent = gross !== null ? gross : '';
+                if (gross !== null) { if (h < 9) fTotal += gross; else bTotal += gross; }
+                html += `<td class="${getsStroke ? 'sc-stroke' : ''}">${cellContent}${getsStroke && gross !== null ? '*' : ''}</td>`;
+                if (h === 8) html += `<td><b>${fTotal || ''}</b></td>`;
+            }
+            html += `<td><b>${bTotal || ''}</b></td><td><b>${(fTotal + bTotal) || ''}</b></td></tr>`;
+        }
+
+        html += '</table></div>';
+        return html;
+    }
+
+    function renderScorecardDay3() {
+        const course = CONFIG.courses[CONFIG.days.day3.course];
+        let html = '';
+
+        // Front 9
+        for (let m = 0; m < 2; m++) {
+            const matchKey = `match${m + 1}`;
+            const matchConfig = CONFIG.days.day3.front.matches[m];
+            const allMatchPlayers = [...matchConfig.hs, ...matchConfig.jd];
+            const matchHcaps = allMatchPlayers.map(p => getPlayerCourseHcap(p, CONFIG.days.day3.course, CONFIG.days.day3.front.allowance));
+            const lowestHcap = Math.min(...matchHcaps);
+
+            html += `<div class="sc-match-header">Front 9 - Match ${m + 1} (Best Ball)</div>`;
+            html += '<div class="sc-table-wrap"><table class="sc-table">';
+            html += '<tr><th class="sc-player-col">Hole</th>';
+            for (let h = 1; h <= 9; h++) html += `<th>${h}</th>`;
+            html += '<th>Tot</th></tr>';
+
+            // Par
+            html += '<tr class="sc-par-row"><td>Par</td>';
+            let totalPar = 0;
+            for (let h = 0; h < 9; h++) { html += `<td>${course.pars[h]}</td>`; totalPar += course.pars[h]; }
+            html += `<td><b>${totalPar}</b></td></tr>`;
+
+            // Players
+            for (let pIdx = 0; pIdx < 4; pIdx++) {
+                const playerKey = allMatchPlayers[pIdx];
+                const isHs = pIdx < 2;
+                const hcap = getPlayerCourseHcap(playerKey, CONFIG.days.day3.course, CONFIG.days.day3.front.allowance);
+                const adjustedHcap = hcap - lowestHcap;
+                const cls = isHs ? 'sc-hs' : 'sc-jd';
+
+                html += `<tr class="${cls}"><td class="sc-player-col">${allPlayers[playerKey].name.split(' ')[1]} (${adjustedHcap})</td>`;
+                let total = 0;
+                for (let h = 0; h < 9; h++) {
+                    const holeScores = scoring.scores.day3.front[matchKey][h];
+                    const gross = holeScores ? holeScores[pIdx] : null;
+                    const getsStroke = getStrokesOnHole(adjustedHcap, course.strokeIndex[h]) > 0;
+                    if (gross !== null) total += gross;
+                    html += `<td class="${getsStroke ? 'sc-stroke' : ''}">${gross !== null ? gross : ''}${getsStroke && gross !== null ? '*' : ''}</td>`;
+                }
+                html += `<td><b>${total || ''}</b></td></tr>`;
+            }
+
+            // Result row
+            html += '<tr class="sc-result-row"><td>Result</td>';
+            let mHs = 0, mJd = 0;
+            for (let h = 0; h < 9; h++) {
+                const r = scoring.getDay3FrontHoleResult(m, h);
+                let cellVal = '', cellClass = '';
+                if (r === 'hs') { cellVal = 'HS'; cellClass = 'sc-win-hs'; mHs++; }
+                else if (r === 'jd') { cellVal = 'JD'; cellClass = 'sc-win-jd'; mJd++; }
+                else if (r === 'halve') { cellVal = '-'; cellClass = 'sc-halve'; mHs += 0.5; mJd += 0.5; }
+                html += `<td class="${cellClass}">${cellVal}</td>`;
+            }
+            html += `<td class="sc-total">${mHs}-${mJd}</td></tr>`;
+            html += '</table></div>';
+        }
+
+        // Back 9
+        for (let m = 0; m < 4; m++) {
+            const matchKey = `match${m + 1}`;
+            const matchConfig = CONFIG.days.day3.back.matches[m];
+            const hsPlayer = matchConfig.hs;
+            const jdPlayer = matchConfig.jd;
+            const hsHcap = getPlayerCourseHcap(hsPlayer, CONFIG.days.day3.course, 1.0);
+            const jdHcap = getPlayerCourseHcap(jdPlayer, CONFIG.days.day3.course, 1.0);
+            const diff = Math.abs(hsHcap - jdHcap);
+            const hsGetsStrokes = hsHcap > jdHcap;
+
+            html += `<div class="sc-match-header">Back 9 - ${allPlayers[hsPlayer].name.split(' ')[1]} vs ${allPlayers[jdPlayer].name.split(' ')[1]}</div>`;
+            html += '<div class="sc-table-wrap"><table class="sc-table">';
+            html += '<tr><th class="sc-player-col">Hole</th>';
+            for (let h = 10; h <= 18; h++) html += `<th>${h}</th>`;
+            html += '<th>Tot</th></tr>';
+
+            // Par
+            html += '<tr class="sc-par-row"><td>Par</td>';
+            let totalPar2 = 0;
+            for (let h = 9; h < 18; h++) { html += `<td>${course.pars[h]}</td>`; totalPar2 += course.pars[h]; }
+            html += `<td><b>${totalPar2}</b></td></tr>`;
+
+            // HS player
+            html += `<tr class="sc-hs"><td class="sc-player-col">${allPlayers[hsPlayer].name.split(' ')[1]} (${hsGetsStrokes ? diff : 0})</td>`;
+            let hsTotal = 0;
+            for (let h = 0; h < 9; h++) {
+                const holeScores = scoring.scores.day3.back[matchKey][h];
+                const gross = holeScores ? holeScores[0] : null;
+                const courseHoleIdx = h + 9;
+                const strokes = hsGetsStrokes ? getStrokesOnHole(diff, course.strokeIndex[courseHoleIdx]) : 0;
+                const getsStroke = strokes > 0;
+                if (gross !== null) hsTotal += gross;
+                html += `<td class="${getsStroke ? 'sc-stroke' : ''}">${gross !== null ? gross : ''}${getsStroke && gross !== null ? '*' : ''}</td>`;
+            }
+            html += `<td><b>${hsTotal || ''}</b></td></tr>`;
+
+            // JD player
+            html += `<tr class="sc-jd"><td class="sc-player-col">${allPlayers[jdPlayer].name.split(' ')[1]} (${!hsGetsStrokes ? diff : 0})</td>`;
+            let jdTotal = 0;
+            for (let h = 0; h < 9; h++) {
+                const holeScores = scoring.scores.day3.back[matchKey][h];
+                const gross = holeScores ? holeScores[1] : null;
+                const courseHoleIdx = h + 9;
+                const strokes = !hsGetsStrokes ? getStrokesOnHole(diff, course.strokeIndex[courseHoleIdx]) : 0;
+                const getsStroke = strokes > 0;
+                if (gross !== null) jdTotal += gross;
+                html += `<td class="${getsStroke ? 'sc-stroke' : ''}">${gross !== null ? gross : ''}${getsStroke && gross !== null ? '*' : ''}</td>`;
+            }
+            html += `<td><b>${jdTotal || ''}</b></td></tr>`;
+
+            // Result row
+            html += '<tr class="sc-result-row"><td>Result</td>';
+            let mHs = 0, mJd = 0;
+            for (let h = 0; h < 9; h++) {
+                const r = scoring.getDay3BackHoleResult(m, h);
+                let cellVal = '', cellClass = '';
+                if (r === 'hs') { cellVal = allPlayers[hsPlayer].name.split(' ')[1][0]; cellClass = 'sc-win-hs'; mHs++; }
+                else if (r === 'jd') { cellVal = allPlayers[jdPlayer].name.split(' ')[1][0]; cellClass = 'sc-win-jd'; mJd++; }
+                else if (r === 'halve') { cellVal = '-'; cellClass = 'sc-halve'; mHs += 0.5; mJd += 0.5; }
+                html += `<td class="${cellClass}">${cellVal}</td>`;
+            }
+            html += `<td class="sc-total">${mHs}-${mJd}</td></tr>`;
+            html += '</table></div>';
+        }
+
+        return html;
+    }
+
     window.renderAll = renderAll;
     renderAll();
+    renderScorecard();
 });

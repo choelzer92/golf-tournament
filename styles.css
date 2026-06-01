@@ -459,6 +459,123 @@ main {
     font-size: 13px !important;
 }
 
+/* Scorecard section */
+.scorecard-section {
+    margin-top: 24px;
+}
+
+.scorecard-section h3 {
+    font-size: 16px;
+    color: var(--green-dark);
+    margin-bottom: 10px;
+}
+
+.round-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.round-tab {
+    flex: 1;
+    padding: 8px;
+    border: 2px solid var(--green-dark);
+    background: white;
+    color: var(--green-dark);
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.round-tab.active {
+    background: var(--green-dark);
+    color: white;
+}
+
+.sc-match-header {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--green-dark);
+    padding: 8px 0 4px;
+    border-bottom: 2px solid var(--green-light);
+    margin-top: 12px;
+}
+
+.sc-table-wrap {
+    overflow-x: auto;
+    margin: 8px 0 16px;
+}
+
+.sc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    min-width: 500px;
+}
+
+.sc-table th, .sc-table td {
+    padding: 4px 3px;
+    text-align: center;
+    border: 1px solid #e0e0e0;
+    white-space: nowrap;
+}
+
+.sc-table th {
+    background: var(--green-dark);
+    color: white;
+    font-size: 10px;
+}
+
+.sc-player-col {
+    text-align: left !important;
+    font-weight: 600;
+    min-width: 70px;
+    padding-left: 4px !important;
+}
+
+.sc-par-row td {
+    background: #f5f5f5;
+    font-weight: 600;
+}
+
+.sc-hs td:first-child {
+    color: var(--hs-color);
+}
+
+.sc-jd td:first-child {
+    color: var(--jd-color);
+}
+
+.sc-stroke {
+    background: rgba(76, 175, 80, 0.1);
+}
+
+.sc-result-row td {
+    background: #f9f9f9;
+    font-weight: 600;
+    font-size: 10px;
+}
+
+.sc-win-hs {
+    background: rgba(192, 57, 43, 0.15) !important;
+    color: var(--hs-color);
+}
+
+.sc-win-jd {
+    background: rgba(41, 128, 185, 0.15) !important;
+    color: var(--jd-color);
+}
+
+.sc-halve {
+    background: rgba(212, 168, 67, 0.1) !important;
+    color: #8b7020;
+}
+
+.sc-total {
+    font-weight: 700 !important;
+}
+
 /* Individual rankings */
 .individual-rankings {
     display: flex;

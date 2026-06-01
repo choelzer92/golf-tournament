@@ -102,10 +102,10 @@ const CONFIG = {
             back: {
                 allowance: 1.0,
                 matches: [
-                    { hs: "bodner", jd: "enterlin" },
-                    { hs: "burns", jd: "craig" },
-                    { hs: "smith", jd: "casey" },
-                    { hs: "ross", jd: "lacy" }
+                    { hs: "bodner", jd: "craig" },
+                    { hs: "smith", jd: "lacy" },
+                    { hs: "burns", jd: "enterlin" },
+                    { hs: "ross", jd: "casey" }
                 ]
             }
         }
