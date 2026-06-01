@@ -1,0 +1,9 @@
+{
+    "name": "Golf Tournament 2026",
+    "short_name": "Golf 2026",
+    "start_url": "/golf-tournament/",
+    "display": "standalone",
+    "background_color": "#f5f5f0",
+    "theme_color": "#1a5c2e",
+    "icons": []
+}

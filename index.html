@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Golf Tournament 2026</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a5c2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body>
+    <div id="login-screen" class="login-screen">
+        <div class="login-card">
+            <h1>Golf Tournament 2026</h1>
+            <p>Enter PIN to access</p>
+            <input type="number" id="pin-input" placeholder="PIN" maxlength="6" inputmode="numeric">
+            <button id="pin-submit">Enter</button>
+            <p id="pin-error" class="pin-error"></p>
+        </div>
+    </div>
+
+    <div id="app-content" style="display:none">
+    <header>
+        <h1>Golf Tournament 2026</h1>
+        <nav>
+            <button class="nav-btn active" data-view="leaderboard">Leaderboard</button>
+            <button class="nav-btn" data-view="day1">Day 1</button>
+            <button class="nav-btn" data-view="day2">Day 2</button>
+            <button class="nav-btn" data-view="day3">Day 3</button>
+        </nav>
+    </header>
+
+    <main>
+        <section id="leaderboard" class="view active">
+            <div class="tournament-header">
+                <h2>Tournament Standings</h2>
+                <p class="subtitle">136 Total Points Available</p>
+            </div>
+            <div class="standings-container">
+                <div class="team-card hog-suckers">
+                    <h3>Hog Suckers</h3>
+                    <div class="team-score" id="hs-total">0</div>
+                    <div class="day-scores">
+                        <span>D1: <span id="hs-d1">0</span></span>
+                        <span>D2: <span id="hs-d2">0</span></span>
+                        <span>D3: <span id="hs-d3">0</span></span>
+                    </div>
+                </div>
+                <div class="vs">VS</div>
+                <div class="team-card junkyard-dawgs">
+                    <h3>Junkyard Dawgs</h3>
+                    <div class="team-score" id="jd-total">0</div>
+                    <div class="day-scores">
+                        <span>D1: <span id="jd-d1">0</span></span>
+                        <span>D2: <span id="jd-d2">0</span></span>
+                        <span>D3: <span id="jd-d3">0</span></span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="day1" class="view">
+            <div class="day-header">
+                <h2>Day 1 - Old Trail</h2>
+                <p class="subtitle">2v2 Combined Stableford | 38 pts</p>
+                <p class="course-info">Par 72 | CR 70.1 | Slope 133 | 100% Handicap</p>
+            </div>
+            <div class="match-container">
+                <div class="match" id="d1-match1">
+                    <h3>Match 1 (18 pts)</h3>
+                    <div class="match-teams">
+                        <span class="team-label hs">Bodner (8) + Keith (15)</span>
+                        <span class="vs-small">vs</span>
+                        <span class="team-label jd">Craig (9) + Casey (13)</span>
+                    </div>
+                    <div class="scorecard-container"></div>
+                </div>
+                <div class="match" id="d1-match2">
+                    <h3>Match 2 (18 pts)</h3>
+                    <div class="match-teams">
+                        <span class="team-label hs">Burns (16) + Smith (11)</span>
+                        <span class="vs-small">vs</span>
+                        <span class="team-label jd">Enterlin (4) + Lacy (10)</span>
+                    </div>
+                    <div class="scorecard-container"></div>
+                </div>
+                <div class="bonus-section">
+                    <h3>Best Individual Stableford (2 pts)</h3>
+                    <div id="d1-individual-leader">No scores yet</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="day2" class="view">
+            <div class="day-header">
+                <h2>Day 2 - Spring Creek</h2>
+                <p class="subtitle">2 Best Balls (Net + Gross) | 38 pts</p>
+                <p class="course-info">Par 72 | CR 71.2 | Slope 141 | 80% Handicap</p>
+            </div>
+            <div class="match-container">
+                <div class="match" id="d2-team">
+                    <h3>Team Match (36 pts: F9 16 / B9 16 / Overall 4)</h3>
+                    <div class="match-teams">
+                        <span class="team-label hs">Hog Suckers</span>
+                        <span class="vs-small">vs</span>
+                        <span class="team-label jd">Junkyard Dawgs</span>
+                    </div>
+                    <div class="scorecard-container"></div>
+                </div>
+                <div class="bonus-section">
+                    <h3>Junk (2 pts)</h3>
+                    <div class="junk-tracker">
+                        <div class="junk-team">
+                            <span class="team-label hs">Hog Suckers</span>
+                            <span class="junk-score" id="d2-junk-hs">0</span>
+                        </div>
+                        <div class="junk-team">
+                            <span class="team-label jd">Junkyard Dawgs</span>
+                            <span class="junk-score" id="d2-junk-jd">0</span>
+                        </div>
+                    </div>
+                    <p class="junk-legend">Gross Birdie = 1 | Gross Eagle = 2 | Team Par = 1</p>
+                </div>
+                <div class="bonus-section">
+                    <h3>Closest to Pin (Side Bets Only)</h3>
+                    <div class="ctp-container">
+                        <div>Front 9: <span id="d2-ctp-front">—</span></div>
+                        <div>Back 9: <span id="d2-ctp-back">—</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="day3" class="view">
+            <div class="day-header">
+                <h2>Day 3 - Glenmore</h2>
+                <p class="subtitle">2v2 Best Ball + 1v1 Match Play | 60 pts</p>
+                <p class="course-info">Par 72 | CR 70.5 | Slope 138</p>
+            </div>
+            <div class="match-container">
+                <h3 class="nine-header">Front 9 - 2v2 Best Ball (90% Handicap)</h3>
+                <div class="match" id="d3-front-match1">
+                    <h4>Match A</h4>
+                    <div class="match-teams">
+                        <span class="team-label hs">Bodner (4) + Smith (5)</span>
+                        <span class="vs-small">vs</span>
+                        <span class="team-label jd">Craig (5) + Lacy (5)</span>
+                    </div>
+                    <div class="scorecard-container"></div>
+                </div>
+                <div class="match" id="d3-front-match2">
+                    <h4>Match B</h4>
+                    <div class="match-teams">
+                        <span class="team-label hs">Burns (8) + Ross (11)</span>
+                        <span class="vs-small">vs</span>
+                        <span class="team-label jd">Enterlin (2) + Casey (6)</span>
+                    </div>
+                    <div class="scorecard-container"></div>
+                </div>
+
+                <h3 class="nine-header">Back 9 - 1v1 Match Play (100% of Difference)</h3>
+                <div class="match" id="d3-back-match1">
+                    <h4>Match 1: Bodner vs Enterlin (3 strokes to Bodner)</h4>
+                    <div class="scorecard-container"></div>
+                </div>
+                <div class="match" id="d3-back-match2">
+                    <h4>Match 2: Burns vs Craig (4 strokes to Burns)</h4>
+                    <div class="scorecard-container"></div>
+                </div>
+                <div class="match" id="d3-back-match3">
+                    <h4>Match 3: Smith vs Casey (1 stroke to Casey)</h4>
+                    <div class="scorecard-container"></div>
+                </div>
+                <div class="match" id="d3-back-match4">
+                    <h4>Match 4: Ross vs Lacy (7 strokes to Ross)</h4>
+                    <div class="scorecard-container"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="scorer-toggle">
+        <button id="toggle-scorer-btn">Scorer Mode</button>
+    </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="config.js"></script>
+    <script src="scoring.js"></script>
+    <script src="app.js"></script>
+    <script type="module">
+        import { saveScores, onScoresUpdate } from './firebase.js';
+
+        (async () => {
+            if (await checkAuth()) {
+                showApp();
+            } else {
+                showLoginScreen();
+            }
+            document.getElementById('pin-submit').addEventListener('click', async () => {
+                const pin = document.getElementById('pin-input').value;
+                if (await attemptLogin(pin)) {
+                    showApp();
+                } else {
+                    document.getElementById('pin-error').textContent = 'Wrong PIN';
+                }
+            });
+            document.getElementById('pin-input').addEventListener('keyup', (e) => {
+                if (e.key === 'Enter') document.getElementById('pin-submit').click();
+            });
+
+            // Sync with Firebase
+            window.firebaseSave = saveScores;
+            onScoresUpdate((data) => {
+                const scoring = window.tournamentScoring;
+                if (scoring) {
+                    scoring.scores = data;
+                    localStorage.setItem('golf-tournament-2026', JSON.stringify(data));
+                    if (window.renderAll) window.renderAll();
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
