@@ -48,6 +48,26 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('jd-d2').textContent = totals.day2.jd;
         document.getElementById('hs-d3').textContent = totals.day3.hs;
         document.getElementById('jd-d3').textContent = totals.day3.jd;
+
+        // Bonus leaders
+        let bonusHtml = '';
+        const d1ind = scoring.calcDay1Individual();
+        if (d1ind.winners.length > 0) {
+            const names = d1ind.winners.map(w => allPlayers[w.playerKey].name.split(' ').pop()).join(', ');
+            const teamCls = d1ind.winners[0].team === 'hs' ? 'hs-pts' : (d1ind.winners.every(w => w.team === 'jd') ? 'jd-pts' : '');
+            const pts = d1ind.winners.length > 1 ? `${(2 / d1ind.winners.length).toFixed(1)} pts each` : '2 pts';
+            bonusHtml += `<div class="bonus-leader-row"><span class="bonus-label">D1 Best Stableford:</span> <span class="${teamCls}"><b>${names}</b> (${d1ind.total} pts) — ${pts}</span></div>`;
+        }
+
+        const d2ind = scoring.calcDay2Individual();
+        if (d2ind.winners.length > 0) {
+            const names = d2ind.winners.map(w => allPlayers[w.playerKey].name.split(' ').pop()).join(', ');
+            const teamCls = d2ind.winners[0].team === 'hs' ? 'hs-pts' : (d2ind.winners.every(w => w.team === 'jd') ? 'jd-pts' : '');
+            const pts = d2ind.winners.length > 1 ? `${(2 / d2ind.winners.length).toFixed(1)} pts each` : '2 pts';
+            bonusHtml += `<div class="bonus-leader-row"><span class="bonus-label">D2 Best Net:</span> <span class="${teamCls}"><b>${names}</b> (${d2ind.total} net) — ${pts}</span></div>`;
+        }
+
+        document.getElementById('leaderboard-bonuses').innerHTML = bonusHtml;
     }
 
     // ==================== SHARED HELPERS ====================

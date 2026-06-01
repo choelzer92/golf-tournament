@@ -1192,6 +1192,29 @@ main {
     position: relative;
 }
 
+/* Bonus Leaders (Leaderboard) */
+.bonus-leaders {
+    margin: 12px 0;
+    padding: 10px 14px;
+    background: var(--card-bg);
+    border-radius: 10px;
+    border-left: 3px solid var(--gold);
+}
+
+.bonus-leader-row {
+    font-size: 13px;
+    padding: 4px 0;
+}
+
+.bonus-label {
+    color: var(--text-light);
+    font-weight: 500;
+}
+
+.bonus-leaders:empty {
+    display: none;
+}
+
 /* Collapsible Matches (Scorer Mode) */
 .match.collapsed h3,
 .match.collapsed h4 {
