@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { FORMATS } from '@/lib/formats';
 import type { Tournament, TournamentRound } from '@/lib/tournament-state';
-import { loadTournament, saveTournament, computeStandings, exportTournament, fetchTournament, fetchGameScores, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
+import type { GameScore } from '@/lib/game-state';
+import { loadTournament, saveTournament, loadGameScores, computeStandings, exportTournament, fetchTournament, fetchGameScores, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
 
 export default function TournamentHubPage() {
   const router = useRouter();
@@ -48,6 +49,27 @@ export default function TournamentHubPage() {
   const teamA = tournament.teams[0];
   const teamB = tournament.teams[1];
 
+  // Compute live provisional standings
+  let liveA = standings.teamAPoints;
+  let liveB = standings.teamBPoints;
+  for (const round of tournament.rounds) {
+    for (const matchup of round.matchups) {
+      if (!matchup.gameId || matchup.result) continue;
+      const scores: GameScore[] | null = loadGameScores(matchup.id);
+      if (!scores || scores.length === 0) continue;
+      const holes = getHoleDataForRound(round);
+      for (const hole of holes) {
+        const teamAScores = scores.filter((s) => matchup.teamAPlayerIds.includes(s.playerId) && s.hole === hole.number);
+        const teamBScores = scores.filter((s) => matchup.teamBPlayerIds.includes(s.playerId) && s.hole === hole.number);
+        if (teamAScores.length === 0 || teamBScores.length === 0) continue;
+        const bestA = Math.min(...teamAScores.map((s) => s.grossScore));
+        const bestB = Math.min(...teamBScores.map((s) => s.grossScore));
+        if (bestA < bestB) liveA += round.pointsForWin;
+        else if (bestB < bestA) liveB += round.pointsForWin;
+      }
+    }
+  }
+
   return (
     <div className="min-h-full bg-gray-50">
       <header className="bg-green-800 text-white shadow">
@@ -68,12 +90,12 @@ export default function TournamentHubPage() {
           <div className="flex items-center justify-center gap-6">
             <div className="text-center">
               <p className="text-sm text-green-300">{teamA.name}</p>
-              <p className="text-4xl font-bold">{standings.teamAPoints}</p>
+              <p className="text-4xl font-bold">{liveA}</p>
             </div>
             <div className="text-2xl text-green-500 font-light">—</div>
             <div className="text-center">
               <p className="text-sm text-green-300">{teamB.name}</p>
-              <p className="text-4xl font-bold">{standings.teamBPoints}</p>
+              <p className="text-4xl font-bold">{liveB}</p>
             </div>
           </div>
           <div className="text-center mt-4 flex items-center justify-center gap-3">
@@ -124,6 +146,16 @@ export default function TournamentHubPage() {
       </main>
     </div>
   );
+}
+
+function getHoleDataForRound(round: TournamentRound) {
+  if (!round.course) return [];
+  const tee = round.course.teeSets.find((t) => t.id === round.defaultTeeId) || round.course.teeSets[0];
+  if (!tee) return [];
+  const allHoles = tee.holes.sort((a, b) => a.number - b.number);
+  if (round.holesPlaying === 'front9') return allHoles.filter((h) => h.number <= 9);
+  if (round.holesPlaying === 'back9') return allHoles.filter((h) => h.number > 9);
+  return allHoles;
 }
 
 function RoundCard({

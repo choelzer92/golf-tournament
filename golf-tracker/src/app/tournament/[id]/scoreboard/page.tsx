@@ -48,6 +48,27 @@ export default function ScoreboardPage() {
   const teamA = tournament.teams[0];
   const teamB = tournament.teams[1];
 
+  // Compute live provisional standings: finalized + in-progress hole wins
+  let liveA = standings.teamAPoints;
+  let liveB = standings.teamBPoints;
+  const hasLiveMatches = tournament.rounds.some((r) =>
+    r.matchups.some((m) => m.gameId && !m.result)
+  );
+  if (hasLiveMatches) {
+    for (const round of tournament.rounds) {
+      for (const matchup of round.matchups) {
+        if (!matchup.gameId || matchup.result) continue;
+        const scores = loadGameScores(matchup.id);
+        if (!scores || !Array.isArray(scores) || scores.length === 0) continue;
+        const status = computeLiveMatchStatusFromScores(scores, matchup, round);
+        if (status) {
+          liveA += status.holesWonA * round.pointsForWin;
+          liveB += status.holesWonB * round.pointsForWin;
+        }
+      }
+    }
+  }
+
   const activeRounds = tournament.rounds.filter((r) => r.status === 'in-progress');
   const completedRounds = tournament.rounds.filter((r) => r.status === 'completed');
 
@@ -68,17 +89,18 @@ export default function ScoreboardPage() {
           <div className="flex items-center justify-center gap-8">
             <div className="text-center">
               <p className="text-sm text-blue-300 font-medium">{teamA.name}</p>
-              <p className="text-5xl font-black text-white">{standings.teamAPoints}</p>
+              <p className="text-5xl font-black text-white">{liveA}</p>
             </div>
             <div className="text-3xl text-green-600 font-light">—</div>
             <div className="text-center">
               <p className="text-sm text-red-300 font-medium">{teamB.name}</p>
-              <p className="text-5xl font-black text-white">{standings.teamBPoints}</p>
+              <p className="text-5xl font-black text-white">{liveB}</p>
             </div>
           </div>
-          {standings.teamAPoints !== standings.teamBPoints && (
+          {liveA !== liveB && (
             <p className="text-center text-green-400 text-sm mt-2 font-medium">
-              {standings.teamAPoints > standings.teamBPoints ? teamA.name : teamB.name} leads by {Math.abs(standings.teamAPoints - standings.teamBPoints)}
+              {liveA > liveB ? teamA.name : teamB.name} leads by {Math.abs(liveA - liveB)}
+              {hasLiveMatches && ' (provisional)'}
             </p>
           )}
         </div>
@@ -113,10 +135,7 @@ function getHoleDataForRound(round: TournamentRound) {
   return allHoles;
 }
 
-function computeLiveMatchStatus(matchup: RoundMatchup, round: TournamentRound, tournament: Tournament): { holesWonA: number; holesWonB: number; thru: number } | null {
-  const scores: GameScore[] | null = loadGameScores(matchup.id);
-  if (!scores || scores.length === 0) return null;
-
+function computeLiveMatchStatusFromScores(scores: GameScore[], matchup: RoundMatchup, round: TournamentRound): { holesWonA: number; holesWonB: number; thru: number } | null {
   const holes = getHoleDataForRound(round);
   if (holes.length === 0) return null;
 
@@ -185,15 +204,30 @@ function RoundScoreboard({ round, tournament, scoreTick }: { round: TournamentRo
 
 function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchup; round: TournamentRound; tournament: Tournament }) {
   const [expanded, setExpanded] = useState(false);
+  const [scores, setScores] = useState<GameScore[] | null>(loadGameScores(matchup.id));
+
+  useEffect(() => {
+    fetchGameScores(matchup.id).then((s) => {
+      if (s) setScores(s);
+    });
+    if (matchup.gameId && !matchup.result) {
+      const channel = subscribeToScores(matchup.id, (s) => {
+        if (Array.isArray(s)) setScores(s);
+      });
+      return () => { channel.unsubscribe(); };
+    }
+  }, [matchup.id, matchup.gameId, matchup.result]);
 
   const teamAPlayers = tournament.players.filter((p) => matchup.teamAPlayerIds.includes(p.id));
   const teamBPlayers = tournament.players.filter((p) => matchup.teamBPlayerIds.includes(p.id));
   const allPlayers = [...teamAPlayers, ...teamBPlayers];
 
-  const savedScores: GameScore[] | null = loadGameScores(matchup.id);
+  const savedScores = scores;
   const holeData = getHoleDataForRound(round);
 
-  const liveStatus = (!matchup.result && matchup.gameId) ? computeLiveMatchStatus(matchup, round, tournament) : null;
+  const liveStatus = (!matchup.result && matchup.gameId && savedScores && savedScores.length > 0)
+    ? computeLiveMatchStatusFromScores(savedScores, matchup, round)
+    : null;
 
   const statusLabel = matchup.result
     ? matchup.result.summary
