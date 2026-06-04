@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { getTournamentList, importTournament, hydrateTournaments, type TournamentListItem } from '@/lib/tournament-state';
 
 interface TeeRating {
   RatingType: 'Front' | 'Back' | 'Total';
@@ -63,6 +64,7 @@ export default function DashboardPage() {
   const [selectedCourse, setSelectedCourse] = useState<CourseDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [tournaments, setTournaments] = useState<TournamentListItem[]>([]);
 
   useEffect(() => {
     const token = sessionStorage.getItem('ghin_token');
@@ -76,6 +78,9 @@ export default function DashboardPage() {
     } else {
       setGolfer({ handicap_index: null, clubs: [] });
     }
+    hydrateTournaments().then(() => {
+      setTournaments(getTournamentList());
+    });
   }, [router]);
 
   async function searchCourses(e: React.FormEvent) {
@@ -205,14 +210,74 @@ export default function DashboardPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <section className="mb-8">
+        <section className="mb-8 flex gap-3">
           <button
             onClick={() => router.push('/game/new')}
-            className="w-full rounded-lg bg-green-700 px-6 py-4 text-white font-bold text-lg hover:bg-green-800 shadow-md"
+            className="flex-1 rounded-lg bg-green-700 px-6 py-4 text-white font-bold text-lg hover:bg-green-800 shadow-md"
           >
             New Game
           </button>
+          <button
+            onClick={() => router.push('/tournament/new')}
+            className="flex-1 rounded-lg bg-green-900 px-6 py-4 text-white font-bold text-lg hover:bg-green-950 shadow-md"
+          >
+            New Tournament
+          </button>
+          <button
+            onClick={() => {
+              const input = document.createElement('input');
+              input.type = 'file';
+              input.accept = '.json';
+              input.onchange = (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const t = importTournament(reader.result as string);
+                  if (t) {
+                    router.push(`/tournament/${t.id}`);
+                  }
+                };
+                reader.readAsText(file);
+              };
+              input.click();
+            }}
+            className="flex-1 rounded-lg border-2 border-dashed border-gray-300 px-6 py-4 text-gray-600 font-medium text-lg hover:border-green-500 hover:text-green-700"
+          >
+            Import Tournament
+          </button>
         </section>
+
+        {tournaments.length > 0 && (
+          <section className="mb-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">Active Tournaments</h2>
+            <div className="space-y-2">
+              {tournaments.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => router.push(`/tournament/${t.id}`)}
+                  className="w-full text-left bg-white rounded-lg shadow p-4 hover:shadow-md transition"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-gray-900">{t.name}</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      t.status === 'active' ? 'bg-green-100 text-green-800' :
+                      t.status === 'completed' ? 'bg-gray-100 text-gray-600' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {t.status}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {t.teamAName} <span className="font-bold">{t.teamAPoints}</span>
+                    {' — '}
+                    <span className="font-bold">{t.teamBPoints}</span> {t.teamBName}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Course Lookup</h2>

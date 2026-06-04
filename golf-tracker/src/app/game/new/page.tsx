@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FORMATS, type GameFormat, type FormatSetting } from '@/lib/formats';
+import { FORMATS, TEAM_MODES, getTeamModeConfig, type GameFormat, type FormatSetting, type TeamMode } from '@/lib/formats';
 import type { Player, CourseSelection, TeeSetOption, GameSetup, StrokeMethod, HandicapBasis } from '@/lib/game-state';
 import { calcCourseHandicap } from '@/lib/game-state';
 
@@ -16,8 +16,9 @@ export default function NewGamePage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>('format');
   const [selectedFormat, setSelectedFormat] = useState<GameFormat | null>(null);
+  const [teamMode, setTeamMode] = useState<TeamMode>('individual');
   const [course, setCourse] = useState<CourseSelection | null>(null);
-  const [selectedTeeId, setSelectedTeeId] = useState<number | null>(null);
+  const [defaultTeeId, setDefaultTeeId] = useState<number | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [handicapAllowance, setHandicapAllowance] = useState(100);
   const [holesPlaying, setHolesPlaying] = useState<'18' | 'front9' | 'back9'>('18');
@@ -27,7 +28,11 @@ export default function NewGamePage() {
 
   function selectFormat(format: GameFormat) {
     setSelectedFormat(format);
-    setHandicapAllowance(format.defaultHandicapAllowance);
+    const newMode = format.defaultTeamMode;
+    setTeamMode(newMode);
+    const tmCfg = getTeamModeConfig(newMode);
+    setHandicapAllowance(tmCfg.usgaAllowance === 'tiered' ? -1 : tmCfg.usgaAllowance);
+    setStrokeMethod(tmCfg.usgaStrokeMethod);
     const defaults: Record<string, string | number | boolean> = {};
     format.settings?.forEach((s) => { defaults[s.key] = s.defaultValue; });
     setFormatSettings(defaults);
@@ -36,14 +41,15 @@ export default function NewGamePage() {
 
   function onCourseSelected(c: CourseSelection) {
     setCourse(c);
-    setSelectedTeeId(c.teeSets[0]?.id || null);
+    setDefaultTeeId(c.teeSets[0]?.id || null);
     setStep('players');
   }
 
   function startGame() {
     const setup: GameSetup = {
       formatId: selectedFormat!.id,
-      course: course ? { ...course, selectedTeeId: selectedTeeId } : null,
+      teamMode,
+      course: course ? { ...course, selectedTeeId: defaultTeeId } : null,
       players,
       handicapAllowance,
       holesPlaying,
@@ -80,12 +86,13 @@ export default function NewGamePage() {
         {step === 'players' && selectedFormat && (
           <PlayersStep
             format={selectedFormat}
+            teamMode={teamMode}
             course={course}
             players={players}
             setPlayers={setPlayers}
             handicapAllowance={handicapAllowance}
-            selectedTeeId={selectedTeeId}
-            setSelectedTeeId={setSelectedTeeId}
+            defaultTeeId={defaultTeeId}
+            setDefaultTeeId={setDefaultTeeId}
             onNext={() => setStep('settings')}
             onBack={() => setStep('course')}
           />
@@ -94,6 +101,8 @@ export default function NewGamePage() {
         {step === 'settings' && selectedFormat && (
           <SettingsStep
             format={selectedFormat}
+            teamMode={teamMode}
+            setTeamMode={setTeamMode}
             holesPlaying={holesPlaying}
             setHolesPlaying={setHolesPlaying}
             handicapAllowance={handicapAllowance}
@@ -153,7 +162,7 @@ function FormatStep({ onSelect }: { onSelect: (f: GameFormat) => void }) {
               {format.playersMin === format.playersMax
                 ? `${format.playersMin} players`
                 : `${format.playersMin}-${format.playersMax} players`}
-              {' · '}{format.teamMode === 'teams' ? 'Teams' : 'Individual'}
+              {' · '}{format.defaultTeamMode === 'individual' ? 'Individual' : 'Teams'}{format.allowedTeamModes.length > 1 ? ' (configurable)' : ''}
             </p>
           </button>
         ))}
@@ -208,9 +217,10 @@ function CourseStep({ onSelect, onBack }: { onSelect: (c: CourseSelection) => vo
       if (!res.ok) { setError(data.error); return; }
 
       const courseData = data.course;
-      const teeSets: TeeSetOption[] = (courseData.TeeSets || []).map((ts: any) => ({
+      const allTeeSets: TeeSetOption[] = (courseData.TeeSets || []).map((ts: any) => ({
         id: ts.TeeSetRatingId,
         name: ts.TeeSetRatingName,
+        gender: ts.Gender === 'Female' ? 'F' as const : 'M' as const,
         totalYardage: ts.TotalYardage,
         totalPar: ts.TotalPar,
         ratings: (ts.Ratings || []).map((r: any) => ({
@@ -225,6 +235,9 @@ function CourseStep({ onSelect, onBack }: { onSelect: (c: CourseSelection) => vo
           handicap: h.Allocation,
         })),
       }));
+      const mensTeeSets = allTeeSets.filter((t) => t.gender === 'M');
+      const womensTeeSets = allTeeSets.filter((t) => t.gender === 'F');
+      const teeSets = mensTeeSets.length > 0 ? [...mensTeeSets, ...womensTeeSets.map((t) => ({ ...t, name: `${t.name} (W)` }))] : allTeeSets;
 
       onSelect({
         courseId: courseResult.CourseID,
@@ -289,22 +302,24 @@ function CourseStep({ onSelect, onBack }: { onSelect: (c: CourseSelection) => vo
 
 function PlayersStep({
   format,
+  teamMode,
   course,
   players,
   setPlayers,
   handicapAllowance,
-  selectedTeeId: selectedTee,
-  setSelectedTeeId: setSelectedTee,
+  defaultTeeId,
+  setDefaultTeeId,
   onNext,
   onBack,
 }: {
   format: GameFormat;
+  teamMode: TeamMode;
   course: CourseSelection | null;
   players: Player[];
   setPlayers: (p: Player[]) => void;
   handicapAllowance: number;
-  selectedTeeId: number | null;
-  setSelectedTeeId: (id: number | null) => void;
+  defaultTeeId: number | null;
+  setDefaultTeeId: (id: number | null) => void;
   onNext: () => void;
   onBack: () => void;
 }) {
@@ -334,10 +349,10 @@ function PlayersStep({
         name: `${golfer.first_name} ${golfer.last_name}`,
         handicapIndex: hi,
         ghinNumber: Number(ghinInput),
-        teeSetId: selectedTee || undefined,
+        teeSetId: defaultTeeId || undefined,
       };
 
-      if (format.teamMode === 'teams') {
+      if (teamMode !== 'individual') {
         const teamACount = players.filter((p) => p.team === 'A').length;
         const teamBCount = players.filter((p) => p.team === 'B').length;
         newPlayer.team = teamACount <= teamBCount ? 'A' : 'B';
@@ -356,10 +371,10 @@ function PlayersStep({
       id: crypto.randomUUID(),
       name,
       handicapIndex: handicap ? parseFloat(handicap) : null,
-      teeSetId: selectedTee || undefined,
+      teeSetId: defaultTeeId || undefined,
     };
 
-    if (format.teamMode === 'teams') {
+    if (teamMode !== 'individual') {
       const teamACount = players.filter((p) => p.team === 'A').length;
       const teamBCount = players.filter((p) => p.team === 'B').length;
       newPlayer.team = teamACount <= teamBCount ? 'A' : 'B';
@@ -380,9 +395,15 @@ function PlayersStep({
     ));
   }
 
+  function changePlayerTee(id: string, teeSetId: number) {
+    setPlayers(players.map((p) =>
+      p.id === id ? { ...p, teeSetId } : p
+    ));
+  }
+
   function getPlayerCourseHcap(player: Player): number | null {
-    if (!player.handicapIndex || !course || !selectedTee) return null;
-    const tee = course.teeSets.find((t) => t.id === selectedTee);
+    if (!player.handicapIndex || !course) return null;
+    const tee = course.teeSets.find((t) => t.id === player.teeSetId);
     if (!tee) return null;
     const totalRating = tee.ratings.find((r) => r.type === 'Total');
     if (!totalRating) return null;
@@ -401,10 +422,10 @@ function PlayersStep({
 
       {course && course.teeSets.length > 0 && (
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Tees</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Default Tees (for new players)</label>
           <select
-            value={selectedTee || ''}
-            onChange={(e) => setSelectedTee(Number(e.target.value))}
+            value={defaultTeeId || ''}
+            onChange={(e) => setDefaultTeeId(Number(e.target.value))}
             className="rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
           >
             {course.teeSets.map((ts) => (
@@ -468,34 +489,59 @@ function PlayersStep({
       {players.length > 0 && (
         <div className="bg-white rounded-lg shadow overflow-hidden mb-4">
           <ul className="divide-y divide-gray-200">
-            {players.map((player) => (
-              <li key={player.id} className="px-4 py-3 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {player.name}
-                    {format.teamMode === 'teams' && (
-                      <button
-                        onClick={() => toggleTeam(player.id)}
-                        className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200"
+            {players.map((player) => {
+              const playerTee = course?.teeSets.find((t) => t.id === player.teeSetId);
+              return (
+                <li key={player.id} className="px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {player.name}
+                        {teamMode !== 'individual' && (
+                          <button
+                            onClick={() => toggleTeam(player.id)}
+                            className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200"
+                          >
+                            Team {player.team}
+                          </button>
+                        )}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Index: {player.handicapIndex ?? 'N/A'}
+                        {getPlayerCourseHcap(player) !== null && (
+                          <span className="ml-2 text-green-700">
+                            Course HCP: {getPlayerCourseHcap(player)}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <button onClick={() => removePlayer(player.id)} className="text-red-500 hover:text-red-700 text-sm">
+                      Remove
+                    </button>
+                  </div>
+                  {course && course.teeSets.length > 1 && (
+                    <div className="mt-2">
+                      <select
+                        value={player.teeSetId || ''}
+                        onChange={(e) => changePlayerTee(player.id, Number(e.target.value))}
+                        className="text-sm rounded-md border border-gray-300 px-2 py-1 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
                       >
-                        Team {player.team}
-                      </button>
-                    )}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Index: {player.handicapIndex ?? 'N/A'}
-                    {getPlayerCourseHcap(player) !== null && (
-                      <span className="ml-2 text-green-700">
-                        Course HCP: {getPlayerCourseHcap(player)}
-                      </span>
-                    )}
-                  </p>
-                </div>
-                <button onClick={() => removePlayer(player.id)} className="text-red-500 hover:text-red-700 text-sm">
-                  Remove
-                </button>
-              </li>
-            ))}
+                        {course.teeSets.map((ts) => (
+                          <option key={ts.id} value={ts.id}>
+                            {ts.name} ({ts.totalYardage} yds)
+                          </option>
+                        ))}
+                      </select>
+                      {playerTee && (
+                        <span className="ml-2 text-xs text-gray-400">
+                          Slope: {playerTee.ratings.find((r) => r.type === 'Total')?.slopeRating} / Rating: {playerTee.ratings.find((r) => r.type === 'Total')?.courseRating}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -513,6 +559,8 @@ function PlayersStep({
 
 function SettingsStep({
   format,
+  teamMode,
+  setTeamMode,
   holesPlaying,
   setHolesPlaying,
   handicapAllowance,
@@ -527,6 +575,8 @@ function SettingsStep({
   onBack,
 }: {
   format: GameFormat;
+  teamMode: TeamMode;
+  setTeamMode: (m: TeamMode) => void;
   holesPlaying: '18' | 'front9' | 'back9';
   setHolesPlaying: (h: '18' | 'front9' | 'back9') => void;
   handicapAllowance: number;
@@ -563,10 +613,67 @@ function SettingsStep({
           </select>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Handicap Allowance: {handicapAllowance}%
-          </label>
+        {format.allowedTeamModes.length > 1 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Team Mode</label>
+            <select
+              value={teamMode}
+              onChange={(e) => {
+                const newMode = e.target.value as TeamMode;
+                setTeamMode(newMode);
+                const tmCfg = getTeamModeConfig(newMode);
+                setHandicapAllowance(tmCfg.usgaAllowance === 'tiered' ? -1 : tmCfg.usgaAllowance);
+                setStrokeMethod(tmCfg.usgaStrokeMethod);
+                const defaults: Record<string, string | number | boolean> = { ...formatSettings };
+                tmCfg.settings?.forEach((s) => { defaults[s.key] = s.defaultValue; });
+                setFormatSettings(defaults);
+              }}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            >
+              {format.allowedTeamModes.map((m) => {
+                const cfg = getTeamModeConfig(m);
+                return <option key={m} value={m}>{cfg.name}</option>;
+              })}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">{getTeamModeConfig(teamMode).description}</p>
+          </div>
+        )}
+
+        {(() => {
+          const tmCfg = getTeamModeConfig(teamMode);
+          if (!tmCfg.settings?.length) return null;
+          return tmCfg.settings.map((setting) => (
+            <SettingControl
+              key={setting.key}
+              setting={setting}
+              value={formatSettings[setting.key] ?? setting.defaultValue}
+              onChange={(v) => updateSetting(setting.key, v)}
+            />
+          ));
+        })()}
+
+        <div className="rounded-lg border border-gray-200 p-3 bg-gray-50">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Handicap Allowance</label>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="flex-1 grid grid-cols-6 gap-1">
+              {[100, 95, 90, 80, 50, 25].map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setHandicapAllowance(v)}
+                  className={`py-1.5 rounded text-xs font-bold transition ${
+                    handicapAllowance === v
+                      ? 'bg-green-700 text-white'
+                      : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  {v}%
+                </button>
+              ))}
+            </div>
+          </div>
+          {![100, 95, 90, 80, 50, 25].includes(handicapAllowance) && (
+            <p className="text-xs text-gray-600 mb-2">Custom: {handicapAllowance}%</p>
+          )}
           <input
             type="range"
             min={0}
@@ -574,12 +681,36 @@ function SettingsStep({
             step={5}
             value={handicapAllowance}
             onChange={(e) => setHandicapAllowance(Number(e.target.value))}
-            className="w-full"
+            className="w-full mb-2"
           />
-          <div className="flex justify-between text-xs text-gray-400 mb-0">
-            <span>Scratch</span>
-            <span>Full handicap</span>
-          </div>
+          {(() => {
+            const tmCfg = getTeamModeConfig(teamMode);
+            const usgaAllow = tmCfg.usgaAllowance;
+            const usgaVal = usgaAllow === 'tiered' ? -1 : usgaAllow;
+            const isUsga = handicapAllowance === usgaVal;
+            const usgaLabel = usgaAllow === 'tiered'
+              ? 'Tiered (USGA)'
+              : `${usgaAllow}%`;
+            return (
+              <div className={`flex items-center gap-2 text-xs rounded px-2 py-1.5 ${
+                isUsga ? 'bg-green-100 text-green-800' : 'bg-amber-50 text-amber-700'
+              }`}>
+                <span className="font-bold">USGA:</span>
+                <span>{usgaLabel} / {tmCfg.usgaStrokeMethod === 'off-the-low' ? 'Off the Low' : 'Full'} for {tmCfg.name}</span>
+                {!isUsga && (
+                  <button
+                    onClick={() => {
+                      setHandicapAllowance(usgaVal);
+                      setStrokeMethod(tmCfg.usgaStrokeMethod);
+                    }}
+                    className="ml-auto underline font-medium"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         <div>

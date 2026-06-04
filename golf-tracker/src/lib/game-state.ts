@@ -2,6 +2,7 @@ export interface Player {
   id: string;
   name: string;
   handicapIndex: number | null;
+  gender?: 'M' | 'F';
   ghinNumber?: number;
   teeSetId?: number;
   courseHandicap?: number;
@@ -20,6 +21,7 @@ export interface CourseSelection {
 export interface TeeSetOption {
   id: number;
   name: string;
+  gender?: 'M' | 'F';
   totalYardage: number;
   totalPar: number;
   ratings: {
@@ -37,9 +39,28 @@ export interface TeeSetOption {
 
 export type StrokeMethod = 'full' | 'off-the-low';
 export type HandicapBasis = 'course' | 'index';
+export type { TeamMode } from './formats';
+
+export interface SplitPairing {
+  playerIds: [string, string];
+}
+
+export interface SplitFormatSetup {
+  formatId: string;
+  teamMode: import('./formats').TeamMode;
+  scoringMethod: 'match-play' | 'stroke-play';
+  pointsForWin?: number;
+  pointsForTie?: number;
+  pointsForLoss?: number;
+  handicapAllowance: number;
+  strokeMethod: StrokeMethod;
+  formatSettings?: Record<string, string | number | boolean>;
+  pairings?: SplitPairing[];
+}
 
 export interface GameSetup {
   formatId: string;
+  teamMode: import('./formats').TeamMode;
   course: CourseSelection | null;
   players: Player[];
   handicapAllowance: number;
@@ -47,6 +68,9 @@ export interface GameSetup {
   strokeMethod: StrokeMethod;
   handicapBasis: HandicapBasis;
   formatSettings: Record<string, string | number | boolean>;
+  splitFormat?: SplitFormatSetup;
+  scoringTeam?: 'A' | 'B';
+  matchupId?: string;
 }
 
 export interface GameScore {

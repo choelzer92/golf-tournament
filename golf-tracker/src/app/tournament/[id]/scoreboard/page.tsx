@@ -1,0 +1,320 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import type { GameScore } from '@/lib/game-state';
+import type { Tournament, TournamentRound, RoundMatchup } from '@/lib/tournament-state';
+import { loadTournament, loadGameScores, fetchGameScores, computeStandings, fetchTournament, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
+
+export default function ScoreboardPage() {
+  const router = useRouter();
+  const params = useParams();
+  const id = params.id as string;
+  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [scoreTick, setScoreTick] = useState(0);
+
+  useEffect(() => {
+    const cached = loadTournament(id);
+    if (cached) setTournament(cached);
+    fetchTournament(id).then((t) => {
+      if (t) setTournament(t);
+      else if (!cached) router.push('/dashboard');
+    });
+    const channel = subscribeToTournament(id, (t) => setTournament(t));
+    return () => { channel.unsubscribe(); };
+  }, [id, router]);
+
+  // Subscribe to score changes for all in-progress matchups
+  useEffect(() => {
+    if (!tournament) return;
+    const inProgressMatchups = tournament.rounds
+      .flatMap((r) => r.matchups)
+      .filter((m) => m.gameId && !m.result);
+
+    if (inProgressMatchups.length === 0) return;
+
+    // Fetch latest scores for in-progress matchups
+    inProgressMatchups.forEach((m) => fetchGameScores(m.id));
+
+    const channels = inProgressMatchups.map((m) =>
+      subscribeToScores(m.id, () => setScoreTick((t) => t + 1))
+    );
+    return () => { channels.forEach((ch) => ch.unsubscribe()); };
+  }, [tournament?.rounds.map((r) => r.matchups.filter((m) => m.gameId && !m.result).map((m) => m.id)).flat().join(',')]);
+
+  if (!tournament) return null;
+
+  const standings = computeStandings(tournament);
+  const teamA = tournament.teams[0];
+  const teamB = tournament.teams[1];
+
+  const activeRounds = tournament.rounds.filter((r) => r.status === 'in-progress');
+  const completedRounds = tournament.rounds.filter((r) => r.status === 'completed');
+
+  return (
+    <div className="min-h-full bg-gray-900">
+      <header className="bg-green-900 text-white shadow-lg">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+          <h1 className="text-lg font-bold">{tournament.name}</h1>
+          <button onClick={() => router.push(`/tournament/${id}`)} className="text-sm text-green-300 hover:text-white">
+            Back
+          </button>
+        </div>
+      </header>
+
+      {/* Cumulative standings */}
+      <div className="bg-gradient-to-b from-green-900 to-gray-900 py-8">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="flex items-center justify-center gap-8">
+            <div className="text-center">
+              <p className="text-sm text-blue-300 font-medium">{teamA.name}</p>
+              <p className="text-5xl font-black text-white">{standings.teamAPoints}</p>
+            </div>
+            <div className="text-3xl text-green-600 font-light">—</div>
+            <div className="text-center">
+              <p className="text-sm text-red-300 font-medium">{teamB.name}</p>
+              <p className="text-5xl font-black text-white">{standings.teamBPoints}</p>
+            </div>
+          </div>
+          {standings.teamAPoints !== standings.teamBPoints && (
+            <p className="text-center text-green-400 text-sm mt-2 font-medium">
+              {standings.teamAPoints > standings.teamBPoints ? teamA.name : teamB.name} leads by {Math.abs(standings.teamAPoints - standings.teamBPoints)}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+        {/* Active rounds — show first */}
+        {activeRounds.map((round) => (
+          <RoundScoreboard key={round.id} round={round} tournament={tournament} scoreTick={scoreTick} />
+        ))}
+
+        {/* Completed rounds */}
+        {completedRounds.map((round) => (
+          <RoundScoreboard key={round.id} round={round} tournament={tournament} scoreTick={scoreTick} />
+        ))}
+
+        {activeRounds.length === 0 && completedRounds.length === 0 && (
+          <p className="text-center text-gray-500 py-8">No matches in progress or completed yet.</p>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function getHoleDataForRound(round: TournamentRound) {
+  if (!round.course) return [];
+  const tee = round.course.teeSets.find((t) => t.id === round.defaultTeeId) || round.course.teeSets[0];
+  if (!tee) return [];
+  const allHoles = tee.holes.sort((a, b) => a.number - b.number);
+  if (round.holesPlaying === 'front9') return allHoles.filter((h) => h.number <= 9);
+  if (round.holesPlaying === 'back9') return allHoles.filter((h) => h.number > 9);
+  return allHoles;
+}
+
+function computeLiveMatchStatus(matchup: RoundMatchup, round: TournamentRound, tournament: Tournament): { holesWonA: number; holesWonB: number; thru: number } | null {
+  const scores: GameScore[] | null = loadGameScores(matchup.id);
+  if (!scores || scores.length === 0) return null;
+
+  const holes = getHoleDataForRound(round);
+  if (holes.length === 0) return null;
+
+  let holesWonA = 0;
+  let holesWonB = 0;
+  let holesPlayed = 0;
+
+  for (const hole of holes) {
+    const teamAScores = scores.filter((s) => matchup.teamAPlayerIds.includes(s.playerId) && s.hole === hole.number);
+    const teamBScores = scores.filter((s) => matchup.teamBPlayerIds.includes(s.playerId) && s.hole === hole.number);
+
+    if (teamAScores.length === 0 || teamBScores.length === 0) continue;
+    holesPlayed++;
+
+    const bestA = Math.min(...teamAScores.map((s) => s.grossScore));
+    const bestB = Math.min(...teamBScores.map((s) => s.grossScore));
+    if (bestA < bestB) holesWonA++;
+    else if (bestB < bestA) holesWonB++;
+  }
+
+  return { holesWonA, holesWonB, thru: holesPlayed };
+}
+
+function RoundScoreboard({ round, tournament, scoreTick }: { round: TournamentRound; tournament: Tournament; scoreTick: number }) {
+  const teamA = tournament.teams[0];
+  const teamB = tournament.teams[1];
+
+  let roundPtsA = 0;
+  let roundPtsB = 0;
+  for (const m of round.matchups) {
+    if (m.result) {
+      roundPtsA += m.result.pointsTeamA;
+      roundPtsB += m.result.pointsTeamB;
+    }
+  }
+
+  return (
+    <div className="bg-gray-800 rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 bg-gray-750 border-b border-gray-700">
+        <div>
+          <p className="text-white font-bold text-sm">{round.dayLabel}</p>
+          <p className="text-gray-400 text-xs">{round.holesPlaying === '18' ? '18 holes' : '9 holes'}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className={`text-xs px-2 py-0.5 rounded-full ${
+            round.status === 'in-progress' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'
+          }`}>
+            {round.status === 'in-progress' ? 'LIVE' : 'FINAL'}
+          </span>
+          {(roundPtsA > 0 || roundPtsB > 0) && (
+            <span className="text-sm font-bold text-gray-300">
+              <span className="text-blue-300">{roundPtsA}</span> — <span className="text-red-300">{roundPtsB}</span>
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="divide-y divide-gray-700">
+        {round.matchups.map((matchup) => (
+          <MatchupScorecard key={matchup.id} matchup={matchup} round={round} tournament={tournament} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchup; round: TournamentRound; tournament: Tournament }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const teamAPlayers = tournament.players.filter((p) => matchup.teamAPlayerIds.includes(p.id));
+  const teamBPlayers = tournament.players.filter((p) => matchup.teamBPlayerIds.includes(p.id));
+  const allPlayers = [...teamAPlayers, ...teamBPlayers];
+
+  const savedScores: GameScore[] | null = loadGameScores(matchup.id);
+  const holeData = getHoleDataForRound(round);
+
+  const liveStatus = (!matchup.result && matchup.gameId) ? computeLiveMatchStatus(matchup, round, tournament) : null;
+
+  const statusLabel = matchup.result
+    ? matchup.result.summary
+    : liveStatus
+      ? `${liveStatus.holesWonA} — ${liveStatus.holesWonB} (thru ${liveStatus.thru})`
+      : matchup.gameId ? 'In Progress' : 'Not Started';
+
+  return (
+    <div className="px-4 py-3">
+      <button onClick={() => setExpanded(!expanded)} className="w-full text-left">
+        <div className="flex items-center justify-between">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-medium text-gray-500">{matchup.groupLabel}</span>
+              {matchup.result ? (
+                <span className="text-xs px-1.5 py-0.5 rounded bg-green-500/20 text-green-300">Final</span>
+              ) : matchup.gameId ? (
+                <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300 animate-pulse">Live</span>
+              ) : null}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                {teamAPlayers.map((p) => (
+                  <p key={p.id} className="text-sm text-blue-300 truncate">{p.name}</p>
+                ))}
+              </div>
+              <div>
+                {teamBPlayers.map((p) => (
+                  <p key={p.id} className="text-sm text-red-300 truncate">{p.name}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="ml-4 text-right shrink-0">
+            <p className="text-xs text-gray-400">{statusLabel}</p>
+            {matchup.result && (
+              <p className="text-sm font-bold text-gray-300">
+                <span className="text-blue-300">{matchup.result.pointsTeamA}</span>
+                {' — '}
+                <span className="text-red-300">{matchup.result.pointsTeamB}</span>
+              </p>
+            )}
+            {liveStatus && (
+              <p className="text-sm font-bold text-gray-300">
+                <span className="text-blue-300">{liveStatus.holesWonA}</span>
+                {' — '}
+                <span className="text-red-300">{liveStatus.holesWonB}</span>
+              </p>
+            )}
+            <span className="text-gray-600 text-xs">{expanded ? '▾' : '▸'}</span>
+          </div>
+        </div>
+      </button>
+
+      {expanded && savedScores && holeData.length > 0 && (
+        <div className="mt-3 overflow-x-auto">
+          <table className="text-xs w-full border-collapse">
+            <thead>
+              <tr className="text-gray-500">
+                <th className="px-2 py-1 text-left font-medium sticky left-0 bg-gray-800">Hole</th>
+                {holeData.map((h) => (
+                  <th key={h.number} className="px-1 py-1 text-center font-medium min-w-[22px]">{h.number}</th>
+                ))}
+                <th className="px-2 py-1 text-center font-medium">Tot</th>
+              </tr>
+              <tr className="text-gray-600 border-b border-gray-700">
+                <td className="px-2 py-0.5 text-left font-medium sticky left-0 bg-gray-800">Par</td>
+                {holeData.map((h) => (
+                  <td key={h.number} className="px-1 py-0.5 text-center">{h.par}</td>
+                ))}
+                <td className="px-2 py-0.5 text-center">{holeData.reduce((s, h) => s + h.par, 0)}</td>
+              </tr>
+            </thead>
+            <tbody>
+              {allPlayers.map((player) => {
+                const isTeamA = matchup.teamAPlayerIds.includes(player.id);
+                const total = holeData.reduce((sum, h) => {
+                  const sc = savedScores.find((s) => s.playerId === player.id && s.hole === h.number);
+                  return sum + (sc?.grossScore || 0);
+                }, 0);
+                const totalPar = holeData.reduce((s, h) => s + h.par, 0);
+                const diff = total - totalPar;
+                return (
+                  <tr key={player.id} className="border-t border-gray-700/50">
+                    <td className={`px-2 py-1 font-medium whitespace-nowrap sticky left-0 bg-gray-800 ${isTeamA ? 'text-blue-300' : 'text-red-300'}`}>
+                      {player.name.split(' ')[0]}
+                    </td>
+                    {holeData.map((h) => {
+                      const sc = savedScores.find((s) => s.playerId === player.id && s.hole === h.number);
+                      const score = sc?.grossScore;
+                      const colorClass = !score ? 'text-gray-600'
+                        : score <= h.par - 2 ? 'text-yellow-400 font-bold'
+                        : score === h.par - 1 ? 'text-red-400 font-bold'
+                        : score === h.par ? 'text-gray-300'
+                        : score === h.par + 1 ? 'text-blue-400'
+                        : 'text-blue-600';
+                      return (
+                        <td key={h.number} className={`px-1 py-1 text-center ${colorClass}`}>
+                          {score || '–'}
+                        </td>
+                      );
+                    })}
+                    <td className="px-2 py-1 text-center font-bold text-white">
+                      {total || '–'}
+                      {total > 0 && (
+                        <span className={`ml-0.5 text-[10px] ${diff > 0 ? 'text-blue-400' : diff < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                          {diff > 0 ? `+${diff}` : diff === 0 ? 'E' : diff}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {expanded && !savedScores && (
+        <p className="mt-3 text-xs text-gray-500 italic">No scorecard data available for this match.</p>
+      )}
+    </div>
+  );
+}
