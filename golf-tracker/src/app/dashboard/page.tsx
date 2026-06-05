@@ -210,16 +210,22 @@ export default function DashboardPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <section className="mb-8 flex gap-3">
+        <section className="mb-8 flex gap-3 flex-wrap">
+          <button
+            onClick={() => router.push('/money-game')}
+            className="flex-1 min-w-[140px] rounded-lg bg-yellow-600 px-6 py-4 text-white font-bold text-lg hover:bg-yellow-700 shadow-md"
+          >
+            Money Game
+          </button>
           <button
             onClick={() => router.push('/game/new')}
-            className="flex-1 rounded-lg bg-green-700 px-6 py-4 text-white font-bold text-lg hover:bg-green-800 shadow-md"
+            className="flex-1 min-w-[140px] rounded-lg bg-green-700 px-6 py-4 text-white font-bold text-lg hover:bg-green-800 shadow-md"
           >
             New Game
           </button>
           <button
             onClick={() => router.push('/tournament/new')}
-            className="flex-1 rounded-lg bg-green-900 px-6 py-4 text-white font-bold text-lg hover:bg-green-950 shadow-md"
+            className="flex-1 min-w-[140px] rounded-lg bg-green-900 px-6 py-4 text-white font-bold text-lg hover:bg-green-950 shadow-md"
           >
             New Tournament
           </button>

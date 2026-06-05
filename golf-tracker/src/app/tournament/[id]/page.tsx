@@ -47,11 +47,28 @@ export default function TournamentHubPage() {
     return () => { channels.forEach((ch) => ch.unsubscribe()); };
   }, [tournament?.rounds.map((r) => r.matchups.filter((m) => m.gameId && !m.result).map((m) => m.id)).flat().join(',')]);
 
+  const [editingTeams, setEditingTeams] = useState(false);
+  const [teamANameEdit, setTeamANameEdit] = useState('');
+  const [teamBNameEdit, setTeamBNameEdit] = useState('');
+
   if (!tournament) return null;
 
   const standings = computeStandings(tournament);
   const teamA = tournament.teams[0];
   const teamB = tournament.teams[1];
+
+  function saveTeamNames() {
+    const updated: Tournament = {
+      ...tournament!,
+      teams: [
+        { ...tournament!.teams[0], name: teamANameEdit },
+        { ...tournament!.teams[1], name: teamBNameEdit },
+      ],
+    };
+    saveTournament(updated);
+    setTournament(updated);
+    setEditingTeams(false);
+  }
 
   // Compute live provisional standings
   let liveA = standings.teamAPoints;
@@ -88,15 +105,41 @@ export default function TournamentHubPage() {
         <div className="max-w-3xl mx-auto px-4">
           <div className="flex items-center justify-center gap-6">
             <div className="text-center">
-              <p className="text-sm text-green-300">{teamA.name}</p>
+              {editingTeams ? (
+                <input
+                  value={teamANameEdit}
+                  onChange={(e) => setTeamANameEdit(e.target.value)}
+                  className="text-sm bg-green-800 border border-green-600 rounded px-2 py-1 text-white text-center w-28"
+                />
+              ) : (
+                <p className="text-sm text-green-300">{teamA.name}</p>
+              )}
               <p className="text-4xl font-bold">{liveA}</p>
             </div>
             <div className="text-2xl text-green-500 font-light">—</div>
             <div className="text-center">
-              <p className="text-sm text-green-300">{teamB.name}</p>
+              {editingTeams ? (
+                <input
+                  value={teamBNameEdit}
+                  onChange={(e) => setTeamBNameEdit(e.target.value)}
+                  className="text-sm bg-green-800 border border-green-600 rounded px-2 py-1 text-white text-center w-28"
+                />
+              ) : (
+                <p className="text-sm text-green-300">{teamB.name}</p>
+              )}
               <p className="text-4xl font-bold">{liveB}</p>
             </div>
           </div>
+          {editingTeams ? (
+            <div className="flex justify-center gap-2 mt-2">
+              <button onClick={saveTeamNames} className="text-xs bg-green-600 hover:bg-green-500 px-3 py-1 rounded">Save</button>
+              <button onClick={() => setEditingTeams(false)} className="text-xs text-green-300 hover:text-white px-3 py-1">Cancel</button>
+            </div>
+          ) : (
+            <button onClick={() => setEditingTeams(true)} className="block mx-auto mt-2 text-xs text-green-400 hover:text-white">
+              Edit team names
+            </button>
+          )}
           <div className="text-center mt-4 flex items-center justify-center gap-3">
             <button
               onClick={() => router.push(`/tournament/${id}/scoreboard`)}
@@ -119,6 +162,17 @@ export default function TournamentHubPage() {
               className="text-sm bg-green-950 hover:bg-green-800 text-green-200 px-4 py-2 rounded-lg font-medium transition"
             >
               Export
+            </button>
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/tournament/${id}`;
+                navigator.clipboard.writeText(url).then(() => {
+                  alert('Link copied! Share it with your group.');
+                });
+              }}
+              className="text-sm bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg font-medium transition"
+            >
+              Share Link
             </button>
             <button
               onClick={() => {
@@ -181,6 +235,8 @@ export default function TournamentHubPage() {
         {tournament.rounds.length === 0 && (
           <p className="text-center text-gray-500 py-8">No rounds scheduled yet.</p>
         )}
+
+        <RosterEditor tournament={tournament} onSave={(updated) => { saveTournament(updated); setTournament(updated); }} />
       </main>
     </div>
   );
@@ -225,5 +281,86 @@ function RoundCard({
         </p>
       )}
     </button>
+  );
+}
+
+function RosterEditor({ tournament, onSave }: { tournament: Tournament; onSave: (t: Tournament) => void }) {
+  const teamA = tournament.teams[0];
+  const teamB = tournament.teams[1];
+  const teamAPlayers = tournament.players.filter((p) => teamA.playerIds.includes(p.id));
+  const teamBPlayers = tournament.players.filter((p) => teamB.playerIds.includes(p.id));
+  const hasMatchups = tournament.rounds.some((r) => r.matchups.length > 0);
+
+  function moveToB(playerId: string) {
+    const updated: Tournament = {
+      ...tournament,
+      teams: [
+        { ...teamA, playerIds: teamA.playerIds.filter((id) => id !== playerId) },
+        { ...teamB, playerIds: [...teamB.playerIds, playerId] },
+      ],
+      // Clear matchups since team composition changed
+      rounds: tournament.rounds.map((r) => ({ ...r, matchups: [] })),
+    };
+    onSave(updated);
+  }
+
+  function moveToA(playerId: string) {
+    const updated: Tournament = {
+      ...tournament,
+      teams: [
+        { ...teamA, playerIds: [...teamA.playerIds, playerId] },
+        { ...teamB, playerIds: teamB.playerIds.filter((id) => id !== playerId) },
+      ],
+      // Clear matchups since team composition changed
+      rounds: tournament.rounds.map((r) => ({ ...r, matchups: [] })),
+    };
+    onSave(updated);
+  }
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-lg font-semibold text-gray-900 mb-3">Roster</h2>
+      {hasMatchups && (
+        <p className="text-xs text-amber-700 bg-amber-50 rounded p-2 mb-3">
+          Moving players will reset matchups since team composition changes.
+        </p>
+      )}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-blue-50 rounded-lg p-3">
+          <p className="font-medium text-blue-900 mb-2">{teamA.name} ({teamAPlayers.length})</p>
+          {teamAPlayers.map((p) => (
+            <div key={p.id} className="flex items-center justify-between py-1">
+              <span className="text-sm text-blue-800">
+                {p.name} {p.handicapIndex !== null && <span className="text-blue-500">({p.handicapIndex})</span>}
+              </span>
+              <button
+                onClick={() => moveToB(p.id)}
+                className="text-xs bg-red-100 text-red-700 hover:bg-red-200 px-2 py-0.5 rounded"
+              >
+                → {teamB.name}
+              </button>
+            </div>
+          ))}
+          {teamAPlayers.length === 0 && <p className="text-sm text-blue-400">No players</p>}
+        </div>
+        <div className="bg-red-50 rounded-lg p-3">
+          <p className="font-medium text-red-900 mb-2">{teamB.name} ({teamBPlayers.length})</p>
+          {teamBPlayers.map((p) => (
+            <div key={p.id} className="flex items-center justify-between py-1">
+              <span className="text-sm text-red-800">
+                {p.name} {p.handicapIndex !== null && <span className="text-red-500">({p.handicapIndex})</span>}
+              </span>
+              <button
+                onClick={() => moveToA(p.id)}
+                className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-2 py-0.5 rounded"
+              >
+                → {teamA.name}
+              </button>
+            </div>
+          ))}
+          {teamBPlayers.length === 0 && <p className="text-sm text-red-400">No players</p>}
+        </div>
+      </div>
+    </section>
   );
 }
