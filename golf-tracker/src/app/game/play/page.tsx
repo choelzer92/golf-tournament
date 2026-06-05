@@ -439,14 +439,13 @@ export default function PlayGamePage() {
 
       {tournamentCtx && !setup.scoringTeam && <TeamMatchStatus setup={setup} scores={scores} holes={holes} tournamentCtx={tournamentCtx} getScore={getScore} getPlayerStrokesOnHole={getPlayerStrokesOnHole} />}
 
-      {setup.scoringTeam && remoteScores.length > 0 && (
+      {setup.scoringTeam && remoteScores.length > 0 && tournamentCtx && (
         <LiveMatchBanner
           setup={setup}
           localScores={scores}
           remoteScores={remoteScores}
-          holes={holes}
           teamNames={teamNames}
-          getPlayerStrokesOnHole={getPlayerStrokesOnHole}
+          tournamentCtx={tournamentCtx}
         />
       )}
 
@@ -1801,82 +1800,61 @@ function LiveMatchBanner({
   setup,
   localScores,
   remoteScores,
-  holes,
   teamNames,
-  getPlayerStrokesOnHole,
+  tournamentCtx,
 }: {
   setup: GameSetup;
   localScores: GameScore[];
   remoteScores: GameScore[];
-  holes: { number: number; par: number; handicap: number }[];
   teamNames: { A: string; B: string };
-  getPlayerStrokesOnHole: (player: Player, holeHandicap: number, holeNumber?: number) => number;
+  tournamentCtx: TournamentGameContext;
 }) {
-  const localTeam = setup.scoringTeam!;
-  const remoteTeam = localTeam === 'A' ? 'B' : 'A';
-  const localPlayers = setup.players;
+  const tournament = loadTournament(tournamentCtx.tournamentId);
+  if (!tournament) return null;
+  const round = tournament.rounds.find((r) => r.id === tournamentCtx.roundId);
+  if (!round) return null;
+  const matchup = round.matchups.find((m) => m.id === tournamentCtx.matchupId);
+  if (!matchup) return null;
 
-  // Build a lookup of remote player scores
-  const remotePlayerIds = new Set(remoteScores.map((s) => s.playerId));
-
-  // Count holes where both teams have scores for comparison
-  let localHolesWon = 0;
-  let remoteHolesWon = 0;
-  let holesCompared = 0;
-
-  // Track through-hole counts
-  const localThru = new Set(localScores.map((s) => s.hole)).size;
-  const remoteThru = new Set(remoteScores.map((s) => s.hole)).size;
-
-  for (const hole of holes) {
-    // Get local team's best net for this hole (two-best-balls aware)
-    const localNets: number[] = [];
-    for (const player of localPlayers) {
-      const sc = localScores.find((s) => s.playerId === player.id && s.hole === hole.number);
-      if (!sc) continue;
-      const strokes = getPlayerStrokesOnHole(player, hole.handicap, hole.number);
-      localNets.push(sc.grossScore - strokes);
-    }
-
-    // Get remote team's scores for this hole
-    const remoteHoleScores = remoteScores.filter((s) => s.hole === hole.number);
-
-    if (localNets.length === 0 || remoteHoleScores.length === 0) continue;
-    holesCompared++;
-
-    // Best-ball comparison (use best net from each side)
-    const localBest = Math.min(...localNets);
-    const remoteBestGross = remoteHoleScores.map((s) => s.grossScore);
-    // Remote scores are gross — we don't have their handicap data here, so compare gross vs gross as approximation
-    // Actually, for a proper comparison we'd need to pass remote player handicap info too
-    // For now: compare best net from local to best gross from remote (TODO: improve with full player data)
-    const remoteBest = Math.min(...remoteBestGross);
-
-    if (localBest < remoteBest) localHolesWon++;
-    else if (remoteBest < localBest) remoteHolesWon++;
+  const merged = [...remoteScores];
+  for (const s of localScores) {
+    const idx = merged.findIndex((r) => r.playerId === s.playerId && r.hole === s.hole);
+    if (idx >= 0) merged[idx] = s;
+    else merged.push(s);
   }
 
-  const diff = localHolesWon - remoteHolesWon;
+  const status = computeLiveMatchStatus(merged, matchup, round, tournament);
+  if (!status || status.thru === 0) return null;
+
+  const holesWonA = status.holesWonA;
+  const holesWonB = status.holesWonB;
+  const ptsA = holesWonA * round.pointsForWin + status.holesTied * round.pointsForTie;
+  const ptsB = holesWonB * round.pointsForWin + status.holesTied * round.pointsForTie;
+
+  const diff = ptsA - ptsB;
   const statusText = diff === 0 ? 'All Square'
-    : diff > 0 ? `${teamNames[localTeam]} ${diff} UP`
-    : `${teamNames[remoteTeam]} ${Math.abs(diff)} UP`;
+    : diff > 0 ? `${teamNames.A} ${holesWonA - holesWonB} UP`
+    : `${teamNames.B} ${holesWonB - holesWonA} UP`;
+
+  const remoteTeam = setup.scoringTeam === 'A' ? 'B' : 'A';
+  const remoteThru = new Set(remoteScores.map((s) => s.hole)).size;
 
   return (
     <div className="bg-green-950 text-white py-2 px-4">
       <div className="flex items-center justify-between">
         <div className="text-center flex-1">
-          <span className={`font-bold ${localTeam === 'A' ? 'text-blue-300' : 'text-red-300'}`}>
-            {teamNames[localTeam]} {localHolesWon}
+          <span className="font-bold text-blue-300">
+            {teamNames.A} {holesWonA}
           </span>
           <span className="mx-2 text-green-300">—</span>
-          <span className={`font-bold ${remoteTeam === 'A' ? 'text-blue-300' : 'text-red-300'}`}>
-            {teamNames[remoteTeam]} {remoteHolesWon}
+          <span className="font-bold text-red-300">
+            {teamNames.B} {holesWonB}
           </span>
         </div>
         <div className="text-right">
           <p className="text-xs text-green-200 font-medium">{statusText}</p>
           <p className="text-[10px] text-green-400">
-            Thru {holesCompared} · {teamNames[remoteTeam]}: {remoteThru}H scored
+            Thru {status.thru} · {teamNames[remoteTeam]}: {remoteThru}H scored
           </p>
         </div>
       </div>
