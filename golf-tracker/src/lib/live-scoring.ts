@@ -382,6 +382,84 @@ export function computeLiveMatchStatus(
   return { holesWonA, holesWonB, holesTied, thru: holesPlayed };
 }
 
+export interface NassauStatus {
+  front: { holesWonA: number; holesWonB: number; holesTied: number; thru: number };
+  back: { holesWonA: number; holesWonB: number; holesTied: number; thru: number };
+  overall: { holesWonA: number; holesWonB: number; holesTied: number; thru: number };
+}
+
+export function computeNassauStatus(
+  scores: GameScore[],
+  matchup: RoundMatchup,
+  round: TournamentRound,
+  tournament: Tournament
+): NassauStatus | null {
+  const holes = getHoleDataForRound(round);
+  if (holes.length === 0) return null;
+
+  const teamAPlayers = tournament.players.filter((p) => matchup.teamAPlayerIds.includes(p.id));
+  const teamBPlayers = tournament.players.filter((p) => matchup.teamBPlayerIds.includes(p.id));
+  const allMatchupPlayers = [...teamAPlayers, ...teamBPlayers];
+
+  const front = { holesWonA: 0, holesWonB: 0, holesTied: 0, thru: 0 };
+  const back = { holesWonA: 0, holesWonB: 0, holesTied: 0, thru: 0 };
+
+  for (const hole of holes) {
+    const netA = getTeamNetForHole(teamAPlayers, hole, scores, round, holes, allMatchupPlayers);
+    const netB = getTeamNetForHole(teamBPlayers, hole, scores, round, holes, allMatchupPlayers);
+    if (netA === null || netB === null) continue;
+
+    const bucket = hole.number <= 9 ? front : back;
+    bucket.thru++;
+    if (netA < netB) bucket.holesWonA++;
+    else if (netB < netA) bucket.holesWonB++;
+    else bucket.holesTied++;
+  }
+
+  return {
+    front,
+    back,
+    overall: {
+      holesWonA: front.holesWonA + back.holesWonA,
+      holesWonB: front.holesWonB + back.holesWonB,
+      holesTied: front.holesTied + back.holesTied,
+      thru: front.thru + back.thru,
+    },
+  };
+}
+
+export type HoleWinner = 'A' | 'B' | 'tie' | null;
+
+export function computeHoleWinners(
+  scores: GameScore[],
+  matchup: RoundMatchup,
+  round: TournamentRound,
+  tournament: Tournament
+): Map<number, HoleWinner> {
+  const holes = getHoleDataForRound(round);
+  const result = new Map<number, HoleWinner>();
+  if (holes.length === 0) return result;
+
+  const teamAPlayers = tournament.players.filter((p) => matchup.teamAPlayerIds.includes(p.id));
+  const teamBPlayers = tournament.players.filter((p) => matchup.teamBPlayerIds.includes(p.id));
+  const allMatchupPlayers = [...teamAPlayers, ...teamBPlayers];
+
+  for (const hole of holes) {
+    const netA = getTeamNetForHole(teamAPlayers, hole, scores, round, holes, allMatchupPlayers);
+    const netB = getTeamNetForHole(teamBPlayers, hole, scores, round, holes, allMatchupPlayers);
+    if (netA === null || netB === null) {
+      result.set(hole.number, null);
+    } else if (netA < netB) {
+      result.set(hole.number, 'A');
+    } else if (netB < netA) {
+      result.set(hole.number, 'B');
+    } else {
+      result.set(hole.number, 'tie');
+    }
+  }
+  return result;
+}
+
 export function recomputeMatchResult(
   scores: GameScore[],
   matchup: RoundMatchup,

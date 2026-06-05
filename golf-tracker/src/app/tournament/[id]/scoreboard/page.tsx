@@ -5,7 +5,8 @@ import { useRouter, useParams } from 'next/navigation';
 import type { GameScore } from '@/lib/game-state';
 import type { Tournament, TournamentRound, RoundMatchup } from '@/lib/tournament-state';
 import { loadTournament, loadGameScores, fetchGameScores, computeStandings, fetchTournament, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
-import { computeLiveMatchStatus, getHoleDataForRound, computePlayerStablefordPoints } from '@/lib/live-scoring';
+import { computeLiveMatchStatus, computeNassauStatus, computeHoleWinners, getHoleDataForRound, getPlayerStrokesForHole, computePlayerStablefordPoints } from '@/lib/live-scoring';
+import type { NassauStatus, HoleWinner } from '@/lib/live-scoring';
 
 export default function ScoreboardPage() {
   const router = useRouter();
@@ -112,12 +113,22 @@ export default function ScoreboardPage() {
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {/* Active rounds — show first */}
         {activeRounds.map((round) => (
-          <RoundScoreboard key={round.id} round={round} tournament={tournament} scoreTick={scoreTick} />
+          <div key={round.id} className="space-y-3">
+            <RoundScoreboard round={round} tournament={tournament} scoreTick={scoreTick} />
+            {round.bonuses.some((b) => b.type.startsWith('nassau')) && (
+              <NassauPanel round={round} tournament={tournament} />
+            )}
+          </div>
         ))}
 
         {/* Completed rounds */}
         {completedRounds.map((round) => (
-          <RoundScoreboard key={round.id} round={round} tournament={tournament} scoreTick={scoreTick} />
+          <div key={round.id} className="space-y-3">
+            <RoundScoreboard round={round} tournament={tournament} scoreTick={scoreTick} />
+            {round.bonuses.some((b) => b.type.startsWith('nassau')) && (
+              <NassauPanel round={round} tournament={tournament} />
+            )}
+          </div>
         ))}
 
         {activeRounds.length === 0 && completedRounds.length === 0 && (
@@ -307,22 +318,40 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
         </div>
       </button>
 
-      {expanded && savedScores && holeData.length > 0 && (
+      {expanded && savedScores && holeData.length > 0 && (() => {
+        const holeWinners = computeHoleWinners(savedScores, matchup, round, tournament);
+
+        function getTeamBestNets(teamPlayerIds: string[], hole: { number: number; par: number; handicap: number }) {
+          const nets: number[] = [];
+          for (const pid of teamPlayerIds) {
+            const sc = savedScores!.find((s) => s.playerId === pid && s.hole === hole.number);
+            if (!sc) continue;
+            const strokes = getPlayerStrokesForHole(pid, hole.handicap, hole.number, matchup, round, tournament);
+            nets.push(sc.grossScore - strokes);
+          }
+          return nets.sort((a, b) => a - b).slice(0, 2);
+        }
+
+        return (
         <div className="mt-3 overflow-x-auto">
           <table className="text-xs w-full border-collapse">
             <thead>
               <tr className="text-gray-500">
                 <th className="px-2 py-1 text-left font-medium sticky left-0 bg-gray-800">Hole</th>
-                {holeData.map((h) => (
-                  <th key={h.number} className="px-1 py-1 text-center font-medium min-w-[22px]">{h.number}</th>
-                ))}
+                {holeData.map((h) => {
+                  const w = holeWinners.get(h.number);
+                  const bg = w === 'A' ? 'bg-blue-900/30' : w === 'B' ? 'bg-red-900/30' : '';
+                  return <th key={h.number} className={`px-1 py-1 text-center font-medium min-w-[22px] ${bg}`}>{h.number}</th>;
+                })}
                 <th className="px-2 py-1 text-center font-medium">Tot</th>
               </tr>
               <tr className="text-gray-600 border-b border-gray-700">
                 <td className="px-2 py-0.5 text-left font-medium sticky left-0 bg-gray-800">Par</td>
-                {holeData.map((h) => (
-                  <td key={h.number} className="px-1 py-0.5 text-center">{h.par}</td>
-                ))}
+                {holeData.map((h) => {
+                  const w = holeWinners.get(h.number);
+                  const bg = w === 'A' ? 'bg-blue-900/30' : w === 'B' ? 'bg-red-900/30' : '';
+                  return <td key={h.number} className={`px-1 py-0.5 text-center ${bg}`}>{h.par}</td>;
+                })}
                 <td className="px-2 py-0.5 text-center">{holeData.reduce((s, h) => s + h.par, 0)}</td>
               </tr>
             </thead>
@@ -347,22 +376,26 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
                     {holeData.map((h) => {
                       const sc = savedScores.find((s) => s.playerId === player.id && s.hole === h.number);
                       const score = sc?.grossScore;
-                      const scoreToPar = score ? score - h.par : null;
+                      const strokes = score ? getPlayerStrokesForHole(player.id, h.handicap, h.number, matchup, round, tournament) : 0;
+                      const netScore = score ? score - strokes : null;
+                      const netToPar = netScore !== null ? netScore - h.par : null;
+                      const w = holeWinners.get(h.number);
+                      const colBg = w === 'A' ? 'bg-blue-900/30' : w === 'B' ? 'bg-red-900/30' : '';
                       let decoration = '';
-                      if (scoreToPar !== null) {
-                        if (scoreToPar <= -2) decoration = 'ring-2 ring-offset-1 ring-offset-gray-800 ring-yellow-500 rounded-full';
-                        else if (scoreToPar === -1) decoration = 'ring-1 ring-offset-1 ring-offset-gray-800 ring-red-400 rounded-full';
-                        else if (scoreToPar === 1) decoration = 'ring-1 ring-offset-1 ring-offset-gray-800 ring-blue-400 rounded-sm';
-                        else if (scoreToPar >= 2) decoration = 'ring-2 ring-offset-1 ring-offset-gray-800 ring-blue-500 rounded-sm';
+                      if (netToPar !== null) {
+                        if (netToPar <= -2) decoration = 'ring-2 ring-offset-1 ring-offset-gray-800 ring-yellow-500 rounded-full';
+                        else if (netToPar === -1) decoration = 'ring-1 ring-offset-1 ring-offset-gray-800 ring-red-400 rounded-full';
+                        else if (netToPar === 1) decoration = 'ring-1 ring-offset-1 ring-offset-gray-800 ring-blue-400 rounded-sm';
+                        else if (netToPar >= 2) decoration = 'ring-2 ring-offset-1 ring-offset-gray-800 ring-blue-500 rounded-sm';
                       }
                       const scoreColorClass = !score ? 'text-gray-600'
-                        : scoreToPar! <= -2 ? 'text-yellow-400 font-bold'
-                        : scoreToPar === -1 ? 'text-red-400 font-bold'
-                        : scoreToPar === 0 ? 'text-gray-300'
-                        : scoreToPar === 1 ? 'text-blue-400'
+                        : netToPar! <= -2 ? 'text-yellow-400 font-bold'
+                        : netToPar === -1 ? 'text-red-400 font-bold'
+                        : netToPar === 0 ? 'text-gray-300'
+                        : netToPar === 1 ? 'text-blue-400'
                         : 'text-blue-500 font-bold';
                       return (
-                        <td key={h.number} className={`px-1 py-1 text-center ${scoreColorClass}`}>
+                        <td key={h.number} className={`px-1 py-1 text-center ${scoreColorClass} ${colBg}`}>
                           {score ? (
                             <span className={`inline-flex items-center justify-center w-5 h-5 text-[11px] ${decoration}`}>{score}</span>
                           ) : '–'}
@@ -382,14 +415,124 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
                   </tr>
                 );
               })}
+              {/* Team A best-two-nets row */}
+              <tr className="border-t-2 border-blue-500/50">
+                <td className="px-2 py-1 font-bold text-blue-400 sticky left-0 bg-gray-800 text-[10px]">
+                  {tournament.teams[0].name}
+                </td>
+                {holeData.map((h) => {
+                  const nets = getTeamBestNets(matchup.teamAPlayerIds, h);
+                  const w = holeWinners.get(h.number);
+                  const colBg = w === 'A' ? 'bg-blue-900/30' : w === 'B' ? 'bg-red-900/30' : '';
+                  return (
+                    <td key={h.number} className={`px-1 py-1 text-center text-blue-300 font-medium ${colBg}`}>
+                      {nets.length >= 2 ? nets[0] + nets[1] : '–'}
+                    </td>
+                  );
+                })}
+                <td className="px-2 py-1 text-center font-bold text-blue-300">
+                  {holeData.reduce((sum, h) => {
+                    const nets = getTeamBestNets(matchup.teamAPlayerIds, h);
+                    return sum + (nets.length >= 2 ? nets[0] + nets[1] : 0);
+                  }, 0) || '–'}
+                </td>
+              </tr>
+              {/* Team B best-two-nets row */}
+              <tr className="border-t border-red-500/50">
+                <td className="px-2 py-1 font-bold text-red-400 sticky left-0 bg-gray-800 text-[10px]">
+                  {tournament.teams[1].name}
+                </td>
+                {holeData.map((h) => {
+                  const nets = getTeamBestNets(matchup.teamBPlayerIds, h);
+                  const w = holeWinners.get(h.number);
+                  const colBg = w === 'A' ? 'bg-blue-900/30' : w === 'B' ? 'bg-red-900/30' : '';
+                  return (
+                    <td key={h.number} className={`px-1 py-1 text-center text-red-300 font-medium ${colBg}`}>
+                      {nets.length >= 2 ? nets[0] + nets[1] : '–'}
+                    </td>
+                  );
+                })}
+                <td className="px-2 py-1 text-center font-bold text-red-300">
+                  {holeData.reduce((sum, h) => {
+                    const nets = getTeamBestNets(matchup.teamBPlayerIds, h);
+                    return sum + (nets.length >= 2 ? nets[0] + nets[1] : 0);
+                  }, 0) || '–'}
+                </td>
+              </tr>
+              {/* Hole winner row */}
+              <tr className="border-t border-gray-600">
+                <td className="px-2 py-0.5 text-[10px] text-gray-500 sticky left-0 bg-gray-800">Won</td>
+                {holeData.map((h) => {
+                  const w = holeWinners.get(h.number);
+                  const colBg = w === 'A' ? 'bg-blue-900/30' : w === 'B' ? 'bg-red-900/30' : '';
+                  return (
+                    <td key={h.number} className={`px-1 py-0.5 text-center text-[10px] font-bold ${colBg} ${
+                      w === 'A' ? 'text-blue-400' : w === 'B' ? 'text-red-400' : w === 'tie' ? 'text-gray-500' : 'text-gray-700'
+                    }`}>
+                      {w === 'A' ? '●' : w === 'B' ? '●' : w === 'tie' ? '—' : ''}
+                    </td>
+                  );
+                })}
+                <td className="px-2 py-0.5"></td>
+              </tr>
             </tbody>
           </table>
         </div>
-      )}
+        );
+      })()}
 
       {expanded && !savedScores && (
         <p className="mt-3 text-xs text-gray-500 italic">No scorecard data available for this match.</p>
       )}
+    </div>
+  );
+}
+
+function NassauPanel({ round, tournament }: { round: TournamentRound; tournament: Tournament }) {
+  const teamA = tournament.teams[0];
+  const teamB = tournament.teams[1];
+
+  const allScores: GameScore[] = [];
+  for (const matchup of round.matchups) {
+    const scores = loadGameScores(matchup.id);
+    if (scores && Array.isArray(scores)) allScores.push(...scores);
+  }
+
+  if (round.matchups.length === 0) return null;
+  const matchup = round.matchups[0];
+  const nassau = computeNassauStatus(allScores, matchup, round, tournament);
+  if (!nassau) return null;
+
+  function NassauSide({ label, side }: { label: string; side: { holesWonA: number; holesWonB: number; holesTied: number; thru: number } }) {
+    const diff = side.holesWonA - side.holesWonB;
+    const status = diff === 0 ? 'AS'
+      : diff > 0 ? `${teamA.name} ${diff} UP`
+      : `${teamB.name} ${Math.abs(diff)} UP`;
+    const statusColor = diff === 0 ? 'text-gray-300' : diff > 0 ? 'text-blue-300' : 'text-red-300';
+
+    return (
+      <div className="flex items-center justify-between py-1.5">
+        <span className="text-gray-400 font-medium text-xs w-16">{label}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-blue-300 font-bold text-sm">{side.holesWonA}</span>
+          <span className="text-gray-600">-</span>
+          <span className="text-red-300 font-bold text-sm">{side.holesWonB}</span>
+        </div>
+        <span className={`text-xs font-medium ${statusColor} w-24 text-right`}>
+          {side.thru > 0 ? status : '–'}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gray-800 rounded-xl px-4 py-3">
+      <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider mb-1">Nassau</p>
+      <NassauSide label="Front 9" side={nassau.front} />
+      <NassauSide label="Back 9" side={nassau.back} />
+      <div className="border-t border-gray-700 mt-1 pt-1">
+        <NassauSide label="Overall" side={nassau.overall} />
+      </div>
     </div>
   );
 }
