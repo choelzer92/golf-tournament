@@ -674,6 +674,7 @@ function RoundSettingsEditor({
           <label className="block text-xs text-gray-500 mb-1">Win pts</label>
           <input
             type="number"
+            step="0.5"
             value={pointsForWin}
             onChange={(e) => setPointsForWin(Number(e.target.value))}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
@@ -683,6 +684,7 @@ function RoundSettingsEditor({
           <label className="block text-xs text-gray-500 mb-1">Tie pts</label>
           <input
             type="number"
+            step="0.5"
             value={pointsForTie}
             onChange={(e) => setPointsForTie(Number(e.target.value))}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
@@ -692,6 +694,7 @@ function RoundSettingsEditor({
           <label className="block text-xs text-gray-500 mb-1">Loss pts</label>
           <input
             type="number"
+            step="0.5"
             value={pointsForLoss}
             onChange={(e) => setPointsForLoss(Number(e.target.value))}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"

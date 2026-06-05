@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import type { GameScore } from '@/lib/game-state';
 import type { Tournament, TournamentRound, RoundMatchup } from '@/lib/tournament-state';
 import { loadTournament, loadGameScores, fetchGameScores, computeStandings, fetchTournament, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
+import { computeLiveMatchStatus, getHoleDataForRound } from '@/lib/live-scoring';
 
 export default function ScoreboardPage() {
   const router = useRouter();
@@ -33,8 +34,10 @@ export default function ScoreboardPage() {
 
     if (inProgressMatchups.length === 0) return;
 
-    // Fetch latest scores for in-progress matchups
-    inProgressMatchups.forEach((m) => fetchGameScores(m.id));
+    // Fetch latest scores for in-progress matchups, then trigger re-render
+    Promise.all(inProgressMatchups.map((m) => fetchGameScores(m.id))).then(() => {
+      setScoreTick((t) => t + 1);
+    });
 
     const channels = inProgressMatchups.map((m) =>
       subscribeToScores(m.id, () => setScoreTick((t) => t + 1))
@@ -60,10 +63,10 @@ export default function ScoreboardPage() {
         if (!matchup.gameId || matchup.result) continue;
         const scores = loadGameScores(matchup.id);
         if (!scores || !Array.isArray(scores) || scores.length === 0) continue;
-        const status = computeLiveMatchStatusFromScores(scores, matchup, round);
+        const status = computeLiveMatchStatus(scores, matchup, round, tournament);
         if (status) {
-          liveA += status.holesWonA * round.pointsForWin;
-          liveB += status.holesWonB * round.pointsForWin;
+          liveA += status.holesWonA * round.pointsForWin + status.holesTied * round.pointsForTie;
+          liveB += status.holesWonB * round.pointsForWin + status.holesTied * round.pointsForTie;
         }
       }
     }
@@ -123,40 +126,6 @@ export default function ScoreboardPage() {
       </main>
     </div>
   );
-}
-
-function getHoleDataForRound(round: TournamentRound) {
-  if (!round.course) return [];
-  const tee = round.course.teeSets.find((t) => t.id === round.defaultTeeId) || round.course.teeSets[0];
-  if (!tee) return [];
-  const allHoles = tee.holes.sort((a, b) => a.number - b.number);
-  if (round.holesPlaying === 'front9') return allHoles.filter((h) => h.number <= 9);
-  if (round.holesPlaying === 'back9') return allHoles.filter((h) => h.number > 9);
-  return allHoles;
-}
-
-function computeLiveMatchStatusFromScores(scores: GameScore[], matchup: RoundMatchup, round: TournamentRound): { holesWonA: number; holesWonB: number; thru: number } | null {
-  const holes = getHoleDataForRound(round);
-  if (holes.length === 0) return null;
-
-  let holesWonA = 0;
-  let holesWonB = 0;
-  let holesPlayed = 0;
-
-  for (const hole of holes) {
-    const teamAScores = scores.filter((s) => matchup.teamAPlayerIds.includes(s.playerId) && s.hole === hole.number);
-    const teamBScores = scores.filter((s) => matchup.teamBPlayerIds.includes(s.playerId) && s.hole === hole.number);
-
-    if (teamAScores.length === 0 || teamBScores.length === 0) continue;
-    holesPlayed++;
-
-    const bestA = Math.min(...teamAScores.map((s) => s.grossScore));
-    const bestB = Math.min(...teamBScores.map((s) => s.grossScore));
-    if (bestA < bestB) holesWonA++;
-    else if (bestB < bestA) holesWonB++;
-  }
-
-  return { holesWonA, holesWonB, thru: holesPlayed };
 }
 
 function RoundScoreboard({ round, tournament, scoreTick }: { round: TournamentRound; tournament: Tournament; scoreTick: number }) {
@@ -226,7 +195,7 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
   const holeData = getHoleDataForRound(round);
 
   const liveStatus = (!matchup.result && matchup.gameId && savedScores && savedScores.length > 0)
-    ? computeLiveMatchStatusFromScores(savedScores, matchup, round)
+    ? computeLiveMatchStatus(savedScores, matchup, round, tournament)
     : null;
 
   const statusLabel = matchup.result
@@ -318,15 +287,25 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
                     {holeData.map((h) => {
                       const sc = savedScores.find((s) => s.playerId === player.id && s.hole === h.number);
                       const score = sc?.grossScore;
-                      const colorClass = !score ? 'text-gray-600'
-                        : score <= h.par - 2 ? 'text-yellow-400 font-bold'
-                        : score === h.par - 1 ? 'text-red-400 font-bold'
-                        : score === h.par ? 'text-gray-300'
-                        : score === h.par + 1 ? 'text-blue-400'
-                        : 'text-blue-600';
+                      const scoreToPar = score ? score - h.par : null;
+                      let decoration = '';
+                      if (scoreToPar !== null) {
+                        if (scoreToPar <= -2) decoration = 'ring-2 ring-offset-1 ring-offset-gray-800 ring-yellow-500 rounded-full';
+                        else if (scoreToPar === -1) decoration = 'ring-1 ring-offset-1 ring-offset-gray-800 ring-red-400 rounded-full';
+                        else if (scoreToPar === 1) decoration = 'ring-1 ring-offset-1 ring-offset-gray-800 ring-blue-400 rounded-sm';
+                        else if (scoreToPar >= 2) decoration = 'ring-2 ring-offset-1 ring-offset-gray-800 ring-blue-500 rounded-sm';
+                      }
+                      const scoreColorClass = !score ? 'text-gray-600'
+                        : scoreToPar! <= -2 ? 'text-yellow-400 font-bold'
+                        : scoreToPar === -1 ? 'text-red-400 font-bold'
+                        : scoreToPar === 0 ? 'text-gray-300'
+                        : scoreToPar === 1 ? 'text-blue-400'
+                        : 'text-blue-500 font-bold';
                       return (
-                        <td key={h.number} className={`px-1 py-1 text-center ${colorClass}`}>
-                          {score || '–'}
+                        <td key={h.number} className={`px-1 py-1 text-center ${scoreColorClass}`}>
+                          {score ? (
+                            <span className={`inline-flex items-center justify-center w-5 h-5 text-[11px] ${decoration}`}>{score}</span>
+                          ) : '–'}
                         </td>
                       );
                     })}

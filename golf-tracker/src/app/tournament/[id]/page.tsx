@@ -6,6 +6,7 @@ import { FORMATS } from '@/lib/formats';
 import type { Tournament, TournamentRound } from '@/lib/tournament-state';
 import type { GameScore } from '@/lib/game-state';
 import { loadTournament, saveTournament, loadGameScores, computeStandings, exportTournament, fetchTournament, fetchGameScores, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
+import { computeLiveMatchStatus } from '@/lib/live-scoring';
 
 export default function TournamentHubPage() {
   const router = useRouter();
@@ -27,6 +28,7 @@ export default function TournamentHubPage() {
   }, [id, router]);
 
   // Subscribe to live score changes to update standings in real-time
+  const [scoreTick, setScoreTick] = useState(0);
   useEffect(() => {
     if (!tournament) return;
     const inProgressMatchups = tournament.rounds
@@ -35,10 +37,12 @@ export default function TournamentHubPage() {
 
     if (inProgressMatchups.length === 0) return;
 
-    inProgressMatchups.forEach((m) => fetchGameScores(m.id));
+    Promise.all(inProgressMatchups.map((m) => fetchGameScores(m.id))).then(() => {
+      setScoreTick((t) => t + 1);
+    });
 
     const channels = inProgressMatchups.map((m) =>
-      subscribeToScores(m.id, () => setTournament((t) => t ? { ...t } : t))
+      subscribeToScores(m.id, () => setScoreTick((t) => t + 1))
     );
     return () => { channels.forEach((ch) => ch.unsubscribe()); };
   }, [tournament?.rounds.map((r) => r.matchups.filter((m) => m.gameId && !m.result).map((m) => m.id)).flat().join(',')]);
@@ -57,15 +61,10 @@ export default function TournamentHubPage() {
       if (!matchup.gameId || matchup.result) continue;
       const scores: GameScore[] | null = loadGameScores(matchup.id);
       if (!scores || scores.length === 0) continue;
-      const holes = getHoleDataForRound(round);
-      for (const hole of holes) {
-        const teamAScores = scores.filter((s) => matchup.teamAPlayerIds.includes(s.playerId) && s.hole === hole.number);
-        const teamBScores = scores.filter((s) => matchup.teamBPlayerIds.includes(s.playerId) && s.hole === hole.number);
-        if (teamAScores.length === 0 || teamBScores.length === 0) continue;
-        const bestA = Math.min(...teamAScores.map((s) => s.grossScore));
-        const bestB = Math.min(...teamBScores.map((s) => s.grossScore));
-        if (bestA < bestB) liveA += round.pointsForWin;
-        else if (bestB < bestA) liveB += round.pointsForWin;
+      const status = computeLiveMatchStatus(scores, matchup, round, tournament);
+      if (status) {
+        liveA += status.holesWonA * round.pointsForWin + status.holesTied * round.pointsForTie;
+        liveB += status.holesWonB * round.pointsForWin + status.holesTied * round.pointsForTie;
       }
     }
   }
@@ -146,16 +145,6 @@ export default function TournamentHubPage() {
       </main>
     </div>
   );
-}
-
-function getHoleDataForRound(round: TournamentRound) {
-  if (!round.course) return [];
-  const tee = round.course.teeSets.find((t) => t.id === round.defaultTeeId) || round.course.teeSets[0];
-  if (!tee) return [];
-  const allHoles = tee.holes.sort((a, b) => a.number - b.number);
-  if (round.holesPlaying === 'front9') return allHoles.filter((h) => h.number <= 9);
-  if (round.holesPlaying === 'back9') return allHoles.filter((h) => h.number > 9);
-  return allHoles;
 }
 
 function RoundCard({

@@ -205,9 +205,11 @@ export async function fetchGameScores(matchupId: string): Promise<any | null> {
 }
 
 // Subscribe to realtime score changes for a matchup
+let scoreChannelCounter = 0;
 export function subscribeToScores(matchupId: string, onUpdate: (scores: any) => void) {
+  const channelName = `scores:${matchupId}:${++scoreChannelCounter}`;
   return supabase
-    .channel(`scores:${matchupId}`)
+    .channel(channelName)
     .on('postgres_changes', {
       event: '*',
       schema: 'public',

@@ -7,6 +7,7 @@ import { calcCourseHandicap } from '@/lib/game-state';
 import { isOneBallFormat, isTeamMode } from '@/lib/formats';
 import type { TournamentGameContext, Tournament, RoundMatchup } from '@/lib/tournament-state';
 import { loadTournament, saveTournament, saveGameScores, loadGameScores, fetchGameScores, fetchTournament, computeStandings, computeBonuses, subscribeToScores } from '@/lib/tournament-state';
+import { computeLiveMatchStatus } from '@/lib/live-scoring';
 
 export default function PlayGamePage() {
   const router = useRouter();
@@ -661,8 +662,8 @@ export default function PlayGamePage() {
               const par = currentHoleData?.par || 4;
               const scoreToPar = net !== null ? net - par : null;
 
-              const baseOptions = Array.from({ length: 8 }, (_, i) => par - 2 + i).filter((s) => s >= 2);
-              const scoreOptions = baseOptions[0] > 1 ? [1, ...baseOptions] : baseOptions;
+              const low = Math.max(1, par - 3);
+              const scoreOptions = Array.from({ length: par + 5 - low }, (_, i) => low + i);
 
               return (
                 <div key={team} className={`bg-white rounded-lg shadow p-4 border-l-4 ${color}`}>
@@ -714,8 +715,8 @@ export default function PlayGamePage() {
               const par = currentHoleData?.par || 4;
               const scoreToPar = net !== null ? net - par : null;
 
-              const baseOptions = Array.from({ length: 8 }, (_, i) => par - 2 + i).filter((s) => s >= 2);
-              const scoreOptions = baseOptions[0] > 1 ? [1, ...baseOptions] : baseOptions;
+              const low = Math.max(1, par - 3);
+              const scoreOptions = Array.from({ length: par + 5 - low }, (_, i) => low + i);
 
               const teamColor = player.team === 'A' ? 'border-l-blue-500'
                 : player.team === 'B' ? 'border-l-red-500'
@@ -1391,46 +1392,108 @@ function TeamMatchStatus({
   const matchup = round.matchups.find((m) => m.id === tournamentCtx.matchupId);
   if (!matchup) return null;
 
-  const teamAIds = new Set(matchup.teamAPlayerIds);
-  const teamBIds = new Set(matchup.teamBPlayerIds);
+  const teamAPlayers = setup.players.filter((p) => matchup.teamAPlayerIds.includes(p.id));
+  const teamBPlayers = setup.players.filter((p) => matchup.teamBPlayerIds.includes(p.id));
   const teamAName = tournament.teams[0].name;
   const teamBName = tournament.teams[1].name;
 
-  let teamAHolesWon = 0;
-  let teamBHolesWon = 0;
+  function getTeamNetOnHole(teamPlayers: Player[], hole: { number: number; par: number; handicap: number }): number | null {
+    const holeTeamMode = (setup.splitFormat && hole.number > 9) ? setup.splitFormat.teamMode : (setup.teamMode || 'best-ball');
 
-  for (const hole of holes) {
-    const allScored = setup.players.every((p) => getScore(p.id, hole.number) !== null);
-    if (!allScored) continue;
-
-    let bestNetA = Infinity;
-    let bestNetB = Infinity;
-
-    for (const player of setup.players) {
-      const gross = getScore(player.id, hole.number);
-      if (gross === null) continue;
-      const strokes = getPlayerStrokesOnHole(player, hole.handicap, hole.number);
-      const net = gross - strokes;
-
-      if (teamAIds.has(player.id)) bestNetA = Math.min(bestNetA, net);
-      else if (teamBIds.has(player.id)) bestNetB = Math.min(bestNetB, net);
+    if (holeTeamMode === 'scramble' || holeTeamMode === 'alternate-shot') {
+      const firstWithScore = teamPlayers.find((p) => getScore(p.id, hole.number) !== null);
+      if (!firstWithScore) return null;
+      const gross = getScore(firstWithScore.id, hole.number)!;
+      const strokes = getPlayerStrokesOnHole(firstWithScore, hole.handicap, hole.number);
+      return gross - strokes;
     }
-
-    if (bestNetA < bestNetB) teamAHolesWon++;
-    else if (bestNetB < bestNetA) teamBHolesWon++;
+    if (holeTeamMode === 'combined') {
+      let total = 0;
+      let anyScored = false;
+      for (const p of teamPlayers) {
+        const gross = getScore(p.id, hole.number);
+        if (gross === null) continue;
+        anyScored = true;
+        const strokes = getPlayerStrokesOnHole(p, hole.handicap, hole.number);
+        total += gross - strokes;
+      }
+      return anyScored ? total : null;
+    }
+    // best-ball
+    let best: number | null = null;
+    for (const p of teamPlayers) {
+      const gross = getScore(p.id, hole.number);
+      if (gross === null) continue;
+      const strokes = getPlayerStrokesOnHole(p, hole.handicap, hole.number);
+      const net = gross - strokes;
+      if (best === null || net < best) best = net;
+    }
+    return best;
   }
 
-  const diff = teamAHolesWon - teamBHolesWon;
-  const statusText = diff === 0 ? 'All Square'
-    : diff > 0 ? `${teamAName} ${diff} UP`
-    : `${teamBName} ${Math.abs(diff)} UP`;
+  let teamAHolesWon = 0;
+  let teamBHolesWon = 0;
+  let holesTied = 0;
+
+  for (const hole of holes) {
+    const netA = getTeamNetOnHole(teamAPlayers, hole);
+    const netB = getTeamNetOnHole(teamBPlayers, hole);
+    if (netA === null || netB === null) continue;
+
+    if (netA < netB) teamAHolesWon++;
+    else if (netB < netA) teamBHolesWon++;
+    else holesTied++;
+  }
+
+  const ptsA = teamAHolesWon * round.pointsForWin + holesTied * round.pointsForTie;
+  const ptsB = teamBHolesWon * round.pointsForWin + holesTied * round.pointsForTie;
+
+  // Compute overall tournament total (finalized + all live matches)
+  const standings = computeStandings(tournament);
+  let totalA = standings.teamAPoints;
+  let totalB = standings.teamBPoints;
+  const matchScores: { label: string; a: number; b: number; isCurrent: boolean }[] = [];
+
+  for (const r of tournament.rounds) {
+    for (const m of r.matchups) {
+      if (!m.gameId || m.result) continue;
+      let mA: number;
+      let mB: number;
+      if (m.id === matchup.id) {
+        mA = ptsA;
+        mB = ptsB;
+      } else {
+        const mScores = loadGameScores(m.id);
+        if (!mScores || mScores.length === 0) continue;
+        const status = computeLiveMatchStatus(mScores, m, r, tournament);
+        if (!status) continue;
+        mA = status.holesWonA * r.pointsForWin + status.holesTied * r.pointsForTie;
+        mB = status.holesWonB * r.pointsForWin + status.holesTied * r.pointsForTie;
+      }
+      totalA += mA;
+      totalB += mB;
+      const aNames = tournament.players.filter((p) => m.teamAPlayerIds.includes(p.id)).map((p) => p.name.split(' ')[0]).join('/');
+      const bNames = tournament.players.filter((p) => m.teamBPlayerIds.includes(p.id)).map((p) => p.name.split(' ')[0]).join('/');
+      matchScores.push({ label: `${aNames} vs ${bNames}`, a: mA, b: mB, isCurrent: m.id === matchup.id });
+    }
+  }
 
   return (
-    <div className="bg-green-950 text-white text-center py-2 text-sm font-bold">
-      <span className="text-blue-300">{teamAName} {teamAHolesWon}</span>
-      <span className="mx-2 text-green-300">—</span>
-      <span className="text-red-300">{teamBName} {teamBHolesWon}</span>
-      <span className="ml-3 text-green-200 font-normal text-xs">({statusText})</span>
+    <div className="bg-green-950 text-white py-2 px-4">
+      <div className="text-center font-bold text-sm">
+        <span className="text-blue-300">{teamAName} {totalA}</span>
+        <span className="mx-2 text-green-500">—</span>
+        <span className="text-red-300">{teamBName} {totalB}</span>
+      </div>
+      {matchScores.length > 0 && (
+        <div className="mt-1 flex flex-wrap justify-center gap-x-4 gap-y-0.5 text-[10px] text-gray-400">
+          {matchScores.map((ms, i) => (
+            <span key={i} className={ms.isCurrent ? 'text-green-300' : ''}>
+              {ms.label}: <span className="text-blue-300">{ms.a}</span>–<span className="text-red-300">{ms.b}</span>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1443,6 +1506,22 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId }: { tourname
   const teamA = tournament.teams[0];
   const teamB = tournament.teams[1];
 
+  // Add live provisional scores from in-progress matches
+  let liveA = standings.teamAPoints;
+  let liveB = standings.teamBPoints;
+  for (const round of tournament.rounds) {
+    for (const matchup of round.matchups) {
+      if (!matchup.gameId || matchup.result) continue;
+      const scores = loadGameScores(matchup.id);
+      if (!scores || scores.length === 0) continue;
+      const status = computeLiveMatchStatus(scores, matchup, round, tournament);
+      if (status) {
+        liveA += status.holesWonA * round.pointsForWin + status.holesTied * round.pointsForTie;
+        liveB += status.holesWonB * round.pointsForWin + status.holesTied * round.pointsForTie;
+      }
+    }
+  }
+
   const currentRound = tournament.rounds.find((r) => r.id === tournamentCtx.roundId);
   const otherMatchups = currentRound?.matchups.filter((m) => m.id !== currentMatchupId) || [];
 
@@ -1452,12 +1531,12 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId }: { tourname
       <div className="flex items-center justify-center gap-4 py-2">
         <div className="text-center">
           <p className="text-[10px] text-blue-400 uppercase">{teamA.name}</p>
-          <p className="text-2xl font-black text-white">{standings.teamAPoints}</p>
+          <p className="text-2xl font-black text-white">{liveA}</p>
         </div>
         <span className="text-gray-600">—</span>
         <div className="text-center">
           <p className="text-[10px] text-red-400 uppercase">{teamB.name}</p>
-          <p className="text-2xl font-black text-white">{standings.teamBPoints}</p>
+          <p className="text-2xl font-black text-white">{liveB}</p>
         </div>
       </div>
 
