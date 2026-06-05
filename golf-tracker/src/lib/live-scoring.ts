@@ -255,6 +255,40 @@ function getTeamNetForHole(
     return anyScored ? total : null;
   }
 
+  if (teamMode === 'two-best-balls') {
+    const activeSettings = (round.splitFormat && hole.number > 9)
+      ? round.splitFormat.formatSettings
+      : round.formatSettings;
+    const variant = (activeSettings?.ballSelection as string) || '1-net-1-gross';
+    const playerScores: { gross: number; net: number }[] = [];
+    for (const p of teamPlayers) {
+      const gross = getScore(scores, p.id, hole.number);
+      if (gross === null) continue;
+      const strokes = getPlayerStrokesOnHole(p, hole.handicap, round, holes, allMatchupPlayers, hole.number);
+      playerScores.push({ gross, net: gross - strokes });
+    }
+    if (playerScores.length < 2) return null;
+
+    if (variant === '2-best-net') {
+      const sorted = [...playerScores].sort((a, b) => a.net - b.net);
+      return sorted[0].net + sorted[1].net;
+    }
+    if (variant === '2-best-gross') {
+      const sorted = [...playerScores].sort((a, b) => a.gross - b.gross);
+      return sorted[0].gross + sorted[1].gross;
+    }
+    // 1-net-1-gross: best net from one player + best gross from a different player
+    let bestTotal = Infinity;
+    for (let i = 0; i < playerScores.length; i++) {
+      for (let j = 0; j < playerScores.length; j++) {
+        if (i === j) continue;
+        const total = playerScores[i].net + playerScores[j].gross;
+        if (total < bestTotal) bestTotal = total;
+      }
+    }
+    return bestTotal;
+  }
+
   // best-ball (default)
   let best: number | null = null;
   for (const p of teamPlayers) {
