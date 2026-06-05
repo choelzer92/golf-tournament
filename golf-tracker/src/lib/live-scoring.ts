@@ -267,6 +267,45 @@ function getTeamNetForHole(
   return best;
 }
 
+function netToStablefordPoints(net: number, par: number): number {
+  const diff = net - par;
+  if (diff <= -3) return 5;
+  if (diff === -2) return 4;
+  if (diff === -1) return 3;
+  if (diff === 0) return 2;
+  if (diff === 1) return 1;
+  return 0;
+}
+
+function getTeamStablefordForHole(
+  teamPlayers: Player[],
+  hole: HoleData,
+  scores: GameScore[],
+  round: TournamentRound,
+  holes: HoleData[],
+  allMatchupPlayers: Player[]
+): number | null {
+  const teamMode = getActiveTeamMode(round, hole.number);
+
+  if (teamMode === 'combined') {
+    let total = 0;
+    let anyScored = false;
+    for (const p of teamPlayers) {
+      const gross = getScore(scores, p.id, hole.number);
+      if (gross === null) continue;
+      anyScored = true;
+      const strokes = getPlayerStrokesOnHole(p, hole.handicap, round, holes, allMatchupPlayers, hole.number);
+      total += netToStablefordPoints(gross - strokes, hole.par);
+    }
+    return anyScored ? total : null;
+  }
+
+  // For best-ball/scramble/alternate-shot: get the team net and convert
+  const net = getTeamNetForHole(teamPlayers, hole, scores, round, holes, allMatchupPlayers);
+  if (net === null) return null;
+  return netToStablefordPoints(net, hole.par);
+}
+
 export function computeLiveMatchStatus(
   scores: GameScore[],
   matchup: RoundMatchup,
@@ -279,6 +318,7 @@ export function computeLiveMatchStatus(
   const teamAPlayers = tournament.players.filter((p) => matchup.teamAPlayerIds.includes(p.id));
   const teamBPlayers = tournament.players.filter((p) => matchup.teamBPlayerIds.includes(p.id));
   const allMatchupPlayers = [...teamAPlayers, ...teamBPlayers];
+  const isStableford = round.formatId === 'stableford';
 
   let holesWonA = 0;
   let holesWonB = 0;
@@ -286,16 +326,157 @@ export function computeLiveMatchStatus(
   let holesPlayed = 0;
 
   for (const hole of holes) {
-    const netA = getTeamNetForHole(teamAPlayers, hole, scores, round, holes, allMatchupPlayers);
-    const netB = getTeamNetForHole(teamBPlayers, hole, scores, round, holes, allMatchupPlayers);
-
-    if (netA === null || netB === null) continue;
-    holesPlayed++;
-
-    if (netA < netB) holesWonA++;
-    else if (netB < netA) holesWonB++;
-    else holesTied++;
+    if (isStableford) {
+      const ptsA = getTeamStablefordForHole(teamAPlayers, hole, scores, round, holes, allMatchupPlayers);
+      const ptsB = getTeamStablefordForHole(teamBPlayers, hole, scores, round, holes, allMatchupPlayers);
+      if (ptsA === null || ptsB === null) continue;
+      holesPlayed++;
+      if (ptsA > ptsB) holesWonA++;
+      else if (ptsB > ptsA) holesWonB++;
+      else holesTied++;
+    } else {
+      const netA = getTeamNetForHole(teamAPlayers, hole, scores, round, holes, allMatchupPlayers);
+      const netB = getTeamNetForHole(teamBPlayers, hole, scores, round, holes, allMatchupPlayers);
+      if (netA === null || netB === null) continue;
+      holesPlayed++;
+      if (netA < netB) holesWonA++;
+      else if (netB < netA) holesWonB++;
+      else holesTied++;
+    }
   }
 
   return { holesWonA, holesWonB, holesTied, thru: holesPlayed };
+}
+
+export function recomputeMatchResult(
+  scores: GameScore[],
+  matchup: RoundMatchup,
+  round: TournamentRound,
+  tournament: Tournament
+): { winningTeamId: string | null; pointsTeamA: number; pointsTeamB: number; summary: string } | null {
+  const status = computeLiveMatchStatus(scores, matchup, round, tournament);
+  if (!status || status.thru === 0) return null;
+
+  if (round.scoringMethod === 'match-play') {
+    const pointsTeamA = status.holesWonA * round.pointsForWin + status.holesTied * round.pointsForTie;
+    const pointsTeamB = status.holesWonB * round.pointsForWin + status.holesTied * round.pointsForTie;
+    const winningTeamId = pointsTeamA > pointsTeamB ? 'team-a'
+      : pointsTeamB > pointsTeamA ? 'team-b' : null;
+    const tieNote = status.holesTied > 0 ? ` · ${status.holesTied} tied` : '';
+    return {
+      winningTeamId,
+      pointsTeamA,
+      pointsTeamB,
+      summary: `${pointsTeamA}–${pointsTeamB} (${status.holesWonA}W-${status.holesWonB}W${tieNote})`,
+    };
+  }
+
+  // Stroke play: compute total team scores
+  const holes = getHoleDataForRound(round);
+  const teamAPlayers = tournament.players.filter((p) => matchup.teamAPlayerIds.includes(p.id));
+  const teamBPlayers = tournament.players.filter((p) => matchup.teamBPlayerIds.includes(p.id));
+  const allMatchupPlayers = [...teamAPlayers, ...teamBPlayers];
+  const isStableford = round.formatId === 'stableford';
+
+  if (isStableford) {
+    let totalA = 0;
+    let totalB = 0;
+    for (const hole of holes) {
+      const ptsA = getTeamStablefordForHole(teamAPlayers, hole, scores, round, holes, allMatchupPlayers);
+      const ptsB = getTeamStablefordForHole(teamBPlayers, hole, scores, round, holes, allMatchupPlayers);
+      if (ptsA !== null) totalA += ptsA;
+      if (ptsB !== null) totalB += ptsB;
+    }
+    const winningTeamId = totalA > totalB ? 'team-a' : totalB > totalA ? 'team-b' : null;
+    const pointsTeamA = winningTeamId === 'team-a' ? round.pointsForWin : winningTeamId === null ? round.pointsForTie : round.pointsForLoss;
+    const pointsTeamB = winningTeamId === 'team-b' ? round.pointsForWin : winningTeamId === null ? round.pointsForTie : round.pointsForLoss;
+    return { winningTeamId, pointsTeamA, pointsTeamB, summary: `${totalA} — ${totalB} (stableford pts)` };
+  }
+
+  let totalA = 0;
+  let totalB = 0;
+  for (const hole of holes) {
+    const netA = getTeamNetForHole(teamAPlayers, hole, scores, round, holes, allMatchupPlayers);
+    const netB = getTeamNetForHole(teamBPlayers, hole, scores, round, holes, allMatchupPlayers);
+    if (netA !== null) totalA += netA;
+    if (netB !== null) totalB += netB;
+  }
+  const winningTeamId = totalA < totalB ? 'team-a' : totalB < totalA ? 'team-b' : null;
+  const pointsTeamA = winningTeamId === 'team-a' ? round.pointsForWin : winningTeamId === null ? round.pointsForTie : round.pointsForLoss;
+  const pointsTeamB = winningTeamId === 'team-b' ? round.pointsForWin : winningTeamId === null ? round.pointsForTie : round.pointsForLoss;
+  return { winningTeamId, pointsTeamA, pointsTeamB, summary: `${totalA} — ${totalB} (net)` };
+}
+
+export function getPlayerStrokesForHole(
+  playerId: string,
+  holeHandicap: number,
+  holeNumber: number,
+  matchup: RoundMatchup,
+  round: TournamentRound,
+  tournament: Tournament
+): number {
+  const holes = getHoleDataForRound(round);
+  if (holes.length === 0) return 0;
+
+  const allMatchupPlayers = tournament.players.filter((p) =>
+    matchup.teamAPlayerIds.includes(p.id) || matchup.teamBPlayerIds.includes(p.id)
+  );
+  const player = allMatchupPlayers.find((p) => p.id === playerId);
+  if (!player) return 0;
+
+  return getPlayerStrokesOnHole(player, holeHandicap, round, holes, allMatchupPlayers, holeNumber);
+}
+
+export function computePlayerStablefordPoints(
+  scores: GameScore[],
+  playerId: string,
+  matchup: RoundMatchup,
+  round: TournamentRound,
+  tournament: Tournament
+): number {
+  const holes = getHoleDataForRound(round);
+  if (holes.length === 0) return 0;
+
+  const allMatchupPlayers = tournament.players.filter((p) =>
+    matchup.teamAPlayerIds.includes(p.id) || matchup.teamBPlayerIds.includes(p.id)
+  );
+  const player = allMatchupPlayers.find((p) => p.id === playerId);
+  if (!player) return 0;
+
+  let total = 0;
+  for (const hole of holes) {
+    const gross = getScore(scores, playerId, hole.number);
+    if (gross === null) continue;
+    const strokes = getPlayerStrokesOnHole(player, hole.handicap, round, holes, allMatchupPlayers, hole.number);
+    total += netToStablefordPoints(gross - strokes, hole.par);
+  }
+  return total;
+}
+
+export function computePlayerNetTotal(
+  scores: GameScore[],
+  playerId: string,
+  matchup: RoundMatchup,
+  round: TournamentRound,
+  tournament: Tournament
+): number | null {
+  const holes = getHoleDataForRound(round);
+  if (holes.length === 0) return null;
+
+  const allMatchupPlayers = tournament.players.filter((p) =>
+    matchup.teamAPlayerIds.includes(p.id) || matchup.teamBPlayerIds.includes(p.id)
+  );
+  const player = allMatchupPlayers.find((p) => p.id === playerId);
+  if (!player) return null;
+
+  let total = 0;
+  let holesScored = 0;
+  for (const hole of holes) {
+    const gross = getScore(scores, playerId, hole.number);
+    if (gross === null) continue;
+    holesScored++;
+    const strokes = getPlayerStrokesOnHole(player, hole.handicap, round, holes, allMatchupPlayers, hole.number);
+    total += gross - strokes;
+  }
+  return holesScored > 0 ? total : null;
 }

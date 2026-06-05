@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import type { GameScore } from '@/lib/game-state';
 import type { Tournament, TournamentRound, RoundMatchup } from '@/lib/tournament-state';
 import { loadTournament, loadGameScores, fetchGameScores, computeStandings, fetchTournament, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
-import { computeLiveMatchStatus, getHoleDataForRound } from '@/lib/live-scoring';
+import { computeLiveMatchStatus, getHoleDataForRound, computePlayerStablefordPoints } from '@/lib/live-scoring';
 
 export default function ScoreboardPage() {
   const router = useRouter();
@@ -132,14 +132,46 @@ function RoundScoreboard({ round, tournament, scoreTick }: { round: TournamentRo
   const teamA = tournament.teams[0];
   const teamB = tournament.teams[1];
 
-  let roundPtsA = 0;
-  let roundPtsB = 0;
+  let matchPtsA = 0;
+  let matchPtsB = 0;
   for (const m of round.matchups) {
     if (m.result) {
-      roundPtsA += m.result.pointsTeamA;
-      roundPtsB += m.result.pointsTeamB;
+      matchPtsA += m.result.pointsTeamA;
+      matchPtsB += m.result.pointsTeamB;
     }
   }
+
+  // Compute bonus points
+  let bonusPtsA = 0;
+  let bonusPtsB = 0;
+  const bonusDetails: { name: string; a: number; b: number; detail?: string }[] = [];
+  for (const bonus of round.bonuses || []) {
+    if (!bonus.result) continue;
+    let a = 0;
+    let b = 0;
+    if (bonus.scope === 'per-matchup' && (bonus.result.teamAWins != null || bonus.result.teamBWins != null)) {
+      const aWins = bonus.result.teamAWins || 0;
+      const bWins = bonus.result.teamBWins || 0;
+      const ties = bonus.result.ties || 0;
+      a = aWins * bonus.points + ties * bonus.points * 0.5;
+      b = bWins * bonus.points + ties * bonus.points * 0.5;
+    } else if (bonus.result.winningTeamId === teamA.id) {
+      a = bonus.points;
+    } else if (bonus.result.winningTeamId === teamB.id) {
+      b = bonus.points;
+    } else if (bonus.result.winningTeamId === undefined || bonus.result.winningTeamId === null) {
+      a = bonus.points * 0.5;
+      b = bonus.points * 0.5;
+    }
+    bonusPtsA += a;
+    bonusPtsB += b;
+    if (a > 0 || b > 0) {
+      bonusDetails.push({ name: bonus.name, a, b, detail: bonus.result.detail });
+    }
+  }
+
+  const roundPtsA = matchPtsA + bonusPtsA;
+  const roundPtsB = matchPtsB + bonusPtsB;
 
   return (
     <div className="bg-gray-800 rounded-xl overflow-hidden">
@@ -167,6 +199,21 @@ function RoundScoreboard({ round, tournament, scoreTick }: { round: TournamentRo
           <MatchupScorecard key={matchup.id} matchup={matchup} round={round} tournament={tournament} />
         ))}
       </div>
+
+      {/* Bonus breakdown */}
+      {bonusDetails.length > 0 && (
+        <div className="px-4 py-2 border-t border-gray-700 bg-gray-800/50">
+          <p className="text-[10px] text-gray-500 uppercase font-medium mb-1">Bonuses</p>
+          {bonusDetails.map((bd, i) => (
+            <div key={i} className="flex items-center justify-between text-xs py-0.5">
+              <span className="text-gray-400">{bd.name}{bd.detail ? ` — ${bd.detail}` : ''}</span>
+              <span className="text-gray-300 font-medium">
+                <span className="text-blue-300">+{bd.a}</span> / <span className="text-red-300">+{bd.b}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -198,10 +245,13 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
     ? computeLiveMatchStatus(savedScores, matchup, round, tournament)
     : null;
 
+  const livePointsA = liveStatus ? liveStatus.holesWonA * round.pointsForWin + liveStatus.holesTied * round.pointsForTie : 0;
+  const livePointsB = liveStatus ? liveStatus.holesWonB * round.pointsForWin + liveStatus.holesTied * round.pointsForTie : 0;
+
   const statusLabel = matchup.result
     ? matchup.result.summary
     : liveStatus
-      ? `${liveStatus.holesWonA} — ${liveStatus.holesWonB} (thru ${liveStatus.thru})`
+      ? `${livePointsA} — ${livePointsB} (thru ${liveStatus.thru})`
       : matchup.gameId ? 'In Progress' : 'Not Started';
 
   return (
@@ -231,20 +281,26 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
             </div>
           </div>
           <div className="ml-4 text-right shrink-0">
-            <p className="text-xs text-gray-400">{statusLabel}</p>
-            {matchup.result && (
-              <p className="text-sm font-bold text-gray-300">
-                <span className="text-blue-300">{matchup.result.pointsTeamA}</span>
-                {' — '}
-                <span className="text-red-300">{matchup.result.pointsTeamB}</span>
-              </p>
-            )}
-            {liveStatus && (
-              <p className="text-sm font-bold text-gray-300">
-                <span className="text-blue-300">{liveStatus.holesWonA}</span>
-                {' — '}
-                <span className="text-red-300">{liveStatus.holesWonB}</span>
-              </p>
+            {matchup.result ? (
+              <>
+                <p className="text-sm font-bold text-gray-300">
+                  <span className="text-blue-300">{matchup.result.pointsTeamA}</span>
+                  {' — '}
+                  <span className="text-red-300">{matchup.result.pointsTeamB}</span>
+                </p>
+                <p className="text-[10px] text-gray-500">{matchup.result.summary}</p>
+              </>
+            ) : liveStatus ? (
+              <>
+                <p className="text-sm font-bold text-gray-300">
+                  <span className="text-blue-300">{livePointsA}</span>
+                  {' — '}
+                  <span className="text-red-300">{livePointsB}</span>
+                </p>
+                <p className="text-[10px] text-gray-500">thru {liveStatus.thru}</p>
+              </>
+            ) : (
+              <p className="text-xs text-gray-400">{statusLabel}</p>
             )}
             <span className="text-gray-600 text-xs">{expanded ? '▾' : '▸'}</span>
           </div>
@@ -279,6 +335,10 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
                 }, 0);
                 const totalPar = holeData.reduce((s, h) => s + h.par, 0);
                 const diff = total - totalPar;
+                const isStableford = round.formatId === 'stableford';
+                const stbPts = isStableford && total > 0
+                  ? computePlayerStablefordPoints(savedScores, player.id, matchup, round, tournament)
+                  : 0;
                 return (
                   <tr key={player.id} className="border-t border-gray-700/50">
                     <td className={`px-2 py-1 font-medium whitespace-nowrap sticky left-0 bg-gray-800 ${isTeamA ? 'text-blue-300' : 'text-red-300'}`}>
@@ -311,11 +371,13 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
                     })}
                     <td className="px-2 py-1 text-center font-bold text-white">
                       {total || '–'}
-                      {total > 0 && (
+                      {total > 0 && isStableford ? (
+                        <span className="ml-0.5 text-[10px] text-green-400">{stbPts}pts</span>
+                      ) : total > 0 ? (
                         <span className={`ml-0.5 text-[10px] ${diff > 0 ? 'text-blue-400' : diff < 0 ? 'text-red-400' : 'text-gray-500'}`}>
                           {diff > 0 ? `+${diff}` : diff === 0 ? 'E' : diff}
                         </span>
-                      )}
+                      ) : null}
                     </td>
                   </tr>
                 );

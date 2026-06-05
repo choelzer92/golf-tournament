@@ -782,7 +782,9 @@ export default function PlayGamePage() {
           const hasTeams = teamAPlayers.length > 0 && teamBPlayers.length > 0;
 
           const formatId = setup.formatId;
-          const isMatchPlayFormat = formatId === 'match-play' || formatId === 'skins' || formatId === 'nassau';
+          const isStablefordFormat = formatId === 'stableford';
+          const tournamentRound = tournamentCtx ? loadTournament(tournamentCtx.tournamentId)?.rounds.find((r) => r.id === tournamentCtx.roundId) : null;
+          const isMatchPlayScoring = tournamentRound ? tournamentRound.scoringMethod === 'match-play' : (formatId === 'match-play' || formatId === 'skins' || formatId === 'nassau');
           const isScramble = teamMode === 'scramble';
           const isAlternateShot = teamMode === 'alternate-shot';
 
@@ -867,16 +869,52 @@ export default function PlayGamePage() {
             return holeSet.reduce((sum, h) => sum + (getScore(playerId, h.number) ?? 0), 0);
           }
 
+          function stablefordPts(net: number, par: number): number {
+            const diff = net - par;
+            if (diff <= -3) return 5;
+            if (diff === -2) return 4;
+            if (diff === -1) return 3;
+            if (diff === 0) return 2;
+            if (diff === 1) return 1;
+            return 0;
+          }
+
+          function getTeamStableford(teamPlayers: Player[], h: { number: number; par: number; handicap: number }): number | null {
+            if (teamMode === 'combined') {
+              let total = 0;
+              let anyScored = false;
+              for (const p of teamPlayers) {
+                const gross = getScore(p.id, h.number);
+                if (gross === null) continue;
+                anyScored = true;
+                const strokes = getPlayerStrokesOnHole(p, h.handicap, h.number);
+                total += stablefordPts(gross - strokes, h.par);
+              }
+              return anyScored ? total : null;
+            }
+            const net = getTeamNet(teamPlayers, h);
+            if (net === null) return null;
+            return stablefordPts(net, h.par);
+          }
+
           function getMatchStatus(forTeam: 'A' | 'B') {
-            if (isMatchPlayFormat) {
+            if (isMatchPlayScoring) {
               let teamAWins = 0;
               let teamBWins = 0;
               for (const h of holes) {
-                const netA = getTeamNet(teamAPlayers, h);
-                const netB = getTeamNet(teamBPlayers, h);
-                if (netA === null || netB === null) continue;
-                if (netA < netB) teamAWins++;
-                else if (netB < netA) teamBWins++;
+                if (isStablefordFormat) {
+                  const stbA = getTeamStableford(teamAPlayers, h);
+                  const stbB = getTeamStableford(teamBPlayers, h);
+                  if (stbA === null || stbB === null) continue;
+                  if (stbA > stbB) teamAWins++;
+                  else if (stbB > stbA) teamBWins++;
+                } else {
+                  const netA = getTeamNet(teamAPlayers, h);
+                  const netB = getTeamNet(teamBPlayers, h);
+                  if (netA === null || netB === null) continue;
+                  if (netA < netB) teamAWins++;
+                  else if (netB < netA) teamBWins++;
+                }
               }
               const diff = teamAWins - teamBWins;
               if (diff === 0) return { label: 'AS', color: 'text-gray-600 bg-gray-200' };
@@ -889,6 +927,23 @@ export default function PlayGamePage() {
                 ? { label: `${Math.abs(diff)} UP`, color: 'text-red-800 bg-red-100' }
                 : { label: `${diff} DN`, color: 'text-red-800 bg-red-100' };
             } else {
+              if (isStablefordFormat) {
+                const totalA = holes.reduce((s, h) => s + (getTeamStableford(teamAPlayers, h) ?? 0), 0);
+                const totalB = holes.reduce((s, h) => s + (getTeamStableford(teamBPlayers, h) ?? 0), 0);
+                const scoredA = holes.some((h) => getTeamStableford(teamAPlayers, h) !== null);
+                const scoredB = holes.some((h) => getTeamStableford(teamBPlayers, h) !== null);
+                if (!scoredA || !scoredB) return { label: '–', color: 'text-gray-400 bg-gray-100' };
+                const diff = totalA - totalB;
+                if (diff === 0) return { label: 'T', color: 'text-gray-600 bg-gray-200' };
+                if (forTeam === 'A') {
+                  return diff > 0
+                    ? { label: `${diff} ahead`, color: 'text-blue-800 bg-blue-100' }
+                    : { label: `${Math.abs(diff)} back`, color: 'text-blue-800 bg-blue-100' };
+                }
+                return diff < 0
+                  ? { label: `${Math.abs(diff)} ahead`, color: 'text-red-800 bg-red-100' }
+                  : { label: `${Math.abs(diff)} back`, color: 'text-red-800 bg-red-100' };
+              }
               const totalA = holes.reduce((s, h) => s + (getTeamNet(teamAPlayers, h) ?? 0), 0);
               const totalB = holes.reduce((s, h) => s + (getTeamNet(teamBPlayers, h) ?? 0), 0);
               const scoredA = holes.some((h) => getTeamNet(teamAPlayers, h) !== null);
@@ -977,6 +1032,15 @@ export default function PlayGamePage() {
                       : scoredHoles.reduce((s, h) => s + getPlayerStrokesOnHole(player, h.handicap, h.number), 0);
                     const netTotal = totalGross - totalStrokes;
                     const diff = scoredHoles.length > 0 ? netTotal - scoredPar : 0;
+                    const playerStablefordTotal = isStablefordFormat
+                      ? scoredHoles.reduce((s, h) => {
+                          const gross = getScore(player.id, h.number)!;
+                          const strokes = (isScramble || isAlternateShot)
+                            ? getTeamStrokesOnHole(player.team === 'A' ? teamAPlayers : teamBPlayers, h.handicap)
+                            : getPlayerStrokesOnHole(player, h.handicap, h.number);
+                          return s + stablefordPts(gross - strokes, h.par);
+                        }, 0)
+                      : 0;
 
                     return (
                       <tr key={player.id} className={showTeamLabel && idx > 0 ? 'border-t-2 border-gray-300' : 'border-t border-gray-100'}>
@@ -1026,45 +1090,48 @@ export default function PlayGamePage() {
                         )}
                         <td className="px-1.5 py-1.5 text-center font-bold text-gray-900 border-l border-gray-200">
                           {totalGross || '–'}
-                          {scoredHoles.length > 0 && (
+                          {scoredHoles.length > 0 && isStablefordFormat ? (
+                            <span className="ml-0.5 text-[9px] text-green-600">{playerStablefordTotal}pts</span>
+                          ) : scoredHoles.length > 0 ? (
                             <span className={`ml-0.5 text-[9px] ${diff > 0 ? 'text-blue-500' : diff < 0 ? 'text-red-500' : 'text-gray-400'}`}>
                               {diff > 0 ? `+${diff}` : diff === 0 ? 'E' : diff}
                             </span>
-                          )}
+                          ) : null}
                         </td>
                       </tr>
                     );
                   })}
-                  {/* Team net rows */}
+                  {/* Team net/stableford rows */}
                   {hasTeams && [
                     { players: teamAPlayers, label: teamNames.A, color: 'text-blue-700', team: 'A' as const },
                     { players: teamBPlayers, label: teamNames.B, color: 'text-red-700', team: 'B' as const },
                   ].map(({ players: tp, label, color, team }) => {
-                    const visNet = visibleHoles.reduce((s, h) => s + (getTeamNet(tp, h) ?? 0), 0);
-                    const otherNet = hasOtherSide ? otherHoles.reduce((s, h) => s + (getTeamNet(tp, h) ?? 0), 0) : 0;
-                    const totalNet = holes.reduce((s, h) => s + (getTeamNet(tp, h) ?? 0), 0);
-                    const scoredAny = holes.some((h) => getTeamNet(tp, h) !== null);
+                    const getHoleValue = isStablefordFormat ? (h: typeof holes[0]) => getTeamStableford(tp, h) : (h: typeof holes[0]) => getTeamNet(tp, h);
+                    const visTotal = visibleHoles.reduce((s, h) => s + (getHoleValue(h) ?? 0), 0);
+                    const otherTotal = hasOtherSide ? otherHoles.reduce((s, h) => s + (getHoleValue(h) ?? 0), 0) : 0;
+                    const totalValue = holes.reduce((s, h) => s + (getHoleValue(h) ?? 0), 0);
+                    const scoredAny = holes.some((h) => getHoleValue(h) !== null);
                     const matchStatus = getMatchStatus(team);
 
                     return (
                       <tr key={team} className="border-t border-gray-200 bg-gray-50">
-                        <td className={`px-2 py-1 font-bold text-[10px] whitespace-nowrap ${color}`}>{label}</td>
+                        <td className={`px-2 py-1 font-bold text-[10px] whitespace-nowrap ${color}`}>{label}{isStablefordFormat ? ' pts' : ''}</td>
                         {visibleHoles.map((h) => {
-                          const net = getTeamNet(tp, h);
+                          const val = getHoleValue(h);
                           const isCurrent = h.number === currentHole;
                           return (
                             <td key={h.number} className={`py-1 text-center font-bold ${color} ${isCurrent ? 'bg-yellow-50' : ''}`}>
-                              {net ?? '–'}
+                              {val ?? '–'}
                             </td>
                           );
                         })}
                         {hasOtherSide && (
                           <td className={`px-1.5 py-1 text-center font-bold border-l border-gray-200 ${color}`}>
-                            {otherNet || '–'}
+                            {otherTotal || '–'}
                           </td>
                         )}
                         <td className="px-1.5 py-1 text-center border-l border-gray-200">
-                          <span className={`font-bold ${color}`}>{scoredAny ? totalNet : '–'}</span>
+                          <span className={`font-bold ${color}`}>{scoredAny ? totalValue : '–'}</span>
                           {scoredAny && (
                             <span className={`ml-1 text-[9px] font-bold px-1 py-0.5 rounded ${matchStatus.color}`}>
                               {matchStatus.label}
@@ -1150,30 +1217,70 @@ export default function PlayGamePage() {
   ): { winningTeamId: string | null; pointsTeamA: number; pointsTeamB: number; summary: string } {
     let teamAHolesWon = 0;
     let teamBHolesWon = 0;
+    let holesTied = 0;
+    const isStableford = setup!.formatId === 'stableford';
 
     for (const h of holeSet) {
-      const netA = getTeamNetForFinish(teamAPlayers, h);
-      const netB = getTeamNetForFinish(teamBPlayers, h);
-      if (netA === null || netB === null) continue;
-      if (netA < netB) teamAHolesWon++;
-      else if (netB < netA) teamBHolesWon++;
+      if (isStableford) {
+        const stbA = getTeamStablefordForFinish(teamAPlayers, h);
+        const stbB = getTeamStablefordForFinish(teamBPlayers, h);
+        if (stbA === null || stbB === null) continue;
+        if (stbA > stbB) teamAHolesWon++;
+        else if (stbB > stbA) teamBHolesWon++;
+        else holesTied++;
+      } else {
+        const netA = getTeamNetForFinish(teamAPlayers, h);
+        const netB = getTeamNetForFinish(teamBPlayers, h);
+        if (netA === null || netB === null) continue;
+        if (netA < netB) teamAHolesWon++;
+        else if (netB < netA) teamBHolesWon++;
+        else holesTied++;
+      }
     }
 
+    const pointsTeamA = teamAHolesWon * pointsWin + holesTied * pointsTie;
+    const pointsTeamB = teamBHolesWon * pointsWin + holesTied * pointsTie;
+
     let winningTeamId: string | null = null;
-    if (teamAHolesWon > teamBHolesWon) winningTeamId = 'team-a';
-    else if (teamBHolesWon > teamAHolesWon) winningTeamId = 'team-b';
+    if (pointsTeamA > pointsTeamB) winningTeamId = 'team-a';
+    else if (pointsTeamB > pointsTeamA) winningTeamId = 'team-b';
 
-    const pointsTeamA = winningTeamId === 'team-a' ? pointsWin
-      : winningTeamId === null ? pointsTie : pointsLoss;
-    const pointsTeamB = winningTeamId === 'team-b' ? pointsWin
-      : winningTeamId === null ? pointsTie : pointsLoss;
-
+    const tieNote = holesTied > 0 ? ` · ${holesTied} tied` : '';
     return {
       winningTeamId,
       pointsTeamA,
       pointsTeamB,
-      summary: `${teamAHolesWon} — ${teamBHolesWon} (holes won)`,
+      summary: `${pointsTeamA}–${pointsTeamB} (${teamAHolesWon}W-${teamBHolesWon}W${tieNote})`,
     };
+  }
+
+  function stablefordPtsForFinish(net: number, par: number): number {
+    const diff = net - par;
+    if (diff <= -3) return 5;
+    if (diff === -2) return 4;
+    if (diff === -1) return 3;
+    if (diff === 0) return 2;
+    if (diff === 1) return 1;
+    return 0;
+  }
+
+  function getTeamStablefordForFinish(teamPlayers: Player[], hole: { number: number; par: number; handicap: number }): number | null {
+    const holeTeamMode = (setup!.splitFormat && hole.number > 9) ? setup!.splitFormat.teamMode : baseTeamMode;
+    if (holeTeamMode === 'combined') {
+      let total = 0;
+      let anyScored = false;
+      for (const p of teamPlayers) {
+        const gross = getScore(p.id, hole.number);
+        if (gross === null) continue;
+        anyScored = true;
+        const strokes = getPlayerStrokesOnHole(p, hole.handicap, hole.number);
+        total += stablefordPtsForFinish(gross - strokes, hole.par);
+      }
+      return anyScored ? total : null;
+    }
+    const net = getTeamNetForFinish(teamPlayers, hole);
+    if (net === null) return null;
+    return stablefordPtsForFinish(net, hole.par);
   }
 
   function computeStrokePlayResult(
@@ -1184,6 +1291,29 @@ export default function PlayGamePage() {
     pointsTie: number,
     pointsLoss: number
   ): { winningTeamId: string | null; pointsTeamA: number; pointsTeamB: number; summary: string } {
+    const isStableford = setup!.formatId === 'stableford';
+
+    if (isStableford) {
+      const teamAPts = holeSet.reduce((s, h) => s + (getTeamStablefordForFinish(teamAPlayers, h) ?? 0), 0);
+      const teamBPts = holeSet.reduce((s, h) => s + (getTeamStablefordForFinish(teamBPlayers, h) ?? 0), 0);
+
+      let winningTeamId: string | null = null;
+      if (teamAPts > teamBPts) winningTeamId = 'team-a';
+      else if (teamBPts > teamAPts) winningTeamId = 'team-b';
+
+      const pointsTeamA = winningTeamId === 'team-a' ? pointsWin
+        : winningTeamId === null ? pointsTie : pointsLoss;
+      const pointsTeamB = winningTeamId === 'team-b' ? pointsWin
+        : winningTeamId === null ? pointsTie : pointsLoss;
+
+      return {
+        winningTeamId,
+        pointsTeamA,
+        pointsTeamB,
+        summary: `${teamAPts} — ${teamBPts} (stableford pts)`,
+      };
+    }
+
     const teamANet = holeSet.reduce((s, h) => s + (getTeamNetForFinish(teamAPlayers, h) ?? 0), 0);
     const teamBNet = holeSet.reduce((s, h) => s + (getTeamNetForFinish(teamBPlayers, h) ?? 0), 0);
 
@@ -1342,15 +1472,24 @@ export default function PlayGamePage() {
             matchup.result = { winningTeamId, pointsTeamA, pointsTeamB, summary };
             matchup.gameId = crypto.randomUUID();
 
-            // Auto-award match-winner bonuses for this matchup
+            // Recompute match-winner bonus from all completed matchups
             for (let i = 0; i < round.bonuses.length; i++) {
               const bonus = round.bonuses[i];
               if (bonus.type === 'match-winner' && bonus.scope === 'per-matchup') {
-                const prev = bonus.result || { teamAWins: 0, teamBWins: 0, ties: 0, detail: '' };
-                const aWins = (prev.teamAWins || 0) + (winningTeamId === 'team-a' ? 1 : 0);
-                const bWins = (prev.teamBWins || 0) + (winningTeamId === 'team-b' ? 1 : 0);
-                const tied = (prev.ties || 0) + (winningTeamId === null ? 1 : 0);
-                round.bonuses[i] = { ...bonus, result: { winningTeamId: undefined, teamAWins: aWins, teamBWins: bWins, ties: tied, detail: summary } };
+                let aWins = 0;
+                let bWins = 0;
+                let ties = 0;
+                const details: string[] = [];
+                for (const m of round.matchups) {
+                  if (!m.result) continue;
+                  if (m.result.winningTeamId === 'team-a') aWins++;
+                  else if (m.result.winningTeamId === 'team-b') bWins++;
+                  else ties++;
+                  const label = m.result.winningTeamId === 'team-a' ? tournament.teams[0].name
+                    : m.result.winningTeamId === 'team-b' ? tournament.teams[1].name : 'Tied';
+                  details.push(`${m.groupLabel}: ${label}`);
+                }
+                round.bonuses[i] = { ...bonus, result: { winningTeamId: undefined, teamAWins: aWins, teamBWins: bWins, ties, detail: details.join(' · ') } };
               }
             }
 
@@ -1358,6 +1497,10 @@ export default function PlayGamePage() {
             const allDone = round.matchups.every((m) => m.result !== null);
             if (allDone) {
               round.status = 'completed';
+              // Clear non-match-winner bonuses so computeBonuses recalculates them fresh
+              round.bonuses = round.bonuses.map((b) =>
+                b.type === 'match-winner' ? b : { ...b, result: undefined }
+              );
               round.bonuses = computeBonuses(round, tournament);
             }
 
@@ -1397,6 +1540,16 @@ function TeamMatchStatus({
   const teamAName = tournament.teams[0].name;
   const teamBName = tournament.teams[1].name;
 
+  function stablefordPoints(net: number, par: number): number {
+    const diff = net - par;
+    if (diff <= -3) return 5;
+    if (diff === -2) return 4;
+    if (diff === -1) return 3;
+    if (diff === 0) return 2;
+    if (diff === 1) return 1;
+    return 0;
+  }
+
   function getTeamNetOnHole(teamPlayers: Player[], hole: { number: number; par: number; handicap: number }): number | null {
     const holeTeamMode = (setup.splitFormat && hole.number > 9) ? setup.splitFormat.teamMode : (setup.teamMode || 'best-ball');
 
@@ -1431,18 +1584,47 @@ function TeamMatchStatus({
     return best;
   }
 
+  const isStableford = setup.formatId === 'stableford';
+
+  function getTeamStablefordOnHole(teamPlayers: Player[], hole: { number: number; par: number; handicap: number }): number | null {
+    const holeTeamMode = (setup.splitFormat && hole.number > 9) ? setup.splitFormat.teamMode : (setup.teamMode || 'best-ball');
+    if (holeTeamMode === 'combined') {
+      let total = 0;
+      let anyScored = false;
+      for (const p of teamPlayers) {
+        const gross = getScore(p.id, hole.number);
+        if (gross === null) continue;
+        anyScored = true;
+        const strokes = getPlayerStrokesOnHole(p, hole.handicap, hole.number);
+        total += stablefordPoints(gross - strokes, hole.par);
+      }
+      return anyScored ? total : null;
+    }
+    const net = getTeamNetOnHole(teamPlayers, hole);
+    if (net === null) return null;
+    return stablefordPoints(net, hole.par);
+  }
+
   let teamAHolesWon = 0;
   let teamBHolesWon = 0;
   let holesTied = 0;
 
   for (const hole of holes) {
-    const netA = getTeamNetOnHole(teamAPlayers, hole);
-    const netB = getTeamNetOnHole(teamBPlayers, hole);
-    if (netA === null || netB === null) continue;
-
-    if (netA < netB) teamAHolesWon++;
-    else if (netB < netA) teamBHolesWon++;
-    else holesTied++;
+    if (isStableford) {
+      const stbA = getTeamStablefordOnHole(teamAPlayers, hole);
+      const stbB = getTeamStablefordOnHole(teamBPlayers, hole);
+      if (stbA === null || stbB === null) continue;
+      if (stbA > stbB) teamAHolesWon++;
+      else if (stbB > stbA) teamBHolesWon++;
+      else holesTied++;
+    } else {
+      const netA = getTeamNetOnHole(teamAPlayers, hole);
+      const netB = getTeamNetOnHole(teamBPlayers, hole);
+      if (netA === null || netB === null) continue;
+      if (netA < netB) teamAHolesWon++;
+      else if (netB < netA) teamBHolesWon++;
+      else holesTied++;
+    }
   }
 
   const ptsA = teamAHolesWon * round.pointsForWin + holesTied * round.pointsForTie;
@@ -1540,13 +1722,13 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId }: { tourname
         </div>
       </div>
 
-      {/* Other matches in this round */}
-      {otherMatchups.length > 0 && (
+      {/* All matches in this round */}
+      {currentRound && currentRound.matchups.length > 0 && (
         <div>
-          <p className="text-[10px] text-gray-500 uppercase font-medium mb-1">Other Matches — {currentRound?.dayLabel}</p>
+          <p className="text-[10px] text-gray-500 uppercase font-medium mb-1">All Matches — {currentRound.dayLabel}</p>
           <div className="space-y-1.5">
-            {otherMatchups.map((m) => (
-              <OtherMatchupRow key={m.id} matchup={m} tournament={tournament} />
+            {currentRound.matchups.map((m) => (
+              <OtherMatchupRow key={m.id} matchup={m} tournament={tournament} isCurrent={m.id === currentMatchupId} />
             ))}
           </div>
         </div>
@@ -1579,7 +1761,7 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId }: { tourname
   );
 }
 
-function OtherMatchupRow({ matchup, tournament }: { matchup: RoundMatchup; tournament: Tournament }) {
+function OtherMatchupRow({ matchup, tournament, isCurrent }: { matchup: RoundMatchup; tournament: Tournament; isCurrent?: boolean }) {
   const teamAPlayers = tournament.players.filter((p) => matchup.teamAPlayerIds.includes(p.id));
   const teamBPlayers = tournament.players.filter((p) => matchup.teamBPlayerIds.includes(p.id));
 
@@ -1601,11 +1783,12 @@ function OtherMatchupRow({ matchup, tournament }: { matchup: RoundMatchup; tourn
   }
 
   return (
-    <div className="flex items-center justify-between bg-gray-800 rounded px-2.5 py-1.5">
+    <div className={`flex items-center justify-between rounded px-2.5 py-1.5 ${isCurrent ? 'bg-gray-700 ring-1 ring-green-600' : 'bg-gray-800'}`}>
       <div className="text-xs">
         <span className="text-blue-300">{teamANames}</span>
         <span className="text-gray-600 mx-1">vs</span>
         <span className="text-red-300">{teamBNames}</span>
+        {isCurrent && <span className="ml-1.5 text-[9px] text-green-500">(you)</span>}
       </div>
       <span className={`text-[10px] font-medium ${statusColor}`}>{statusText}</span>
     </div>

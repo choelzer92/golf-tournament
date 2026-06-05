@@ -1,6 +1,7 @@
 import type { Player, CourseSelection, GameScore } from './game-state';
 import type { TeamMode } from './formats';
 import { supabase } from './supabase';
+import { computePlayerStablefordPoints, computePlayerNetTotal } from './live-scoring';
 
 export type TournamentMode = 'team-event' | 'flight-bracket';
 
@@ -415,33 +416,6 @@ export function computeBonuses(
       const allDone = round.matchups.every((m) => m.result !== null);
       if (!allDone) continue;
 
-      const tee = round.course?.teeSets.find((t) => t.id === (round.defaultTeeId || round.course?.teeSets[0]?.id)) || round.course?.teeSets[0];
-      const holes = tee?.holes.sort((a, b) => a.number - b.number) || [];
-
-      function findBestNet(matchups: RoundMatchup[]): { playerId: string; net: number } | null {
-        let bestNet = Infinity;
-        let bestId: string | null = null;
-        for (const matchup of matchups) {
-          const scores: GameScore[] | null = loadGameScores(matchup.id);
-          if (!scores) continue;
-          for (const playerId of matchup.playerIds) {
-            let netTotal = 0;
-            let holesScored = 0;
-            for (const hole of holes) {
-              const sc = scores.find((s) => s.playerId === playerId && s.hole === hole.number);
-              if (!sc) continue;
-              holesScored++;
-              netTotal += sc.grossScore;
-            }
-            if (holesScored > 0 && netTotal < bestNet) {
-              bestNet = netTotal;
-              bestId = playerId;
-            }
-          }
-        }
-        return bestId ? { playerId: bestId, net: bestNet } : null;
-      }
-
       if (bonus.scope === 'per-matchup') {
         let teamAWins = 0;
         let teamBWins = 0;
@@ -453,18 +427,10 @@ export function computeBonuses(
           const scores: GameScore[] | null = loadGameScores(matchup.id);
           if (!scores) continue;
           for (const playerId of matchup.playerIds) {
-            let netTotal = 0;
-            let holesScored = 0;
-            for (const hole of holes) {
-              const sc = scores.find((s) => s.playerId === playerId && s.hole === hole.number);
-              if (!sc) continue;
-              holesScored++;
-              netTotal += sc.grossScore;
-            }
-            if (holesScored > 0) {
-              if (netTotal < bestNet) { bestNet = netTotal; topPlayers.length = 0; topPlayers.push({ playerId, net: netTotal }); }
-              else if (netTotal === bestNet) { topPlayers.push({ playerId, net: netTotal }); }
-            }
+            const netTotal = computePlayerNetTotal(scores, playerId, matchup, round, tournament);
+            if (netTotal === null) continue;
+            if (netTotal < bestNet) { bestNet = netTotal; topPlayers.length = 0; topPlayers.push({ playerId, net: netTotal }); }
+            else if (netTotal === bestNet) { topPlayers.push({ playerId, net: netTotal }); }
           }
           if (topPlayers.length === 0) continue;
           const aWinners = topPlayers.filter((p) => tournament.teams[0].playerIds.includes(p.playerId));
@@ -475,16 +441,25 @@ export function computeBonuses(
         }
         updatedBonuses[i] = { ...bonus, result: { winningTeamId: undefined, teamAWins, teamBWins, ties, detail: winners.join(' · ') } };
       } else {
-        const result = findBestNet(round.matchups);
-        if (result) {
-          const player = tournament.players.find((p) => p.id === result.playerId);
-          const teamId = tournament.teams[0].playerIds.includes(result.playerId)
+        let bestNet = Infinity;
+        let bestId: string | null = null;
+        for (const matchup of round.matchups) {
+          const scores: GameScore[] | null = loadGameScores(matchup.id);
+          if (!scores) continue;
+          for (const playerId of matchup.playerIds) {
+            const netTotal = computePlayerNetTotal(scores, playerId, matchup, round, tournament);
+            if (netTotal !== null && netTotal < bestNet) { bestNet = netTotal; bestId = playerId; }
+          }
+        }
+        if (bestId) {
+          const player = tournament.players.find((p) => p.id === bestId);
+          const teamId = tournament.teams[0].playerIds.includes(bestId)
             ? tournament.teams[0].id : tournament.teams[1].id;
-          const teamName = tournament.teams[0].playerIds.includes(result.playerId)
+          const teamName = tournament.teams[0].playerIds.includes(bestId)
             ? tournament.teams[0].name : tournament.teams[1].name;
           updatedBonuses[i] = {
             ...bonus,
-            result: { winningTeamId: teamId, winningPlayerId: result.playerId, detail: `${player?.name || 'Unknown'} (${result.net}) — ${teamName}` },
+            result: { winningTeamId: teamId, winningPlayerId: bestId, detail: `${player?.name || 'Unknown'} (${bestNet}) — ${teamName}` },
           };
         }
       }
@@ -543,67 +518,20 @@ export function computeBonuses(
       const allDone = round.matchups.every((m) => m.result !== null);
       if (!allDone) continue;
 
-      const tee = round.course?.teeSets.find((t) => t.id === (round.defaultTeeId || round.course?.teeSets[0]?.id)) || round.course?.teeSets[0];
-      const holes = tee?.holes.sort((a, b) => a.number - b.number) || [];
-
-      function findBestStableford(matchups: RoundMatchup[]): { playerId: string; points: number } | null {
-        let best = -Infinity;
-        let bestId: string | null = null;
-        for (const matchup of matchups) {
-          const scores: GameScore[] | null = loadGameScores(matchup.id);
-          if (!scores) continue;
-          for (const playerId of matchup.playerIds) {
-            let total = 0;
-            let holesScored = 0;
-            for (const hole of holes) {
-              const sc = scores.find((s) => s.playerId === playerId && s.hole === hole.number);
-              if (!sc) continue;
-              holesScored++;
-              const diff = sc.grossScore - hole.par;
-              if (diff <= -3) total += 5;
-              else if (diff === -2) total += 4;
-              else if (diff === -1) total += 3;
-              else if (diff === 0) total += 2;
-              else if (diff === 1) total += 1;
-            }
-            if (holesScored > 0 && total > best) {
-              best = total;
-              bestId = playerId;
-            }
-          }
-        }
-        return bestId ? { playerId: bestId, points: best } : null;
-      }
-
       if (bonus.scope === 'per-matchup') {
         let teamAWins = 0;
         let teamBWins = 0;
         let ties = 0;
         const winners: string[] = [];
         for (const matchup of round.matchups) {
-          // Find best within this matchup, check for ties
-          let best = -Infinity;
-          const topPlayers: { playerId: string; points: number }[] = [];
           const scores: GameScore[] | null = loadGameScores(matchup.id);
           if (!scores) continue;
+          let best = -Infinity;
+          const topPlayers: { playerId: string; points: number }[] = [];
           for (const playerId of matchup.playerIds) {
-            let total = 0;
-            let holesScored = 0;
-            for (const hole of holes) {
-              const sc = scores.find((s) => s.playerId === playerId && s.hole === hole.number);
-              if (!sc) continue;
-              holesScored++;
-              const diff = sc.grossScore - hole.par;
-              if (diff <= -3) total += 5;
-              else if (diff === -2) total += 4;
-              else if (diff === -1) total += 3;
-              else if (diff === 0) total += 2;
-              else if (diff === 1) total += 1;
-            }
-            if (holesScored > 0) {
-              if (total > best) { best = total; topPlayers.length = 0; topPlayers.push({ playerId, points: total }); }
-              else if (total === best) { topPlayers.push({ playerId, points: total }); }
-            }
+            const total = computePlayerStablefordPoints(scores, playerId, matchup, round, tournament);
+            if (total > best) { best = total; topPlayers.length = 0; topPlayers.push({ playerId, points: total }); }
+            else if (total === best && total > 0) { topPlayers.push({ playerId, points: total }); }
           }
           if (topPlayers.length === 0) continue;
           const aWinners = topPlayers.filter((p) => tournament.teams[0].playerIds.includes(p.playerId));
@@ -614,16 +542,25 @@ export function computeBonuses(
         }
         updatedBonuses[i] = { ...bonus, result: { winningTeamId: undefined, teamAWins, teamBWins, ties, detail: winners.join(' · ') } };
       } else {
-        const result = findBestStableford(round.matchups);
-        if (result) {
-          const player = tournament.players.find((p) => p.id === result.playerId);
-          const teamId = tournament.teams[0].playerIds.includes(result.playerId)
+        let best = -Infinity;
+        let bestId: string | null = null;
+        for (const matchup of round.matchups) {
+          const scores: GameScore[] | null = loadGameScores(matchup.id);
+          if (!scores) continue;
+          for (const playerId of matchup.playerIds) {
+            const total = computePlayerStablefordPoints(scores, playerId, matchup, round, tournament);
+            if (total > best) { best = total; bestId = playerId; }
+          }
+        }
+        if (bestId) {
+          const player = tournament.players.find((p) => p.id === bestId);
+          const teamId = tournament.teams[0].playerIds.includes(bestId)
             ? tournament.teams[0].id : tournament.teams[1].id;
-          const teamName = tournament.teams[0].playerIds.includes(result.playerId)
+          const teamName = tournament.teams[0].playerIds.includes(bestId)
             ? tournament.teams[0].name : tournament.teams[1].name;
           updatedBonuses[i] = {
             ...bonus,
-            result: { winningTeamId: teamId, winningPlayerId: result.playerId, detail: `${player?.name || 'Unknown'} (${result.points} pts) — ${teamName}` },
+            result: { winningTeamId: teamId, winningPlayerId: bestId, detail: `${player?.name || 'Unknown'} (${best} pts) — ${teamName}` },
           };
         }
       }

@@ -120,6 +120,45 @@ export default function TournamentHubPage() {
             >
               Export
             </button>
+            <button
+              onClick={() => {
+                const wizardData = {
+                  name: `${tournament.name} (Copy)`,
+                  teamAName: 'Team A',
+                  teamBName: 'Team B',
+                  players: [],
+                  teamAssignments: {},
+                  rounds: tournament.rounds.map((r) => ({
+                    id: crypto.randomUUID(),
+                    name: r.name,
+                    dayLabel: r.dayLabel,
+                    formatId: r.formatId,
+                    teamMode: r.teamMode,
+                    course: r.course,
+                    holesPlaying: r.holesPlaying,
+                    groupingMode: r.groupingMode,
+                    scoringMethod: r.scoringMethod,
+                    pointsForWin: r.pointsForWin,
+                    pointsForTie: r.pointsForTie,
+                    pointsForLoss: r.pointsForLoss,
+                    handicapAllowance: r.handicapAllowance,
+                    strokeMethod: r.strokeMethod,
+                    handicapBasis: r.handicapBasis,
+                    defaultTeeId: r.defaultTeeId,
+                    formatSettings: r.formatSettings,
+                    splitFormat: r.splitFormat,
+                    bonuses: r.bonuses.map((b) => ({ ...b, id: crypto.randomUUID(), result: undefined })),
+                    order: r.order,
+                  })),
+                  step: 'roster',
+                };
+                sessionStorage.setItem('tournament_wizard_draft', JSON.stringify(wizardData));
+                router.push('/tournament/new');
+              }}
+              className="text-sm bg-green-950 hover:bg-green-800 text-green-200 px-4 py-2 rounded-lg font-medium transition"
+            >
+              Duplicate Format
+            </button>
           </div>
         </div>
       </div>

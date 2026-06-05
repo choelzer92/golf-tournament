@@ -7,6 +7,7 @@ import type { TeamMode } from '@/lib/formats';
 import type { Player, GameSetup, GameScore } from '@/lib/game-state';
 import type { Tournament, TournamentRound, RoundMatchup, RoundBonus, BonusType, SplitFormatConfig, SplitPairing } from '@/lib/tournament-state';
 import { loadTournament, saveTournament, loadGameScores, fetchGameScores, computeBonuses, fetchTournament, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
+import { recomputeMatchResult, getPlayerStrokesForHole, computePlayerStablefordPoints } from '@/lib/live-scoring';
 
 export default function RoundDetailPage() {
   const router = useRouter();
@@ -272,12 +273,22 @@ export default function RoundDetailPage() {
               {round.course && (
                 <p className="text-sm text-gray-600 text-center mt-2 pt-2 border-t">{round.course.courseName}</p>
               )}
-              <button
-                onClick={() => setEditingSettings(true)}
-                className="mt-2 w-full text-xs text-green-700 hover:text-green-900 font-medium"
-              >
-                Edit Round Settings
-              </button>
+              <div className="mt-2 flex items-center justify-between">
+                <button
+                  onClick={() => setEditingSettings(true)}
+                  className="text-xs text-green-700 hover:text-green-900 font-medium"
+                >
+                  Edit Round Settings
+                </button>
+                {round.course && (
+                  <button
+                    onClick={() => router.push(`/tournament/${tournamentId}/round/${roundId}/course-adjustments`)}
+                    className="text-xs text-gray-400 hover:text-gray-600 font-medium"
+                  >
+                    Course Adjustments
+                  </button>
+                )}
+              </div>
             </>
           ) : (
             <RoundSettingsEditor
@@ -442,6 +453,16 @@ export default function RoundDetailPage() {
                 onLaunch={() => launchGame(matchup)}
                 onResume={() => launchGame(matchup)}
                 onRemove={() => removeMatchup(matchup.id)}
+                onEdit={() => {
+                  // Clear the result so finishGame can re-save, but keep the gameId
+                  const updatedMatchups = round.matchups.map((m) =>
+                    m.id === matchup.id ? { ...m, result: null } : m
+                  );
+                  // Reset bonuses that depend on match results
+                  const updatedBonuses = round.bonuses.map((b) => ({ ...b, result: undefined }));
+                  updateRound({ ...round, matchups: updatedMatchups, bonuses: updatedBonuses, status: 'in-progress' });
+                  launchGame(matchup);
+                }}
               />
             ))}
           </div>
@@ -457,6 +478,52 @@ export default function RoundDetailPage() {
               splitFormat: { ...round.splitFormat!, pairings },
             })}
           />
+        )}
+
+        {/* Recompute results button */}
+        {round.status === 'completed' && (
+          <div className="mb-4">
+            <button
+              onClick={async () => {
+                // Fetch all scores first (they may not be in cache for completed matches)
+                await Promise.all(round.matchups.filter((m) => m.result).map((m) => fetchGameScores(m.id)));
+
+                const updated = { ...round };
+                // Reset ALL bonus results so computeBonuses will recompute them
+                updated.bonuses = updated.bonuses.map((b) => ({ ...b, result: undefined }));
+                const matchSummaries: string[] = [];
+                for (const matchup of updated.matchups) {
+                  if (!matchup.result) continue;
+                  const scores = loadGameScores(matchup.id);
+                  if (!scores || scores.length === 0) continue;
+                  const newResult = recomputeMatchResult(scores, matchup, updated, tournament);
+                  if (newResult) {
+                    matchup.result = newResult;
+                    const winner = newResult.winningTeamId === 'team-a' ? tournament.teams[0].name
+                      : newResult.winningTeamId === 'team-b' ? tournament.teams[1].name : 'Tied';
+                    matchSummaries.push(`${matchup.groupLabel}: ${winner}`);
+                    // Re-accumulate match-winner bonus
+                    for (let i = 0; i < updated.bonuses.length; i++) {
+                      const bonus = updated.bonuses[i];
+                      if (bonus.type === 'match-winner' && bonus.scope === 'per-matchup') {
+                        const prev = updated.bonuses[i].result || { teamAWins: 0, teamBWins: 0, ties: 0, detail: '' };
+                        const aWins = (prev.teamAWins || 0) + (newResult.winningTeamId === 'team-a' ? 1 : 0);
+                        const bWins = (prev.teamBWins || 0) + (newResult.winningTeamId === 'team-b' ? 1 : 0);
+                        const ties = (prev.ties || 0) + (newResult.winningTeamId === null ? 1 : 0);
+                        updated.bonuses[i] = { ...bonus, result: { winningTeamId: undefined, teamAWins: aWins, teamBWins: bWins, ties, detail: matchSummaries.join(' · ') } };
+                      }
+                    }
+                  }
+                }
+                // Recompute round-level bonuses (also needs scores in cache)
+                updated.bonuses = computeBonuses(updated, tournament);
+                updateRound(updated);
+              }}
+              className="w-full text-sm bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg px-4 py-2 hover:bg-yellow-100 transition"
+            >
+              Recompute All Results
+            </button>
+          </div>
         )}
 
         {/* Bonus results display */}
@@ -994,7 +1061,7 @@ function RoundSettingsEditor({
 }
 
 function MatchupCard({
-  matchup, tournament, round, onLaunch, onResume, onRemove,
+  matchup, tournament, round, onLaunch, onResume, onRemove, onEdit,
 }: {
   matchup: RoundMatchup;
   tournament: Tournament;
@@ -1002,12 +1069,25 @@ function MatchupCard({
   onLaunch: () => void;
   onResume: () => void;
   onRemove: () => void;
+  onEdit: () => void;
 }) {
   const [showScorecard, setShowScorecard] = useState(false);
+  const [scores, setScores] = useState<GameScore[] | null>(loadGameScores(matchup.id));
   const teamAPlayers = tournament.players.filter((p) => matchup.teamAPlayerIds.includes(p.id));
   const teamBPlayers = tournament.players.filter((p) => matchup.teamBPlayerIds.includes(p.id));
 
-  const savedScores: GameScore[] | null = loadGameScores(matchup.id);
+  useEffect(() => {
+    if (!scores) {
+      fetchGameScores(matchup.id).then((data) => {
+        if (data) setScores(data);
+      });
+    } else {
+      const cached = loadGameScores(matchup.id);
+      if (cached && cached !== scores) setScores(cached);
+    }
+  }, [matchup.id, matchup.result]);
+
+  const savedScores = scores;
 
   const holeNumbers = (() => {
     if (!round.course) return [];
@@ -1073,11 +1153,25 @@ function MatchupCard({
                   <table className="text-xs w-full border-collapse">
                     <thead>
                       <tr className="bg-gray-100">
-                        <th className="px-2 py-1 text-left text-gray-500 font-medium sticky left-0 bg-gray-100">Player</th>
+                        <th className="px-2 py-1 text-left text-gray-500 font-medium sticky left-0 bg-gray-100">#</th>
                         {holeNumbers.map((h) => (
                           <th key={h.number} className="px-1 py-1 text-center text-gray-500 font-medium min-w-[22px]">{h.number}</th>
                         ))}
                         <th className="px-2 py-1 text-center text-gray-500 font-medium">Tot</th>
+                      </tr>
+                      <tr>
+                        <td className="px-2 py-0.5 text-left text-gray-400 font-medium sticky left-0 bg-white">Par</td>
+                        {holeNumbers.map((h) => (
+                          <td key={h.number} className="px-1 py-0.5 text-center text-gray-400">{h.par}</td>
+                        ))}
+                        <td className="px-2 py-0.5 text-center text-gray-500 font-medium">{holeNumbers.reduce((s, h) => s + h.par, 0)}</td>
+                      </tr>
+                      <tr className="border-b border-gray-200">
+                        <td className="px-2 py-0.5 text-left text-gray-300 font-medium sticky left-0 bg-white">Hcp</td>
+                        {holeNumbers.map((h) => (
+                          <td key={h.number} className="px-1 py-0.5 text-center text-gray-300">{h.handicap}</td>
+                        ))}
+                        <td className="px-2 py-0.5"></td>
                       </tr>
                     </thead>
                     <tbody>
@@ -1087,6 +1181,10 @@ function MatchupCard({
                           const sc = savedScores.find((s) => s.playerId === player.id && s.hole === h.number);
                           return sum + (sc?.grossScore || 0);
                         }, 0);
+                        const isStableford = round.formatId === 'stableford';
+                        const stablefordTotal = isStableford
+                          ? computePlayerStablefordPoints(savedScores, player.id, matchup, round, tournament)
+                          : 0;
                         return (
                           <tr key={player.id} className="border-t border-gray-100">
                             <td className={`px-2 py-1 font-medium whitespace-nowrap sticky left-0 bg-white ${isTeamA ? 'text-blue-700' : 'text-red-700'}`}>
@@ -1095,18 +1193,37 @@ function MatchupCard({
                             {holeNumbers.map((h) => {
                               const sc = savedScores.find((s) => s.playerId === player.id && s.hole === h.number);
                               const score = sc?.grossScore;
-                              const par = h.par;
+                              const strokes = getPlayerStrokesForHole(player.id, h.handicap, h.number, matchup, round, tournament);
+                              const netScore = score ? score - strokes : null;
+                              const netToPar = netScore !== null ? netScore - h.par : null;
+                              const strokeBg = strokes > 0 ? 'bg-green-50' : '';
                               const colorClass = !score ? 'text-gray-300'
-                                : score < par ? 'text-red-600 font-bold'
-                                : score > par ? 'text-blue-600'
-                                : 'text-gray-700';
+                                : score <= h.par - 2 ? 'text-yellow-600 font-bold'
+                                : score === h.par - 1 ? 'text-red-600 font-bold'
+                                : score === h.par ? 'text-gray-700'
+                                : score === h.par + 1 ? 'text-blue-600'
+                                : 'text-blue-800 font-bold';
+                              let decoration = '';
+                              if (netToPar !== null) {
+                                if (netToPar <= -2) decoration = 'ring-2 ring-offset-1 ring-yellow-500 rounded-full';
+                                else if (netToPar === -1) decoration = 'ring-1 ring-offset-1 ring-red-500 rounded-full';
+                                else if (netToPar === 1) decoration = 'ring-1 ring-offset-1 ring-blue-400 rounded-sm';
+                                else if (netToPar >= 2) decoration = 'ring-2 ring-offset-1 ring-blue-500 rounded-sm';
+                              }
                               return (
-                                <td key={h.number} className={`px-1 py-1 text-center ${colorClass}`}>
-                                  {score || '–'}
+                                <td key={h.number} className={`px-1 py-1 text-center ${colorClass} ${strokeBg}`}>
+                                  {score ? (
+                                    <span className={`inline-flex items-center justify-center w-5 h-5 text-[11px] ${decoration}`}>{score}</span>
+                                  ) : '–'}
                                 </td>
                               );
                             })}
-                            <td className="px-2 py-1 text-center font-bold text-gray-900">{total || '–'}</td>
+                            <td className="px-2 py-1 text-center font-bold text-gray-900">
+                              {total || '–'}
+                              {total > 0 && isStableford ? (
+                                <span className="ml-0.5 text-[9px] text-green-600">{stablefordTotal}pts</span>
+                              ) : null}
+                            </td>
                           </tr>
                         );
                       })}
@@ -1116,6 +1233,12 @@ function MatchupCard({
               )}
             </div>
           )}
+          <button
+            onClick={onEdit}
+            className="mt-2 w-full text-xs text-gray-400 hover:text-gray-600 font-medium"
+          >
+            Edit Scores
+          </button>
         </>
       ) : matchup.gameId ? (
         <button
@@ -1226,10 +1349,40 @@ function BonusResultsSection({ round, tournament }: { round: TournamentRound; to
       <h3 className="font-medium text-gray-900 mb-3">Bonus Results</h3>
       <div className="space-y-2">
         {bonusesWithResults.map((bonus) => {
+          const isPerMatchup = bonus.scope === 'per-matchup' && (bonus.result!.teamAWins != null || bonus.result!.teamBWins != null);
           const winnerTeam = bonus.result?.winningTeamId
             ? tournament.teams.find((t) => t.id === bonus.result!.winningTeamId)
             : null;
           const teamColor = winnerTeam?.id === tournament.teams[0].id ? 'text-blue-700' : 'text-red-700';
+
+          if (isPerMatchup) {
+            const aWins = bonus.result!.teamAWins || 0;
+            const bWins = bonus.result!.teamBWins || 0;
+            const ties = bonus.result!.ties || 0;
+            const aPts = aWins * bonus.points + ties * bonus.points * 0.5;
+            const bPts = bWins * bonus.points + ties * bonus.points * 0.5;
+            const leader = aPts > bPts ? tournament.teams[0] : bPts > aPts ? tournament.teams[1] : null;
+            const leaderColor = leader?.id === tournament.teams[0].id ? 'text-blue-700' : 'text-red-700';
+
+            return (
+              <div key={bonus.id} className="flex items-center justify-between p-2 rounded bg-gray-50 border border-gray-200">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{bonus.name}</p>
+                  {bonus.result?.detail && (
+                    <p className="text-xs text-gray-500 mt-0.5">{bonus.result.detail}</p>
+                  )}
+                </div>
+                <div className="text-right">
+                  {leader ? (
+                    <p className={`text-sm font-bold ${leaderColor}`}>{leader.name}</p>
+                  ) : (
+                    <p className="text-sm text-gray-500">Split</p>
+                  )}
+                  <p className="text-xs text-gray-400">{aPts}–{bPts} pts</p>
+                </div>
+              </div>
+            );
+          }
 
           return (
             <div key={bonus.id} className="flex items-center justify-between p-2 rounded bg-gray-50 border border-gray-200">

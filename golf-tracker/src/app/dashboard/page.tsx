@@ -248,11 +248,11 @@ export default function DashboardPage() {
           </button>
         </section>
 
-        {tournaments.length > 0 && (
+        {tournaments.filter((t) => t.status !== 'completed').length > 0 && (
           <section className="mb-8">
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Active Tournaments</h2>
             <div className="space-y-2">
-              {tournaments.map((t) => (
+              {tournaments.filter((t) => t.status !== 'completed').map((t) => (
                 <button
                   key={t.id}
                   onClick={() => router.push(`/tournament/${t.id}`)}
@@ -262,10 +262,36 @@ export default function DashboardPage() {
                     <p className="font-medium text-gray-900">{t.name}</p>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${
                       t.status === 'active' ? 'bg-green-100 text-green-800' :
-                      t.status === 'completed' ? 'bg-gray-100 text-gray-600' :
                       'bg-yellow-100 text-yellow-800'
                     }`}>
                       {t.status}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {t.teamAName} <span className="font-bold">{t.teamAPoints}</span>
+                    {' — '}
+                    <span className="font-bold">{t.teamBPoints}</span> {t.teamBName}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {tournaments.filter((t) => t.status === 'completed').length > 0 && (
+          <section className="mb-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">Completed</h2>
+            <div className="space-y-2">
+              {tournaments.filter((t) => t.status === 'completed').map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => router.push(`/tournament/${t.id}`)}
+                  className="w-full text-left bg-white rounded-lg shadow p-4 hover:shadow-md transition opacity-75"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-gray-900">{t.name}</p>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                      completed
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 mt-1">

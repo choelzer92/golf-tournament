@@ -74,7 +74,7 @@ export default function NewTournamentPage() {
         ...r,
         order: i,
         matchups: [],
-        bonuses: [],
+        bonuses: (r as any).bonuses || [],
         status: 'pending' as const,
       })),
       status: 'active',
