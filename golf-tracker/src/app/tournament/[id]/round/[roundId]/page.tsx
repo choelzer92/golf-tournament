@@ -6,7 +6,7 @@ import { FORMATS, TEAM_MODES, getTeamModeConfig, getUsgaAllowance, getUsgaStroke
 import type { TeamMode } from '@/lib/formats';
 import type { Player, GameSetup, GameScore } from '@/lib/game-state';
 import type { Tournament, TournamentRound, RoundMatchup, RoundBonus, BonusType, SplitFormatConfig, SplitPairing } from '@/lib/tournament-state';
-import { loadTournament, saveTournament, loadGameScores, fetchGameScores, computeBonuses, fetchTournament, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
+import { loadTournament, saveTournament, loadGameScores, saveGameScores, fetchGameScores, computeBonuses, fetchTournament, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
 import { recomputeMatchResult, getPlayerStrokesForHole, computePlayerStablefordPoints } from '@/lib/live-scoring';
 
 export default function RoundDetailPage() {
@@ -462,6 +462,16 @@ export default function RoundDetailPage() {
                   const updatedBonuses = round.bonuses.map((b) => ({ ...b, result: undefined }));
                   updateRound({ ...round, matchups: updatedMatchups, bonuses: updatedBonuses, status: 'in-progress' });
                   launchGame(matchup);
+                }}
+                onReset={() => {
+                  if (!confirm('Reset all scores for this matchup? This cannot be undone.')) return;
+                  saveGameScores(matchup.id, []);
+                  const updatedMatchups = round.matchups.map((m) =>
+                    m.id === matchup.id ? { ...m, gameId: null, result: null } : m
+                  );
+                  const updatedBonuses = round.bonuses.map((b) => ({ ...b, result: undefined }));
+                  const anyInProgress = updatedMatchups.some((m) => m.gameId && !m.result);
+                  updateRound({ ...round, matchups: updatedMatchups, bonuses: updatedBonuses, status: anyInProgress ? 'in-progress' : 'pending' });
                 }}
               />
             ))}
@@ -1061,7 +1071,7 @@ function RoundSettingsEditor({
 }
 
 function MatchupCard({
-  matchup, tournament, round, onLaunch, onResume, onRemove, onEdit,
+  matchup, tournament, round, onLaunch, onResume, onRemove, onEdit, onReset,
 }: {
   matchup: RoundMatchup;
   tournament: Tournament;
@@ -1070,6 +1080,7 @@ function MatchupCard({
   onResume: () => void;
   onRemove: () => void;
   onEdit: () => void;
+  onReset: () => void;
 }) {
   const [showScorecard, setShowScorecard] = useState(false);
   const [scores, setScores] = useState<GameScore[] | null>(loadGameScores(matchup.id));
@@ -1233,20 +1244,36 @@ function MatchupCard({
               )}
             </div>
           )}
-          <button
-            onClick={onEdit}
-            className="mt-2 w-full text-xs text-gray-400 hover:text-gray-600 font-medium"
-          >
-            Edit Scores
-          </button>
+          <div className="mt-2 flex items-center justify-between">
+            <button
+              onClick={onEdit}
+              className="text-xs text-gray-400 hover:text-gray-600 font-medium"
+            >
+              Edit Scores
+            </button>
+            <button
+              onClick={onReset}
+              className="text-[10px] text-gray-300 hover:text-red-500 transition-colors"
+            >
+              Reset
+            </button>
+          </div>
         </>
       ) : matchup.gameId ? (
-        <button
-          onClick={onResume}
-          className="w-full rounded-md bg-yellow-600 px-4 py-2 text-white text-sm font-medium hover:bg-yellow-700"
-        >
-          Resume Game
-        </button>
+        <div className="space-y-1">
+          <button
+            onClick={onResume}
+            className="w-full rounded-md bg-yellow-600 px-4 py-2 text-white text-sm font-medium hover:bg-yellow-700"
+          >
+            Resume Game
+          </button>
+          <button
+            onClick={onReset}
+            className="w-full text-[10px] text-gray-300 hover:text-red-500 transition-colors"
+          >
+            Reset
+          </button>
+        </div>
       ) : (
         <button
           onClick={onLaunch}
