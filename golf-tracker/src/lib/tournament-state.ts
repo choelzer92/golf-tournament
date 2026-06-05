@@ -105,6 +105,7 @@ export interface Tournament {
   teams: [Team, Team];
   rounds: TournamentRound[];
   status: 'setup' | 'active' | 'completed';
+  moneyConfig?: { nassauFront: number; nassauBack: number; nassauOverall: number; birdieValue: number; eagleValue: number };
 }
 
 export interface TournamentListItem {

@@ -76,6 +76,7 @@ export default function MoneyGamePage() {
       ],
       rounds: [round],
       status: 'active',
+      moneyConfig,
     };
 
     // Store money config in sessionStorage for the scoreboard to use

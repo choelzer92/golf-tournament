@@ -338,20 +338,16 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
             <thead>
               <tr className="text-gray-500">
                 <th className="px-2 py-1 text-left font-medium sticky left-0 bg-gray-800">Hole</th>
-                {holeData.map((h) => {
-                  const w = holeWinners.get(h.number);
-                  const bg = w === 'A' ? 'bg-blue-900/30' : w === 'B' ? 'bg-red-900/30' : '';
-                  return <th key={h.number} className={`px-1 py-1 text-center font-medium min-w-[22px] ${bg}`}>{h.number}</th>;
-                })}
+                {holeData.map((h) => (
+                  <th key={h.number} className="px-1 py-1 text-center font-medium min-w-[22px]">{h.number}</th>
+                ))}
                 <th className="px-2 py-1 text-center font-medium">Tot</th>
               </tr>
               <tr className="text-gray-600 border-b border-gray-700">
                 <td className="px-2 py-0.5 text-left font-medium sticky left-0 bg-gray-800">Par</td>
-                {holeData.map((h) => {
-                  const w = holeWinners.get(h.number);
-                  const bg = w === 'A' ? 'bg-blue-900/30' : w === 'B' ? 'bg-red-900/30' : '';
-                  return <td key={h.number} className={`px-1 py-0.5 text-center ${bg}`}>{h.par}</td>;
-                })}
+                {holeData.map((h) => (
+                  <td key={h.number} className="px-1 py-0.5 text-center">{h.par}</td>
+                ))}
                 <td className="px-2 py-0.5 text-center">{holeData.reduce((s, h) => s + h.par, 0)}</td>
               </tr>
             </thead>
@@ -380,7 +376,8 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
                       const netScore = score ? score - strokes : null;
                       const netToPar = netScore !== null ? netScore - h.par : null;
                       const w = holeWinners.get(h.number);
-                      const colBg = w === 'A' ? 'bg-blue-900/30' : w === 'B' ? 'bg-red-900/30' : '';
+                      const wonHole = (isTeamA && w === 'A') || (!isTeamA && w === 'B');
+                      const cellBg = wonHole ? (isTeamA ? 'bg-blue-900/30' : 'bg-red-900/30') : '';
                       let decoration = '';
                       if (netToPar !== null) {
                         if (netToPar <= -2) decoration = 'ring-2 ring-offset-1 ring-offset-gray-800 ring-yellow-500 rounded-full';
@@ -395,7 +392,7 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
                         : netToPar === 1 ? 'text-blue-400'
                         : 'text-blue-500 font-bold';
                       return (
-                        <td key={h.number} className={`px-1 py-1 text-center ${scoreColorClass} ${colBg}`}>
+                        <td key={h.number} className={`px-1 py-1 text-center ${scoreColorClass} ${cellBg}`}>
                           {score ? (
                             <span className={`inline-flex items-center justify-center w-5 h-5 text-[11px] ${decoration}`}>{score}</span>
                           ) : '–'}
@@ -423,9 +420,9 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
                 {holeData.map((h) => {
                   const nets = getTeamBestNets(matchup.teamAPlayerIds, h);
                   const w = holeWinners.get(h.number);
-                  const colBg = w === 'A' ? 'bg-blue-900/30' : w === 'B' ? 'bg-red-900/30' : '';
+                  const bg = w === 'A' ? 'bg-blue-900/30' : '';
                   return (
-                    <td key={h.number} className={`px-1 py-1 text-center text-blue-300 font-medium ${colBg}`}>
+                    <td key={h.number} className={`px-1 py-1 text-center text-blue-300 font-medium ${bg}`}>
                       {nets.length >= 2 ? nets[0] + nets[1] : '–'}
                     </td>
                   );
@@ -445,9 +442,9 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
                 {holeData.map((h) => {
                   const nets = getTeamBestNets(matchup.teamBPlayerIds, h);
                   const w = holeWinners.get(h.number);
-                  const colBg = w === 'A' ? 'bg-blue-900/30' : w === 'B' ? 'bg-red-900/30' : '';
+                  const bg = w === 'B' ? 'bg-red-900/30' : '';
                   return (
-                    <td key={h.number} className={`px-1 py-1 text-center text-red-300 font-medium ${colBg}`}>
+                    <td key={h.number} className={`px-1 py-1 text-center text-red-300 font-medium ${bg}`}>
                       {nets.length >= 2 ? nets[0] + nets[1] : '–'}
                     </td>
                   );
@@ -464,9 +461,8 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
                 <td className="px-2 py-0.5 text-[10px] text-gray-500 sticky left-0 bg-gray-800">Won</td>
                 {holeData.map((h) => {
                   const w = holeWinners.get(h.number);
-                  const colBg = w === 'A' ? 'bg-blue-900/30' : w === 'B' ? 'bg-red-900/30' : '';
                   return (
-                    <td key={h.number} className={`px-1 py-0.5 text-center text-[10px] font-bold ${colBg} ${
+                    <td key={h.number} className={`px-1 py-0.5 text-center text-[10px] font-bold ${
                       w === 'A' ? 'text-blue-400' : w === 'B' ? 'text-red-400' : w === 'tie' ? 'text-gray-500' : 'text-gray-700'
                     }`}>
                       {w === 'A' ? '●' : w === 'B' ? '●' : w === 'tie' ? '—' : ''}
@@ -491,6 +487,7 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
 function NassauPanel({ round, tournament }: { round: TournamentRound; tournament: Tournament }) {
   const teamA = tournament.teams[0];
   const teamB = tournament.teams[1];
+  const money = tournament.moneyConfig;
 
   const allScores: GameScore[] = [];
   for (const matchup of round.matchups) {
@@ -503,7 +500,50 @@ function NassauPanel({ round, tournament }: { round: TournamentRound; tournament
   const nassau = computeNassauStatus(allScores, matchup, round, tournament);
   if (!nassau) return null;
 
-  function NassauSide({ label, side }: { label: string; side: { holesWonA: number; holesWonB: number; holesTied: number; thru: number } }) {
+  // Count gross birdies/eagles per team
+  const tee = round.course?.teeSets.find((t) => t.id === round.defaultTeeId) || round.course?.teeSets[0];
+  const holes = (tee?.holes || []).sort((a, b) => a.number - b.number);
+  let birdiesA = 0, birdiesB = 0, eaglesA = 0, eaglesB = 0;
+  const teamAIds = new Set(matchup.teamAPlayerIds);
+  for (const score of allScores) {
+    const hole = holes.find((h) => h.number === score.hole);
+    if (!hole) continue;
+    const diff = score.grossScore - hole.par;
+    if (teamAIds.has(score.playerId)) {
+      if (diff === -1) birdiesA++;
+      else if (diff <= -2) eaglesA++;
+    } else {
+      if (diff === -1) birdiesB++;
+      else if (diff <= -2) eaglesB++;
+    }
+  }
+
+  // Compute money totals
+  let moneyA = 0, moneyB = 0;
+  if (money) {
+    // Front
+    const fDiff = nassau.front.holesWonA - nassau.front.holesWonB;
+    if (fDiff > 0) { moneyA += money.nassauFront; moneyB -= money.nassauFront; }
+    else if (fDiff < 0) { moneyB += money.nassauBack; moneyA -= money.nassauBack; }
+    // Back
+    const bDiff = nassau.back.holesWonA - nassau.back.holesWonB;
+    if (bDiff > 0) { moneyA += money.nassauBack; moneyB -= money.nassauBack; }
+    else if (bDiff < 0) { moneyB += money.nassauBack; moneyA -= money.nassauBack; }
+    // Overall
+    const oDiff = nassau.overall.holesWonA - nassau.overall.holesWonB;
+    if (oDiff > 0) { moneyA += money.nassauOverall; moneyB -= money.nassauOverall; }
+    else if (oDiff < 0) { moneyB += money.nassauOverall; moneyA -= money.nassauOverall; }
+    // Birdies
+    const birdieDiff = birdiesA - birdiesB;
+    if (birdieDiff > 0) { moneyA += birdieDiff * money.birdieValue; moneyB -= birdieDiff * money.birdieValue; }
+    else if (birdieDiff < 0) { moneyB += Math.abs(birdieDiff) * money.birdieValue; moneyA -= Math.abs(birdieDiff) * money.birdieValue; }
+    // Eagles
+    const eagleDiff = eaglesA - eaglesB;
+    if (eagleDiff > 0) { moneyA += eagleDiff * money.eagleValue; moneyB -= eagleDiff * money.eagleValue; }
+    else if (eagleDiff < 0) { moneyB += Math.abs(eagleDiff) * money.eagleValue; moneyA -= Math.abs(eagleDiff) * money.eagleValue; }
+  }
+
+  function NassauSide({ label, side, amount }: { label: string; side: { holesWonA: number; holesWonB: number; holesTied: number; thru: number }; amount?: number }) {
     const diff = side.holesWonA - side.holesWonB;
     const status = diff === 0 ? 'AS'
       : diff > 0 ? `${teamA.name} ${diff} UP`
@@ -518,9 +558,14 @@ function NassauPanel({ round, tournament }: { round: TournamentRound; tournament
           <span className="text-gray-600">-</span>
           <span className="text-red-300 font-bold text-sm">{side.holesWonB}</span>
         </div>
-        <span className={`text-xs font-medium ${statusColor} w-24 text-right`}>
-          {side.thru > 0 ? status : '–'}
-        </span>
+        <div className="flex items-center gap-2 w-28 justify-end">
+          <span className={`text-xs font-medium ${statusColor}`}>
+            {side.thru > 0 ? status : '–'}
+          </span>
+          {amount !== undefined && side.thru > 0 && (
+            <span className="text-[10px] text-green-400 font-medium">${amount}</span>
+          )}
+        </div>
       </div>
     );
   }
@@ -528,11 +573,63 @@ function NassauPanel({ round, tournament }: { round: TournamentRound; tournament
   return (
     <div className="bg-gray-800 rounded-xl px-4 py-3">
       <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider mb-1">Nassau</p>
-      <NassauSide label="Front 9" side={nassau.front} />
-      <NassauSide label="Back 9" side={nassau.back} />
+      <NassauSide label="Front 9" side={nassau.front} amount={money?.nassauFront} />
+      <NassauSide label="Back 9" side={nassau.back} amount={money?.nassauBack} />
       <div className="border-t border-gray-700 mt-1 pt-1">
-        <NassauSide label="Overall" side={nassau.overall} />
+        <NassauSide label="Overall" side={nassau.overall} amount={money?.nassauOverall} />
       </div>
+
+      {/* Birdie/Eagle bonus */}
+      {(birdiesA > 0 || birdiesB > 0 || eaglesA > 0 || eaglesB > 0) && (
+        <div className="border-t border-gray-700 mt-2 pt-2">
+          <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider mb-1">Bonuses</p>
+          {(birdiesA > 0 || birdiesB > 0) && (
+            <div className="flex items-center justify-between py-0.5">
+              <span className="text-gray-400 text-xs">Birdies</span>
+              <div className="flex items-center gap-3">
+                <span className="text-blue-300 text-xs">{birdiesA}</span>
+                <span className="text-gray-600">-</span>
+                <span className="text-red-300 text-xs">{birdiesB}</span>
+              </div>
+              {money && (
+                <span className={`text-[10px] font-medium ${birdiesA > birdiesB ? 'text-blue-300' : birdiesB > birdiesA ? 'text-red-300' : 'text-gray-500'}`}>
+                  {birdiesA !== birdiesB ? `$${Math.abs(birdiesA - birdiesB) * money.birdieValue}` : 'push'}
+                </span>
+              )}
+            </div>
+          )}
+          {(eaglesA > 0 || eaglesB > 0) && (
+            <div className="flex items-center justify-between py-0.5">
+              <span className="text-gray-400 text-xs">Eagles</span>
+              <div className="flex items-center gap-3">
+                <span className="text-blue-300 text-xs">{eaglesA}</span>
+                <span className="text-gray-600">-</span>
+                <span className="text-red-300 text-xs">{eaglesB}</span>
+              </div>
+              {money && (
+                <span className={`text-[10px] font-medium ${eaglesA > eaglesB ? 'text-blue-300' : eaglesB > eaglesA ? 'text-red-300' : 'text-gray-500'}`}>
+                  {eaglesA !== eaglesB ? `$${Math.abs(eaglesA - eaglesB) * money.eagleValue}` : 'push'}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Money total */}
+      {money && (moneyA !== 0 || moneyB !== 0) && (
+        <div className="border-t border-gray-700 mt-2 pt-2">
+          <div className="flex items-center justify-between">
+            <span className="text-gray-400 text-xs font-medium">Net</span>
+            <span className={`text-sm font-bold ${moneyA > 0 ? 'text-blue-300' : moneyA < 0 ? 'text-red-300' : 'text-gray-300'}`}>
+              {moneyA > 0 ? `${teamA.name} +$${moneyA}` : moneyB > 0 ? `${teamB.name} +$${moneyB}` : 'Even'}
+            </span>
+          </div>
+          <p className="text-[10px] text-gray-500 mt-0.5 text-right">
+            ${Math.abs(moneyA) / (tournament.teams[0].playerIds.length || 4)}/player
+          </p>
+        </div>
+      )}
     </div>
   );
 }
