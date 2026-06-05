@@ -466,8 +466,9 @@ export default function RoundDetailPage() {
                 onReset={() => {
                   if (!confirm('Reset all scores for this matchup? This cannot be undone.')) return;
                   saveGameScores(matchup.id, []);
+                  const newMatchupId = crypto.randomUUID();
                   const updatedMatchups = round.matchups.map((m) =>
-                    m.id === matchup.id ? { ...m, gameId: null, result: null } : m
+                    m.id === matchup.id ? { ...m, id: newMatchupId, gameId: null, result: null } : m
                   );
                   const updatedBonuses = round.bonuses.map((b) => ({ ...b, result: undefined }));
                   const anyInProgress = updatedMatchups.some((m) => m.gameId && !m.result);
