@@ -72,7 +72,9 @@ export default function PlayGamePage() {
   useEffect(() => {
     if (!setup?.scoringTeam || !setup?.matchupId) return;
     const matchupId = setup.matchupId;
-    const localPlayerIds = new Set(setup.players.map((p) => p.id));
+    const localPlayerIds = new Set(
+      setup.players.filter((p) => p.team === setup.scoringTeam).map((p) => p.id)
+    );
 
     const channel = subscribeToScores(matchupId, (allScores) => {
       if (!Array.isArray(allScores)) return;
