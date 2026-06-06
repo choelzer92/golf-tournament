@@ -170,7 +170,7 @@ export default function PlayGamePage() {
 
     if (setup!.handicapBasis === 'index') {
       const index = is9 ? player.handicapIndex / 2 : player.handicapIndex;
-      return Math.round(index * (allowance / 100));
+      return index * (allowance / 100);
     }
 
     const playerTee = getPlayerTee(player);
@@ -189,7 +189,7 @@ export default function PlayGamePage() {
           .reduce((sum, h) => sum + h.par, 0) || Math.round(playerTee.totalPar / 2);
         const result = calcCourseHandicap(player.handicapIndex / 2, rating.slopeRating, rating.courseRating, par)
           * (allowance / 100);
-        return isNaN(result) ? 0 : Math.round(result);
+        return isNaN(result) ? 0 : result;
       }
 
       // Fallback: halve the 18-hole course handicap
@@ -197,7 +197,7 @@ export default function PlayGamePage() {
       if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return 0;
       const full = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar)
         * (allowance / 100);
-      return isNaN(full) ? 0 : Math.round(full / 2);
+      return isNaN(full) ? 0 : full / 2;
     }
 
     // 18-hole course handicap
@@ -205,7 +205,7 @@ export default function PlayGamePage() {
     if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return 0;
     const result = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar)
       * (allowance / 100);
-    return isNaN(result) ? 0 : Math.round(result);
+    return isNaN(result) ? 0 : result;
   }
 
   function getPlayerRawCourseHandicap(player: Player): number {
@@ -213,7 +213,7 @@ export default function PlayGamePage() {
     const is9 = setup!.holesPlaying === 'front9' || setup!.holesPlaying === 'back9';
 
     if (setup!.handicapBasis === 'index') {
-      return is9 ? Math.round(player.handicapIndex / 2) : Math.round(player.handicapIndex);
+      return is9 ? player.handicapIndex / 2 : player.handicapIndex;
     }
 
     const playerTee = getPlayerTee(player);
@@ -227,18 +227,18 @@ export default function PlayGamePage() {
           .filter((h) => ratingType === 'Front' ? h.number <= 9 : h.number > 9)
           .reduce((sum, h) => sum + h.par, 0) || Math.round(playerTee.totalPar / 2);
         const result = calcCourseHandicap(player.handicapIndex / 2, rating.slopeRating, rating.courseRating, par);
-        return isNaN(result) ? 0 : Math.round(result);
+        return isNaN(result) ? 0 : result;
       }
       const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');
       if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return 0;
       const full = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar);
-      return isNaN(full) ? 0 : Math.round(full / 2);
+      return isNaN(full) ? 0 : full / 2;
     }
 
     const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');
     if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return 0;
     const result = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar);
-    return isNaN(result) ? 0 : Math.round(result);
+    return isNaN(result) ? 0 : result;
   }
 
   function getScrambleTeamHandicap(teamPlayers: Player[]): number {
@@ -314,7 +314,8 @@ export default function PlayGamePage() {
   }
 
   function getPlayerStrokesOnHole(player: Player, holeHandicap: number, holeNumber?: number): number {
-    const playingHcap = getPlayingHandicap(player, holeNumber);
+    const rawHcap = getPlayingHandicap(player, holeNumber);
+    const playingHcap = Math.round(rawHcap);
     const numHoles = setup!.splitFormat ? 9 : holes.length;
 
     if (playingHcap === 0) return 0;
@@ -443,8 +444,10 @@ export default function PlayGamePage() {
               const raw = getPlayerRawCourseHandicap(p);
               const effective = getPlayerEffectiveHcap(p);
               const playing = getPlayingHandicap(p);
+              const strokes = Math.round(playing);
               const name = p.name.split(' ')[0];
-              return `${name}: ${p.handicapIndex ?? '–'}/${raw}/${effective}→${playing}`;
+              const fmt = (n: number) => Number.isInteger(n) ? String(n) : n.toFixed(1);
+              return `${name}: ${p.handicapIndex ?? '–'}/${fmt(raw)}/${fmt(effective)}→${strokes}`;
             }).join(' · ')}
           </>
         )}

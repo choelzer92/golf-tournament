@@ -92,5 +92,5 @@ export function calcCourseHandicap(
   courseRating: number,
   par: number
 ): number {
-  return Math.round(handicapIndex * (slopeRating / 113) + (courseRating - par));
+  return handicapIndex * (slopeRating / 113) + (courseRating - par);
 }

@@ -54,7 +54,7 @@ function getPlayerEffectiveHcap(player: Player, round: TournamentRound, holes: H
 
   if (round.handicapBasis === 'index') {
     const index = is9 ? player.handicapIndex / 2 : player.handicapIndex;
-    return Math.round(index * (allowance / 100));
+    return index * (allowance / 100);
   }
 
   const playerTee = getPlayerTee(player, round);
@@ -72,21 +72,21 @@ function getPlayerEffectiveHcap(player: Player, round: TournamentRound, holes: H
         .reduce((sum, h) => sum + h.par, 0) || Math.round(playerTee.totalPar / 2);
       const result = calcCourseHandicap(player.handicapIndex / 2, rating.slopeRating, rating.courseRating, par)
         * (allowance / 100);
-      return isNaN(result) ? 0 : Math.round(result);
+      return isNaN(result) ? 0 : result;
     }
 
     const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');
     if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return 0;
     const full = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar)
       * (allowance / 100);
-    return isNaN(full) ? 0 : Math.round(full / 2);
+    return isNaN(full) ? 0 : full / 2;
   }
 
   const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');
   if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return 0;
   const result = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar)
     * (allowance / 100);
-  return isNaN(result) ? 0 : Math.round(result);
+  return isNaN(result) ? 0 : result;
 }
 
 function getActiveAllowance(round: TournamentRound, holeNumber?: number): number {
@@ -121,7 +121,8 @@ function getPlayingHandicap(player: Player, round: TournamentRound, holes: HoleD
 }
 
 function getPlayerStrokesOnHole(player: Player, holeHandicap: number, round: TournamentRound, holes: HoleData[], allMatchupPlayers: Player[], holeNumber?: number): number {
-  const playingHcap = getPlayingHandicap(player, round, holes, allMatchupPlayers, holeNumber);
+  const rawHcap = getPlayingHandicap(player, round, holes, allMatchupPlayers, holeNumber);
+  const playingHcap = Math.round(rawHcap);
   const numHoles = round.splitFormat ? 9 : holes.length;
 
   if (playingHcap === 0) return 0;
@@ -151,7 +152,7 @@ function getPlayerRawCourseHandicap(player: Player, round: TournamentRound): num
   const is9 = round.holesPlaying === 'front9' || round.holesPlaying === 'back9';
 
   if (round.handicapBasis === 'index') {
-    return is9 ? Math.round(player.handicapIndex / 2) : Math.round(player.handicapIndex);
+    return is9 ? player.handicapIndex / 2 : player.handicapIndex;
   }
 
   const playerTee = getPlayerTee(player, round);
@@ -165,18 +166,18 @@ function getPlayerRawCourseHandicap(player: Player, round: TournamentRound): num
         .filter((h) => ratingType === 'Front' ? h.number <= 9 : h.number > 9)
         .reduce((sum, h) => sum + h.par, 0) || Math.round(playerTee.totalPar / 2);
       const result = calcCourseHandicap(player.handicapIndex / 2, rating.slopeRating, rating.courseRating, par);
-      return isNaN(result) ? 0 : Math.round(result);
+      return isNaN(result) ? 0 : result;
     }
     const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');
     if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return 0;
     const full = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar);
-    return isNaN(full) ? 0 : Math.round(full / 2);
+    return isNaN(full) ? 0 : full / 2;
   }
 
   const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');
   if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return 0;
   const result = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar);
-  return isNaN(result) ? 0 : Math.round(result);
+  return isNaN(result) ? 0 : result;
 }
 
 function getTeamHandicapForFormat(teamPlayers: Player[], round: TournamentRound, teamMode: TeamMode): number {
