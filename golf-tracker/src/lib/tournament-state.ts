@@ -1,7 +1,7 @@
 import type { Player, CourseSelection, GameScore } from './game-state';
 import type { TeamMode } from './formats';
 import { supabase } from './supabase';
-import { computePlayerStablefordPoints, computePlayerNetTotal } from './live-scoring';
+import { computePlayerStablefordPoints, computePlayerNetTotal, computeSplitMatchStatuses } from './live-scoring';
 
 export type TournamentMode = 'team-event' | 'flight-bracket';
 
@@ -369,8 +369,51 @@ export function computeBonuses(
     if (bonus.result) continue;
 
     if (bonus.type === 'match-winner' && bonus.scope === 'per-matchup') {
-      // Match winner is computed per-matchup in finishGame
-      continue;
+      const allDone = round.matchups.every((m) => m.result !== null);
+      if (!allDone) continue;
+
+      let aWins = 0;
+      let bWins = 0;
+      let ties = 0;
+      const details: string[] = [];
+
+      for (const matchup of round.matchups) {
+        if (!matchup.result) continue;
+        const scores: GameScore[] | null = loadGameScores(matchup.id);
+
+        // Split format with individual pairings: count each sub-match
+        if (round.splitFormat && round.splitFormat.teamMode === 'individual' && round.splitFormat.pairings && round.splitFormat.pairings.length > 0 && scores) {
+          const splitStatuses = computeSplitMatchStatuses(scores, matchup, round, tournament);
+          if (splitStatuses) {
+            for (const sm of splitStatuses) {
+              if (sm.status.thru === 0) continue;
+              const pts = sm.type === 'team'
+                ? { win: round.pointsForWin, tie: round.pointsForTie }
+                : { win: round.splitFormat.pointsForWin ?? round.pointsForWin, tie: round.splitFormat.pointsForTie ?? round.pointsForTie };
+              const ptsA = sm.status.holesWonA * pts.win + sm.status.holesTied * pts.tie;
+              const ptsB = sm.status.holesWonB * pts.win + sm.status.holesTied * pts.tie;
+              if (ptsA > ptsB) aWins++;
+              else if (ptsB > ptsA) bWins++;
+              else ties++;
+              const diff = sm.status.holesWonA - sm.status.holesWonB;
+              const winner = ptsA > ptsB ? tournament.teams[0].name
+                : ptsB > ptsA ? tournament.teams[1].name : 'Tied';
+              details.push(`${sm.label}: ${winner}`);
+            }
+            continue;
+          }
+        }
+
+        // Standard: one matchup = one winner
+        if (matchup.result.winningTeamId === 'team-a') aWins++;
+        else if (matchup.result.winningTeamId === 'team-b') bWins++;
+        else ties++;
+        const label = matchup.result.winningTeamId === 'team-a' ? tournament.teams[0].name
+          : matchup.result.winningTeamId === 'team-b' ? tournament.teams[1].name : 'Tied';
+        details.push(`${matchup.groupLabel}: ${label}`);
+      }
+
+      updatedBonuses[i] = { ...bonus, result: { winningTeamId: undefined, teamAWins: aWins, teamBWins: bWins, ties, detail: details.join(' · ') } };
     }
 
     if (bonus.type === 'junk') {
