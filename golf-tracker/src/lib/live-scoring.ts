@@ -1,5 +1,5 @@
 import type { Player, GameScore, TeeSetOption } from './game-state';
-import type { TournamentRound, RoundMatchup, Tournament } from './tournament-state';
+import type { TournamentRound, RoundMatchup, Tournament, SplitPairing } from './tournament-state';
 import { calcCourseHandicap } from './game-state';
 import type { TeamMode } from './formats';
 
@@ -428,6 +428,110 @@ export function computeNassauStatus(
   };
 }
 
+export interface SplitMatchup {
+  type: 'team' | 'individual';
+  label: string;
+  holes: 'front' | 'back';
+  playerA: Player;
+  playerB: Player;
+  teamAPlayerIds: string[];
+  teamBPlayerIds: string[];
+  status: LiveMatchStatus;
+}
+
+export function computeSplitMatchStatuses(
+  scores: GameScore[],
+  matchup: RoundMatchup,
+  round: TournamentRound,
+  tournament: Tournament
+): SplitMatchup[] | null {
+  if (!round.splitFormat || round.splitFormat.teamMode !== 'individual') return null;
+
+  const holes = getHoleDataForRound(round);
+  if (holes.length === 0) return null;
+
+  const frontHoles = holes.filter((h) => h.number <= 9);
+  const backHoles = holes.filter((h) => h.number > 9);
+
+  const teamAPlayers = tournament.players.filter((p) => matchup.teamAPlayerIds.includes(p.id));
+  const teamBPlayers = tournament.players.filter((p) => matchup.teamBPlayerIds.includes(p.id));
+  const allMatchupPlayers = [...teamAPlayers, ...teamBPlayers];
+
+  const results: SplitMatchup[] = [];
+
+  // Front 9: team match using front 9 team mode
+  let frontWonA = 0, frontWonB = 0, frontTied = 0, frontPlayed = 0;
+  for (const hole of frontHoles) {
+    const netA = getTeamNetForHole(teamAPlayers, hole, scores, round, holes, allMatchupPlayers);
+    const netB = getTeamNetForHole(teamBPlayers, hole, scores, round, holes, allMatchupPlayers);
+    if (netA === null || netB === null) continue;
+    frontPlayed++;
+    if (netA < netB) frontWonA++;
+    else if (netB < netA) frontWonB++;
+    else frontTied++;
+  }
+  results.push({
+    type: 'team',
+    label: 'Front 9 (Team)',
+    holes: 'front',
+    playerA: teamAPlayers[0],
+    playerB: teamBPlayers[0],
+    teamAPlayerIds: matchup.teamAPlayerIds,
+    teamBPlayerIds: matchup.teamBPlayerIds,
+    status: { holesWonA: frontWonA, holesWonB: frontWonB, holesTied: frontTied, thru: frontPlayed },
+  });
+
+  // Back 9: individual 1v1 pairings
+  const pairings = round.splitFormat.pairings || [];
+  for (const pairing of pairings) {
+    const playerA = allMatchupPlayers.find((p) => p.id === pairing.playerIds[0] && matchup.teamAPlayerIds.includes(p.id))
+      || allMatchupPlayers.find((p) => p.id === pairing.playerIds[1] && matchup.teamAPlayerIds.includes(p.id));
+    const playerB = allMatchupPlayers.find((p) => p.id === pairing.playerIds[0] && matchup.teamBPlayerIds.includes(p.id))
+      || allMatchupPlayers.find((p) => p.id === pairing.playerIds[1] && matchup.teamBPlayerIds.includes(p.id));
+
+    if (!playerA || !playerB) continue;
+
+    const pairPlayers = [playerA, playerB];
+    let wonA = 0, wonB = 0, tied = 0, played = 0;
+    for (const hole of backHoles) {
+      const netA = getIndividualNetForHole(playerA, hole, scores, round, holes, pairPlayers);
+      const netB = getIndividualNetForHole(playerB, hole, scores, round, holes, pairPlayers);
+      if (netA === null || netB === null) continue;
+      played++;
+      if (netA < netB) wonA++;
+      else if (netB < netA) wonB++;
+      else tied++;
+    }
+
+    results.push({
+      type: 'individual',
+      label: `${playerA.name.split(' ')[0]} vs ${playerB.name.split(' ')[0]}`,
+      holes: 'back',
+      playerA,
+      playerB,
+      teamAPlayerIds: [playerA.id],
+      teamBPlayerIds: [playerB.id],
+      status: { holesWonA: wonA, holesWonB: wonB, holesTied: tied, thru: played },
+    });
+  }
+
+  return results;
+}
+
+function getIndividualNetForHole(
+  player: Player,
+  hole: HoleData,
+  scores: GameScore[],
+  round: TournamentRound,
+  holes: HoleData[],
+  pairPlayers: Player[]
+): number | null {
+  const gross = getScore(scores, player.id, hole.number);
+  if (gross === null) return null;
+  const strokes = getPlayerStrokesOnHole(player, hole.handicap, round, holes, pairPlayers, hole.number);
+  return gross - strokes;
+}
+
 export type HoleWinner = 'A' | 'B' | 'tie' | null;
 
 export function computeHoleWinners(
@@ -466,6 +570,33 @@ export function recomputeMatchResult(
   round: TournamentRound,
   tournament: Tournament
 ): { winningTeamId: string | null; pointsTeamA: number; pointsTeamB: number; summary: string } | null {
+  // Split format with individual pairings: compute front 9 as team, back 9 per pairing
+  const splitStatuses = computeSplitMatchStatuses(scores, matchup, round, tournament);
+  if (splitStatuses) {
+    let pointsTeamA = 0;
+    let pointsTeamB = 0;
+    const summaries: string[] = [];
+
+    for (const sm of splitStatuses) {
+      if (sm.status.thru === 0) continue;
+      const pts = sm.type === 'team'
+        ? { win: round.pointsForWin, tie: round.pointsForTie }
+        : { win: round.splitFormat?.pointsForWin ?? round.pointsForWin, tie: round.splitFormat?.pointsForTie ?? round.pointsForTie };
+      const a = sm.status.holesWonA * pts.win + sm.status.holesTied * pts.tie;
+      const b = sm.status.holesWonB * pts.win + sm.status.holesTied * pts.tie;
+      pointsTeamA += a;
+      pointsTeamB += b;
+      const diff = sm.status.holesWonA - sm.status.holesWonB;
+      const statusText = diff === 0 ? 'AS' : diff > 0 ? `A ${diff}UP` : `B ${Math.abs(diff)}UP`;
+      summaries.push(`${sm.label}: ${statusText}`);
+    }
+
+    if (pointsTeamA === 0 && pointsTeamB === 0) return null;
+    const winningTeamId = pointsTeamA > pointsTeamB ? 'team-a'
+      : pointsTeamB > pointsTeamA ? 'team-b' : null;
+    return { winningTeamId, pointsTeamA, pointsTeamB, summary: summaries.join(' · ') };
+  }
+
   const status = computeLiveMatchStatus(scores, matchup, round, tournament);
   if (!status || status.thru === 0) return null;
 
@@ -535,6 +666,15 @@ export function getPlayerStrokesForHole(
   );
   const player = allMatchupPlayers.find((p) => p.id === playerId);
   if (!player) return 0;
+
+  // For back 9 individual pairings, narrow comparison pool to just the paired players
+  if (round.splitFormat && round.splitFormat.teamMode === 'individual' && round.splitFormat.pairings && holeNumber > 9) {
+    const pairing = round.splitFormat.pairings.find((p) => p.playerIds.includes(playerId));
+    if (pairing) {
+      const pairPlayers = allMatchupPlayers.filter((p) => pairing.playerIds.includes(p.id));
+      return getPlayerStrokesOnHole(player, holeHandicap, round, holes, pairPlayers, holeNumber);
+    }
+  }
 
   return getPlayerStrokesOnHole(player, holeHandicap, round, holes, allMatchupPlayers, holeNumber);
 }

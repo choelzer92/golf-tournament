@@ -1447,15 +1447,47 @@ export default function PlayGamePage() {
                 ? computeMatchPlayResult(teamAPlayers, teamBPlayers, frontHoles, round.pointsForWin, round.pointsForTie, round.pointsForLoss)
                 : computeStrokePlayResult(teamAPlayers, teamBPlayers, frontHoles, round.pointsForWin, round.pointsForTie, round.pointsForLoss);
 
-              const backResult = backIsMatch
-                ? computeMatchPlayResult(teamAPlayers, teamBPlayers, backHoles, setup!.splitFormat.pointsForWin ?? round.pointsForWin, setup!.splitFormat.pointsForTie ?? round.pointsForTie, setup!.splitFormat.pointsForLoss ?? round.pointsForLoss)
-                : computeStrokePlayResult(teamAPlayers, teamBPlayers, backHoles, setup!.splitFormat.pointsForWin ?? round.pointsForWin, setup!.splitFormat.pointsForTie ?? round.pointsForTie, setup!.splitFormat.pointsForLoss ?? round.pointsForLoss);
+              // Back 9: if individual with pairings, compute each 1v1 separately
+              const backPtsWin = setup!.splitFormat.pointsForWin ?? round.pointsForWin;
+              const backPtsTie = setup!.splitFormat.pointsForTie ?? round.pointsForTie;
+              const backPtsLoss = setup!.splitFormat.pointsForLoss ?? round.pointsForLoss;
 
-              pointsTeamA = frontResult.pointsTeamA + backResult.pointsTeamA;
-              pointsTeamB = frontResult.pointsTeamB + backResult.pointsTeamB;
+              let backPointsA = 0;
+              let backPointsB = 0;
+              const backSummaries: string[] = [];
+
+              if (setup!.splitFormat.teamMode === 'individual' && setup!.splitFormat.pairings && setup!.splitFormat.pairings.length > 0) {
+                for (const pairing of setup!.splitFormat.pairings) {
+                  const pA = allPlayers.find((p) => p.id === pairing.playerIds[0] && matchup.teamAPlayerIds.includes(p.id))
+                    || allPlayers.find((p) => p.id === pairing.playerIds[1] && matchup.teamAPlayerIds.includes(p.id));
+                  const pB = allPlayers.find((p) => p.id === pairing.playerIds[0] && matchup.teamBPlayerIds.includes(p.id))
+                    || allPlayers.find((p) => p.id === pairing.playerIds[1] && matchup.teamBPlayerIds.includes(p.id));
+                  if (!pA || !pB) continue;
+
+                  const pairResult = backIsMatch
+                    ? computeMatchPlayResult([pA], [pB], backHoles, backPtsWin, backPtsTie, backPtsLoss)
+                    : computeStrokePlayResult([pA], [pB], backHoles, backPtsWin, backPtsTie, backPtsLoss);
+
+                  backPointsA += pairResult.pointsTeamA;
+                  backPointsB += pairResult.pointsTeamB;
+                  const winnerName = pairResult.winningTeamId === 'team-a' ? pA.name.split(' ')[0]
+                    : pairResult.winningTeamId === 'team-b' ? pB.name.split(' ')[0] : 'Tied';
+                  backSummaries.push(`${pA.name.split(' ')[0]}v${pB.name.split(' ')[0]}: ${winnerName}`);
+                }
+              } else {
+                const backResult = backIsMatch
+                  ? computeMatchPlayResult(teamAPlayers, teamBPlayers, backHoles, backPtsWin, backPtsTie, backPtsLoss)
+                  : computeStrokePlayResult(teamAPlayers, teamBPlayers, backHoles, backPtsWin, backPtsTie, backPtsLoss);
+                backPointsA = backResult.pointsTeamA;
+                backPointsB = backResult.pointsTeamB;
+                backSummaries.push(backResult.summary);
+              }
+
+              pointsTeamA = frontResult.pointsTeamA + backPointsA;
+              pointsTeamB = frontResult.pointsTeamB + backPointsB;
               winningTeamId = pointsTeamA > pointsTeamB ? 'team-a'
                 : pointsTeamB > pointsTeamA ? 'team-b' : null;
-              summary = `Front: ${frontResult.summary} · Back: ${backResult.summary}`;
+              summary = `Front: ${frontResult.summary} · Back: ${backSummaries.join(', ')}`;
             } else if (round.scoringMethod === 'match-play') {
               const result = computeMatchPlayResult(teamAPlayers, teamBPlayers, holes, round.pointsForWin, round.pointsForTie, round.pointsForLoss);
               pointsTeamA = result.pointsTeamA;
@@ -1483,12 +1515,48 @@ export default function PlayGamePage() {
                 const details: string[] = [];
                 for (const m of round.matchups) {
                   if (!m.result) continue;
-                  if (m.result.winningTeamId === 'team-a') aWins++;
-                  else if (m.result.winningTeamId === 'team-b') bWins++;
-                  else ties++;
-                  const label = m.result.winningTeamId === 'team-a' ? tournament.teams[0].name
-                    : m.result.winningTeamId === 'team-b' ? tournament.teams[1].name : 'Tied';
-                  details.push(`${m.groupLabel}: ${label}`);
+
+                  // Split format with individual pairings: count each sub-match separately
+                  if (setup!.splitFormat && setup!.splitFormat.teamMode === 'individual' && setup!.splitFormat.pairings && setup!.splitFormat.pairings.length > 0) {
+                    const mScores = loadGameScores(m.id);
+                    if (mScores && Array.isArray(mScores)) {
+                      const mAllPlayers = tournament.players.filter((p) => m.playerIds.includes(p.id));
+                      const mTeamA = mAllPlayers.filter((p) => m.teamAPlayerIds.includes(p.id));
+                      const mTeamB = mAllPlayers.filter((p) => m.teamBPlayerIds.includes(p.id));
+                      const fHoles = holes.filter((h) => h.number <= 9);
+                      const bHoles = holes.filter((h) => h.number > 9);
+
+                      // Front 9 team sub-match
+                      const fResult = computeMatchPlayResult(mTeamA, mTeamB, fHoles, round.pointsForWin, round.pointsForTie, round.pointsForLoss);
+                      if (fResult.winningTeamId === 'team-a') aWins++;
+                      else if (fResult.winningTeamId === 'team-b') bWins++;
+                      else ties++;
+                      details.push(`${m.groupLabel} F9: ${fResult.winningTeamId === 'team-a' ? tournament.teams[0].name : fResult.winningTeamId === 'team-b' ? tournament.teams[1].name : 'Tied'}`);
+
+                      // Back 9 individual sub-matches
+                      for (const pairing of setup!.splitFormat.pairings) {
+                        const pA = mAllPlayers.find((p) => p.id === pairing.playerIds[0] && m.teamAPlayerIds.includes(p.id))
+                          || mAllPlayers.find((p) => p.id === pairing.playerIds[1] && m.teamAPlayerIds.includes(p.id));
+                        const pB = mAllPlayers.find((p) => p.id === pairing.playerIds[0] && m.teamBPlayerIds.includes(p.id))
+                          || mAllPlayers.find((p) => p.id === pairing.playerIds[1] && m.teamBPlayerIds.includes(p.id));
+                        if (!pA || !pB) continue;
+                        const pResult = computeMatchPlayResult([pA], [pB], bHoles, round.splitFormat?.pointsForWin ?? round.pointsForWin, round.splitFormat?.pointsForTie ?? round.pointsForTie, round.splitFormat?.pointsForLoss ?? round.pointsForLoss);
+                        if (pResult.winningTeamId === 'team-a') aWins++;
+                        else if (pResult.winningTeamId === 'team-b') bWins++;
+                        else ties++;
+                        const winner = pResult.winningTeamId === 'team-a' ? pA.name.split(' ')[0]
+                          : pResult.winningTeamId === 'team-b' ? pB.name.split(' ')[0] : 'Tied';
+                        details.push(`${pA.name.split(' ')[0]}v${pB.name.split(' ')[0]}: ${winner}`);
+                      }
+                    }
+                  } else {
+                    if (m.result.winningTeamId === 'team-a') aWins++;
+                    else if (m.result.winningTeamId === 'team-b') bWins++;
+                    else ties++;
+                    const label = m.result.winningTeamId === 'team-a' ? tournament.teams[0].name
+                      : m.result.winningTeamId === 'team-b' ? tournament.teams[1].name : 'Tied';
+                    details.push(`${m.groupLabel}: ${label}`);
+                  }
                 }
                 round.bonuses[i] = { ...bonus, result: { winningTeamId: undefined, teamAWins: aWins, teamBWins: bWins, ties, detail: details.join(' · ') } };
               }

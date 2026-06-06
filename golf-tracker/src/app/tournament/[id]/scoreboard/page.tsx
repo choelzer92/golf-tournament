@@ -5,8 +5,8 @@ import { useRouter, useParams } from 'next/navigation';
 import type { GameScore } from '@/lib/game-state';
 import type { Tournament, TournamentRound, RoundMatchup } from '@/lib/tournament-state';
 import { loadTournament, loadGameScores, fetchGameScores, computeStandings, fetchTournament, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
-import { computeLiveMatchStatus, computeNassauStatus, computeHoleWinners, getHoleDataForRound, getPlayerStrokesForHole, computePlayerStablefordPoints } from '@/lib/live-scoring';
-import type { NassauStatus, HoleWinner } from '@/lib/live-scoring';
+import { computeLiveMatchStatus, computeSplitMatchStatuses, computeNassauStatus, computeHoleWinners, getHoleDataForRound, getPlayerStrokesForHole, computePlayerStablefordPoints } from '@/lib/live-scoring';
+import type { NassauStatus, HoleWinner, SplitMatchup } from '@/lib/live-scoring';
 
 export default function ScoreboardPage() {
   const router = useRouter();
@@ -64,10 +64,22 @@ export default function ScoreboardPage() {
         if (!matchup.gameId || matchup.result) continue;
         const scores = loadGameScores(matchup.id);
         if (!scores || !Array.isArray(scores) || scores.length === 0) continue;
-        const status = computeLiveMatchStatus(scores, matchup, round, tournament);
-        if (status) {
-          liveA += status.holesWonA * round.pointsForWin + status.holesTied * round.pointsForTie;
-          liveB += status.holesWonB * round.pointsForWin + status.holesTied * round.pointsForTie;
+
+        const splitStatuses = computeSplitMatchStatuses(scores, matchup, round, tournament);
+        if (splitStatuses) {
+          for (const sm of splitStatuses) {
+            const pts = sm.type === 'team'
+              ? { win: round.pointsForWin, tie: round.pointsForTie }
+              : { win: round.splitFormat?.pointsForWin ?? round.pointsForWin, tie: round.splitFormat?.pointsForTie ?? round.pointsForTie };
+            liveA += sm.status.holesWonA * pts.win + sm.status.holesTied * pts.tie;
+            liveB += sm.status.holesWonB * pts.win + sm.status.holesTied * pts.tie;
+          }
+        } else {
+          const status = computeLiveMatchStatus(scores, matchup, round, tournament);
+          if (status) {
+            liveA += status.holesWonA * round.pointsForWin + status.holesTied * round.pointsForTie;
+            liveB += status.holesWonB * round.pointsForWin + status.holesTied * round.pointsForTie;
+          }
         }
       }
     }
@@ -252,18 +264,32 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
   const savedScores = scores;
   const holeData = getHoleDataForRound(round);
 
-  const liveStatus = (!matchup.result && matchup.gameId && savedScores && savedScores.length > 0)
+  // Compute split match statuses for individual back 9 pairings
+  const splitStatuses = (!matchup.result && matchup.gameId && savedScores && savedScores.length > 0)
+    ? computeSplitMatchStatuses(savedScores, matchup, round, tournament)
+    : null;
+
+  const liveStatus = (!matchup.result && matchup.gameId && savedScores && savedScores.length > 0 && !splitStatuses)
     ? computeLiveMatchStatus(savedScores, matchup, round, tournament)
     : null;
 
-  const livePointsA = liveStatus ? liveStatus.holesWonA * round.pointsForWin + liveStatus.holesTied * round.pointsForTie : 0;
-  const livePointsB = liveStatus ? liveStatus.holesWonB * round.pointsForWin + liveStatus.holesTied * round.pointsForTie : 0;
+  let livePointsA = 0;
+  let livePointsB = 0;
+  if (splitStatuses) {
+    for (const sm of splitStatuses) {
+      const pts = sm.type === 'team'
+        ? { win: round.pointsForWin, tie: round.pointsForTie }
+        : { win: round.splitFormat?.pointsForWin ?? round.pointsForWin, tie: round.splitFormat?.pointsForTie ?? round.pointsForTie };
+      livePointsA += sm.status.holesWonA * pts.win + sm.status.holesTied * pts.tie;
+      livePointsB += sm.status.holesWonB * pts.win + sm.status.holesTied * pts.tie;
+    }
+  } else if (liveStatus) {
+    livePointsA = liveStatus.holesWonA * round.pointsForWin + liveStatus.holesTied * round.pointsForTie;
+    livePointsB = liveStatus.holesWonB * round.pointsForWin + liveStatus.holesTied * round.pointsForTie;
+  }
 
-  const statusLabel = matchup.result
-    ? matchup.result.summary
-    : liveStatus
-      ? `${livePointsA} — ${livePointsB} (thru ${liveStatus.thru})`
-      : matchup.gameId ? 'In Progress' : 'Not Started';
+  const isLive = !matchup.result && matchup.gameId;
+  const hasLiveData = splitStatuses || liveStatus;
 
   return (
     <div className="px-4 py-3">
@@ -278,18 +304,55 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
                 <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300 animate-pulse">Live</span>
               ) : null}
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                {teamAPlayers.map((p) => (
-                  <p key={p.id} className="text-sm text-blue-300 truncate">{p.name}</p>
-                ))}
+
+            {/* Split format: show each sub-matchup */}
+            {splitStatuses ? (
+              <div className="space-y-1.5">
+                {splitStatuses.map((sm, idx) => {
+                  const pts = sm.type === 'team'
+                    ? { win: round.pointsForWin, tie: round.pointsForTie }
+                    : { win: round.splitFormat?.pointsForWin ?? round.pointsForWin, tie: round.splitFormat?.pointsForTie ?? round.pointsForTie };
+                  const smPtsA = sm.status.holesWonA * pts.win + sm.status.holesTied * pts.tie;
+                  const smPtsB = sm.status.holesWonB * pts.win + sm.status.holesTied * pts.tie;
+                  const diff = sm.status.holesWonA - sm.status.holesWonB;
+                  const statusText = sm.status.thru === 0 ? '–'
+                    : diff === 0 ? 'AS'
+                    : diff > 0 ? `${tournament.teams[0].name} ${diff} UP`
+                    : `${tournament.teams[1].name} ${Math.abs(diff)} UP`;
+                  return (
+                    <div key={idx} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] px-1 py-0.5 rounded ${sm.type === 'team' ? 'bg-purple-500/20 text-purple-300' : 'bg-orange-500/20 text-orange-300'}`}>
+                          {sm.holes === 'front' ? 'F9' : 'B9'}
+                        </span>
+                        <span className="text-xs text-gray-300">{sm.label}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-medium ${diff > 0 ? 'text-blue-300' : diff < 0 ? 'text-red-300' : 'text-gray-400'}`}>
+                          {statusText}
+                        </span>
+                        {sm.status.thru > 0 && (
+                          <span className="text-[10px] text-gray-500">thru {sm.status.thru}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div>
-                {teamBPlayers.map((p) => (
-                  <p key={p.id} className="text-sm text-red-300 truncate">{p.name}</p>
-                ))}
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  {teamAPlayers.map((p) => (
+                    <p key={p.id} className="text-sm text-blue-300 truncate">{p.name}</p>
+                  ))}
+                </div>
+                <div>
+                  {teamBPlayers.map((p) => (
+                    <p key={p.id} className="text-sm text-red-300 truncate">{p.name}</p>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
           <div className="ml-4 text-right shrink-0">
             {matchup.result ? (
@@ -301,17 +364,17 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
                 </p>
                 <p className="text-[10px] text-gray-500">{matchup.result.summary}</p>
               </>
-            ) : liveStatus ? (
+            ) : hasLiveData ? (
               <>
                 <p className="text-sm font-bold text-gray-300">
                   <span className="text-blue-300">{livePointsA}</span>
                   {' — '}
                   <span className="text-red-300">{livePointsB}</span>
                 </p>
-                <p className="text-[10px] text-gray-500">thru {liveStatus.thru}</p>
+                {liveStatus && <p className="text-[10px] text-gray-500">thru {liveStatus.thru}</p>}
               </>
             ) : (
-              <p className="text-xs text-gray-400">{statusLabel}</p>
+              <p className="text-xs text-gray-400">{isLive ? 'In Progress' : 'Not Started'}</p>
             )}
             <span className="text-gray-600 text-xs">{expanded ? '▾' : '▸'}</span>
           </div>
@@ -321,7 +384,7 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
       {expanded && savedScores && holeData.length > 0 && (() => {
         const holeWinners = computeHoleWinners(savedScores, matchup, round, tournament);
 
-        function getTeamBestNets(teamPlayerIds: string[], hole: { number: number; par: number; handicap: number }) {
+        function getTeamNetForDisplay(teamPlayerIds: string[], hole: { number: number; par: number; handicap: number }): number | null {
           const nets: number[] = [];
           for (const pid of teamPlayerIds) {
             const sc = savedScores!.find((s) => s.playerId === pid && s.hole === hole.number);
@@ -329,7 +392,18 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
             const strokes = getPlayerStrokesForHole(pid, hole.handicap, hole.number, matchup, round, tournament);
             nets.push(sc.grossScore - strokes);
           }
-          return nets.sort((a, b) => a - b).slice(0, 2);
+          if (nets.length === 0) return null;
+          nets.sort((a, b) => a - b);
+
+          const activeTeamMode = (round.splitFormat && hole.number > 9) ? round.splitFormat.teamMode : round.teamMode;
+          if (activeTeamMode === 'two-best-balls') {
+            return nets.length >= 2 ? nets[0] + nets[1] : null;
+          }
+          if (activeTeamMode === 'combined') {
+            return nets.reduce((s, n) => s + n, 0);
+          }
+          // best-ball, individual, scramble, alternate-shot: single best net
+          return nets[0];
         }
 
         return (
@@ -412,47 +486,47 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
                   </tr>
                 );
               })}
-              {/* Team A best-two-nets row */}
+              {/* Team A net row */}
               <tr className="border-t-2 border-blue-500/50">
                 <td className="px-2 py-1 font-bold text-blue-400 sticky left-0 bg-gray-800 text-[10px]">
                   {tournament.teams[0].name}
                 </td>
                 {holeData.map((h) => {
-                  const nets = getTeamBestNets(matchup.teamAPlayerIds, h);
+                  const net = getTeamNetForDisplay(matchup.teamAPlayerIds, h);
                   const w = holeWinners.get(h.number);
                   const bg = w === 'A' ? 'bg-blue-900/30' : '';
                   return (
                     <td key={h.number} className={`px-1 py-1 text-center text-blue-300 font-medium ${bg}`}>
-                      {nets.length >= 2 ? nets[0] + nets[1] : '–'}
+                      {net !== null ? net : '–'}
                     </td>
                   );
                 })}
                 <td className="px-2 py-1 text-center font-bold text-blue-300">
                   {holeData.reduce((sum, h) => {
-                    const nets = getTeamBestNets(matchup.teamAPlayerIds, h);
-                    return sum + (nets.length >= 2 ? nets[0] + nets[1] : 0);
+                    const net = getTeamNetForDisplay(matchup.teamAPlayerIds, h);
+                    return sum + (net ?? 0);
                   }, 0) || '–'}
                 </td>
               </tr>
-              {/* Team B best-two-nets row */}
+              {/* Team B net row */}
               <tr className="border-t border-red-500/50">
                 <td className="px-2 py-1 font-bold text-red-400 sticky left-0 bg-gray-800 text-[10px]">
                   {tournament.teams[1].name}
                 </td>
                 {holeData.map((h) => {
-                  const nets = getTeamBestNets(matchup.teamBPlayerIds, h);
+                  const net = getTeamNetForDisplay(matchup.teamBPlayerIds, h);
                   const w = holeWinners.get(h.number);
                   const bg = w === 'B' ? 'bg-red-900/30' : '';
                   return (
                     <td key={h.number} className={`px-1 py-1 text-center text-red-300 font-medium ${bg}`}>
-                      {nets.length >= 2 ? nets[0] + nets[1] : '–'}
+                      {net !== null ? net : '–'}
                     </td>
                   );
                 })}
                 <td className="px-2 py-1 text-center font-bold text-red-300">
                   {holeData.reduce((sum, h) => {
-                    const nets = getTeamBestNets(matchup.teamBPlayerIds, h);
-                    return sum + (nets.length >= 2 ? nets[0] + nets[1] : 0);
+                    const net = getTeamNetForDisplay(matchup.teamBPlayerIds, h);
+                    return sum + (net ?? 0);
                   }, 0) || '–'}
                 </td>
               </tr>
