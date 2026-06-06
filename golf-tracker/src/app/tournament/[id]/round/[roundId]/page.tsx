@@ -502,7 +502,6 @@ export default function RoundDetailPage() {
                 const updated = { ...round };
                 // Reset ALL bonus results so computeBonuses will recompute them
                 updated.bonuses = updated.bonuses.map((b) => ({ ...b, result: undefined }));
-                const matchSummaries: string[] = [];
                 for (const matchup of updated.matchups) {
                   if (!matchup.result) continue;
                   const scores = loadGameScores(matchup.id);
@@ -510,23 +509,9 @@ export default function RoundDetailPage() {
                   const newResult = recomputeMatchResult(scores, matchup, updated, tournament);
                   if (newResult) {
                     matchup.result = newResult;
-                    const winner = newResult.winningTeamId === 'team-a' ? tournament.teams[0].name
-                      : newResult.winningTeamId === 'team-b' ? tournament.teams[1].name : 'Tied';
-                    matchSummaries.push(`${matchup.groupLabel}: ${winner}`);
-                    // Re-accumulate match-winner bonus
-                    for (let i = 0; i < updated.bonuses.length; i++) {
-                      const bonus = updated.bonuses[i];
-                      if (bonus.type === 'match-winner' && bonus.scope === 'per-matchup') {
-                        const prev = updated.bonuses[i].result || { teamAWins: 0, teamBWins: 0, ties: 0, detail: '' };
-                        const aWins = (prev.teamAWins || 0) + (newResult.winningTeamId === 'team-a' ? 1 : 0);
-                        const bWins = (prev.teamBWins || 0) + (newResult.winningTeamId === 'team-b' ? 1 : 0);
-                        const ties = (prev.ties || 0) + (newResult.winningTeamId === null ? 1 : 0);
-                        updated.bonuses[i] = { ...bonus, result: { winningTeamId: undefined, teamAWins: aWins, teamBWins: bWins, ties, detail: matchSummaries.join(' · ') } };
-                      }
-                    }
                   }
                 }
-                // Recompute round-level bonuses (also needs scores in cache)
+                // Recompute all bonuses (including match-winner with split format support)
                 updated.bonuses = computeBonuses(updated, tournament);
                 updateRound(updated);
               }}
