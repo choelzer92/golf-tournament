@@ -133,6 +133,19 @@ export default function PlayGamePage() {
       const rankMap = new Map(ranked.map((h, i) => [h.number, i + 1]));
       return subset.map((h) => ({ ...h, handicap: rankMap.get(h.number)! }));
     }
+
+    // Split format: re-rank each 9 independently (1-9) so strokes distribute over 9 holes
+    if (s.splitFormat) {
+      const front = allHoles.filter((h) => h.number <= 9);
+      const back = allHoles.filter((h) => h.number > 9);
+      const frontRanked = [...front].sort((a, b) => a.handicap - b.handicap);
+      const backRanked = [...back].sort((a, b) => a.handicap - b.handicap);
+      const rankMap = new Map<number, number>();
+      frontRanked.forEach((h, i) => rankMap.set(h.number, i + 1));
+      backRanked.forEach((h, i) => rankMap.set(h.number, i + 1));
+      return subset.map((h) => ({ ...h, handicap: rankMap.get(h.number)! }));
+    }
+
     return subset;
   }
 

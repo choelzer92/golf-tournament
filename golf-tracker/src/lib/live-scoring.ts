@@ -23,6 +23,19 @@ export function getHoleDataForRound(round: TournamentRound): HoleData[] {
   const allHoles = tee.holes.sort((a, b) => a.number - b.number);
   if (round.holesPlaying === 'front9') return allHoles.filter((h) => h.number <= 9);
   if (round.holesPlaying === 'back9') return allHoles.filter((h) => h.number > 9);
+
+  // Split format: re-rank each 9 independently (1-9) so strokes distribute correctly per 9
+  if (round.splitFormat) {
+    const front = allHoles.filter((h) => h.number <= 9);
+    const back = allHoles.filter((h) => h.number > 9);
+    const frontRanked = [...front].sort((a, b) => a.handicap - b.handicap);
+    const backRanked = [...back].sort((a, b) => a.handicap - b.handicap);
+    const rankMap = new Map<number, number>();
+    frontRanked.forEach((h, i) => rankMap.set(h.number, i + 1));
+    backRanked.forEach((h, i) => rankMap.set(h.number, i + 1));
+    return allHoles.map((h) => ({ ...h, handicap: rankMap.get(h.number)! }));
+  }
+
   return allHoles;
 }
 
