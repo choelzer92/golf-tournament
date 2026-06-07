@@ -264,8 +264,8 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
   const savedScores = scores;
   const holeData = getHoleDataForRound(round);
 
-  // Compute split match statuses for individual back 9 pairings
-  const splitStatuses = (!matchup.result && matchup.gameId && savedScores && savedScores.length > 0)
+  // Compute split match statuses for individual back 9 pairings (live or completed)
+  const splitStatuses = (matchup.gameId && savedScores && savedScores.length > 0)
     ? computeSplitMatchStatuses(savedScores, matchup, round, tournament)
     : null;
 
