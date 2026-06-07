@@ -85,6 +85,9 @@ export interface TournamentRound {
   pointsForWin: number;
   pointsForTie: number;
   pointsForLoss: number;
+  tournamentPointMode?: 'fixed' | 'margin-based';
+  marginDivisor?: number;
+  marginBaseline?: number;
   handicapAllowance: number;
   strokeMethod: 'full' | 'off-the-low';
   handicapBasis: 'course' | 'index';
@@ -101,6 +104,7 @@ export interface Tournament {
   id: string;
   name: string;
   mode: 'team-event';
+  source?: 'quick-game' | 'tournament' | 'money-game';
   players: Player[];
   teams: [Team, Team];
   rounds: TournamentRound[];

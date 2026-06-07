@@ -1,7 +1,8 @@
 import type { Player, GameScore, TeeSetOption } from './game-state';
 import type { TournamentRound, RoundMatchup, Tournament, SplitPairing } from './tournament-state';
 import { calcCourseHandicap } from './game-state';
-import type { TeamMode } from './formats';
+import type { TeamMode, StablefordScale } from './formats';
+import { resolveStablefordScale, STABLEFORD_SCALES } from './formats';
 
 interface HoleData {
   number: number;
@@ -315,17 +316,17 @@ function getTeamNetForHole(
   return best;
 }
 
-function netToStablefordPoints(net: number, par: number): number {
+function netToStablefordPoints(net: number, par: number, scale: StablefordScale = STABLEFORD_SCALES.standard): number {
   const diff = net - par;
-  if (diff <= -3) return 5;
-  if (diff === -2) return 4;
-  if (diff === -1) return 3;
-  if (diff === 0) return 2;
-  if (diff === 1) return 1;
-  return 0;
+  if (diff <= -3) return scale.albatrossOrBetter;
+  if (diff === -2) return scale.eagle;
+  if (diff === -1) return scale.birdie;
+  if (diff === 0) return scale.par;
+  if (diff === 1) return scale.bogey;
+  return scale.doubleOrWorse;
 }
 
-function getTeamStablefordForHole(
+export function getTeamStablefordForHole(
   teamPlayers: Player[],
   hole: HoleData,
   scores: GameScore[],
@@ -334,6 +335,7 @@ function getTeamStablefordForHole(
   allMatchupPlayers: Player[]
 ): number | null {
   const teamMode = getActiveTeamMode(round, hole.number);
+  const scale = resolveStablefordScale(round.formatSettings);
 
   if (teamMode === 'combined') {
     let total = 0;
@@ -343,7 +345,7 @@ function getTeamStablefordForHole(
       if (gross === null) continue;
       anyScored = true;
       const strokes = getPlayerStrokesOnHole(p, hole.handicap, round, holes, allMatchupPlayers, hole.number);
-      total += netToStablefordPoints(gross - strokes, hole.par);
+      total += netToStablefordPoints(gross - strokes, hole.par, scale);
     }
     return anyScored ? total : null;
   }
@@ -351,7 +353,7 @@ function getTeamStablefordForHole(
   // For best-ball/scramble/alternate-shot: get the team net and convert
   const net = getTeamNetForHole(teamPlayers, hole, scores, round, holes, allMatchupPlayers);
   if (net === null) return null;
-  return netToStablefordPoints(net, hole.par);
+  return netToStablefordPoints(net, hole.par, scale);
 }
 
 export function computeLiveMatchStatus(
@@ -645,8 +647,28 @@ export function recomputeMatchResult(
       if (ptsB !== null) totalB += ptsB;
     }
     const winningTeamId = totalA > totalB ? 'team-a' : totalB > totalA ? 'team-b' : null;
-    const pointsTeamA = winningTeamId === 'team-a' ? round.pointsForWin : winningTeamId === null ? round.pointsForTie : round.pointsForLoss;
-    const pointsTeamB = winningTeamId === 'team-b' ? round.pointsForWin : winningTeamId === null ? round.pointsForTie : round.pointsForLoss;
+
+    let pointsTeamA: number;
+    let pointsTeamB: number;
+    if (round.tournamentPointMode === 'margin-based') {
+      const baseline = round.marginBaseline ?? 9;
+      const divisor = round.marginDivisor ?? (round.teamMode === 'combined' ? 4 : 2);
+      const margin = Math.abs(totalA - totalB);
+      const delta = Math.round((margin / divisor) * 2) / 2; // round to nearest 0.5
+      if (winningTeamId === 'team-a') {
+        pointsTeamA = Math.min(baseline * 2, baseline + delta);
+        pointsTeamB = Math.max(0, baseline - delta);
+      } else if (winningTeamId === 'team-b') {
+        pointsTeamB = Math.min(baseline * 2, baseline + delta);
+        pointsTeamA = Math.max(0, baseline - delta);
+      } else {
+        pointsTeamA = baseline;
+        pointsTeamB = baseline;
+      }
+    } else {
+      pointsTeamA = winningTeamId === 'team-a' ? round.pointsForWin : winningTeamId === null ? round.pointsForTie : round.pointsForLoss;
+      pointsTeamB = winningTeamId === 'team-b' ? round.pointsForWin : winningTeamId === null ? round.pointsForTie : round.pointsForLoss;
+    }
     return { winningTeamId, pointsTeamA, pointsTeamB, summary: `${totalA} — ${totalB} (stableford pts)` };
   }
 
@@ -709,12 +731,13 @@ export function computePlayerStablefordPoints(
   const player = allMatchupPlayers.find((p) => p.id === playerId);
   if (!player) return 0;
 
+  const scale = resolveStablefordScale(round.formatSettings);
   let total = 0;
   for (const hole of holes) {
     const gross = getScore(scores, playerId, hole.number);
     if (gross === null) continue;
     const strokes = getPlayerStrokesOnHole(player, hole.handicap, round, holes, allMatchupPlayers, hole.number);
-    total += netToStablefordPoints(gross - strokes, hole.par);
+    total += netToStablefordPoints(gross - strokes, hole.par, scale);
   }
   return total;
 }

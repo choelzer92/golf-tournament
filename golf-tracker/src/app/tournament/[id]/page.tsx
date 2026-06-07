@@ -6,7 +6,7 @@ import { FORMATS } from '@/lib/formats';
 import type { Tournament, TournamentRound } from '@/lib/tournament-state';
 import type { GameScore } from '@/lib/game-state';
 import { loadTournament, saveTournament, loadGameScores, computeStandings, exportTournament, fetchTournament, fetchGameScores, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
-import { computeLiveMatchStatus } from '@/lib/live-scoring';
+import { computeLiveMatchStatus, recomputeMatchResult } from '@/lib/live-scoring';
 
 export default function TournamentHubPage() {
   const router = useRouter();
@@ -78,10 +78,18 @@ export default function TournamentHubPage() {
       if (!matchup.gameId || matchup.result) continue;
       const scores: GameScore[] | null = loadGameScores(matchup.id);
       if (!scores || scores.length === 0) continue;
-      const status = computeLiveMatchStatus(scores, matchup, round, tournament);
-      if (status) {
-        liveA += status.holesWonA * round.pointsForWin + status.holesTied * round.pointsForTie;
-        liveB += status.holesWonB * round.pointsForWin + status.holesTied * round.pointsForTie;
+      if (round.formatId === 'stableford' && round.scoringMethod === 'stroke-play') {
+        const result = recomputeMatchResult(scores, matchup, round, tournament);
+        if (result) {
+          liveA += result.pointsTeamA;
+          liveB += result.pointsTeamB;
+        }
+      } else {
+        const status = computeLiveMatchStatus(scores, matchup, round, tournament);
+        if (status) {
+          liveA += status.holesWonA * round.pointsForWin + status.holesTied * round.pointsForTie;
+          liveB += status.holesWonB * round.pointsForWin + status.holesTied * round.pointsForTie;
+        }
       }
     }
   }

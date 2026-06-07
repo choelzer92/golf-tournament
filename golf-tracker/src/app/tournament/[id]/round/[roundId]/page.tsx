@@ -609,6 +609,9 @@ function RoundSettingsEditor({
   const [handicapBasis, setHandicapBasis] = useState(round.handicapBasis);
   const [defaultTeeId, setDefaultTeeId] = useState(round.defaultTeeId);
   const [formatSettings, setFormatSettings] = useState<Record<string, string | number | boolean>>(round.formatSettings || {});
+  const [tournamentPointMode, setTournamentPointMode] = useState<'fixed' | 'margin-based'>(round.tournamentPointMode || 'fixed');
+  const [marginDivisor, setMarginDivisor] = useState(round.marginDivisor ?? 4);
+  const [marginBaseline, setMarginBaseline] = useState(round.marginBaseline ?? 9);
   const [splitEnabled, setSplitEnabled] = useState(!!round.splitFormat);
   const [splitFormatId, setSplitFormatId] = useState(round.splitFormat?.formatId || 'match-play');
   const [splitTeamMode, setSplitTeamMode] = useState<TeamMode>(round.splitFormat?.teamMode || 'individual');
@@ -654,6 +657,9 @@ function RoundSettingsEditor({
       pointsForWin,
       pointsForTie,
       pointsForLoss,
+      tournamentPointMode,
+      marginDivisor,
+      marginBaseline,
       handicapAllowance,
       strokeMethod,
       handicapBasis,
@@ -732,38 +738,90 @@ function RoundSettingsEditor({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      {/* Tournament point mode */}
+      {scoringMethod === 'stroke-play' && formatId === 'stableford' && (
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Win pts</label>
-          <input
-            type="number"
-            step="0.5"
-            value={pointsForWin}
-            onChange={(e) => setPointsForWin(Number(e.target.value))}
+          <label className="block text-xs text-gray-500 mb-1">Tournament Points</label>
+          <select
+            value={tournamentPointMode}
+            onChange={(e) => {
+              const mode = e.target.value as 'fixed' | 'margin-based';
+              setTournamentPointMode(mode);
+              if (mode === 'margin-based') {
+                setMarginDivisor(teamMode === 'combined' ? 4 : 2);
+                setMarginBaseline(9);
+              }
+            }}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          />
+          >
+            <option value="fixed">Fixed (Win/Tie/Loss)</option>
+            <option value="margin-based">Margin-Based (every 2 pts = half a hole)</option>
+          </select>
         </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">Tie pts</label>
-          <input
-            type="number"
-            step="0.5"
-            value={pointsForTie}
-            onChange={(e) => setPointsForTie(Number(e.target.value))}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          />
+      )}
+
+      {tournamentPointMode === 'margin-based' && scoringMethod === 'stroke-play' && formatId === 'stableford' ? (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Baseline (half of total)</label>
+            <input
+              type="number"
+              step="0.5"
+              value={marginBaseline}
+              onChange={(e) => setMarginBaseline(Number(e.target.value))}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Margin per hole (divisor)</label>
+            <input
+              type="number"
+              step="1"
+              value={marginDivisor}
+              onChange={(e) => setMarginDivisor(Number(e.target.value))}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            />
+          </div>
+          <div className="col-span-2">
+            <p className="text-[10px] text-gray-400">
+              Tie = {marginBaseline}–{marginBaseline}. Each {marginDivisor} pts of margin = 1 tournament pt (each 2 pts = 0.5). Max = {marginBaseline * 2}–0.
+            </p>
+          </div>
         </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">Loss pts</label>
-          <input
-            type="number"
-            step="0.5"
-            value={pointsForLoss}
-            onChange={(e) => setPointsForLoss(Number(e.target.value))}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          />
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Win pts</label>
+            <input
+              type="number"
+              step="0.5"
+              value={pointsForWin}
+              onChange={(e) => setPointsForWin(Number(e.target.value))}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Tie pts</label>
+            <input
+              type="number"
+              step="0.5"
+              value={pointsForTie}
+              onChange={(e) => setPointsForTie(Number(e.target.value))}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Loss pts</label>
+            <input
+              type="number"
+              step="0.5"
+              value={pointsForLoss}
+              onChange={(e) => setPointsForLoss(Number(e.target.value))}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="pt-2 border-t">
         <p className="text-xs font-medium text-gray-700 mb-2">Team Mode & Handicap</p>
@@ -816,6 +874,7 @@ function RoundSettingsEditor({
                   const newSettings = { ...formatSettings };
                   tmCfg.settings?.forEach((s) => { newSettings[s.key] = s.defaultValue; });
                   setFormatSettings(newSettings);
+                  setMarginDivisor(newMode === 'combined' ? 4 : 2);
                 }}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
               >

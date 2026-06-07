@@ -1,5 +1,34 @@
 export type TeamMode = 'individual' | 'best-ball' | 'two-best-balls' | 'combined' | 'scramble' | 'alternate-shot';
 
+export interface StablefordScale {
+  albatrossOrBetter: number;
+  eagle: number;
+  birdie: number;
+  par: number;
+  bogey: number;
+  doubleOrWorse: number;
+}
+
+export const STABLEFORD_SCALES: Record<string, StablefordScale> = {
+  standard: { albatrossOrBetter: 5, eagle: 4, birdie: 3, par: 2, bogey: 1, doubleOrWorse: 0 },
+  modified: { albatrossOrBetter: 8, eagle: 5, birdie: 2, par: 0, bogey: -1, doubleOrWorse: -3 },
+};
+
+export function resolveStablefordScale(formatSettings?: Record<string, string | number | boolean>): StablefordScale {
+  const preset = (formatSettings?.stablefordScale as string) || 'standard';
+  if (preset === 'custom') {
+    return {
+      albatrossOrBetter: (formatSettings?.stablefordPts_albatross as number) ?? 5,
+      eagle: (formatSettings?.stablefordPts_eagle as number) ?? 4,
+      birdie: (formatSettings?.stablefordPts_birdie as number) ?? 3,
+      par: (formatSettings?.stablefordPts_par as number) ?? 2,
+      bogey: (formatSettings?.stablefordPts_bogey as number) ?? 1,
+      doubleOrWorse: (formatSettings?.stablefordPts_double as number) ?? 0,
+    };
+  }
+  return STABLEFORD_SCALES[preset] || STABLEFORD_SCALES.standard;
+}
+
 export type TwoBestBallsVariant = '1-net-1-gross' | '2-best-net' | '2-best-gross';
 
 export interface TeamModeConfig {
@@ -94,6 +123,8 @@ export interface GameFormat {
   playersMin: number;
   playersMax: number;
   settings?: FormatSetting[];
+  usgaAllowanceOverride?: number;
+  usgaStrokeMethodOverride?: 'full' | 'off-the-low';
 }
 
 export interface FormatSetting {
@@ -174,6 +205,8 @@ export const FORMATS: GameFormat[] = [
     defaultTeamMode: 'individual',
     playersMin: 2,
     playersMax: 8,
+    usgaAllowanceOverride: 95,
+    usgaStrokeMethodOverride: 'full',
   },
   {
     id: 'stableford',
@@ -184,6 +217,21 @@ export const FORMATS: GameFormat[] = [
     defaultTeamMode: 'individual',
     playersMin: 2,
     playersMax: 8,
+    usgaAllowanceOverride: 95,
+    usgaStrokeMethodOverride: 'full',
+    settings: [
+      {
+        key: 'stablefordScale',
+        label: 'Point Scale',
+        type: 'select',
+        options: [
+          { value: 'standard', label: 'Standard (5/4/3/2/1/0)' },
+          { value: 'modified', label: 'Modified (+8/+5/+2/0/-1/-3)' },
+          { value: 'custom', label: 'Custom' },
+        ],
+        defaultValue: 'standard',
+      },
+    ],
   },
   {
     id: 'scramble',

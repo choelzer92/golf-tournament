@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { FORMATS, TEAM_MODES, getTeamModeConfig, type GameFormat, type FormatSetting, type TeamMode } from '@/lib/formats';
 import type { Player, CourseSelection, TeeSetOption, GameSetup, StrokeMethod, HandicapBasis } from '@/lib/game-state';
 import { calcCourseHandicap } from '@/lib/game-state';
+import type { Tournament, TournamentRound, RoundMatchup } from '@/lib/tournament-state';
+import { saveTournament } from '@/lib/tournament-state';
 
 type Step = 'format' | 'course' | 'players' | 'settings';
 
@@ -31,8 +33,9 @@ export default function NewGamePage() {
     const newMode = format.defaultTeamMode;
     setTeamMode(newMode);
     const tmCfg = getTeamModeConfig(newMode);
-    setHandicapAllowance(tmCfg.usgaAllowance === 'tiered' ? -1 : tmCfg.usgaAllowance);
-    setStrokeMethod(tmCfg.usgaStrokeMethod);
+    const allowance = format.usgaAllowanceOverride ?? (tmCfg.usgaAllowance === 'tiered' ? -1 : tmCfg.usgaAllowance);
+    setHandicapAllowance(allowance);
+    setStrokeMethod(format.usgaStrokeMethodOverride ?? tmCfg.usgaStrokeMethod);
     const defaults: Record<string, string | number | boolean> = {};
     format.settings?.forEach((s) => { defaults[s.key] = s.defaultValue; });
     setFormatSettings(defaults);
@@ -46,18 +49,85 @@ export default function NewGamePage() {
   }
 
   function startGame() {
+    const tournamentId = crypto.randomUUID();
+    const roundId = crypto.randomUUID();
+    const matchupId = crypto.randomUUID();
+
+    // Auto-assign teams if not set (individual mode)
+    const assignedPlayers = players.some((p) => p.team) ? players : players.map((p, i) => ({ ...p, team: (i % 2 === 0 ? 'A' : 'B') as 'A' | 'B' }));
+
+    const teamAPlayers = assignedPlayers.filter((p) => p.team === 'A');
+    const teamBPlayers = assignedPlayers.filter((p) => p.team === 'B');
+
+    const courseSelection = course ? { ...course, selectedTeeId: defaultTeeId } : null;
+
+    const round: TournamentRound = {
+      id: roundId,
+      name: selectedFormat!.name,
+      dayLabel: new Date().toLocaleDateString(),
+      formatId: selectedFormat!.id,
+      teamMode,
+      course: courseSelection,
+      holesPlaying,
+      groupingMode: 'cross-team',
+      scoringMethod: selectedFormat!.id === 'stableford' ? 'stroke-play' : (selectedFormat!.scoringType === 'hole-by-hole' ? 'match-play' : 'stroke-play'),
+      pointsForWin: 1,
+      pointsForTie: 0.5,
+      pointsForLoss: 0,
+      handicapAllowance,
+      strokeMethod,
+      handicapBasis,
+      defaultTeeId,
+      formatSettings,
+      bonuses: [],
+      matchups: [{
+        id: matchupId,
+        groupLabel: 'Match',
+        playerIds: assignedPlayers.map((p) => p.id),
+        teamAPlayerIds: teamAPlayers.map((p) => p.id),
+        teamBPlayerIds: teamBPlayers.map((p) => p.id),
+        gameId: null,
+        result: null,
+      }],
+      status: 'in-progress',
+      order: 0,
+    };
+
+    const playerNames = assignedPlayers.map((p) => p.name.split(' ')[0]);
+    const gameName = assignedPlayers.length === 2
+      ? `${playerNames[0]} vs ${playerNames[1]}`
+      : `${selectedFormat!.name} — ${new Date().toLocaleDateString()}`;
+
+    const tournament: Tournament = {
+      id: tournamentId,
+      name: gameName,
+      mode: 'team-event',
+      source: 'quick-game',
+      players: assignedPlayers,
+      teams: [
+        { id: 'team-a', name: teamAPlayers.length === 1 ? teamAPlayers[0].name : 'Team A', playerIds: teamAPlayers.map((p) => p.id) },
+        { id: 'team-b', name: teamBPlayers.length === 1 ? teamBPlayers[0].name : 'Team B', playerIds: teamBPlayers.map((p) => p.id) },
+      ],
+      rounds: [round],
+      status: 'active',
+    };
+
+    saveTournament(tournament);
+
     const setup: GameSetup = {
       formatId: selectedFormat!.id,
       teamMode,
-      course: course ? { ...course, selectedTeeId: defaultTeeId } : null,
-      players,
+      course: courseSelection,
+      players: assignedPlayers,
       handicapAllowance,
       holesPlaying,
       strokeMethod,
       handicapBasis,
       formatSettings,
+      matchupId,
     };
     sessionStorage.setItem('game_setup', JSON.stringify(setup));
+    sessionStorage.setItem('game_tournament_context', JSON.stringify({ tournamentId, roundId, matchupId }));
     router.push('/game/play');
   }
 
@@ -177,11 +247,36 @@ function CourseStep({ onSelect, onBack }: { onSelect: (c: CourseSelection) => vo
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [noToken, setNoToken] = useState(false);
+  const [ghinUser, setGhinUser] = useState('');
+  const [ghinPass, setGhinPass] = useState('');
+  const [authError, setAuthError] = useState('');
+
+  async function quickAuth(e: React.FormEvent) {
+    e.preventDefault();
+    setAuthError('');
+    try {
+      const res = await fetch('/api/ghin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: ghinUser, password: ghinPass }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.token) {
+        setAuthError(data.error || 'Login failed');
+        return;
+      }
+      sessionStorage.setItem('ghin_token', data.token);
+      setNoToken(false);
+    } catch {
+      setAuthError('Connection error');
+    }
+  }
 
   async function search(e: React.FormEvent) {
     e.preventDefault();
     const token = getToken();
-    if (!token) return;
+    if (!token) { setNoToken(true); return; }
 
     setLoading(true);
     setError('');
@@ -193,8 +288,13 @@ function CourseStep({ onSelect, onBack }: { onSelect: (c: CourseSelection) => vo
         body: JSON.stringify({ token, name: searchName, state: searchState }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error); return; }
-      setResults(data.courses || []);
+      if (res.ok) {
+        setResults(data.courses || []);
+      } else {
+        sessionStorage.removeItem('ghin_token');
+        setNoToken(true);
+        setError(data.error || 'Search failed — try logging in again');
+      }
     } catch {
       setError('Search failed');
     } finally {
@@ -258,6 +358,32 @@ function CourseStep({ onSelect, onBack }: { onSelect: (c: CourseSelection) => vo
     <div>
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Select Course</h2>
+
+      {noToken && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 mb-4 space-y-2">
+          <p className="text-sm text-amber-800 font-medium">Log in to GHIN to search courses</p>
+          <form onSubmit={quickAuth} className="flex gap-2 flex-wrap">
+            <input
+              type="text"
+              value={ghinUser}
+              onChange={(e) => setGhinUser(e.target.value)}
+              placeholder="GHIN email"
+              className="flex-1 min-w-[140px] rounded border border-gray-300 px-2 py-1.5 text-sm"
+            />
+            <input
+              type="password"
+              value={ghinPass}
+              onChange={(e) => setGhinPass(e.target.value)}
+              placeholder="Password"
+              className="flex-1 min-w-[140px] rounded border border-gray-300 px-2 py-1.5 text-sm"
+            />
+            <button type="submit" className="rounded bg-amber-600 px-3 py-1.5 text-sm text-white font-medium hover:bg-amber-700">
+              Login
+            </button>
+          </form>
+          {authError && <p className="text-xs text-red-600">{authError}</p>}
+        </div>
+      )}
 
       <form onSubmit={search} className="flex gap-3 mb-4 flex-wrap">
         <input
@@ -777,6 +903,32 @@ function SettingsStep({
             onChange={(v) => updateSetting(setting.key, v)}
           />
         ))}
+
+        {format.id === 'stableford' && formatSettings.stablefordScale === 'custom' && (
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">Custom Point Values</label>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { key: 'stablefordPts_albatross', label: 'Albatross+' },
+                { key: 'stablefordPts_eagle', label: 'Eagle' },
+                { key: 'stablefordPts_birdie', label: 'Birdie' },
+                { key: 'stablefordPts_par', label: 'Par' },
+                { key: 'stablefordPts_bogey', label: 'Bogey' },
+                { key: 'stablefordPts_double', label: 'Double+' },
+              ] as const).map(({ key, label }) => (
+                <div key={key} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-20">{label}</span>
+                  <input
+                    type="number"
+                    value={(formatSettings[key] as number) ?? [5, 4, 3, 2, 1, 0][['stablefordPts_albatross', 'stablefordPts_eagle', 'stablefordPts_birdie', 'stablefordPts_par', 'stablefordPts_bogey', 'stablefordPts_double'].indexOf(key)]}
+                    onChange={(e) => updateSetting(key, Number(e.target.value))}
+                    className="w-16 rounded-md border border-gray-300 px-2 py-1 text-sm text-center"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <button

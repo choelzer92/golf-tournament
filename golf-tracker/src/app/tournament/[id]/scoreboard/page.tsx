@@ -5,8 +5,9 @@ import { useRouter, useParams } from 'next/navigation';
 import type { GameScore } from '@/lib/game-state';
 import type { Tournament, TournamentRound, RoundMatchup } from '@/lib/tournament-state';
 import { loadTournament, loadGameScores, fetchGameScores, computeStandings, fetchTournament, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
-import { computeLiveMatchStatus, computeSplitMatchStatuses, computeNassauStatus, computeHoleWinners, getHoleDataForRound, getPlayerStrokesForHole, computePlayerStablefordPoints } from '@/lib/live-scoring';
+import { computeLiveMatchStatus, computeSplitMatchStatuses, computeNassauStatus, computeHoleWinners, getHoleDataForRound, getPlayerStrokesForHole, computePlayerStablefordPoints, recomputeMatchResult, getTeamStablefordForHole } from '@/lib/live-scoring';
 import type { NassauStatus, HoleWinner, SplitMatchup } from '@/lib/live-scoring';
+import { resolveStablefordScale } from '@/lib/formats';
 
 export default function ScoreboardPage() {
   const router = useRouter();
@@ -75,10 +76,10 @@ export default function ScoreboardPage() {
             liveB += sm.status.holesWonB * pts.win + sm.status.holesTied * pts.tie;
           }
         } else {
-          const status = computeLiveMatchStatus(scores, matchup, round, tournament);
-          if (status) {
-            liveA += status.holesWonA * round.pointsForWin + status.holesTied * round.pointsForTie;
-            liveB += status.holesWonB * round.pointsForWin + status.holesTied * round.pointsForTie;
+          const liveResult = recomputeMatchResult(scores, matchup, round, tournament);
+          if (liveResult) {
+            liveA += liveResult.pointsTeamA;
+            liveB += liveResult.pointsTeamB;
           }
         }
       }
@@ -275,6 +276,7 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
 
   let livePointsA = 0;
   let livePointsB = 0;
+  let liveSummary = '';
   if (splitStatuses) {
     for (const sm of splitStatuses) {
       const pts = sm.type === 'team'
@@ -283,13 +285,17 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
       livePointsA += sm.status.holesWonA * pts.win + sm.status.holesTied * pts.tie;
       livePointsB += sm.status.holesWonB * pts.win + sm.status.holesTied * pts.tie;
     }
-  } else if (liveStatus) {
-    livePointsA = liveStatus.holesWonA * round.pointsForWin + liveStatus.holesTied * round.pointsForTie;
-    livePointsB = liveStatus.holesWonB * round.pointsForWin + liveStatus.holesTied * round.pointsForTie;
+  } else if (savedScores && savedScores.length > 0 && !matchup.result) {
+    const liveResult = recomputeMatchResult(savedScores, matchup, round, tournament);
+    if (liveResult) {
+      livePointsA = liveResult.pointsTeamA;
+      livePointsB = liveResult.pointsTeamB;
+      liveSummary = liveResult.summary;
+    }
   }
 
   const isLive = !matchup.result && matchup.gameId;
-  const hasLiveData = splitStatuses || liveStatus;
+  const hasLiveData = splitStatuses || (livePointsA > 0 || livePointsB > 0) || liveStatus;
 
   return (
     <div className="px-4 py-3">
@@ -357,21 +363,40 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
           <div className="ml-4 text-right shrink-0">
             {matchup.result ? (
               <>
-                <p className="text-sm font-bold text-gray-300">
-                  <span className="text-blue-300">{matchup.result.pointsTeamA}</span>
-                  {' — '}
-                  <span className="text-red-300">{matchup.result.pointsTeamB}</span>
-                </p>
-                <p className="text-[10px] text-gray-500">{matchup.result.summary}</p>
+                {round.formatId === 'stableford' && round.scoringMethod === 'stroke-play' ? (
+                  <>
+                    <p className="text-sm font-bold text-gray-300">{matchup.result.summary.replace(' (stableford pts)', '')}</p>
+                    <p className="text-[10px] text-gray-500">Pts: {matchup.result.pointsTeamA} — {matchup.result.pointsTeamB}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-bold text-gray-300">
+                      <span className="text-blue-300">{matchup.result.pointsTeamA}</span>
+                      {' — '}
+                      <span className="text-red-300">{matchup.result.pointsTeamB}</span>
+                    </p>
+                    <p className="text-[10px] text-gray-500">{matchup.result.summary}</p>
+                  </>
+                )}
               </>
             ) : hasLiveData ? (
               <>
-                <p className="text-sm font-bold text-gray-300">
-                  <span className="text-blue-300">{livePointsA}</span>
-                  {' — '}
-                  <span className="text-red-300">{livePointsB}</span>
-                </p>
-                {liveStatus && <p className="text-[10px] text-gray-500">thru {liveStatus.thru}</p>}
+                {round.formatId === 'stableford' && round.scoringMethod === 'stroke-play' && liveSummary ? (
+                  <>
+                    <p className="text-sm font-bold text-gray-300">{liveSummary.replace(' (stableford pts)', '')}</p>
+                    <p className="text-[10px] text-gray-500">Pts: {livePointsA} — {livePointsB}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-bold text-gray-300">
+                      <span className="text-blue-300">{livePointsA}</span>
+                      {' — '}
+                      <span className="text-red-300">{livePointsB}</span>
+                    </p>
+                    {liveSummary && <p className="text-[10px] text-gray-500">{liveSummary}</p>}
+                    {!liveSummary && liveStatus && <p className="text-[10px] text-gray-500">thru {liveStatus.thru}</p>}
+                  </>
+                )}
               </>
             ) : (
               <p className="text-xs text-gray-400">{isLive ? 'In Progress' : 'Not Started'}</p>
@@ -474,60 +499,61 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
                       );
                     })}
                     <td className="px-2 py-1 text-center font-bold text-white">
-                      {total || '–'}
-                      {total > 0 && isStableford ? (
-                        <span className="ml-0.5 text-[10px] text-green-400">{stbPts}pts</span>
-                      ) : total > 0 ? (
-                        <span className={`ml-0.5 text-[10px] ${diff > 0 ? 'text-blue-400' : diff < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                      {isStableford && total > 0 ? (
+                        <><span className="text-green-400">{stbPts}</span><span className="block text-[9px] text-gray-500 font-normal">{total} gross</span></>
+                      ) : total ? (
+                        <>{total}<span className={`ml-0.5 text-[10px] ${diff > 0 ? 'text-blue-400' : diff < 0 ? 'text-red-400' : 'text-gray-500'}`}>
                           {diff > 0 ? `+${diff}` : diff === 0 ? 'E' : diff}
-                        </span>
-                      ) : null}
+                        </span></>
+                      ) : '–'}
                     </td>
                   </tr>
                 );
               })}
-              {/* Team A net row */}
+              {/* Team A row */}
               <tr className="border-t-2 border-blue-500/50">
                 <td className="px-2 py-1 font-bold text-blue-400 sticky left-0 bg-gray-800 text-[10px]">
-                  {tournament.teams[0].name}
+                  {tournament.teams[0].name}{round.formatId === 'stableford' ? ' pts' : ''}
                 </td>
                 {holeData.map((h) => {
-                  const net = getTeamNetForDisplay(matchup.teamAPlayerIds, h);
+                  const val = round.formatId === 'stableford'
+                    ? getTeamStablefordForHole(teamAPlayers, h, savedScores, round, holeData, allPlayers)
+                    : getTeamNetForDisplay(matchup.teamAPlayerIds, h);
                   const w = holeWinners.get(h.number);
                   const bg = w === 'A' ? 'bg-blue-900/30' : '';
                   return (
                     <td key={h.number} className={`px-1 py-1 text-center text-blue-300 font-medium ${bg}`}>
-                      {net !== null ? net : '–'}
+                      {val !== null ? val : '–'}
                     </td>
                   );
                 })}
                 <td className="px-2 py-1 text-center font-bold text-blue-300">
-                  {holeData.reduce((sum, h) => {
-                    const net = getTeamNetForDisplay(matchup.teamAPlayerIds, h);
-                    return sum + (net ?? 0);
-                  }, 0) || '–'}
+                  {round.formatId === 'stableford'
+                    ? holeData.reduce((sum, h) => sum + (getTeamStablefordForHole(teamAPlayers, h, savedScores, round, holeData, allPlayers) ?? 0), 0)
+                    : (holeData.reduce((sum, h) => sum + (getTeamNetForDisplay(matchup.teamAPlayerIds, h) ?? 0), 0) || '–')}
                 </td>
               </tr>
-              {/* Team B net row */}
+              {/* Team B row */}
               <tr className="border-t border-red-500/50">
                 <td className="px-2 py-1 font-bold text-red-400 sticky left-0 bg-gray-800 text-[10px]">
-                  {tournament.teams[1].name}
+                  {tournament.teams[1].name}{round.formatId === 'stableford' ? ' pts' : ''}
                 </td>
                 {holeData.map((h) => {
-                  const net = getTeamNetForDisplay(matchup.teamBPlayerIds, h);
+                  const val = round.formatId === 'stableford'
+                    ? getTeamStablefordForHole(teamBPlayers, h, savedScores, round, holeData, allPlayers)
+                    : getTeamNetForDisplay(matchup.teamBPlayerIds, h);
                   const w = holeWinners.get(h.number);
                   const bg = w === 'B' ? 'bg-red-900/30' : '';
                   return (
                     <td key={h.number} className={`px-1 py-1 text-center text-red-300 font-medium ${bg}`}>
-                      {net !== null ? net : '–'}
+                      {val !== null ? val : '–'}
                     </td>
                   );
                 })}
                 <td className="px-2 py-1 text-center font-bold text-red-300">
-                  {holeData.reduce((sum, h) => {
-                    const net = getTeamNetForDisplay(matchup.teamBPlayerIds, h);
-                    return sum + (net ?? 0);
-                  }, 0) || '–'}
+                  {round.formatId === 'stableford'
+                    ? holeData.reduce((sum, h) => sum + (getTeamStablefordForHole(teamBPlayers, h, savedScores, round, holeData, allPlayers) ?? 0), 0)
+                    : (holeData.reduce((sum, h) => sum + (getTeamNetForDisplay(matchup.teamBPlayerIds, h) ?? 0), 0) || '–')}
                 </td>
               </tr>
               {/* Hole winner row */}

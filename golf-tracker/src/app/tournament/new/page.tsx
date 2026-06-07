@@ -558,9 +558,13 @@ function AddRoundForm({
       const newMode = f.defaultTeamMode;
       setTeamMode(newMode);
       const tmCfg = getTeamModeConfig(newMode);
-      setHandicapAllowance(tmCfg.usgaAllowance === 'tiered' ? -1 : tmCfg.usgaAllowance);
+      const allowance = f.usgaAllowanceOverride ?? (tmCfg.usgaAllowance === 'tiered' ? -1 : tmCfg.usgaAllowance);
+      setHandicapAllowance(allowance);
       setScoringMethod(f.scoringType === 'hole-by-hole' ? 'match-play' : 'stroke-play');
-      setStrokeMethod(tmCfg.usgaStrokeMethod);
+      setStrokeMethod(f.usgaStrokeMethodOverride ?? tmCfg.usgaStrokeMethod);
+      const defaults: Record<string, string | number | boolean> = {};
+      f.settings?.forEach((s) => { defaults[s.key] = s.defaultValue; });
+      setFormatSettings(defaults);
     }
   }
 
@@ -792,6 +796,63 @@ function AddRoundForm({
             </div>
           ));
         })()}
+
+        {/* Format-level settings (e.g. stableford scale, presses) */}
+        {(() => {
+          const fmt = FORMATS.find((f) => f.id === formatId);
+          if (!fmt?.settings?.length) return null;
+          return fmt.settings.map((setting) => (
+            <div key={setting.key} className="mb-2">
+              <label className="block text-xs text-gray-500 mb-1">{setting.label}</label>
+              {setting.type === 'select' && setting.options && (
+                <select
+                  value={(formatSettings[setting.key] as string) ?? setting.defaultValue}
+                  onChange={(e) => setFormatSettings({ ...formatSettings, [setting.key]: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                >
+                  {setting.options.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              )}
+              {setting.type === 'toggle' && (
+                <button
+                  onClick={() => setFormatSettings({ ...formatSettings, [setting.key]: !formatSettings[setting.key] })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${formatSettings[setting.key] ? 'bg-green-600' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${formatSettings[setting.key] ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              )}
+            </div>
+          ));
+        })()}
+
+        {/* Custom stableford point values */}
+        {formatId === 'stableford' && formatSettings.stablefordScale === 'custom' && (
+          <div className="space-y-2">
+            <label className="block text-xs text-gray-500">Custom Point Values</label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { key: 'stablefordPts_albatross', label: 'Albatross+', def: 5 },
+                { key: 'stablefordPts_eagle', label: 'Eagle', def: 4 },
+                { key: 'stablefordPts_birdie', label: 'Birdie', def: 3 },
+                { key: 'stablefordPts_par', label: 'Par', def: 2 },
+                { key: 'stablefordPts_bogey', label: 'Bogey', def: 1 },
+                { key: 'stablefordPts_double', label: 'Double+', def: 0 },
+              ] as const).map(({ key, label, def }) => (
+                <div key={key} className="flex items-center gap-1">
+                  <span className="text-xs text-gray-600 w-16">{label}</span>
+                  <input
+                    type="number"
+                    value={(formatSettings[key] as number) ?? def}
+                    onChange={(e) => setFormatSettings({ ...formatSettings, [key]: Number(e.target.value) })}
+                    className="w-14 rounded-md border border-gray-300 px-1 py-1 text-xs text-center"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-3 gap-2">
           <div>
