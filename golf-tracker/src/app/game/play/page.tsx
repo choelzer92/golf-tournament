@@ -471,31 +471,34 @@ export default function PlayGamePage() {
       </header>
 
       <div className="bg-green-900 text-green-200 text-xs text-center py-1.5">
-        {oneBall ? (
-          <>
-            {teamMode === 'scramble'
-              ? ((setup.handicapAllowance ?? -1) < 0 ? 'Scramble (USGA Tiered)' : `Scramble (${setup.handicapAllowance}% flat)`)
-              : `Alt Shot (60/40 × ${setup.handicapAllowance ?? 50}%)`}{' · '}
-            {teamNames.A}: {getTeamHandicapForFormat(sortedPlayers.filter((p) => p.team === 'A'))}{' · '}
-            {teamNames.B}: {getTeamHandicapForFormat(sortedPlayers.filter((p) => p.team === 'B'))}
-          </>
-        ) : (
-          <>
-            {setup.handicapAllowance != null && setup.handicapAllowance !== 100
-              ? `${setup.handicapAllowance}% · `
-              : ''}
-            {setup.strokeMethod === 'off-the-low' ? 'Off the Low' : 'Full'}{' · '}
-            {sortedPlayers.map((p) => {
-              const raw = getPlayerRawCourseHandicap(p);
-              const effective = getPlayerEffectiveHcap(p);
-              const playing = getPlayingHandicap(p);
-              const strokes = Math.round(playing);
-              const name = p.name.split(' ')[0];
-              const fmt = (n: number) => Number.isInteger(n) ? String(n) : n.toFixed(1);
-              return `${name}: ${p.handicapIndex ?? '–'}/${fmt(raw)}/${fmt(effective)}→${strokes}`;
-            }).join(' · ')}
-          </>
-        )}
+        {(() => {
+          const parts: string[] = [];
+          if (oneBall) {
+            if (teamMode === 'scramble') {
+              parts.push((setup.handicapAllowance ?? -1) < 0 ? 'Scramble (USGA Tiered)' : `Scramble (${setup.handicapAllowance}%)`);
+            } else {
+              parts.push(`Alt Shot (60/40 × ${setup.handicapAllowance ?? 50}%)`);
+            }
+          } else {
+            if (teamMode === 'two-best-balls') {
+              const variant = (setup.formatSettings?.ballSelection as string) || '1-net-1-gross';
+              if (variant === '2-best-net') parts.push('Two Best Nets');
+              else if (variant === '2-best-gross') parts.push('Two Best Gross');
+              else parts.push('Best Net + Best Gross');
+            } else if (teamMode === 'best-ball') {
+              parts.push('Best Ball (Net)');
+            } else if (teamMode === 'combined') {
+              parts.push('Combined');
+            } else {
+              parts.push('Individual');
+            }
+            if (setup.handicapAllowance != null && setup.handicapAllowance !== 100) {
+              parts.push(`${setup.handicapAllowance}%`);
+            }
+            parts.push(setup.strokeMethod === 'off-the-low' ? 'Off the Low' : 'Full Handicap');
+          }
+          return parts.join(' · ');
+        })()}
       </div>
 
       {tournamentCtx && (
@@ -509,40 +512,7 @@ export default function PlayGamePage() {
       )}
 
       <main className="max-w-lg mx-auto px-4 py-4">
-        {/* Course info bar */}
-        <div className="mb-3 rounded-lg border border-gray-200 bg-white px-3 py-2">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-600">
-            {(() => {
-              const is9 = setup.holesPlaying === 'front9' || setup.holesPlaying === 'back9';
-              const ratingType = setup.holesPlaying === 'front9' ? 'Front' : setup.holesPlaying === 'back9' ? 'Back' : 'Total';
-              const tee = defaultTee;
-              const rating = tee?.ratings?.find((r) => r.type === ratingType) || tee?.ratings?.find((r) => r.type === 'Total');
-              return (
-                <>
-                  <span className="font-medium text-gray-800">{is9 ? `${ratingType} 9` : '18 Holes'}</span>
-                  {tee && <span className="font-medium">{tee.name} ({tee.totalYardage} yds)</span>}
-                  {rating && <span>CR: {rating.courseRating} · Slope: {rating.slopeRating}</span>}
-                  <span>Allowance: {teamMode === 'scramble'
-                    ? ((setup.handicapAllowance ?? -1) < 0 ? 'Tiered' : `${setup.handicapAllowance}%`)
-                    : `${setup.handicapAllowance ?? 100}%`}</span>
-                </>
-              );
-            })()}
-          </div>
-          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-gray-500">
-            {sortedPlayers.map((player) => {
-              const teamColor = player.team === 'A' ? 'text-blue-700' : player.team === 'B' ? 'text-red-700' : 'text-gray-700';
-              return (
-                <span key={player.id}>
-                  <span className={`font-medium ${teamColor}`}>{player.name.split(' ')[0]}</span>
-                  {' '}CH: {getPlayerRawCourseHandicap(player)}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Stroke allocation overview */}
+        {/* Stroke allocation & handicap details */}
         <div className="mb-4">
           <button
             onClick={() => setStrokesExpanded(!strokesExpanded)}
@@ -553,6 +523,96 @@ export default function PlayGamePage() {
           </button>
           {strokesExpanded && (
             <>
+              {/* Course & rating info */}
+              <div className="mt-2 rounded-lg border border-gray-200 bg-white px-3 py-2">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-600">
+                  {(() => {
+                    const is9 = setup.holesPlaying === 'front9' || setup.holesPlaying === 'back9';
+                    const ratingType = setup.holesPlaying === 'front9' ? 'Front' : setup.holesPlaying === 'back9' ? 'Back' : 'Total';
+                    const tee = defaultTee;
+                    const rating = tee?.ratings?.find((r) => r.type === ratingType) || tee?.ratings?.find((r) => r.type === 'Total');
+                    return (
+                      <>
+                        <span className="font-medium text-gray-800">{is9 ? `${ratingType} 9` : '18 Holes'}</span>
+                        {tee && <span className="font-medium">{tee.name} ({tee.totalYardage} yds)</span>}
+                        {rating && <span>CR: {rating.courseRating} · Slope: {rating.slopeRating}</span>}
+                        <span>Allowance: {teamMode === 'scramble'
+                          ? ((setup.handicapAllowance ?? -1) < 0 ? 'Tiered' : `${setup.handicapAllowance}%`)
+                          : `${setup.handicapAllowance ?? 100}%`}</span>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Handicap breakdown */}
+              <div className="mt-2 rounded-lg border border-gray-200 bg-white p-3">
+                <p className="text-[10px] text-gray-500 font-medium uppercase mb-1.5">Handicap Breakdown</p>
+                {oneBall ? (
+                  <div className="space-y-3">
+                    {[
+                      { team: 'A' as const, players: sortedPlayers.filter((p) => p.team === 'A') },
+                      { team: 'B' as const, players: sortedPlayers.filter((p) => p.team === 'B') },
+                    ].filter(({ players: tp }) => tp.length > 0).map(({ team, players: tp }) => {
+                      const sorted = [...tp].sort((a, b) => getPlayerRawCourseHandicap(a) - getPlayerRawCourseHandicap(b));
+                      const isAltShot = teamMode === 'alternate-shot';
+                      const multipliers = isAltShot
+                        ? (sorted.length >= 2 ? [0.3, 0.2] : [0.5])
+                        : sorted.length === 2 ? [0.35, 0.15]
+                        : sorted.length === 3 ? [0.30, 0.20, 0.10]
+                        : [0.25, 0.20, 0.15, 0.10];
+                      const posLabels = isAltShot ? ['Low (60%×50%)', 'High (40%×50%)'] : ['A (low)', 'B', 'C', 'D (high)'];
+
+                      return (
+                        <div key={team}>
+                          <p className={`text-[11px] font-bold mb-1 ${team === 'A' ? 'text-blue-700' : 'text-red-700'}`}>
+                            {teamNames[team]} — Team Hcap: {getTeamHandicapForFormat(tp)}
+                          </p>
+                          <div className="space-y-0.5">
+                            {sorted.map((p, i) => (
+                              <div key={p.id} className="text-[11px] text-gray-600 flex flex-wrap gap-x-2">
+                                <span className="font-medium">{p.name.split(' ')[0]}</span>
+                                <span>CH: {getPlayerRawCourseHandicap(p).toFixed(1)}</span>
+                                <span>× {((multipliers[i] || 0) * 100).toFixed(0)}% ({posLabels[i] || ''})</span>
+                                <span>= {(getPlayerRawCourseHandicap(p) * (multipliers[i] || 0)).toFixed(1)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {sortedPlayers.map((player) => {
+                      const playerTee = getPlayerTee(player);
+                      const is9 = setup.holesPlaying === 'front9' || setup.holesPlaying === 'back9';
+                      const ratingType = setup.holesPlaying === 'front9' ? 'Front'
+                        : setup.holesPlaying === 'back9' ? 'Back' : 'Total';
+                      const nineHoleRating = playerTee?.ratings?.find((r) => r.type === ratingType);
+                      const totalRating = playerTee?.ratings?.find((r) => r.type === 'Total');
+                      const usedRating = (is9 ? nineHoleRating : totalRating) || totalRating;
+                      const usingFallback = is9 && !nineHoleRating;
+                      const teamColor = player.team === 'A' ? 'text-blue-700' : player.team === 'B' ? 'text-red-700' : 'text-gray-800';
+                      const indexUsed = is9 ? (player.handicapIndex ?? 0) / 2 : player.handicapIndex;
+
+                      return (
+                        <div key={player.id} className="text-[11px] text-gray-600 flex flex-wrap gap-x-3">
+                          <span className={`font-medium ${teamColor}`}>{player.name.split(' ')[0]}</span>
+                          <span>Index: {player.handicapIndex ?? '–'}{is9 ? ` (÷2=${indexUsed?.toFixed(1)})` : ''}</span>
+                          {usingFallback && <span className="text-amber-600">Using: 18-hole÷2</span>}
+                          <span>Slope: {usedRating?.slopeRating ?? '–'}</span>
+                          <span>CR: {usedRating?.courseRating ?? '–'}</span>
+                          <span>CH: {getPlayerEffectiveHcap(player).toFixed(1)}</span>
+                          <span className="font-bold">Plays: {getPlayingHandicap(player).toFixed(2)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Stroke dots table */}
               <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200 bg-white">
                 <table className="text-xs w-full">
                   <thead>
@@ -601,72 +661,6 @@ export default function PlayGamePage() {
                     )}
                   </tbody>
                 </table>
-              </div>
-              {/* Handicap calculation detail */}
-              <div className="mt-2 rounded-lg border border-gray-200 bg-white p-3">
-                <p className="text-[10px] text-gray-500 font-medium uppercase mb-1.5">Handicap Breakdown</p>
-                {oneBall ? (
-                  <div className="space-y-3">
-                    {[
-                      { team: 'A' as const, players: sortedPlayers.filter((p) => p.team === 'A') },
-                      { team: 'B' as const, players: sortedPlayers.filter((p) => p.team === 'B') },
-                    ].filter(({ players: tp }) => tp.length > 0).map(({ team, players: tp }) => {
-                      const sorted = [...tp].sort((a, b) => getPlayerRawCourseHandicap(a) - getPlayerRawCourseHandicap(b));
-                      const isAltShot = teamMode === 'alternate-shot';
-                      const multipliers = isAltShot
-                        ? (sorted.length >= 2 ? [0.3, 0.2] : [0.5])
-                        : sorted.length === 2 ? [0.35, 0.15]
-                        : sorted.length === 3 ? [0.30, 0.20, 0.10]
-                        : [0.25, 0.20, 0.15, 0.10];
-                      const posLabels = isAltShot ? ['Low (60%×50%)', 'High (40%×50%)'] : ['A (low)', 'B', 'C', 'D (high)'];
-
-                      return (
-                        <div key={team}>
-                          <p className={`text-[11px] font-bold mb-1 ${team === 'A' ? 'text-blue-700' : 'text-red-700'}`}>
-                            {teamNames[team]} — Team Hcap: {getTeamHandicapForFormat(tp)}
-                          </p>
-                          <div className="space-y-0.5">
-                            {sorted.map((p, i) => (
-                              <div key={p.id} className="text-[11px] text-gray-600 flex flex-wrap gap-x-2">
-                                <span className="font-medium">{p.name.split(' ')[0]}</span>
-                                <span>CH: {getPlayerRawCourseHandicap(p)}</span>
-                                <span>× {((multipliers[i] || 0) * 100).toFixed(0)}% ({posLabels[i] || ''})</span>
-                                <span>= {(getPlayerRawCourseHandicap(p) * (multipliers[i] || 0)).toFixed(1)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="space-y-1.5">
-                    {sortedPlayers.map((player) => {
-                      const playerTee = getPlayerTee(player);
-                      const is9 = setup.holesPlaying === 'front9' || setup.holesPlaying === 'back9';
-                      const ratingType = setup.holesPlaying === 'front9' ? 'Front'
-                        : setup.holesPlaying === 'back9' ? 'Back' : 'Total';
-                      const nineHoleRating = playerTee?.ratings?.find((r) => r.type === ratingType);
-                      const totalRating = playerTee?.ratings?.find((r) => r.type === 'Total');
-                      const usedRating = (is9 ? nineHoleRating : totalRating) || totalRating;
-                      const usingFallback = is9 && !nineHoleRating;
-                      const teamColor = player.team === 'A' ? 'text-blue-700' : player.team === 'B' ? 'text-red-700' : 'text-gray-800';
-                      const indexUsed = is9 ? (player.handicapIndex ?? 0) / 2 : player.handicapIndex;
-
-                      return (
-                        <div key={player.id} className="text-[11px] text-gray-600 flex flex-wrap gap-x-3">
-                          <span className={`font-medium ${teamColor}`}>{player.name.split(' ')[0]}</span>
-                          <span>Index: {player.handicapIndex ?? '–'}{is9 ? ` (÷2=${indexUsed?.toFixed(1)})` : ''}</span>
-                          <span>Using: {usingFallback ? 'Total÷2' : ratingType}</span>
-                          <span>Slope: {usedRating?.slopeRating ?? '–'}</span>
-                          <span>CR: {usedRating?.courseRating ?? '–'}</span>
-                          <span>CH: {getPlayerEffectiveHcap(player)}</span>
-                          <span className="font-bold">Plays: {getPlayingHandicap(player)}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             </>
           )}
