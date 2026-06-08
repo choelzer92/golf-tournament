@@ -123,7 +123,7 @@ export interface GameFormat {
   playersMin: number;
   playersMax: number;
   settings?: FormatSetting[];
-  usgaAllowanceOverride?: number;
+  usgaAllowanceOverride?: number | Partial<Record<TeamMode, number>>;
   usgaStrokeMethodOverride?: 'full' | 'off-the-low';
 }
 
@@ -205,7 +205,7 @@ export const FORMATS: GameFormat[] = [
     defaultTeamMode: 'individual',
     playersMin: 2,
     playersMax: 8,
-    usgaAllowanceOverride: 95,
+    usgaAllowanceOverride: { individual: 95, 'best-ball': 85, 'two-best-balls': 85, combined: 100 },
     usgaStrokeMethodOverride: 'full',
   },
   {
@@ -217,7 +217,7 @@ export const FORMATS: GameFormat[] = [
     defaultTeamMode: 'individual',
     playersMin: 2,
     playersMax: 8,
-    usgaAllowanceOverride: 95,
+    usgaAllowanceOverride: { individual: 95, 'best-ball': 85, 'two-best-balls': 85, combined: 100 },
     usgaStrokeMethodOverride: 'full',
     settings: [
       {
@@ -261,6 +261,23 @@ export function getTeamModeConfig(teamMode: TeamMode): TeamModeConfig {
 
 export function getUsgaAllowance(teamMode: TeamMode): number | 'tiered' {
   return getTeamModeConfig(teamMode).usgaAllowance;
+}
+
+export function resolveAllowance(format: GameFormat, teamMode: TeamMode, formatSettings?: Record<string, string | number | boolean>): number {
+  if (format.usgaAllowanceOverride) {
+    if (typeof format.usgaAllowanceOverride === 'number') return format.usgaAllowanceOverride;
+    const modeVal = format.usgaAllowanceOverride[teamMode];
+    if (modeVal !== undefined) {
+      if (teamMode === 'two-best-balls' && formatSettings) {
+        const variant = formatSettings.ballSelection as string;
+        if (variant === '1-net-1-gross') return 90;
+        if (variant === '2-best-gross') return modeVal;
+      }
+      return modeVal;
+    }
+  }
+  const tmCfg = getTeamModeConfig(teamMode);
+  return tmCfg.usgaAllowance === 'tiered' ? -1 : tmCfg.usgaAllowance;
 }
 
 export function getUsgaStrokeMethod(teamMode: TeamMode): 'full' | 'off-the-low' {

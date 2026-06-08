@@ -254,8 +254,8 @@ export default function PlayGamePage() {
 
     // USGA Tiered (default)
     const multipliers = courseHandicaps.length === 2 ? [0.35, 0.15]
-      : courseHandicaps.length === 3 ? [0.20, 0.15, 0.10]
-      : [0.20, 0.15, 0.10, 0.05];
+      : courseHandicaps.length === 3 ? [0.30, 0.20, 0.10]
+      : [0.25, 0.20, 0.15, 0.10];
 
     return Math.round(courseHandicaps.reduce((sum, hcap, i) => sum + hcap * (multipliers[i] || 0), 0));
   }
@@ -595,8 +595,8 @@ export default function PlayGamePage() {
                       const multipliers = isAltShot
                         ? (sorted.length >= 2 ? [0.3, 0.2] : [0.5])
                         : sorted.length === 2 ? [0.35, 0.15]
-                        : sorted.length === 3 ? [0.20, 0.15, 0.10]
-                        : [0.20, 0.15, 0.10, 0.05];
+                        : sorted.length === 3 ? [0.30, 0.20, 0.10]
+                        : [0.25, 0.20, 0.15, 0.10];
                       const posLabels = isAltShot ? ['Low (60%×50%)', 'High (40%×50%)'] : ['A (low)', 'B', 'C', 'D (high)'];
 
                       return (
@@ -653,17 +653,17 @@ export default function PlayGamePage() {
 
         {/* Hole navigation */}
         <div className="flex items-center justify-between mb-4">
-          <button onClick={prevHole} disabled={isFirstHole} className="px-3 py-2 rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-30 font-medium">
-            ←
+          <button onClick={prevHole} disabled={isFirstHole} className="w-12 h-12 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 disabled:opacity-30 text-xl font-bold text-gray-700">
+            ‹
           </button>
           <div className="text-center">
             <p className="text-2xl font-bold text-gray-900">Hole {currentHole}</p>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-600">
               Par {currentHoleData?.par} · {currentHoleData?.yardage} yds · Hdcp {currentHoleData?.handicap}
             </p>
           </div>
-          <button onClick={nextHole} disabled={isLastHole} className="px-3 py-2 rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-30 font-medium">
-            →
+          <button onClick={nextHole} disabled={isLastHole} className="w-12 h-12 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 disabled:opacity-30 text-xl font-bold text-gray-700">
+            ›
           </button>
         </div>
 

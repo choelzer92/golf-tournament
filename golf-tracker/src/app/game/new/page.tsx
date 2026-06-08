@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FORMATS, TEAM_MODES, getTeamModeConfig, type GameFormat, type FormatSetting, type TeamMode } from '@/lib/formats';
+import { FORMATS, TEAM_MODES, getTeamModeConfig, resolveAllowance, type GameFormat, type FormatSetting, type TeamMode } from '@/lib/formats';
 import type { Player, CourseSelection, TeeSetOption, GameSetup, StrokeMethod, HandicapBasis } from '@/lib/game-state';
 import { calcCourseHandicap } from '@/lib/game-state';
 import type { Tournament, TournamentRound, RoundMatchup } from '@/lib/tournament-state';
@@ -33,12 +33,12 @@ export default function NewGamePage() {
     const newMode = format.defaultTeamMode;
     setTeamMode(newMode);
     const tmCfg = getTeamModeConfig(newMode);
-    const allowance = format.usgaAllowanceOverride ?? (tmCfg.usgaAllowance === 'tiered' ? -1 : tmCfg.usgaAllowance);
-    setHandicapAllowance(allowance);
-    setStrokeMethod(format.usgaStrokeMethodOverride ?? tmCfg.usgaStrokeMethod);
     const defaults: Record<string, string | number | boolean> = {};
     format.settings?.forEach((s) => { defaults[s.key] = s.defaultValue; });
+    tmCfg.settings?.forEach((s) => { defaults[s.key] = s.defaultValue; });
     setFormatSettings(defaults);
+    setHandicapAllowance(resolveAllowance(format, newMode, defaults));
+    setStrokeMethod(format.usgaStrokeMethodOverride ?? tmCfg.usgaStrokeMethod);
     setStep('course');
   }
 
@@ -717,7 +717,9 @@ function SettingsStep({
   onBack: () => void;
 }) {
   function updateSetting(key: string, value: string | number | boolean) {
-    setFormatSettings({ ...formatSettings, [key]: value });
+    const newSettings = { ...formatSettings, [key]: value };
+    setFormatSettings(newSettings);
+    setHandicapAllowance(resolveAllowance(format, teamMode, newSettings));
   }
 
   return (
@@ -748,11 +750,11 @@ function SettingsStep({
                 const newMode = e.target.value as TeamMode;
                 setTeamMode(newMode);
                 const tmCfg = getTeamModeConfig(newMode);
-                setHandicapAllowance(tmCfg.usgaAllowance === 'tiered' ? -1 : tmCfg.usgaAllowance);
-                setStrokeMethod(tmCfg.usgaStrokeMethod);
-                const defaults: Record<string, string | number | boolean> = { ...formatSettings };
-                tmCfg.settings?.forEach((s) => { defaults[s.key] = s.defaultValue; });
-                setFormatSettings(defaults);
+                const newSettings: Record<string, string | number | boolean> = { ...formatSettings };
+                tmCfg.settings?.forEach((s) => { newSettings[s.key] = s.defaultValue; });
+                setFormatSettings(newSettings);
+                setHandicapAllowance(resolveAllowance(format, newMode, newSettings));
+                setStrokeMethod(format.usgaStrokeMethodOverride ?? tmCfg.usgaStrokeMethod);
               }}
               className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
             >

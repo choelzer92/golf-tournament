@@ -50,6 +50,9 @@ export default function TournamentHubPage() {
   const [editingTeams, setEditingTeams] = useState(false);
   const [teamANameEdit, setTeamANameEdit] = useState('');
   const [teamBNameEdit, setTeamBNameEdit] = useState('');
+  const [editingDisplay, setEditingDisplay] = useState(false);
+  const [displayModeEdit, setDisplayModeEdit] = useState<'points-race' | 'ryder-cup'>('points-race');
+  const [targetScoreEdit, setTargetScoreEdit] = useState('');
 
   if (!tournament) return null;
 
@@ -68,6 +71,17 @@ export default function TournamentHubPage() {
     saveTournament(updated);
     setTournament(updated);
     setEditingTeams(false);
+  }
+
+  function saveDisplaySettings() {
+    const updated: Tournament = {
+      ...tournament!,
+      displayMode: displayModeEdit,
+      targetScore: targetScoreEdit ? parseFloat(targetScoreEdit) : undefined,
+    };
+    saveTournament(updated);
+    setTournament(updated);
+    setEditingDisplay(false);
   }
 
   // Compute live provisional standings
@@ -138,16 +152,82 @@ export default function TournamentHubPage() {
               <p className="text-4xl font-bold">{liveB}</p>
             </div>
           </div>
+          {/* Target progress bar */}
+          {tournament.targetScore && tournament.targetScore > 0 && (
+            <div className="mt-4 max-w-md mx-auto">
+              <div className="relative h-2.5 bg-green-950 rounded-full overflow-hidden">
+                <div
+                  className="absolute left-0 top-0 h-full bg-blue-500 transition-all duration-500"
+                  style={{ width: `${Math.min(100, (liveA / (tournament.targetScore * 2)) * 100)}%` }}
+                />
+                <div
+                  className="absolute right-0 top-0 h-full bg-red-500 transition-all duration-500"
+                  style={{ width: `${Math.min(100, (liveB / (tournament.targetScore * 2)) * 100)}%` }}
+                />
+                <div className="absolute top-0 h-full w-0.5 bg-yellow-400" style={{ left: '50%' }} />
+              </div>
+              <div className="flex justify-between mt-1 text-xs">
+                <span className={`font-medium ${liveA >= tournament.targetScore ? 'text-yellow-300' : 'text-green-300'}`}>
+                  {liveA >= tournament.targetScore ? 'WINS' : `needs ${tournament.targetScore - liveA}`}
+                </span>
+                <span className="text-green-500">{tournament.targetScore} to win</span>
+                <span className={`font-medium ${liveB >= tournament.targetScore ? 'text-yellow-300' : 'text-green-300'}`}>
+                  {liveB >= tournament.targetScore ? 'WINS' : `needs ${tournament.targetScore - liveB}`}
+                </span>
+              </div>
+            </div>
+          )}
+
           {editingTeams ? (
             <div className="flex justify-center gap-2 mt-2">
               <button onClick={saveTeamNames} className="text-xs bg-green-600 hover:bg-green-500 px-3 py-1 rounded">Save</button>
               <button onClick={() => setEditingTeams(false)} className="text-xs text-green-300 hover:text-white px-3 py-1">Cancel</button>
             </div>
           ) : (
-            <button onClick={() => setEditingTeams(true)} className="block mx-auto mt-2 text-xs text-green-400 hover:text-white">
-              Edit team names
-            </button>
+            <div className="flex justify-center gap-3 mt-2">
+              <button onClick={() => { setTeamANameEdit(teamA.name); setTeamBNameEdit(teamB.name); setEditingTeams(true); }} className="text-xs text-green-400 hover:text-white">
+                Edit team names
+              </button>
+              <button onClick={() => { setDisplayModeEdit(tournament.displayMode || 'points-race'); setTargetScoreEdit(tournament.targetScore ? String(tournament.targetScore) : ''); setEditingDisplay(true); }} className="text-xs text-green-400 hover:text-white">
+                Display settings
+              </button>
+            </div>
           )}
+
+          {editingDisplay && (
+            <div className="mt-3 bg-gray-800 border border-green-600 rounded-lg p-3 max-w-sm mx-auto">
+              <div className="flex gap-2 mb-2">
+                <button
+                  onClick={() => setDisplayModeEdit('points-race')}
+                  className={`flex-1 text-xs py-1.5 rounded ${displayModeEdit === 'points-race' ? 'bg-green-600 text-white' : 'bg-green-800 text-green-300'}`}
+                >
+                  Points Race
+                </button>
+                <button
+                  onClick={() => setDisplayModeEdit('ryder-cup')}
+                  className={`flex-1 text-xs py-1.5 rounded ${displayModeEdit === 'ryder-cup' ? 'bg-green-600 text-white' : 'bg-green-800 text-green-300'}`}
+                >
+                  Ryder Cup
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-green-300">Target:</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={targetScoreEdit}
+                  onChange={(e) => setTargetScoreEdit(e.target.value)}
+                  placeholder={displayModeEdit === 'ryder-cup' ? '16.5' : '70.5'}
+                  className="w-20 text-xs bg-green-800 border border-green-600 rounded px-2 py-1 text-white"
+                />
+              </div>
+              <div className="flex justify-center gap-2 mt-2">
+                <button onClick={saveDisplaySettings} className="text-xs bg-green-600 hover:bg-green-500 px-3 py-1 rounded text-white">Save</button>
+                <button onClick={() => setEditingDisplay(false)} className="text-xs text-green-300 hover:text-white px-3 py-1">Cancel</button>
+              </div>
+            </div>
+          )}
+
           <div className="text-center mt-4 flex items-center justify-center gap-3">
             <button
               onClick={() => router.push(`/tournament/${id}/scoreboard`)}

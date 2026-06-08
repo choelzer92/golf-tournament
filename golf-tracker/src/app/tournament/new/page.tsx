@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FORMATS, TEAM_MODES, getTeamModeConfig } from '@/lib/formats';
+import { FORMATS, TEAM_MODES, getTeamModeConfig, resolveAllowance } from '@/lib/formats';
 import type { TeamMode } from '@/lib/formats';
 import type { Player, CourseSelection, TeeSetOption } from '@/lib/game-state';
-import type { Tournament, TournamentRound, Team } from '@/lib/tournament-state';
+import type { Tournament, TournamentRound, Team, DisplayMode } from '@/lib/tournament-state';
 import { saveTournament } from '@/lib/tournament-state';
 
 const WIZARD_KEY = 'tournament_wizard_draft';
@@ -24,6 +24,8 @@ export default function NewTournamentPage() {
   const [name, setName] = useState('');
   const [teamAName, setTeamAName] = useState('Team A');
   const [teamBName, setTeamBName] = useState('Team B');
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('points-race');
+  const [targetScore, setTargetScore] = useState<string>('');
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [teamAssignments, setTeamAssignments] = useState<Record<string, 'A' | 'B'>>({});
@@ -39,6 +41,8 @@ export default function NewTournamentPage() {
         if (data.name) setName(data.name);
         if (data.teamAName) setTeamAName(data.teamAName);
         if (data.teamBName) setTeamBName(data.teamBName);
+        if (data.displayMode) setDisplayMode(data.displayMode);
+        if (data.targetScore) setTargetScore(data.targetScore);
         if (data.players) setPlayers(data.players);
         if (data.teamAssignments) setTeamAssignments(data.teamAssignments);
         if (data.rounds) setRounds(data.rounds);
@@ -52,9 +56,9 @@ export default function NewTournamentPage() {
   useEffect(() => {
     if (!hydrated) return;
     sessionStorage.setItem(WIZARD_KEY, JSON.stringify({
-      name, teamAName, teamBName, players, teamAssignments, rounds, step,
+      name, teamAName, teamBName, displayMode, targetScore, players, teamAssignments, rounds, step,
     }));
-  }, [hydrated, name, teamAName, teamBName, players, teamAssignments, rounds, step]);
+  }, [hydrated, name, teamAName, teamBName, displayMode, targetScore, players, teamAssignments, rounds, step]);
 
   function createTournament() {
     const id = crypto.randomUUID();
@@ -65,18 +69,26 @@ export default function NewTournamentPage() {
       id,
       name: name || 'My Tournament',
       mode: 'team-event',
+      displayMode: displayMode || 'points-race',
+      targetScore: targetScore ? parseFloat(targetScore) : undefined,
       players,
       teams: [
         { id: 'team-a', name: teamAName, playerIds: teamAPlayerIds },
         { id: 'team-b', name: teamBName, playerIds: teamBPlayerIds },
       ],
-      rounds: rounds.map((r, i) => ({
-        ...r,
-        order: i,
-        matchups: [],
-        bonuses: (r as any).bonuses || [],
-        status: 'pending' as const,
-      })),
+      rounds: rounds.map((r, i) => {
+        const existingBonuses = (r as any).bonuses || [];
+        const bonuses = displayMode === 'ryder-cup' && !existingBonuses.some((b: any) => b.type === 'match-winner')
+          ? [...existingBonuses, { id: crypto.randomUUID(), type: 'match-winner', name: 'Match Winner', scope: 'per-matchup', points: 1 }]
+          : existingBonuses;
+        return {
+          ...r,
+          order: i,
+          matchups: [],
+          bonuses,
+          status: 'pending' as const,
+        };
+      }),
       status: 'active',
     };
 
@@ -107,6 +119,10 @@ export default function NewTournamentPage() {
             setTeamAName={setTeamAName}
             teamBName={teamBName}
             setTeamBName={setTeamBName}
+            displayMode={displayMode}
+            setDisplayMode={setDisplayMode}
+            targetScore={targetScore}
+            setTargetScore={setTargetScore}
             onNext={() => setStep('roster')}
           />
         )}
@@ -128,6 +144,7 @@ export default function NewTournamentPage() {
           <ScheduleStep
             rounds={rounds}
             setRounds={setRounds}
+            displayMode={displayMode}
             onNext={() => setStep('review')}
             onBack={() => setStep('roster')}
           />
@@ -166,7 +183,7 @@ function StepIndicator({ current }: { current: Step }) {
           <span className={`px-2 py-1 rounded ${i <= currentIdx ? 'bg-green-700 text-white' : 'bg-gray-200 text-gray-500'}`}>
             {s.label}
           </span>
-          {i < steps.length - 1 && <span className="text-gray-300">&rarr;</span>}
+          {i < steps.length - 1 && <span className="text-gray-400">&rarr;</span>}
         </div>
       ))}
     </div>
@@ -174,11 +191,14 @@ function StepIndicator({ current }: { current: Step }) {
 }
 
 function DetailsStep({
-  name, setName, teamAName, setTeamAName, teamBName, setTeamBName, onNext,
+  name, setName, teamAName, setTeamAName, teamBName, setTeamBName,
+  displayMode, setDisplayMode, targetScore, setTargetScore, onNext,
 }: {
   name: string; setName: (s: string) => void;
   teamAName: string; setTeamAName: (s: string) => void;
   teamBName: string; setTeamBName: (s: string) => void;
+  displayMode: DisplayMode; setDisplayMode: (m: DisplayMode) => void;
+  targetScore: string; setTargetScore: (s: string) => void;
   onNext: () => void;
 }) {
   return (
@@ -187,7 +207,7 @@ function DetailsStep({
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Tournament Name</label>
+          <label className="block text-sm font-medium text-gray-800 mb-1">Tournament Name</label>
           <input
             type="text"
             value={name}
@@ -198,10 +218,10 @@ function DetailsStep({
         </div>
 
         <div className="pt-2 border-t">
-          <p className="text-sm font-medium text-gray-700 mb-3">Teams</p>
+          <p className="text-sm font-semibold text-gray-800 mb-3">Teams</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Team 1</label>
+              <label className="block text-xs text-gray-600 font-medium mb-1">Team 1</label>
               <input
                 type="text"
                 value={teamAName}
@@ -210,7 +230,7 @@ function DetailsStep({
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Team 2</label>
+              <label className="block text-xs text-gray-600 font-medium mb-1">Team 2</label>
               <input
                 type="text"
                 value={teamBName}
@@ -222,9 +242,53 @@ function DetailsStep({
         </div>
 
         <div className="pt-2 border-t">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm font-semibold text-gray-800 mb-3">Display Style</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setDisplayMode('points-race')}
+              className={`rounded-lg border-2 p-3 text-left transition ${
+                displayMode === 'points-race'
+                  ? 'border-green-600 bg-green-50'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <p className="text-sm font-medium text-gray-900">Points Race</p>
+              <p className="text-xs text-gray-500 mt-0.5">Variable points per match, bonuses, margins</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDisplayMode('ryder-cup')}
+              className={`rounded-lg border-2 p-3 text-left transition ${
+                displayMode === 'ryder-cup'
+                  ? 'border-green-600 bg-green-50'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <p className="text-sm font-medium text-gray-900">Ryder Cup</p>
+              <p className="text-xs text-gray-500 mt-0.5">1 pt per match win, match-play status display</p>
+            </button>
+          </div>
+
+          <div className="mt-3">
+            <label className="block text-xs text-gray-600 font-medium mb-1">
+              Target Score {displayMode === 'ryder-cup' ? '(first to this wins)' : '(optional)'}
+            </label>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={targetScore}
+              onChange={(e) => setTargetScore(e.target.value)}
+              placeholder={displayMode === 'ryder-cup' ? 'e.g. 16.5' : 'e.g. 70.5'}
+              className="w-32 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            />
+          </div>
+        </div>
+
+        <div className="pt-2 border-t">
+          <p className="text-sm text-gray-600">
             Mode: <span className="font-medium text-gray-900">Team Event</span>
-            <span className="ml-2 text-xs text-gray-400">(Flight Bracket coming soon)</span>
+            <span className="ml-2 text-xs text-gray-500">(Flight Bracket coming soon)</span>
           </p>
         </div>
       </div>
@@ -329,7 +393,7 @@ function RosterStep({
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Add Players ({players.length})</h2>
 
       <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <p className="text-sm font-medium text-gray-700 mb-2">Add by GHIN #</p>
+        <p className="text-sm font-semibold text-gray-800 mb-2">Add by GHIN #</p>
         <div className="flex gap-2">
           <input
             type="text"
@@ -349,7 +413,7 @@ function RosterStep({
         </div>
 
         <div className="mt-3 pt-3 border-t">
-          <p className="text-sm font-medium text-gray-700 mb-2">Or add manually</p>
+          <p className="text-sm font-semibold text-gray-800 mb-2">Or add manually</p>
           <div className="flex gap-2">
             <input
               type="text"
@@ -451,10 +515,11 @@ function RosterStep({
 }
 
 function ScheduleStep({
-  rounds, setRounds, onNext, onBack,
+  rounds, setRounds, displayMode, onNext, onBack,
 }: {
   rounds: Omit<TournamentRound, 'matchups' | 'status' | 'bonuses'>[];
   setRounds: (r: Omit<TournamentRound, 'matchups' | 'status' | 'bonuses'>[]) => void;
+  displayMode: DisplayMode;
   onNext: () => void; onBack: () => void;
 }) {
   const [showAddForm, setShowAddForm] = useState(false);
@@ -501,6 +566,7 @@ function ScheduleStep({
           onAdd={addRound}
           onCancel={() => setShowAddForm(false)}
           roundOrder={rounds.length}
+          displayMode={displayMode}
         />
       ) : (
         <button
@@ -523,20 +589,22 @@ function ScheduleStep({
 }
 
 function AddRoundForm({
-  onAdd, onCancel, roundOrder,
+  onAdd, onCancel, roundOrder, displayMode,
 }: {
   onAdd: (r: Omit<TournamentRound, 'matchups' | 'status' | 'bonuses'>) => void;
   onCancel: () => void;
   roundOrder: number;
+  displayMode: DisplayMode;
 }) {
+  const isRyderCupMode = displayMode === 'ryder-cup';
   const [dayLabel, setDayLabel] = useState('Day 1');
   const [formatId, setFormatId] = useState('match-play');
   const [teamMode, setTeamMode] = useState<TeamMode>(FORMATS.find((f) => f.id === 'match-play')!.defaultTeamMode);
   const [holesPlaying, setHolesPlaying] = useState<'18' | 'front9' | 'back9'>('18');
   const [groupingMode, setGroupingMode] = useState<'cross-team' | 'same-team'>('cross-team');
   const [scoringMethod, setScoringMethod] = useState<'match-play' | 'stroke-play'>('match-play');
-  const [pointsForWin, setPointsForWin] = useState(2);
-  const [pointsForTie, setPointsForTie] = useState(1);
+  const [pointsForWin, setPointsForWin] = useState(isRyderCupMode ? 0 : 2);
+  const [pointsForTie, setPointsForTie] = useState(isRyderCupMode ? 0 : 1);
   const [pointsForLoss, setPointsForLoss] = useState(0);
   const [course, setCourse] = useState<CourseSelection | null>(null);
   const [showCourseSearch, setShowCourseSearch] = useState(false);
@@ -557,14 +625,16 @@ function AddRoundForm({
     if (f) {
       const newMode = f.defaultTeamMode;
       setTeamMode(newMode);
-      const tmCfg = getTeamModeConfig(newMode);
-      const allowance = f.usgaAllowanceOverride ?? (tmCfg.usgaAllowance === 'tiered' ? -1 : tmCfg.usgaAllowance);
-      setHandicapAllowance(allowance);
-      setScoringMethod(f.scoringType === 'hole-by-hole' ? 'match-play' : 'stroke-play');
-      setStrokeMethod(f.usgaStrokeMethodOverride ?? tmCfg.usgaStrokeMethod);
       const defaults: Record<string, string | number | boolean> = {};
       f.settings?.forEach((s) => { defaults[s.key] = s.defaultValue; });
-      setFormatSettings(defaults);
+      const tmCfg = getTeamModeConfig(newMode);
+      const modeDefaults: Record<string, string | number | boolean> = {};
+      tmCfg.settings?.forEach((s) => { modeDefaults[s.key] = s.defaultValue; });
+      const combinedSettings = { ...defaults, ...modeDefaults };
+      setHandicapAllowance(resolveAllowance(f, newMode, combinedSettings));
+      setScoringMethod(f.scoringType === 'hole-by-hole' ? 'match-play' : 'stroke-play');
+      setStrokeMethod(f.usgaStrokeMethodOverride ?? tmCfg.usgaStrokeMethod);
+      setFormatSettings(combinedSettings);
     }
   }
 
@@ -606,7 +676,7 @@ function AddRoundForm({
       </div>
 
       <div>
-        <label className="block text-xs text-gray-500 mb-1">Day / Label</label>
+        <label className="block text-xs text-gray-600 font-medium mb-1">Day / Label</label>
         <input
           type="text"
           value={dayLabel}
@@ -616,7 +686,7 @@ function AddRoundForm({
       </div>
 
       <div>
-        <label className="block text-xs text-gray-500 mb-1">Format</label>
+        <label className="block text-xs text-gray-600 font-medium mb-1">Format</label>
         <select
           value={formatId}
           onChange={(e) => handleFormatChange(e.target.value)}
@@ -629,7 +699,7 @@ function AddRoundForm({
       </div>
 
       <div>
-        <label className="block text-xs text-gray-500 mb-1">Holes</label>
+        <label className="block text-xs text-gray-600 font-medium mb-1">Holes</label>
         <select
           value={holesPlaying}
           onChange={(e) => setHolesPlaying(e.target.value as '18' | 'front9' | 'back9')}
@@ -642,7 +712,7 @@ function AddRoundForm({
       </div>
 
       <div>
-        <label className="block text-xs text-gray-500 mb-1">Scoring</label>
+        <label className="block text-xs text-gray-600 font-medium mb-1">Scoring</label>
         <select
           value={scoringMethod}
           onChange={(e) => setScoringMethod(e.target.value as 'match-play' | 'stroke-play')}
@@ -653,9 +723,16 @@ function AddRoundForm({
         </select>
       </div>
 
+      {isRyderCupMode && (
+        <div className="rounded-md bg-green-50 border border-green-200 px-3 py-2">
+          <p className="text-xs text-green-800 font-medium">Ryder Cup scoring: 1 pt per match won, 0.5 per halve</p>
+          <p className="text-[10px] text-green-600 mt-0.5">Per-hole points set to 0. Match winner bonus added automatically.</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-2">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Win pts</label>
+          <label className="block text-xs text-gray-600 font-medium mb-1">Win pts</label>
           <input
             type="number"
             step="0.5"
@@ -665,7 +742,7 @@ function AddRoundForm({
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Tie pts</label>
+          <label className="block text-xs text-gray-600 font-medium mb-1">Tie pts</label>
           <input
             type="number"
             step="0.5"
@@ -675,7 +752,7 @@ function AddRoundForm({
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Loss pts</label>
+          <label className="block text-xs text-gray-600 font-medium mb-1">Loss pts</label>
           <input
             type="number"
             step="0.5"
@@ -702,7 +779,7 @@ function AddRoundForm({
 
       {course && course.teeSets.length > 0 && (
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Default Tees</label>
+          <label className="block text-xs text-gray-600 font-medium mb-1">Default Tees</label>
           <select
             value={defaultTeeId || ''}
             onChange={(e) => setDefaultTeeId(Number(e.target.value))}
@@ -716,7 +793,7 @@ function AddRoundForm({
       )}
 
       <div className="pt-2 border-t">
-        <p className="text-xs font-medium text-gray-700 mb-2">Team Mode & Handicap</p>
+        <p className="text-xs font-semibold text-gray-700 mb-2">Team Mode & Handicap</p>
         {(() => {
           const tmCfg = getTeamModeConfig(teamMode);
           const usgaAllow = tmCfg.usgaAllowance;
@@ -753,18 +830,19 @@ function AddRoundForm({
           if (!fmt || fmt.allowedTeamModes.length <= 1) return null;
           return (
             <div className="mb-2">
-              <label className="block text-xs text-gray-500 mb-1">Team Mode</label>
+              <label className="block text-xs text-gray-600 font-medium mb-1">Team Mode</label>
               <select
                 value={teamMode}
                 onChange={(e) => {
                   const newMode = e.target.value as TeamMode;
                   setTeamMode(newMode);
                   const tmCfg = getTeamModeConfig(newMode);
-                  setHandicapAllowance(tmCfg.usgaAllowance === 'tiered' ? -1 : tmCfg.usgaAllowance);
-                  setStrokeMethod(tmCfg.usgaStrokeMethod);
+                  const f = FORMATS.find((fmt) => fmt.id === formatId);
                   const newSettings = { ...formatSettings };
                   tmCfg.settings?.forEach((s) => { newSettings[s.key] = s.defaultValue; });
                   setFormatSettings(newSettings);
+                  setHandicapAllowance(f ? resolveAllowance(f, newMode, newSettings) : (tmCfg.usgaAllowance === 'tiered' ? -1 : tmCfg.usgaAllowance));
+                  setStrokeMethod(f?.usgaStrokeMethodOverride ?? tmCfg.usgaStrokeMethod);
                 }}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
               >
@@ -783,10 +861,15 @@ function AddRoundForm({
           if (!tmCfg.settings?.length) return null;
           return tmCfg.settings.map((setting) => (
             <div key={setting.key} className="mb-2">
-              <label className="block text-xs text-gray-500 mb-1">{setting.label}</label>
+              <label className="block text-xs text-gray-600 font-medium mb-1">{setting.label}</label>
               <select
                 value={(formatSettings[setting.key] as string) ?? setting.defaultValue}
-                onChange={(e) => setFormatSettings({ ...formatSettings, [setting.key]: e.target.value })}
+                onChange={(e) => {
+                  const newSettings = { ...formatSettings, [setting.key]: e.target.value };
+                  setFormatSettings(newSettings);
+                  const f = FORMATS.find((fmt) => fmt.id === formatId);
+                  if (f) setHandicapAllowance(resolveAllowance(f, teamMode, newSettings));
+                }}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
               >
                 {setting.options.map((opt) => (
@@ -803,7 +886,7 @@ function AddRoundForm({
           if (!fmt?.settings?.length) return null;
           return fmt.settings.map((setting) => (
             <div key={setting.key} className="mb-2">
-              <label className="block text-xs text-gray-500 mb-1">{setting.label}</label>
+              <label className="block text-xs text-gray-600 font-medium mb-1">{setting.label}</label>
               {setting.type === 'select' && setting.options && (
                 <select
                   value={(formatSettings[setting.key] as string) ?? setting.defaultValue}
@@ -856,7 +939,7 @@ function AddRoundForm({
 
         <div className="grid grid-cols-3 gap-2">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Allowance</label>
+            <label className="block text-xs text-gray-600 font-medium mb-1">Allowance</label>
             <select
               value={handicapAllowance}
               onChange={(e) => setHandicapAllowance(Number(e.target.value))}
@@ -869,7 +952,7 @@ function AddRoundForm({
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Strokes</label>
+            <label className="block text-xs text-gray-600 font-medium mb-1">Strokes</label>
             <select
               value={strokeMethod}
               onChange={(e) => setStrokeMethod(e.target.value as 'full' | 'off-the-low')}
@@ -880,7 +963,7 @@ function AddRoundForm({
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Basis</label>
+            <label className="block text-xs text-gray-600 font-medium mb-1">Basis</label>
             <select
               value={handicapBasis}
               onChange={(e) => setHandicapBasis(e.target.value as 'course' | 'index')}
@@ -1123,7 +1206,7 @@ function ReviewStep({
         </div>
 
         <div className="pt-2 border-t">
-          <p className="text-sm font-medium text-gray-700 mb-2">Schedule ({rounds.length} rounds)</p>
+          <p className="text-sm font-semibold text-gray-800 mb-2">Schedule ({rounds.length} rounds)</p>
           {rounds.map((round) => {
             const format = FORMATS.find((f) => f.id === round.formatId);
             return (

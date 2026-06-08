@@ -5,8 +5,8 @@ import { useRouter, useParams } from 'next/navigation';
 import type { GameScore } from '@/lib/game-state';
 import type { Tournament, TournamentRound, RoundMatchup } from '@/lib/tournament-state';
 import { loadTournament, loadGameScores, fetchGameScores, computeStandings, fetchTournament, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
-import { computeLiveMatchStatus, computeSplitMatchStatuses, computeNassauStatus, computeHoleWinners, getHoleDataForRound, getPlayerStrokesForHole, computePlayerStablefordPoints, recomputeMatchResult, getTeamStablefordForHole } from '@/lib/live-scoring';
-import type { NassauStatus, HoleWinner, SplitMatchup } from '@/lib/live-scoring';
+import { computeLiveMatchStatus, computeSplitMatchStatuses, computeNassauStatus, computeHoleWinners, getHoleDataForRound, getPlayerStrokesForHole, computePlayerStablefordPoints, recomputeMatchResult, getTeamStablefordForHole, computeMatchPlayStatusText } from '@/lib/live-scoring';
+import type { LiveMatchStatus } from '@/lib/live-scoring';
 import { resolveStablefordScale } from '@/lib/formats';
 
 export default function ScoreboardPage() {
@@ -86,8 +86,33 @@ export default function ScoreboardPage() {
     }
   }
 
+  // Projected score for Ryder Cup: finalized + project live matches (leader wins, AS = halve)
+  let projectedA = standings.teamAPoints;
+  let projectedB = standings.teamBPoints;
+  if (tournament.displayMode === 'ryder-cup') {
+    for (const round of tournament.rounds) {
+      for (const matchup of round.matchups) {
+        if (matchup.result) continue; // already in standings
+        const scores = loadGameScores(matchup.id);
+        if (!scores || !Array.isArray(scores) || scores.length === 0) {
+          // Not started — don't project
+          continue;
+        }
+        const status = computeLiveMatchStatus(scores, matchup, round, tournament);
+        if (!status || status.thru === 0) continue;
+        const diff = status.holesWonA - status.holesWonB;
+        if (diff > 0) projectedA += 1;
+        else if (diff < 0) projectedB += 1;
+        else { projectedA += 0.5; projectedB += 0.5; }
+      }
+    }
+  }
+
   const activeRounds = tournament.rounds.filter((r) => r.status === 'in-progress');
   const completedRounds = tournament.rounds.filter((r) => r.status === 'completed');
+
+  const isRyderCup = tournament.displayMode === 'ryder-cup';
+  const target = tournament.targetScore;
 
   return (
     <div className="min-h-full bg-gray-900">
@@ -114,40 +139,359 @@ export default function ScoreboardPage() {
               <p className="text-5xl font-black text-white">{liveB}</p>
             </div>
           </div>
-          {liveA !== liveB && (
+
+          {/* Target progress bar */}
+          {target && target > 0 && (
+            <div className="mt-4">
+              <div className="relative h-3 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="absolute left-0 top-0 h-full bg-blue-500 transition-all duration-500"
+                  style={{ width: `${Math.min(100, (liveA / (target * 2)) * 100)}%` }}
+                />
+                <div
+                  className="absolute right-0 top-0 h-full bg-red-500 transition-all duration-500"
+                  style={{ width: `${Math.min(100, (liveB / (target * 2)) * 100)}%` }}
+                />
+                <div
+                  className="absolute top-0 h-full w-0.5 bg-yellow-400"
+                  style={{ left: '50%' }}
+                />
+              </div>
+              <div className="flex justify-between mt-1.5 text-xs">
+                <span className={`font-medium ${liveA >= target ? 'text-yellow-300' : 'text-blue-300'}`}>
+                  {liveA >= target ? 'WINS' : `needs ${target - liveA}`}
+                </span>
+                <span className="text-gray-500">{target} to win</span>
+                <span className={`font-medium ${liveB >= target ? 'text-yellow-300' : 'text-red-300'}`}>
+                  {liveB >= target ? 'WINS' : `needs ${target - liveB}`}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {!target && liveA !== liveB && (
             <p className="text-center text-green-400 text-sm mt-2 font-medium">
               {liveA > liveB ? teamA.name : teamB.name} leads by {Math.abs(liveA - liveB)}
               {hasLiveMatches && ' (provisional)'}
             </p>
           )}
+
+          {/* Projected score for Ryder Cup */}
+          {isRyderCup && hasLiveMatches && (projectedA !== standings.teamAPoints || projectedB !== standings.teamBPoints) && (
+            <div className="mt-3 text-center">
+              <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Projected</p>
+              <p className="text-lg font-bold">
+                <span className="text-blue-300">{projectedA}</span>
+                <span className="text-gray-500 mx-2">—</span>
+                <span className="text-red-300">{projectedB}</span>
+              </p>
+              <p className="text-[10px] text-gray-500">if all current leads hold</p>
+            </div>
+          )}
         </div>
       </div>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Active rounds — show first */}
-        {activeRounds.map((round) => (
-          <div key={round.id} className="space-y-3">
-            <RoundScoreboard round={round} tournament={tournament} scoreTick={scoreTick} />
-            {round.bonuses.some((b) => b.type.startsWith('nassau')) && (
-              <NassauPanel round={round} tournament={tournament} />
+        {isRyderCup ? (
+          <>
+            {activeRounds.map((round) => (
+              <RyderCupRoundPanel key={round.id} round={round} tournament={tournament} />
+            ))}
+            {completedRounds.map((round) => (
+              <RyderCupRoundPanel key={round.id} round={round} tournament={tournament} />
+            ))}
+            {activeRounds.length === 0 && completedRounds.length === 0 && (
+              <p className="text-center text-gray-500 py-8">No matches in progress or completed yet.</p>
             )}
-          </div>
-        ))}
-
-        {/* Completed rounds */}
-        {completedRounds.map((round) => (
-          <div key={round.id} className="space-y-3">
-            <RoundScoreboard round={round} tournament={tournament} scoreTick={scoreTick} />
-            {round.bonuses.some((b) => b.type.startsWith('nassau')) && (
-              <NassauPanel round={round} tournament={tournament} />
+          </>
+        ) : (
+          <>
+            {activeRounds.map((round) => (
+              <div key={round.id} className="space-y-3">
+                <RoundScoreboard round={round} tournament={tournament} scoreTick={scoreTick} />
+                {round.bonuses.some((b) => b.type.startsWith('nassau')) && (
+                  <NassauPanel round={round} tournament={tournament} />
+                )}
+              </div>
+            ))}
+            {completedRounds.map((round) => (
+              <div key={round.id} className="space-y-3">
+                <RoundScoreboard round={round} tournament={tournament} scoreTick={scoreTick} />
+                {round.bonuses.some((b) => b.type.startsWith('nassau')) && (
+                  <NassauPanel round={round} tournament={tournament} />
+                )}
+              </div>
+            ))}
+            {activeRounds.length === 0 && completedRounds.length === 0 && (
+              <p className="text-center text-gray-500 py-8">No matches in progress or completed yet.</p>
             )}
-          </div>
-        ))}
-
-        {activeRounds.length === 0 && completedRounds.length === 0 && (
-          <p className="text-center text-gray-500 py-8">No matches in progress or completed yet.</p>
+          </>
         )}
       </main>
+    </div>
+  );
+}
+
+function RyderCupRoundPanel({ round, tournament }: { round: TournamentRound; tournament: Tournament }) {
+  const teamA = tournament.teams[0];
+  const teamB = tournament.teams[1];
+  const holeData = getHoleDataForRound(round);
+  const totalHoles = holeData.length;
+
+  let roundPtsA = 0;
+  let roundPtsB = 0;
+
+  const matchRows = round.matchups.map((matchup) => {
+    const teamAPlayers = tournament.players.filter((p) => matchup.teamAPlayerIds.includes(p.id));
+    const teamBPlayers = tournament.players.filter((p) => matchup.teamBPlayerIds.includes(p.id));
+    const scores = loadGameScores(matchup.id);
+
+    let status: LiveMatchStatus | null = null;
+    let statusText: ReturnType<typeof computeMatchPlayStatusText> | null = null;
+    let pointResult: 'A' | 'B' | 'halved' | 'live' | 'pending' = 'pending';
+
+    if (matchup.result) {
+      if (matchup.result.pointsTeamA > matchup.result.pointsTeamB) {
+        pointResult = 'A';
+        roundPtsA += matchup.result.pointsTeamA;
+        roundPtsB += matchup.result.pointsTeamB;
+      } else if (matchup.result.pointsTeamB > matchup.result.pointsTeamA) {
+        pointResult = 'B';
+        roundPtsA += matchup.result.pointsTeamA;
+        roundPtsB += matchup.result.pointsTeamB;
+      } else {
+        pointResult = 'halved';
+        roundPtsA += matchup.result.pointsTeamA;
+        roundPtsB += matchup.result.pointsTeamB;
+      }
+
+      // Reconstruct status from summary for final display
+      if (scores && Array.isArray(scores) && scores.length > 0) {
+        status = computeLiveMatchStatus(scores, matchup, round, tournament);
+      }
+      if (status) {
+        statusText = computeMatchPlayStatusText(status, totalHoles, true);
+      } else {
+        // Fallback: parse from result
+        statusText = { text: matchup.result.summary || 'W', leadingTeam: pointResult === 'A' ? 'A' : pointResult === 'B' ? 'B' : null, isFinal: true };
+      }
+    } else if (matchup.gameId && scores && Array.isArray(scores) && scores.length > 0) {
+      status = computeLiveMatchStatus(scores, matchup, round, tournament);
+      if (status) {
+        statusText = computeMatchPlayStatusText(status, totalHoles, false);
+        pointResult = 'live';
+      }
+    }
+
+    return { matchup, teamAPlayers, teamBPlayers, status, statusText, pointResult, scores };
+  });
+
+  return (
+    <div className="bg-gray-800 rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+        <div>
+          <p className="text-white font-bold text-sm">{round.dayLabel}</p>
+          <p className="text-gray-400 text-xs">
+            {round.matchups.length} match{round.matchups.length !== 1 ? 'es' : ''}
+            {' · '}{round.holesPlaying === '18' ? '18 holes' : '9 holes'}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className={`text-xs px-2 py-0.5 rounded-full ${
+            round.status === 'in-progress' ? 'bg-yellow-500/20 text-yellow-300' : round.status === 'completed' ? 'bg-green-500/20 text-green-300' : 'bg-gray-600/20 text-gray-400'
+          }`}>
+            {round.status === 'in-progress' ? 'LIVE' : round.status === 'completed' ? 'FINAL' : 'PENDING'}
+          </span>
+          {(roundPtsA > 0 || roundPtsB > 0) && (
+            <span className="text-sm font-bold text-gray-300">
+              <span className="text-blue-300">{roundPtsA}</span> — <span className="text-red-300">{roundPtsB}</span>
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="divide-y divide-gray-700/50">
+        {matchRows.map(({ matchup, teamAPlayers, teamBPlayers, status, statusText, pointResult, scores }) => (
+          <RyderCupMatchRow
+            key={matchup.id}
+            matchup={matchup}
+            teamAPlayers={teamAPlayers}
+            teamBPlayers={teamBPlayers}
+            teamAName={teamA.name}
+            teamBName={teamB.name}
+            status={status}
+            statusText={statusText}
+            pointResult={pointResult}
+            thru={status?.thru ?? 0}
+            totalHoles={totalHoles}
+            round={round}
+            tournament={tournament}
+            scores={scores}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RyderCupMatchRow({
+  matchup, teamAPlayers, teamBPlayers, teamAName, teamBName,
+  status, statusText, pointResult, thru, totalHoles, round, tournament, scores,
+}: {
+  matchup: RoundMatchup;
+  teamAPlayers: { id: string; name: string }[];
+  teamBPlayers: { id: string; name: string }[];
+  teamAName: string;
+  teamBName: string;
+  status: LiveMatchStatus | null;
+  statusText: ReturnType<typeof computeMatchPlayStatusText> | null;
+  pointResult: 'A' | 'B' | 'halved' | 'live' | 'pending';
+  thru: number;
+  totalHoles: number;
+  round: TournamentRound;
+  tournament: Tournament;
+  scores: GameScore[] | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const holeData = getHoleDataForRound(round);
+
+  const teamANames = teamAPlayers.map((p) => p.name.split(' ')[0]).join('/');
+  const teamBNames = teamBPlayers.map((p) => p.name.split(' ')[0]).join('/');
+
+  // Point indicator
+  const pointIndicator = pointResult === 'A'
+    ? <span className="w-3 h-3 rounded-full bg-blue-500" />
+    : pointResult === 'B'
+    ? <span className="w-3 h-3 rounded-full bg-red-500" />
+    : pointResult === 'halved'
+    ? <span className="w-3 h-3 rounded-full bg-gray-400 ring-1 ring-inset ring-gray-300" style={{ background: 'linear-gradient(135deg, #3b82f6 50%, #ef4444 50%)' }} />
+    : pointResult === 'live'
+    ? <span className="w-3 h-3 rounded-full bg-yellow-500 animate-pulse" />
+    : <span className="w-3 h-3 rounded-full bg-gray-700 border border-gray-600" />;
+
+  // Status badge
+  let badgeColor = 'bg-gray-700 text-gray-400';
+  let badgeText = '-';
+  if (statusText) {
+    if (statusText.isFinal) {
+      if (statusText.leadingTeam === 'A') badgeColor = 'bg-blue-900/60 text-blue-300';
+      else if (statusText.leadingTeam === 'B') badgeColor = 'bg-red-900/60 text-red-300';
+      else badgeColor = 'bg-gray-700 text-gray-300';
+    } else {
+      if (statusText.leadingTeam === 'A') badgeColor = 'bg-blue-900/40 text-blue-300';
+      else if (statusText.leadingTeam === 'B') badgeColor = 'bg-red-900/40 text-red-300';
+      else badgeColor = 'bg-gray-700 text-gray-300';
+    }
+    badgeText = statusText.text;
+  }
+
+  return (
+    <div className="px-4 py-2.5">
+      <button onClick={() => setExpanded(!expanded)} className="w-full text-left">
+        <div className="flex items-center gap-3">
+          {/* Point indicator */}
+          <div className="shrink-0 flex items-center justify-center w-4">
+            {pointIndicator}
+          </div>
+
+          {/* Team A names */}
+          <div className="flex-1 min-w-0">
+            <p className={`text-sm truncate ${pointResult === 'A' ? 'text-blue-300 font-bold' : 'text-blue-300/80'}`}>
+              {teamANames}
+            </p>
+          </div>
+
+          {/* Status badge */}
+          <div className="shrink-0 text-center">
+            <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded ${badgeColor}`}>
+              {badgeText}
+            </span>
+            {pointResult === 'live' && thru > 0 && (
+              <p className="text-[10px] text-gray-500 mt-0.5">thru {thru}</p>
+            )}
+          </div>
+
+          {/* Team B names */}
+          <div className="flex-1 min-w-0 text-right">
+            <p className={`text-sm truncate ${pointResult === 'B' ? 'text-red-300 font-bold' : 'text-red-300/80'}`}>
+              {teamBNames}
+            </p>
+          </div>
+
+          {/* Expand arrow */}
+          <div className="shrink-0 text-gray-600 text-xs w-3">
+            {scores && scores.length > 0 ? (expanded ? '▾' : '▸') : ''}
+          </div>
+        </div>
+      </button>
+
+      {/* Expanded scorecard */}
+      {expanded && scores && Array.isArray(scores) && scores.length > 0 && holeData.length > 0 && (() => {
+        const holeWinners = computeHoleWinners(scores, matchup, round, tournament);
+        const allPlayers = [...teamAPlayers, ...teamBPlayers].map((p) => tournament.players.find((tp) => tp.id === p.id)!).filter(Boolean);
+
+        return (
+          <div className="mt-3 overflow-x-auto">
+            <table className="text-xs w-full border-collapse">
+              <thead>
+                <tr className="text-gray-500">
+                  <th className="px-2 py-1 text-left font-medium sticky left-0 bg-gray-800">Hole</th>
+                  {holeData.map((h) => (
+                    <th key={h.number} className="px-1 py-1 text-center font-medium min-w-[22px]">{h.number}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {allPlayers.map((player) => {
+                  const isTeamA = matchup.teamAPlayerIds.includes(player.id);
+                  return (
+                    <tr key={player.id} className="border-t border-gray-700/50">
+                      <td className={`px-2 py-1 font-medium whitespace-nowrap sticky left-0 bg-gray-800 ${isTeamA ? 'text-blue-300' : 'text-red-300'}`}>
+                        {player.name.split(' ')[0]}
+                      </td>
+                      {holeData.map((h) => {
+                        const sc = scores.find((s) => s.playerId === player.id && s.hole === h.number);
+                        const score = sc?.grossScore;
+                        const strokes = score ? getPlayerStrokesForHole(player.id, h.handicap, h.number, matchup, round, tournament) : 0;
+                        const netScore = score ? score - strokes : null;
+                        const netToPar = netScore !== null ? netScore - h.par : null;
+                        const w = holeWinners.get(h.number);
+                        const wonHole = (isTeamA && w === 'A') || (!isTeamA && w === 'B');
+                        const cellBg = wonHole ? (isTeamA ? 'bg-blue-900/30' : 'bg-red-900/30') : '';
+                        const scoreColor = !score ? 'text-gray-600'
+                          : netToPar! <= -2 ? 'text-yellow-400 font-bold'
+                          : netToPar === -1 ? 'text-red-400 font-bold'
+                          : netToPar === 0 ? 'text-gray-300'
+                          : netToPar === 1 ? 'text-blue-400'
+                          : 'text-blue-500 font-bold';
+                        return (
+                          <td key={h.number} className={`px-1 py-1 text-center ${scoreColor} ${cellBg}`}>
+                            {score || '–'}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+                {/* Hole winner row */}
+                <tr className="border-t border-gray-600">
+                  <td className="px-2 py-0.5 text-[10px] text-gray-500 sticky left-0 bg-gray-800">Won</td>
+                  {holeData.map((h) => {
+                    const w = holeWinners.get(h.number);
+                    return (
+                      <td key={h.number} className={`px-1 py-0.5 text-center text-[10px] font-bold ${
+                        w === 'A' ? 'text-blue-400' : w === 'B' ? 'text-red-400' : w === 'tie' ? 'text-gray-500' : 'text-gray-700'
+                      }`}>
+                        {w === 'A' ? '●' : w === 'B' ? '●' : w === 'tie' ? '—' : ''}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
     </div>
   );
 }

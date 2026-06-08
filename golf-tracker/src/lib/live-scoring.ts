@@ -22,8 +22,12 @@ export function getHoleDataForRound(round: TournamentRound): HoleData[] {
   const tee = round.course.teeSets.find((t) => t.id === round.defaultTeeId) || round.course.teeSets[0];
   if (!tee) return [];
   const allHoles = tee.holes.sort((a, b) => a.number - b.number);
-  if (round.holesPlaying === 'front9') return allHoles.filter((h) => h.number <= 9);
-  if (round.holesPlaying === 'back9') return allHoles.filter((h) => h.number > 9);
+  if (round.holesPlaying === 'front9' || round.holesPlaying === 'back9') {
+    const subset = allHoles.filter((h) => round.holesPlaying === 'front9' ? h.number <= 9 : h.number > 9);
+    const ranked = [...subset].sort((a, b) => a.handicap - b.handicap);
+    const rankMap = new Map(ranked.map((h, i) => [h.number, i + 1]));
+    return subset.map((h) => ({ ...h, handicap: rankMap.get(h.number)! }));
+  }
 
   // Split format: re-rank each 9 independently (1-9) so strokes distribute correctly per 9
   if (round.splitFormat) {
@@ -194,8 +198,8 @@ function getTeamHandicapForFormat(teamPlayers: Player[], round: TournamentRound,
     }
 
     const multipliers = courseHandicaps.length === 2 ? [0.35, 0.15]
-      : courseHandicaps.length === 3 ? [0.20, 0.15, 0.10]
-      : [0.20, 0.15, 0.10, 0.05];
+      : courseHandicaps.length === 3 ? [0.30, 0.20, 0.10]
+      : [0.25, 0.20, 0.15, 0.10];
 
     return Math.round(courseHandicaps.reduce((sum, hcap, i) => sum + hcap * (multipliers[i] || 0), 0));
   }
@@ -396,6 +400,38 @@ export function computeLiveMatchStatus(
   }
 
   return { holesWonA, holesWonB, holesTied, thru: holesPlayed };
+}
+
+export interface MatchPlayStatusText {
+  text: string;        // e.g. "2 UP", "AS", "3&2", "Halved", "1 UP"
+  leadingTeam: 'A' | 'B' | null;
+  isFinal: boolean;
+}
+
+export function computeMatchPlayStatusText(
+  status: LiveMatchStatus,
+  totalHoles: number,
+  isFinal: boolean
+): MatchPlayStatusText {
+  const diff = status.holesWonA - status.holesWonB;
+
+  if (isFinal) {
+    if (diff === 0) {
+      return { text: 'Halved', leadingTeam: null, isFinal: true };
+    }
+    const absDiff = Math.abs(diff);
+    const holesRemaining = totalHoles - status.thru;
+    if (holesRemaining === 0) {
+      return { text: `${absDiff} UP`, leadingTeam: diff > 0 ? 'A' : 'B', isFinal: true };
+    }
+    return { text: `${absDiff}&${holesRemaining}`, leadingTeam: diff > 0 ? 'A' : 'B', isFinal: true };
+  }
+
+  if (diff === 0) {
+    return { text: status.thru > 0 ? 'AS' : '-', leadingTeam: null, isFinal: false };
+  }
+  const absDiff = Math.abs(diff);
+  return { text: `${absDiff} UP`, leadingTeam: diff > 0 ? 'A' : 'B', isFinal: false };
 }
 
 export interface NassauStatus {
