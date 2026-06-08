@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { GameScore } from '@/lib/game-state';
 import type { Tournament, TournamentRound, RoundMatchup } from '@/lib/tournament-state';
-import { loadTournament, loadGameScores, fetchGameScores, computeStandings, fetchTournament, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
+import { loadTournament, loadGameScores, fetchGameScores, computeStandings, fetchTournament, subscribeToTournament, subscribeToScores, computeProjectedBonuses } from '@/lib/tournament-state';
+import type { ProjectedBonus } from '@/lib/tournament-state';
+import { computeTeamNassau, computeSkins, computeRoundBestNets, getPlayerDisplayName } from '@/lib/money-games';
 import { computeLiveMatchStatus, computeSplitMatchStatuses, computeNassauStatus, computeHoleWinners, getHoleDataForRound, getPlayerStrokesForHole, computePlayerStablefordPoints, recomputeMatchResult, getTeamStablefordForHole, computeMatchPlayStatusText } from '@/lib/live-scoring';
 import type { LiveMatchStatus } from '@/lib/live-scoring';
 import { resolveStablefordScale } from '@/lib/formats';
@@ -86,18 +88,20 @@ export default function ScoreboardPage() {
     }
   }
 
-  // Projected score for Ryder Cup: finalized + project live matches (leader wins, AS = halve)
-  let projectedA = standings.teamAPoints;
-  let projectedB = standings.teamBPoints;
+  // Projected score: live score + project unresolved bonuses
+  let projectedA = liveA;
+  let projectedB = liveB;
+  const allProjectedBonuses: ProjectedBonus[] = [];
+
   if (tournament.displayMode === 'ryder-cup') {
+    // Ryder Cup: project from finalized standings (not live per-hole), add 1 per match leader
+    projectedA = standings.teamAPoints;
+    projectedB = standings.teamBPoints;
     for (const round of tournament.rounds) {
       for (const matchup of round.matchups) {
-        if (matchup.result) continue; // already in standings
+        if (matchup.result) continue;
         const scores = loadGameScores(matchup.id);
-        if (!scores || !Array.isArray(scores) || scores.length === 0) {
-          // Not started — don't project
-          continue;
-        }
+        if (!scores || !Array.isArray(scores) || scores.length === 0) continue;
         const status = computeLiveMatchStatus(scores, matchup, round, tournament);
         if (!status || status.thru === 0) continue;
         const diff = status.holesWonA - status.holesWonB;
@@ -105,6 +109,17 @@ export default function ScoreboardPage() {
         else if (diff < 0) projectedB += 1;
         else { projectedA += 0.5; projectedB += 0.5; }
       }
+    }
+  }
+
+  // Project unresolved bonuses for in-progress rounds
+  for (const round of tournament.rounds) {
+    if (round.status !== 'in-progress') continue;
+    const roundProjected = computeProjectedBonuses(round, tournament);
+    for (const pb of roundProjected) {
+      projectedA += pb.projectedTeamAPoints;
+      projectedB += pb.projectedTeamBPoints;
+      allProjectedBonuses.push(pb);
     }
   }
 
@@ -176,8 +191,8 @@ export default function ScoreboardPage() {
             </p>
           )}
 
-          {/* Projected score for Ryder Cup */}
-          {isRyderCup && hasLiveMatches && (projectedA !== standings.teamAPoints || projectedB !== standings.teamBPoints) && (
+          {/* Projected score (includes unresolved bonuses) */}
+          {hasLiveMatches && (projectedA !== liveA || projectedB !== liveB) && (
             <div className="mt-3 text-center">
               <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Projected</p>
               <p className="text-lg font-bold">
@@ -186,6 +201,22 @@ export default function ScoreboardPage() {
                 <span className="text-red-300">{projectedB}</span>
               </p>
               <p className="text-[10px] text-gray-500">if all current leads hold</p>
+              {allProjectedBonuses.length > 0 && (
+                <div className="mt-2 space-y-0.5">
+                  {allProjectedBonuses.map((pb) => (
+                    <p key={pb.bonusId} className="text-[10px] text-gray-500">
+                      <span className="text-gray-400">{pb.bonusName}:</span>{' '}
+                      {pb.projectedTeamAPoints > pb.projectedTeamBPoints
+                        ? <span className="text-blue-400">{teamA.name} +{pb.projectedTeamAPoints}</span>
+                        : pb.projectedTeamBPoints > pb.projectedTeamAPoints
+                        ? <span className="text-red-400">{teamB.name} +{pb.projectedTeamBPoints}</span>
+                        : <span className="text-gray-400">Tied</span>
+                      }
+                      {pb.detail && <span className="text-gray-600 ml-1">({pb.detail})</span>}
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -226,6 +257,11 @@ export default function ScoreboardPage() {
               <p className="text-center text-gray-500 py-8">No matches in progress or completed yet.</p>
             )}
           </>
+        )}
+
+        {/* Money Games — always at the bottom */}
+        {tournament.moneyGames && (
+          <MoneyGamePanel tournament={tournament} />
         )}
       </main>
     </div>
@@ -1074,6 +1110,215 @@ function NassauPanel({ round, tournament }: { round: TournamentRound; tournament
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+function MoneyGamePanel({ tournament }: { tournament: Tournament }) {
+  const router = useRouter();
+  const mg = tournament.moneyGames;
+  if (!mg) return null;
+
+  const teamAName = tournament.teams[0].name;
+  const teamBName = tournament.teams[1].name;
+
+  // Show rounds that have scores (active or completed)
+  const roundsWithScores = tournament.rounds.filter((r) =>
+    r.status === 'in-progress' || r.status === 'completed'
+  );
+
+  // Skins summary
+  let skinsSummary: string | null = null;
+  let skinsLiveTarget: string | null = null;
+  if (mg.skins) {
+    const skinsResult = computeSkins(tournament, mg.skins);
+    if (skinsResult && skinsResult.skinsAwarded > 0) {
+      const sorted = [...skinsResult.playerSkins.entries()].sort((a, b) => b[1] - a[1]);
+      const topCount = sorted[0][1];
+      const tied = sorted.filter((e) => e[1] === topCount);
+      if (tied.length === 1) {
+        const topName = getPlayerDisplayName(tied[0][0], tournament.players);
+        skinsSummary = `${skinsResult.skinsAwarded} won · ${topName} leads (${topCount})`;
+      } else {
+        const names = tied.map((e) => getPlayerDisplayName(e[0], tournament.players)).join(', ');
+        skinsSummary = `${skinsResult.skinsAwarded} won · Tied: ${names} (${topCount})`;
+      }
+    } else if (skinsResult) {
+      skinsSummary = `Pot: $${skinsResult.totalPot} · 0 skins won`;
+    }
+
+    // Live target: show pending pot and current low on the last hole with scores
+    if (skinsResult) {
+      let pendingPot = 0;
+      let lastScoredHole: typeof skinsResult.holes[number] | null = null;
+      for (const hole of skinsResult.holes) {
+        pendingPot++;
+        if (hole.winner) {
+          pendingPot = 0;
+        }
+        if (hole.playerScores.length > 0) {
+          lastScoredHole = hole;
+        }
+      }
+      if (pendingPot > 0 && lastScoredHole && !lastScoredHole.winner) {
+        const minNet = Math.min(...lastScoredHole.playerScores.map((s) => s.netToPar));
+        const lowPlayers = lastScoredHole.playerScores.filter((s) => s.netToPar === minNet);
+        const lowDisplay = minNet === 0 ? 'E' : minNet > 0 ? `+${minNet}` : `${minNet}`;
+        if (lowPlayers.length === 1) {
+          const lowName = getPlayerDisplayName(lowPlayers[0].playerId, tournament.players);
+          skinsLiveTarget = `Pot: ${pendingPot} · Low: ${lowDisplay} (${lowName}) · R${lastScoredHole.roundIndex + 1} H${lastScoredHole.holeNumber}`;
+        } else {
+          const names = lowPlayers.map((s) => getPlayerDisplayName(s.playerId, tournament.players)).join(', ');
+          skinsLiveTarget = `Pot: ${pendingPot} · Low: ${lowDisplay} (${names}) · R${lastScoredHole.roundIndex + 1} H${lastScoredHole.holeNumber}`;
+        }
+      }
+    }
+  }
+
+  return (
+    <div className="bg-gray-800 rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+        <p className="text-sm font-bold text-yellow-400">Money Games</p>
+        <button
+          onClick={() => router.push(`/tournament/${tournament.id}/money`)}
+          className="text-xs text-yellow-300 hover:text-yellow-100"
+        >
+          Full Details →
+        </button>
+      </div>
+
+      {/* Per-round Nassau scorecard */}
+      {mg.teamNassau && roundsWithScores.map((round) => {
+        const bestNets = computeRoundBestNets(round, tournament, mg.teamNassau!.allowance);
+        const nassau = computeTeamNassau(round, tournament, mg.teamNassau!);
+        if (!bestNets) return null;
+
+        const frontHoles = bestNets.holes.filter((h) => h.holeNumber <= 9);
+        const backHoles = bestNets.holes.filter((h) => h.holeNumber > 9);
+        function toPar(strokes: number, par: number): string {
+          if (!strokes || !par) return '-';
+          const diff = strokes - par;
+          if (diff === 0) return 'E';
+          return diff > 0 ? `+${diff}` : `${diff}`;
+        }
+
+        return (
+          <div key={round.id} className="px-4 py-3 border-b border-gray-700">
+            <p className="text-xs text-gray-400 font-medium mb-2">{round.dayLabel} — Nassau ({mg.teamNassau!.allowance}% hcap)</p>
+
+            {/* Scorecard grid */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-center">
+                <thead>
+                  <tr className="text-gray-500">
+                    <th className="text-left w-16 py-0.5"></th>
+                    {frontHoles.map((h) => <th key={h.holeNumber} className="w-6 py-0.5">{h.holeNumber}</th>)}
+                    <th className="w-8 py-0.5 text-yellow-500">Out</th>
+                    {backHoles.map((h) => <th key={h.holeNumber} className="w-6 py-0.5">{h.holeNumber}</th>)}
+                    <th className="w-8 py-0.5 text-yellow-500">In</th>
+                    <th className="w-8 py-0.5 text-yellow-500">Tot</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Par row */}
+                  <tr className="text-gray-500">
+                    <td className="text-left font-medium">Par</td>
+                    {frontHoles.map((h) => <td key={h.holeNumber}>{h.par}</td>)}
+                    <td className="text-yellow-600 font-medium">{frontHoles.reduce((s, h) => s + h.par, 0)}</td>
+                    {backHoles.map((h) => <td key={h.holeNumber}>{h.par}</td>)}
+                    <td className="text-yellow-600 font-medium">{backHoles.reduce((s, h) => s + h.par, 0)}</td>
+                    <td className="text-yellow-600 font-medium">{bestNets.holes.reduce((s, h) => s + h.par, 0)}</td>
+                  </tr>
+                  {/* Team A best net */}
+                  <tr className="text-blue-300">
+                    <td className="text-left font-medium">{teamAName}</td>
+                    {frontHoles.map((h) => (
+                      <td key={h.holeNumber} className={h.winner === 'A' ? 'text-green-400 font-bold' : h.winner === 'B' ? 'text-gray-600' : ''}>
+                        {h.teamABestNet ?? '-'}
+                      </td>
+                    ))}
+                    <td className={`font-bold ${bestNets.frontTotalA < bestNets.frontTotalB ? 'text-green-400' : bestNets.frontTotalA > bestNets.frontTotalB ? 'text-red-400' : 'text-white'}`}>
+                      {bestNets.frontTotalA ? `${bestNets.frontTotalA} (${toPar(bestNets.frontTotalA, bestNets.frontParThru)})` : '-'}
+                    </td>
+                    {backHoles.map((h) => (
+                      <td key={h.holeNumber} className={h.winner === 'A' ? 'text-green-400 font-bold' : h.winner === 'B' ? 'text-gray-600' : ''}>
+                        {h.teamABestNet ?? '-'}
+                      </td>
+                    ))}
+                    <td className={`font-bold ${bestNets.backTotalA < bestNets.backTotalB ? 'text-green-400' : bestNets.backTotalA > bestNets.backTotalB ? 'text-red-400' : 'text-white'}`}>
+                      {bestNets.backTotalA ? `${bestNets.backTotalA} (${toPar(bestNets.backTotalA, bestNets.backParThru)})` : '-'}
+                    </td>
+                    <td className={`font-bold ${bestNets.overallTotalA < bestNets.overallTotalB ? 'text-green-400' : bestNets.overallTotalA > bestNets.overallTotalB ? 'text-red-400' : 'text-white'}`}>
+                      {bestNets.overallTotalA ? `${bestNets.overallTotalA} (${toPar(bestNets.overallTotalA, bestNets.overallParThru)})` : '-'}
+                    </td>
+                  </tr>
+                  {/* Team B best net */}
+                  <tr className="text-red-300">
+                    <td className="text-left font-medium">{teamBName}</td>
+                    {frontHoles.map((h) => (
+                      <td key={h.holeNumber} className={h.winner === 'B' ? 'text-green-400 font-bold' : h.winner === 'A' ? 'text-gray-600' : ''}>
+                        {h.teamBBestNet ?? '-'}
+                      </td>
+                    ))}
+                    <td className={`font-bold ${bestNets.frontTotalB < bestNets.frontTotalA ? 'text-green-400' : bestNets.frontTotalB > bestNets.frontTotalA ? 'text-red-400' : 'text-white'}`}>
+                      {bestNets.frontTotalB ? `${bestNets.frontTotalB} (${toPar(bestNets.frontTotalB, bestNets.frontParThru)})` : '-'}
+                    </td>
+                    {backHoles.map((h) => (
+                      <td key={h.holeNumber} className={h.winner === 'B' ? 'text-green-400 font-bold' : h.winner === 'A' ? 'text-gray-600' : ''}>
+                        {h.teamBBestNet ?? '-'}
+                      </td>
+                    ))}
+                    <td className={`font-bold ${bestNets.backTotalB < bestNets.backTotalA ? 'text-green-400' : bestNets.backTotalB > bestNets.backTotalA ? 'text-red-400' : 'text-white'}`}>
+                      {bestNets.backTotalB ? `${bestNets.backTotalB} (${toPar(bestNets.backTotalB, bestNets.backParThru)})` : '-'}
+                    </td>
+                    <td className={`font-bold ${bestNets.overallTotalB < bestNets.overallTotalA ? 'text-green-400' : bestNets.overallTotalB > bestNets.overallTotalA ? 'text-red-400' : 'text-white'}`}>
+                      {bestNets.overallTotalB ? `${bestNets.overallTotalB} (${toPar(bestNets.overallTotalB, bestNets.overallParThru)})` : '-'}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Nassau leg results */}
+            {nassau && (
+              <div className="flex gap-4 mt-2 text-xs">
+                <LegBadge label="Front" leg={nassau.front} teamAName={teamAName} teamBName={teamBName} amount={mg.teamNassau!.frontAmount} />
+                <LegBadge label="Back" leg={nassau.back} teamAName={teamAName} teamBName={teamBName} amount={mg.teamNassau!.backAmount} />
+                <LegBadge label="Overall" leg={nassau.overall} teamAName={teamAName} teamBName={teamBName} amount={mg.teamNassau!.overallAmount} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Skins summary */}
+      {skinsSummary && (
+        <div className="px-4 py-3">
+          <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Skins ({mg.skins!.allowance}% hcap)</p>
+          <p className="text-xs text-white">{skinsSummary}</p>
+          {skinsLiveTarget && (
+            <p className="text-xs text-yellow-400 mt-1">{skinsLiveTarget}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LegBadge({ label, leg, teamAName, teamBName, amount }: {
+  label: string;
+  leg: { winner: 'A' | 'B' | 'push'; teamATotal: number; teamBTotal: number };
+  teamAName: string;
+  teamBName: string;
+  amount: number;
+}) {
+  const winnerName = leg.winner === 'A' ? teamAName : leg.winner === 'B' ? teamBName : 'Push';
+  const color = leg.winner === 'A' ? 'text-blue-300' : leg.winner === 'B' ? 'text-red-300' : 'text-gray-400';
+  return (
+    <div>
+      <span className="text-gray-500">{label}: </span>
+      <span className={`font-medium ${color}`}>{winnerName}</span>
+      {leg.winner !== 'push' && <span className="text-yellow-500 ml-1">${amount}</span>}
     </div>
   );
 }

@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { GameSetup, GameScore, Player } from '@/lib/game-state';
 import { calcCourseHandicap } from '@/lib/game-state';
 import { isOneBallFormat, isTeamMode, resolveStablefordScale } from '@/lib/formats';
 import type { TournamentGameContext, Tournament, RoundMatchup } from '@/lib/tournament-state';
-import { loadTournament, saveTournament, saveGameScores, loadGameScores, fetchGameScores, fetchTournament, computeStandings, computeBonuses, subscribeToScores } from '@/lib/tournament-state';
+import { loadTournament, saveTournament, saveGameScores, loadGameScores, fetchGameScores, fetchTournament, computeStandings, computeBonuses, computeProjectedBonuses, subscribeToScores } from '@/lib/tournament-state';
 import { computeLiveMatchStatus, recomputeMatchResult } from '@/lib/live-scoring';
 
 export default function PlayGamePage() {
@@ -18,6 +18,7 @@ export default function PlayGamePage() {
   const [tournamentCtx, setTournamentCtx] = useState<TournamentGameContext | null>(null);
   const [teamNames, setTeamNames] = useState<{ A: string; B: string }>({ A: 'Team A', B: 'Team B' });
   const [strokesExpanded, setStrokesExpanded] = useState(false);
+  const didAutoJump = useRef(false);
 
   useEffect(() => {
     const data = sessionStorage.getItem('game_setup');
@@ -58,6 +59,36 @@ export default function PlayGamePage() {
     const startHole = parsed.holesPlaying === 'back9' ? 10 : 1;
     setCurrentHole(startHole);
   }, [router]);
+
+  // Jump to first unscored hole on resume
+  useEffect(() => {
+    if (didAutoJump.current || !setup || scores.length === 0) return;
+    didAutoJump.current = true;
+
+    const tee = setup.course?.teeSets.find((t) => String(t.id) === String(setup.course?.selectedTeeId)) || setup.course?.teeSets[0];
+    const allHoles = (tee?.holes || []).sort((a, b) => a.number - b.number);
+    let playingHoles = allHoles;
+    if (setup.holesPlaying === 'front9') playingHoles = allHoles.filter((h) => h.number <= 9);
+    else if (setup.holesPlaying === 'back9') playingHoles = allHoles.filter((h) => h.number > 9);
+
+    const playersToCheck = setup.scoringTeam
+      ? setup.players.filter((p) => p.team === setup.scoringTeam)
+      : setup.players;
+
+    for (const hole of playingHoles) {
+      const allScored = playersToCheck.every((p) =>
+        scores.some((s) => s.playerId === p.id && s.hole === hole.number)
+      );
+      if (!allScored) {
+        setCurrentHole(hole.number);
+        return;
+      }
+    }
+    // All holes scored — stay on last hole
+    if (playingHoles.length > 0) {
+      setCurrentHole(playingHoles[playingHoles.length - 1].number);
+    }
+  }, [setup, scores]);
 
   // Auto-save scores on every change
   useEffect(() => {
@@ -1936,34 +1967,91 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
     }
   }
 
+  // Compute projected score including unresolved bonuses
+  let projA = liveA;
+  let projB = liveB;
+  const projectedBonuses: { name: string; a: number; b: number }[] = [];
+  for (const round of tournament.rounds) {
+    if (round.status !== 'in-progress') continue;
+    const roundProjected = computeProjectedBonuses(round, tournament);
+    for (const pb of roundProjected) {
+      projA += pb.projectedTeamAPoints;
+      projB += pb.projectedTeamBPoints;
+      projectedBonuses.push({ name: pb.bonusName, a: pb.projectedTeamAPoints, b: pb.projectedTeamBPoints });
+    }
+  }
+  const hasProjection = projA !== liveA || projB !== liveB;
+
+  const [expanded, setExpanded] = useState(false);
+  const hasOtherMatches = currentRound && currentRound.matchups.length > 1;
+
   return (
-    <div className="bg-gray-900 border-b border-gray-700 px-4 py-2">
-      {/* Overall tournament score */}
-      <div className="flex items-center justify-center gap-3">
-        <div className="text-center">
-          <p className="text-[9px] text-blue-400 uppercase leading-none">{teamA.name}</p>
-          <p className="text-xl font-black text-white">{liveA}</p>
+    <div className="bg-gray-900 border-b border-gray-700">
+      {/* Main score bar — tappable to expand details */}
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="w-full px-4 py-2 relative"
+      >
+        <div className="flex items-center justify-center gap-3">
+          <span className="text-blue-400 text-[10px] font-medium uppercase">{teamA.name}</span>
+          <span className="text-2xl font-black text-white tracking-tight">
+            {liveA}<span className="text-gray-600 mx-1.5 text-lg font-light">—</span>{liveB}
+          </span>
+          <span className="text-red-400 text-[10px] font-medium uppercase">{teamB.name}</span>
         </div>
-        <span className="text-gray-600 text-lg">—</span>
-        <div className="text-center">
-          <p className="text-[9px] text-red-400 uppercase leading-none">{teamB.name}</p>
-          <p className="text-xl font-black text-white">{liveB}</p>
-        </div>
-      </div>
+        {hasProjection && (
+          <p className="text-center text-[10px] text-gray-500 mt-0.5">
+            proj <span className="text-blue-300">{projA}</span> — <span className="text-red-300">{projB}</span>
+          </p>
+        )}
+        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 text-xs transition-transform ${expanded ? 'rotate-180' : ''}`}>▾</span>
+      </button>
 
-      {/* Current match stableford totals */}
-      {isStrokePlayStableford && (currentStbA > 0 || currentStbB > 0) && (
-        <p className="text-center text-[10px] text-gray-400 mt-0.5">
-          This match: <span className="text-blue-300 font-medium">{currentStbA}</span> — <span className="text-red-300 font-medium">{currentStbB}</span> stableford pts
-        </p>
-      )}
+      {/* Expanded details */}
+      {expanded && (
+        <div className="px-4 pb-3 pt-1 border-t border-gray-800 max-w-sm mx-auto">
+          {/* Other matches in round — always visible */}
+          {hasOtherMatches && (
+            <div className="pt-1">
+              <p className="text-[9px] text-gray-500 uppercase tracking-wider text-center mb-1">Round Matches</p>
+              <div className="space-y-0.5">
+                {currentRound.matchups.map((m) => (
+                  <OtherMatchupRow key={m.id} matchup={m} round={currentRound} tournament={tournament} isCurrent={m.id === currentMatchupId} />
+                ))}
+              </div>
+            </div>
+          )}
 
-      {/* All matches in this round */}
-      {currentRound && currentRound.matchups.length > 1 && (
-        <div className="mt-1.5 flex flex-wrap justify-center gap-x-3 gap-y-1">
-          {currentRound.matchups.map((m) => (
-            <OtherMatchupRow key={m.id} matchup={m} round={currentRound} tournament={tournament} isCurrent={m.id === currentMatchupId} />
-          ))}
+          {/* Bonuses & stableford — collapsible */}
+          {(hasProjection || (isStrokePlayStableford && (currentStbA > 0 || currentStbB > 0))) && (
+            <details className="mt-2">
+              <summary className="text-[9px] text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-gray-400">
+                Bonuses & Details
+              </summary>
+              <div className="mt-1 space-y-1.5">
+                {hasProjection && projectedBonuses.length > 0 && projectedBonuses.map((pb) => (
+                  <div key={pb.name} className="flex justify-between text-[10px]">
+                    <span className="text-gray-400">{pb.name}</span>
+                    <span className={pb.a > pb.b ? 'text-blue-400' : pb.b > pb.a ? 'text-red-400' : 'text-gray-500'}>
+                      {pb.a > pb.b ? teamA.name : pb.b > pb.a ? teamB.name : 'Tied'}
+                      {pb.a !== pb.b && <span className="text-gray-600 ml-1">(+{Math.max(pb.a, pb.b)})</span>}
+                    </span>
+                  </div>
+                ))}
+                {isStrokePlayStableford && (currentStbA > 0 || currentStbB > 0) && (
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-gray-400">This match</span>
+                    <span>
+                      <span className="text-blue-300 font-medium">{currentStbA}</span>
+                      <span className="text-gray-600 mx-1">—</span>
+                      <span className="text-red-300 font-medium">{currentStbB}</span>
+                      <span className="text-gray-500 ml-1">stb</span>
+                    </span>
+                  </div>
+                )}
+              </div>
+            </details>
+          )}
         </div>
       )}
     </div>
@@ -2001,13 +2089,15 @@ function OtherMatchupRow({ matchup, round, tournament, isCurrent }: { matchup: R
   }
 
   return (
-    <span className={`text-[10px] ${isCurrent ? 'text-green-300' : 'text-gray-400'}`}>
-      <span className="text-blue-300">{teamANames}</span>
-      <span className="text-gray-600 mx-0.5">v</span>
-      <span className="text-red-300">{teamBNames}</span>
-      {scoreText && <span className={`ml-1 font-medium ${statusColor}`}>{scoreText}</span>}
-      {isCurrent && <span className="ml-0.5 text-[8px] text-green-600">●</span>}
-    </span>
+    <div className={`flex justify-between text-[10px] ${isCurrent ? 'text-green-300' : 'text-gray-400'}`}>
+      <span>
+        <span className="text-blue-300">{teamANames}</span>
+        <span className="text-gray-600 mx-0.5">v</span>
+        <span className="text-red-300">{teamBNames}</span>
+        {isCurrent && <span className="ml-1 text-[8px] text-green-600">●</span>}
+      </span>
+      {scoreText && <span className={`font-medium ${statusColor}`}>{scoreText}</span>}
+    </div>
   );
 }
 

@@ -1,7 +1,7 @@
 import type { Player, CourseSelection, GameScore } from './game-state';
 import type { TeamMode } from './formats';
 import { supabase } from './supabase';
-import { computePlayerStablefordPoints, computePlayerNetTotal, computeSplitMatchStatuses, computeNassauStatus } from './live-scoring';
+import { computePlayerStablefordPoints, computePlayerNetTotal, computeSplitMatchStatuses, computeNassauStatus, computeLiveMatchStatus, getHoleDataForRound } from './live-scoring';
 
 export type TournamentMode = 'team-event' | 'flight-bracket';
 
@@ -102,6 +102,27 @@ export interface TournamentRound {
 
 export type DisplayMode = 'points-race' | 'ryder-cup';
 
+export interface TeamNassauConfig {
+  frontAmount: number;
+  backAmount: number;
+  overallAmount: number;
+  method: 'best-net';
+  allowance: number; // percentage of full course handicap (default 75 for best-1-of-4 stroke play)
+}
+
+export interface SkinsConfig {
+  antePerRound: number;
+  carryover: boolean;
+  crossRound: boolean;
+  basis: 'net-to-par';
+  allowance: number; // percentage of full course handicap (default 75 for best-1-of-4 stroke play)
+}
+
+export interface TournamentMoneyGames {
+  teamNassau?: TeamNassauConfig;
+  skins?: SkinsConfig;
+}
+
 export interface Tournament {
   id: string;
   name: string;
@@ -114,6 +135,7 @@ export interface Tournament {
   rounds: TournamentRound[];
   status: 'setup' | 'active' | 'completed';
   moneyConfig?: { nassauFront: number; nassauBack: number; nassauOverall: number; birdieValue: number; eagleValue: number };
+  moneyGames?: TournamentMoneyGames;
 }
 
 export interface TournamentListItem {
@@ -668,6 +690,302 @@ export function computeBonuses(
   }
 
   return updatedBonuses;
+}
+
+export interface ProjectedBonus {
+  bonusId: string;
+  bonusName: string;
+  points: number;
+  scope: 'per-matchup' | 'per-tournament-round';
+  projectedTeamAPoints: number;
+  projectedTeamBPoints: number;
+  detail: string;
+}
+
+export function computeProjectedBonuses(
+  round: TournamentRound,
+  tournament: Tournament
+): ProjectedBonus[] {
+  const projected: ProjectedBonus[] = [];
+
+  for (const bonus of round.bonuses) {
+    if (bonus.result) continue; // already finalized
+
+    if (bonus.type === 'match-winner' && bonus.scope === 'per-matchup') {
+      let aWins = 0;
+      let bWins = 0;
+      let ties = 0;
+      const details: string[] = [];
+
+      for (const matchup of round.matchups) {
+        if (matchup.result) {
+          if (matchup.result.winningTeamId === 'team-a') aWins++;
+          else if (matchup.result.winningTeamId === 'team-b') bWins++;
+          else ties++;
+          continue;
+        }
+        const scores: GameScore[] | null = loadGameScores(matchup.id);
+        if (!scores || scores.length === 0) continue;
+
+        if (round.splitFormat && round.splitFormat.teamMode === 'individual' && round.splitFormat.pairings?.length) {
+          const splitStatuses = computeSplitMatchStatuses(scores, matchup, round, tournament);
+          if (splitStatuses) {
+            for (const sm of splitStatuses) {
+              if (sm.status.thru === 0) continue;
+              const diff = sm.status.holesWonA - sm.status.holesWonB;
+              if (diff > 0) { aWins++; details.push(`${sm.label}: ${tournament.teams[0].name}`); }
+              else if (diff < 0) { bWins++; details.push(`${sm.label}: ${tournament.teams[1].name}`); }
+              else { ties++; details.push(`${sm.label}: Tied`); }
+            }
+            continue;
+          }
+        }
+
+        const status = computeLiveMatchStatus(scores, matchup, round, tournament);
+        if (!status || status.thru === 0) continue;
+        const diff = status.holesWonA - status.holesWonB;
+        if (diff > 0) { aWins++; details.push(`${matchup.groupLabel}: ${tournament.teams[0].name}`); }
+        else if (diff < 0) { bWins++; details.push(`${matchup.groupLabel}: ${tournament.teams[1].name}`); }
+        else { ties++; details.push(`${matchup.groupLabel}: Tied`); }
+      }
+
+      if (aWins + bWins + ties === 0) continue;
+      projected.push({
+        bonusId: bonus.id,
+        bonusName: bonus.name,
+        points: bonus.points,
+        scope: bonus.scope,
+        projectedTeamAPoints: aWins * bonus.points + ties * bonus.points * 0.5,
+        projectedTeamBPoints: bWins * bonus.points + ties * bonus.points * 0.5,
+        detail: details.join(' · '),
+      });
+    }
+
+    if (bonus.type === 'best-individual-net') {
+      const holes = getHoleDataForRound(round);
+
+      if (bonus.scope === 'per-matchup') {
+        let teamAWins = 0;
+        let teamBWins = 0;
+        let ties = 0;
+        const details: string[] = [];
+        for (const matchup of round.matchups) {
+          const scores: GameScore[] | null = loadGameScores(matchup.id);
+          if (!scores || scores.length === 0) continue;
+          let bestNetToPar = Infinity;
+          const topPlayers: { playerId: string; netToPar: number }[] = [];
+          for (const playerId of matchup.playerIds) {
+            const netTotal = computePlayerNetTotal(scores, playerId, matchup, round, tournament);
+            if (netTotal === null) continue;
+            const parForPlayed = holes.filter((h) => scores.some((s) => s.playerId === playerId && s.hole === h.number)).reduce((s, h) => s + h.par, 0);
+            const netToPar = netTotal - parForPlayed;
+            if (netToPar < bestNetToPar) { bestNetToPar = netToPar; topPlayers.length = 0; topPlayers.push({ playerId, netToPar }); }
+            else if (netToPar === bestNetToPar) { topPlayers.push({ playerId, netToPar }); }
+          }
+          if (topPlayers.length === 0) continue;
+          const aWinners = topPlayers.filter((p) => tournament.teams[0].playerIds.includes(p.playerId));
+          const bWinners = topPlayers.filter((p) => tournament.teams[1].playerIds.includes(p.playerId));
+          if (aWinners.length > 0 && bWinners.length === 0) { teamAWins++; details.push(`${tournament.players.find((p) => p.id === aWinners[0].playerId)?.name?.split(' ')[0]} (${bestNetToPar >= 0 ? '+' : ''}${bestNetToPar})`); }
+          else if (bWinners.length > 0 && aWinners.length === 0) { teamBWins++; details.push(`${tournament.players.find((p) => p.id === bWinners[0].playerId)?.name?.split(' ')[0]} (${bestNetToPar >= 0 ? '+' : ''}${bestNetToPar})`); }
+          else { ties++; details.push(`Tied (${bestNetToPar >= 0 ? '+' : ''}${bestNetToPar})`); }
+        }
+        if (teamAWins + teamBWins + ties === 0) continue;
+        projected.push({
+          bonusId: bonus.id, bonusName: bonus.name, points: bonus.points, scope: bonus.scope,
+          projectedTeamAPoints: teamAWins * bonus.points + ties * bonus.points * 0.5,
+          projectedTeamBPoints: teamBWins * bonus.points + ties * bonus.points * 0.5,
+          detail: details.join(' · '),
+        });
+      } else {
+        let bestNetToPar = Infinity;
+        let bestId: string | null = null;
+        for (const matchup of round.matchups) {
+          const scores: GameScore[] | null = loadGameScores(matchup.id);
+          if (!scores || scores.length === 0) continue;
+          for (const playerId of matchup.playerIds) {
+            const netTotal = computePlayerNetTotal(scores, playerId, matchup, round, tournament);
+            if (netTotal === null) continue;
+            const parForPlayed = holes.filter((h) => scores.some((s) => s.playerId === playerId && s.hole === h.number)).reduce((s, h) => s + h.par, 0);
+            const netToPar = netTotal - parForPlayed;
+            if (netToPar < bestNetToPar) { bestNetToPar = netToPar; bestId = playerId; }
+          }
+        }
+        if (!bestId) continue;
+        const player = tournament.players.find((p) => p.id === bestId);
+        const isTeamA = tournament.teams[0].playerIds.includes(bestId);
+        const display = bestNetToPar === 0 ? 'E' : bestNetToPar > 0 ? `+${bestNetToPar}` : `${bestNetToPar}`;
+        projected.push({
+          bonusId: bonus.id, bonusName: bonus.name, points: bonus.points, scope: bonus.scope,
+          projectedTeamAPoints: isTeamA ? bonus.points : 0,
+          projectedTeamBPoints: isTeamA ? 0 : bonus.points,
+          detail: `${player?.name?.split(' ')[0] || '?'} (${display})`,
+        });
+      }
+    }
+
+    if (bonus.type === 'best-individual-stableford') {
+      if (bonus.scope === 'per-matchup') {
+        let teamAWins = 0;
+        let teamBWins = 0;
+        let ties = 0;
+        const details: string[] = [];
+        for (const matchup of round.matchups) {
+          const scores: GameScore[] | null = loadGameScores(matchup.id);
+          if (!scores || scores.length === 0) continue;
+          let best = -Infinity;
+          const topPlayers: { playerId: string; points: number }[] = [];
+          for (const playerId of matchup.playerIds) {
+            const total = computePlayerStablefordPoints(scores, playerId, matchup, round, tournament);
+            if (total > best) { best = total; topPlayers.length = 0; topPlayers.push({ playerId, points: total }); }
+            else if (total === best && total > 0) { topPlayers.push({ playerId, points: total }); }
+          }
+          if (topPlayers.length === 0) continue;
+          const aWinners = topPlayers.filter((p) => tournament.teams[0].playerIds.includes(p.playerId));
+          const bWinners = topPlayers.filter((p) => tournament.teams[1].playerIds.includes(p.playerId));
+          if (aWinners.length > 0 && bWinners.length === 0) { teamAWins++; details.push(`${tournament.players.find((p) => p.id === aWinners[0].playerId)?.name?.split(' ')[0]} (${best})`); }
+          else if (bWinners.length > 0 && aWinners.length === 0) { teamBWins++; details.push(`${tournament.players.find((p) => p.id === bWinners[0].playerId)?.name?.split(' ')[0]} (${best})`); }
+          else { ties++; details.push(`Tied (${best})`); }
+        }
+        if (teamAWins + teamBWins + ties === 0) continue;
+        projected.push({
+          bonusId: bonus.id, bonusName: bonus.name, points: bonus.points, scope: bonus.scope,
+          projectedTeamAPoints: teamAWins * bonus.points + ties * bonus.points * 0.5,
+          projectedTeamBPoints: teamBWins * bonus.points + ties * bonus.points * 0.5,
+          detail: details.join(' · '),
+        });
+      } else {
+        let best = -Infinity;
+        let bestId: string | null = null;
+        for (const matchup of round.matchups) {
+          const scores: GameScore[] | null = loadGameScores(matchup.id);
+          if (!scores || scores.length === 0) continue;
+          for (const playerId of matchup.playerIds) {
+            const total = computePlayerStablefordPoints(scores, playerId, matchup, round, tournament);
+            if (total > best) { best = total; bestId = playerId; }
+          }
+        }
+        if (!bestId || best <= 0) continue;
+        const player = tournament.players.find((p) => p.id === bestId);
+        const isTeamA = tournament.teams[0].playerIds.includes(bestId);
+        projected.push({
+          bonusId: bonus.id, bonusName: bonus.name, points: bonus.points, scope: bonus.scope,
+          projectedTeamAPoints: isTeamA ? bonus.points : 0,
+          projectedTeamBPoints: isTeamA ? 0 : bonus.points,
+          detail: `${player?.name?.split(' ')[0] || '?'} (${best} pts)`,
+        });
+      }
+    }
+
+    if (bonus.type === 'nassau-front' || bonus.type === 'nassau-back' || bonus.type === 'nassau-overall') {
+      const label = bonus.type === 'nassau-front' ? 'Front 9' : bonus.type === 'nassau-back' ? 'Back 9' : 'Overall';
+
+      if (round.scoringMethod === 'match-play') {
+        if (bonus.scope === 'per-matchup') {
+          let teamAWins = 0;
+          let teamBWins = 0;
+          let ties = 0;
+          for (const matchup of round.matchups) {
+            const scores: GameScore[] | null = loadGameScores(matchup.id);
+            if (!scores) continue;
+            const nassau = computeNassauStatus(scores, matchup, round, tournament);
+            if (!nassau) continue;
+            const bucket = bonus.type === 'nassau-front' ? nassau.front
+              : bonus.type === 'nassau-back' ? nassau.back : nassau.overall;
+            if (bucket.thru === 0) continue;
+            if (bucket.holesWonA > bucket.holesWonB) teamAWins++;
+            else if (bucket.holesWonB > bucket.holesWonA) teamBWins++;
+            else ties++;
+          }
+          if (teamAWins + teamBWins + ties === 0) continue;
+          projected.push({
+            bonusId: bonus.id, bonusName: bonus.name, points: bonus.points, scope: bonus.scope,
+            projectedTeamAPoints: teamAWins * bonus.points + ties * bonus.points * 0.5,
+            projectedTeamBPoints: teamBWins * bonus.points + ties * bonus.points * 0.5,
+            detail: label,
+          });
+        } else {
+          let totalWonA = 0;
+          let totalWonB = 0;
+          for (const matchup of round.matchups) {
+            const scores: GameScore[] | null = loadGameScores(matchup.id);
+            if (!scores) continue;
+            const nassau = computeNassauStatus(scores, matchup, round, tournament);
+            if (!nassau) continue;
+            const bucket = bonus.type === 'nassau-front' ? nassau.front
+              : bonus.type === 'nassau-back' ? nassau.back : nassau.overall;
+            totalWonA += bucket.holesWonA;
+            totalWonB += bucket.holesWonB;
+          }
+          if (totalWonA + totalWonB === 0) continue;
+          const aWins = totalWonA > totalWonB ? 1 : 0;
+          const bWins = totalWonB > totalWonA ? 1 : 0;
+          const isTie = totalWonA === totalWonB;
+          projected.push({
+            bonusId: bonus.id, bonusName: bonus.name, points: bonus.points, scope: bonus.scope,
+            projectedTeamAPoints: isTie ? bonus.points * 0.5 : aWins * bonus.points,
+            projectedTeamBPoints: isTie ? bonus.points * 0.5 : bWins * bonus.points,
+            detail: `${label}: ${totalWonA}W—${totalWonB}W`,
+          });
+        }
+      } else {
+        // stroke-play nassau: compare net totals on target holes
+        const tee = round.course?.teeSets.find((t) => t.id === (round.defaultTeeId || round.course?.teeSets[0]?.id)) || round.course?.teeSets[0];
+        const allHoles = (tee?.holes || []).sort((a, b) => a.number - b.number);
+        const targetHoles = bonus.type === 'nassau-front'
+          ? allHoles.filter((h) => h.number <= 9)
+          : bonus.type === 'nassau-back'
+          ? allHoles.filter((h) => h.number > 9)
+          : allHoles;
+
+        let totalNetA = 0;
+        let totalNetB = 0;
+        for (const matchup of round.matchups) {
+          const scores: GameScore[] | null = loadGameScores(matchup.id);
+          if (!scores) continue;
+          for (const hole of targetHoles) {
+            for (const playerId of matchup.teamAPlayerIds) {
+              const sc = scores.find((s) => s.playerId === playerId && s.hole === hole.number);
+              if (sc) totalNetA += sc.grossScore;
+            }
+            for (const playerId of matchup.teamBPlayerIds) {
+              const sc = scores.find((s) => s.playerId === playerId && s.hole === hole.number);
+              if (sc) totalNetB += sc.grossScore;
+            }
+          }
+        }
+        if (totalNetA === 0 && totalNetB === 0) continue;
+        const isTie = totalNetA === totalNetB;
+        projected.push({
+          bonusId: bonus.id, bonusName: bonus.name, points: bonus.points, scope: bonus.scope,
+          projectedTeamAPoints: isTie ? bonus.points * 0.5 : totalNetA < totalNetB ? bonus.points : 0,
+          projectedTeamBPoints: isTie ? bonus.points * 0.5 : totalNetB < totalNetA ? bonus.points : 0,
+          detail: `${label}: ${totalNetA}—${totalNetB}`,
+        });
+      }
+    }
+
+    if (bonus.type === 'junk') {
+      let totalA = 0;
+      let totalB = 0;
+      for (const matchup of round.matchups) {
+        const scores: GameScore[] | null = loadGameScores(matchup.id);
+        if (!scores || scores.length === 0) continue;
+        const junk = computeJunkForMatchup(scores, matchup, tournament, round.course);
+        totalA += junk.teamA.total;
+        totalB += junk.teamB.total;
+      }
+      if (totalA + totalB === 0) continue;
+      const isTie = totalA === totalB;
+      projected.push({
+        bonusId: bonus.id, bonusName: bonus.name, points: bonus.points, scope: bonus.scope,
+        projectedTeamAPoints: isTie ? bonus.points * 0.5 : totalA > totalB ? bonus.points : 0,
+        projectedTeamBPoints: isTie ? bonus.points * 0.5 : totalB > totalA ? bonus.points : 0,
+        detail: `Junk: ${totalA}—${totalB}`,
+      });
+    }
+  }
+
+  return projected;
 }
 
 export function computeStandings(tournament: Tournament) {

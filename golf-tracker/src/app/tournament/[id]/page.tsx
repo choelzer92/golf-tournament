@@ -6,6 +6,7 @@ import { FORMATS } from '@/lib/formats';
 import type { Tournament, TournamentRound } from '@/lib/tournament-state';
 import type { GameScore } from '@/lib/game-state';
 import { loadTournament, saveTournament, loadGameScores, computeStandings, exportTournament, fetchTournament, fetchGameScores, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
+import type { TournamentMoneyGames } from '@/lib/tournament-state';
 import { computeLiveMatchStatus, recomputeMatchResult } from '@/lib/live-scoring';
 
 export default function TournamentHubPage() {
@@ -306,6 +307,8 @@ export default function TournamentHubPage() {
       </div>
 
       <main className="max-w-3xl mx-auto px-4 py-6">
+        <MoneyGamesConfig tournament={tournament} onSave={(updated) => { saveTournament(updated); setTournament(updated); }} />
+
         <h2 className="text-lg font-semibold text-gray-900 mb-3">Rounds</h2>
 
         <div className="space-y-3 mb-6">
@@ -378,6 +381,8 @@ function RosterEditor({ tournament, onSave }: { tournament: Tournament; onSave: 
   const teamAPlayers = tournament.players.filter((p) => teamA.playerIds.includes(p.id));
   const teamBPlayers = tournament.players.filter((p) => teamB.playerIds.includes(p.id));
   const hasMatchups = tournament.rounds.some((r) => r.matchups.length > 0);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
 
   function moveToB(playerId: string) {
     const updated: Tournament = {
@@ -386,7 +391,6 @@ function RosterEditor({ tournament, onSave }: { tournament: Tournament; onSave: 
         { ...teamA, playerIds: teamA.playerIds.filter((id) => id !== playerId) },
         { ...teamB, playerIds: [...teamB.playerIds, playerId] },
       ],
-      // Clear matchups since team composition changed
       rounds: tournament.rounds.map((r) => ({ ...r, matchups: [] })),
     };
     onSave(updated);
@@ -399,10 +403,59 @@ function RosterEditor({ tournament, onSave }: { tournament: Tournament; onSave: 
         { ...teamA, playerIds: [...teamA.playerIds, playerId] },
         { ...teamB, playerIds: teamB.playerIds.filter((id) => id !== playerId) },
       ],
-      // Clear matchups since team composition changed
       rounds: tournament.rounds.map((r) => ({ ...r, matchups: [] })),
     };
     onSave(updated);
+  }
+
+  function startEditHandicap(player: { id: string; handicapIndex: number | null }) {
+    setEditingId(player.id);
+    setEditValue(player.handicapIndex != null ? String(player.handicapIndex) : '');
+  }
+
+  function saveHandicap() {
+    if (!editingId) return;
+    const newIndex = editValue.trim() === '' ? null : parseFloat(editValue);
+    const updated: Tournament = {
+      ...tournament,
+      players: tournament.players.map((p) =>
+        p.id === editingId ? { ...p, handicapIndex: newIndex } : p
+      ),
+    };
+    onSave(updated);
+    setEditingId(null);
+  }
+
+  function renderPlayer(p: typeof tournament.players[0], colorClass: string, hcapColorClass: string) {
+    return (
+      <div key={p.id} className="flex items-center justify-between py-1">
+        <span className={`text-sm ${colorClass}`}>
+          {p.name}{' '}
+          {editingId === p.id ? (
+            <span className="inline-flex items-center gap-1">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') saveHandicap(); if (e.key === 'Escape') setEditingId(null); }}
+                autoFocus
+                className="w-14 text-xs border rounded px-1 py-0.5"
+              />
+              <button onClick={saveHandicap} className="text-xs text-green-700 font-medium">ok</button>
+            </span>
+          ) : (
+            <button
+              onClick={() => startEditHandicap(p)}
+              className={`${hcapColorClass} hover:underline`}
+              title="Tap to edit handicap"
+            >
+              {p.handicapIndex !== null ? `(${p.handicapIndex})` : '(-)'}
+            </button>
+          )}
+        </span>
+      </div>
+    );
   }
 
   return (
@@ -417,16 +470,16 @@ function RosterEditor({ tournament, onSave }: { tournament: Tournament; onSave: 
         <div className="bg-blue-50 rounded-lg p-3">
           <p className="font-medium text-blue-900 mb-2">{teamA.name} ({teamAPlayers.length})</p>
           {teamAPlayers.map((p) => (
-            <div key={p.id} className="flex items-center justify-between py-1">
-              <span className="text-sm text-blue-800">
-                {p.name} {p.handicapIndex !== null && <span className="text-blue-500">({p.handicapIndex})</span>}
-              </span>
-              <button
-                onClick={() => moveToB(p.id)}
-                className="text-xs bg-red-100 text-red-700 hover:bg-red-200 px-2 py-0.5 rounded"
-              >
-                → {teamB.name}
-              </button>
+            <div key={p.id}>
+              {renderPlayer(p, 'text-blue-800', 'text-blue-500')}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => moveToB(p.id)}
+                  className="text-xs bg-red-100 text-red-700 hover:bg-red-200 px-2 py-0.5 rounded"
+                >
+                  → {teamB.name}
+                </button>
+              </div>
             </div>
           ))}
           {teamAPlayers.length === 0 && <p className="text-sm text-blue-400">No players</p>}
@@ -434,21 +487,164 @@ function RosterEditor({ tournament, onSave }: { tournament: Tournament; onSave: 
         <div className="bg-red-50 rounded-lg p-3">
           <p className="font-medium text-red-900 mb-2">{teamB.name} ({teamBPlayers.length})</p>
           {teamBPlayers.map((p) => (
-            <div key={p.id} className="flex items-center justify-between py-1">
-              <span className="text-sm text-red-800">
-                {p.name} {p.handicapIndex !== null && <span className="text-red-500">({p.handicapIndex})</span>}
-              </span>
-              <button
-                onClick={() => moveToA(p.id)}
-                className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-2 py-0.5 rounded"
-              >
-                → {teamA.name}
-              </button>
+            <div key={p.id}>
+              {renderPlayer(p, 'text-red-800', 'text-red-500')}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => moveToA(p.id)}
+                  className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-2 py-0.5 rounded"
+                >
+                  → {teamA.name}
+                </button>
+              </div>
             </div>
           ))}
           {teamBPlayers.length === 0 && <p className="text-sm text-red-400">No players</p>}
         </div>
       </div>
+    </section>
+  );
+}
+
+function MoneyGamesConfig({ tournament, onSave }: { tournament: Tournament; onSave: (t: Tournament) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const mg = tournament.moneyGames;
+
+  const [nassauEnabled, setNassauEnabled] = useState(!!mg?.teamNassau);
+  const [frontAmt, setFrontAmt] = useState(String(mg?.teamNassau?.frontAmount ?? 10));
+  const [backAmt, setBackAmt] = useState(String(mg?.teamNassau?.backAmount ?? 10));
+  const [overallAmt, setOverallAmt] = useState(String(mg?.teamNassau?.overallAmount ?? 5));
+  const [nassauAllowance, setNassauAllowance] = useState(String(mg?.teamNassau?.allowance ?? 75));
+
+  const [skinsEnabled, setSkinsEnabled] = useState(!!mg?.skins);
+  const [antePerRound, setAntePerRound] = useState(String(mg?.skins?.antePerRound ?? 20));
+  const [carryover, setCarryover] = useState(mg?.skins?.carryover ?? true);
+  const [skinsAllowance, setSkinsAllowance] = useState(String(mg?.skins?.allowance ?? 50));
+
+  function save() {
+    const moneyGames: TournamentMoneyGames = {};
+    if (nassauEnabled) {
+      moneyGames.teamNassau = {
+        frontAmount: parseFloat(frontAmt) || 10,
+        backAmount: parseFloat(backAmt) || 10,
+        overallAmount: parseFloat(overallAmt) || 5,
+        method: 'best-net',
+        allowance: parseFloat(nassauAllowance) || 75,
+      };
+    }
+    if (skinsEnabled) {
+      moneyGames.skins = {
+        antePerRound: parseFloat(antePerRound) || 20,
+        carryover,
+        crossRound: true,
+        basis: 'net-to-par',
+        allowance: parseFloat(skinsAllowance) || 50,
+      };
+    }
+    onSave({ ...tournament, moneyGames: (nassauEnabled || skinsEnabled) ? moneyGames : undefined });
+    setExpanded(false);
+  }
+
+  const router = useRouter();
+
+  return (
+    <section className="mb-6">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-lg font-semibold text-gray-900">Money Games</h2>
+        <div className="flex gap-2">
+          {mg && (
+            <button
+              onClick={() => router.push(`/tournament/${tournament.id}/money`)}
+              className="text-xs bg-green-100 text-green-800 hover:bg-green-200 px-3 py-1 rounded-full font-medium"
+            >
+              View Settlement
+            </button>
+          )}
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-xs text-green-700 hover:text-green-900 font-medium"
+          >
+            {expanded ? 'Cancel' : mg ? 'Edit' : 'Configure'}
+          </button>
+        </div>
+      </div>
+
+      {!expanded && mg && (
+        <div className="bg-white rounded-lg shadow p-3 text-sm text-gray-700">
+          {mg.teamNassau && (
+            <p>Team Nassau: ${mg.teamNassau.frontAmount}/${mg.teamNassau.backAmount}/${mg.teamNassau.overallAmount} (front/back/overall) · {mg.teamNassau.allowance}% handicap</p>
+          )}
+          {mg.skins && (
+            <p>Skins: ${mg.skins.antePerRound}/round · {mg.skins.carryover ? 'carryover' : 'no carryover'} · {mg.skins.allowance}% handicap</p>
+          )}
+        </div>
+      )}
+
+      {!expanded && !mg && (
+        <p className="text-sm text-gray-400">No money games configured.</p>
+      )}
+
+      {expanded && (
+        <div className="bg-white rounded-lg shadow p-4 space-y-4">
+          {/* Team Nassau */}
+          <div>
+            <label className="flex items-center gap-2 font-medium text-gray-800 text-sm">
+              <input type="checkbox" checked={nassauEnabled} onChange={(e) => setNassauEnabled(e.target.checked)} className="rounded" />
+              Team Nassau (best net per hole)
+            </label>
+            {nassauEnabled && (
+              <div className="mt-2 ml-6 grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-gray-500">Front 9 ($)</label>
+                  <input type="text" inputMode="decimal" value={frontAmt} onChange={(e) => setFrontAmt(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Back 9 ($)</label>
+                  <input type="text" inputMode="decimal" value={backAmt} onChange={(e) => setBackAmt(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Overall ($)</label>
+                  <input type="text" inputMode="decimal" value={overallAmt} onChange={(e) => setOverallAmt(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Allowance (%)</label>
+                  <input type="text" inputMode="decimal" value={nassauAllowance} onChange={(e) => setNassauAllowance(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Skins */}
+          <div>
+            <label className="flex items-center gap-2 font-medium text-gray-800 text-sm">
+              <input type="checkbox" checked={skinsEnabled} onChange={(e) => setSkinsEnabled(e.target.checked)} className="rounded" />
+              Individual Skins (net-to-par)
+            </label>
+            {skinsEnabled && (
+              <div className="mt-2 ml-6 grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-gray-500">Ante per round ($)</label>
+                  <input type="text" inputMode="decimal" value={antePerRound} onChange={(e) => setAntePerRound(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Allowance (%)</label>
+                  <input type="text" inputMode="decimal" value={skinsAllowance} onChange={(e) => setSkinsAllowance(e.target.value)} className="w-full border rounded px-2 py-1 text-sm" />
+                </div>
+                <div className="col-span-2">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={carryover} onChange={(e) => setCarryover(e.target.checked)} className="rounded" />
+                    Carryover on ties
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button onClick={save} className="w-full bg-green-700 hover:bg-green-600 text-white text-sm font-medium py-2 rounded-lg">
+            Save Money Games
+          </button>
+        </div>
+      )}
     </section>
   );
 }
