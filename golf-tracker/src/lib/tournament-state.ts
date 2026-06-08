@@ -885,13 +885,14 @@ export function computeProjectedBonuses(
           let teamBWins = 0;
           let ties = 0;
           for (const matchup of round.matchups) {
+            if (!matchup.gameId) continue;
             const scores: GameScore[] | null = loadGameScores(matchup.id);
             if (!scores) continue;
             const nassau = computeNassauStatus(scores, matchup, round, tournament);
             if (!nassau) continue;
             const bucket = bonus.type === 'nassau-front' ? nassau.front
               : bonus.type === 'nassau-back' ? nassau.back : nassau.overall;
-            if (bucket.thru === 0) continue;
+            if (bucket.thru === 0) { ties++; continue; }
             if (bucket.holesWonA > bucket.holesWonB) teamAWins++;
             else if (bucket.holesWonB > bucket.holesWonA) teamBWins++;
             else ties++;
@@ -906,7 +907,10 @@ export function computeProjectedBonuses(
         } else {
           let totalWonA = 0;
           let totalWonB = 0;
+          let hasActiveMatchup = false;
           for (const matchup of round.matchups) {
+            if (!matchup.gameId) continue;
+            hasActiveMatchup = true;
             const scores: GameScore[] | null = loadGameScores(matchup.id);
             if (!scores) continue;
             const nassau = computeNassauStatus(scores, matchup, round, tournament);
@@ -916,7 +920,7 @@ export function computeProjectedBonuses(
             totalWonA += bucket.holesWonA;
             totalWonB += bucket.holesWonB;
           }
-          if (totalWonA + totalWonB === 0) continue;
+          if (!hasActiveMatchup) continue;
           const aWins = totalWonA > totalWonB ? 1 : 0;
           const bWins = totalWonB > totalWonA ? 1 : 0;
           const isTie = totalWonA === totalWonB;
@@ -924,7 +928,7 @@ export function computeProjectedBonuses(
             bonusId: bonus.id, bonusName: bonus.name, points: bonus.points, scope: bonus.scope,
             projectedTeamAPoints: isTie ? bonus.points * 0.5 : aWins * bonus.points,
             projectedTeamBPoints: isTie ? bonus.points * 0.5 : bWins * bonus.points,
-            detail: `${label}: ${totalWonA}W—${totalWonB}W`,
+            detail: `${label}: ${totalWonA === 0 && totalWonB === 0 ? 'Tied (no holes played)' : `${totalWonA}W—${totalWonB}W`}`,
           });
         }
       } else {

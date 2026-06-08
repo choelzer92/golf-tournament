@@ -88,7 +88,7 @@ export default function ScoreboardPage() {
     }
   }
 
-  // Projected score: live score + project unresolved bonuses
+  // Projected score: live score + project remaining holes as tied + unresolved bonuses
   let projectedA = liveA;
   let projectedB = liveB;
   const allProjectedBonuses: ProjectedBonus[] = [];
@@ -108,6 +108,40 @@ export default function ScoreboardPage() {
         if (diff > 0) projectedA += 1;
         else if (diff < 0) projectedB += 1;
         else { projectedA += 0.5; projectedB += 0.5; }
+      }
+    }
+  } else {
+    // Points-race: project remaining holes as tied (current margin holds)
+    for (const round of tournament.rounds) {
+      for (const matchup of round.matchups) {
+        if (!matchup.gameId || matchup.result) continue;
+        if (round.scoringMethod !== 'match-play') continue;
+        const scores = loadGameScores(matchup.id);
+        if (!scores || !Array.isArray(scores) || scores.length === 0) continue;
+        const totalHoles = getHoleDataForRound(round).length;
+
+        const splitStatuses = computeSplitMatchStatuses(scores, matchup, round, tournament);
+        if (splitStatuses) {
+          for (const sm of splitStatuses) {
+            const pts = sm.type === 'team'
+              ? { tie: round.pointsForTie }
+              : { tie: round.splitFormat?.pointsForTie ?? round.pointsForTie };
+            const smTotalHoles = sm.holes === 'front' ? Math.min(9, totalHoles) : Math.max(0, totalHoles - 9);
+            const remaining = smTotalHoles - sm.status.thru;
+            if (remaining > 0) {
+              projectedA += remaining * pts.tie;
+              projectedB += remaining * pts.tie;
+            }
+          }
+        } else {
+          const status = computeLiveMatchStatus(scores, matchup, round, tournament);
+          if (!status) continue;
+          const remaining = totalHoles - status.thru;
+          if (remaining > 0) {
+            projectedA += remaining * round.pointsForTie;
+            projectedB += remaining * round.pointsForTie;
+          }
+        }
       }
     }
   }
