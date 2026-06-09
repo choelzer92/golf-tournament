@@ -17,6 +17,23 @@ export default function ScoreboardPage() {
   const id = params.id as string;
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [scoreTick, setScoreTick] = useState(0);
+  const [hasActiveScoring, setHasActiveScoring] = useState(false);
+
+  useEffect(() => {
+    const data = sessionStorage.getItem('game_setup');
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        const ctx = sessionStorage.getItem('game_tournament_context');
+        if (ctx) {
+          const ctxParsed = JSON.parse(ctx);
+          if (ctxParsed.tournamentId === id) setHasActiveScoring(true);
+        } else if (parsed.matchupId) {
+          setHasActiveScoring(true);
+        }
+      } catch {}
+    }
+  }, [id]);
 
   useEffect(() => {
     const cached = loadTournament(id);
@@ -174,9 +191,16 @@ export default function ScoreboardPage() {
       <header className="bg-green-900 text-white shadow-lg">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-lg font-bold">{tournament.name}</h1>
-          <button onClick={() => router.push(`/tournament/${id}`)} className="text-sm text-green-300 hover:text-white">
-            Back
-          </button>
+          <div className="flex items-center gap-3">
+            {hasActiveScoring && (
+              <button onClick={() => router.push('/game/play')} className="text-sm text-yellow-300 hover:text-yellow-100 font-medium">
+                Scorecard
+              </button>
+            )}
+            <button onClick={() => router.push(`/tournament/${id}`)} className="text-sm text-green-300 hover:text-white">
+              Back
+            </button>
+          </div>
         </div>
       </header>
 

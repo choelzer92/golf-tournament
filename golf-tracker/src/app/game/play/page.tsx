@@ -501,15 +501,10 @@ export default function PlayGamePage() {
           <div className="flex items-center gap-3">
             {tournamentCtx && (
               <button
-                onClick={() => {
-                  const url = `${window.location.origin}/tournament/${tournamentCtx.tournamentId}/scoreboard`;
-                  navigator.clipboard.writeText(url);
-                  alert('Scoreboard link copied!');
-                }}
-                className="text-sm text-green-200 hover:text-white"
-                title="Copy shareable link"
+                onClick={() => router.push(`/tournament/${tournamentCtx.tournamentId}/scoreboard`)}
+                className="text-sm text-green-200 hover:text-white font-medium"
               >
-                Share
+                Scoreboard
               </button>
             )}
             <button
@@ -2245,14 +2240,16 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
     <div className="bg-gray-900 border-b border-gray-700">
       <button onClick={() => setExpanded((e) => !e)} className="w-full px-4 py-1.5">
         {/* Round match points + projection */}
-        <div className="flex items-center justify-center gap-2">
-          <span className="text-[10px] font-bold text-blue-400">{teamA.name}</span>
-          <span className="text-base font-black text-blue-300 tabular-nums">{roundPtsA}</span>
-          <span className="text-xs text-gray-600">–</span>
-          <span className="text-base font-black text-red-300 tabular-nums">{roundPtsB}</span>
-          <span className="text-[10px] font-bold text-red-400">{teamB.name}</span>
+        <div className="flex items-center justify-center">
+          <div className="flex items-center justify-center gap-2 flex-1">
+            <span className="text-[10px] font-bold text-blue-400">{teamA.name}</span>
+            <span className="text-base font-black text-blue-300 tabular-nums">{roundPtsA}</span>
+            <span className="text-xs text-gray-600">–</span>
+            <span className="text-base font-black text-red-300 tabular-nums">{roundPtsB}</span>
+            <span className="text-[10px] font-bold text-red-400">{teamB.name}</span>
+          </div>
           {currentRound && (
-            <span className="text-[9px] text-gray-500 ml-1">(proj {roundProjA}–{roundProjB})</span>
+            <span className="text-[9px] text-gray-500 whitespace-nowrap">(proj {roundProjA}–{roundProjB})</span>
           )}
         </div>
         {/* Current match stableford or status */}

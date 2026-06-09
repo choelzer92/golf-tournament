@@ -229,79 +229,14 @@ export default function TournamentHubPage() {
             </div>
           )}
 
-          <div className="text-center mt-4 flex flex-wrap items-center justify-center gap-3">
+          <div className="text-center mt-4 flex items-center justify-center gap-3">
             <button
               onClick={() => router.push(`/tournament/${id}/scoreboard`)}
               className="text-sm bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition"
             >
               Live Scoreboard
             </button>
-            <button
-              onClick={() => {
-                const json = exportTournament(id);
-                if (!json) return;
-                const blob = new Blob([json], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${tournament.name.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              className="text-sm bg-green-950 hover:bg-green-800 text-green-200 px-4 py-2 rounded-lg font-medium transition"
-            >
-              Export
-            </button>
-            <button
-              onClick={() => {
-                const url = `${window.location.origin}/tournament/${id}`;
-                navigator.clipboard.writeText(url).then(() => {
-                  alert('Link copied! Share it with your group.');
-                });
-              }}
-              className="text-sm bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg font-medium transition"
-            >
-              Share Link
-            </button>
-            <button
-              onClick={() => {
-                const wizardData = {
-                  name: `${tournament.name} (Copy)`,
-                  teamAName: 'Team A',
-                  teamBName: 'Team B',
-                  players: [],
-                  teamAssignments: {},
-                  rounds: tournament.rounds.map((r) => ({
-                    id: crypto.randomUUID(),
-                    name: r.name,
-                    dayLabel: r.dayLabel,
-                    formatId: r.formatId,
-                    teamMode: r.teamMode,
-                    course: r.course,
-                    holesPlaying: r.holesPlaying,
-                    groupingMode: r.groupingMode,
-                    scoringMethod: r.scoringMethod,
-                    pointsForWin: r.pointsForWin,
-                    pointsForTie: r.pointsForTie,
-                    pointsForLoss: r.pointsForLoss,
-                    handicapAllowance: r.handicapAllowance,
-                    strokeMethod: r.strokeMethod,
-                    handicapBasis: r.handicapBasis,
-                    defaultTeeId: r.defaultTeeId,
-                    formatSettings: r.formatSettings,
-                    splitFormat: r.splitFormat,
-                    bonuses: r.bonuses.map((b) => ({ ...b, id: crypto.randomUUID(), result: undefined })),
-                    order: r.order,
-                  })),
-                  step: 'roster',
-                };
-                sessionStorage.setItem('tournament_wizard_draft', JSON.stringify(wizardData));
-                router.push('/tournament/new');
-              }}
-              className="text-sm bg-green-950 hover:bg-green-800 text-green-200 px-4 py-2 rounded-lg font-medium transition"
-            >
-              Duplicate Format
-            </button>
+            <ActionsMenu tournamentId={id} tournamentName={tournament.name} rounds={tournament.rounds} router={router} />
           </div>
           <div className="mt-3 flex items-center justify-center gap-4">
             {tournament.hypeContent && (
@@ -353,6 +288,97 @@ export default function TournamentHubPage() {
 
         <RosterEditor tournament={tournament} onSave={(updated) => { saveTournament(updated); setTournament(updated); }} />
       </main>
+    </div>
+  );
+}
+
+function ActionsMenu({ tournamentId, tournamentName, rounds, router }: { tournamentId: string; tournamentName: string; rounds: TournamentRound[]; router: ReturnType<typeof useRouter> }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="text-sm bg-green-950 hover:bg-green-800 text-green-200 px-4 py-2 rounded-lg font-medium transition"
+      >
+        More ▾
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-2 z-20 bg-gray-800 border border-gray-600 rounded-lg shadow-xl py-1 min-w-[180px]">
+            <button
+              onClick={() => {
+                const json = exportTournament(tournamentId);
+                if (!json) return;
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${tournamentName.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                setOpen(false);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-green-200 hover:bg-green-900 transition"
+            >
+              Export JSON
+            </button>
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/tournament/${tournamentId}`;
+                navigator.clipboard.writeText(url).then(() => {
+                  alert('Link copied! Share it with your group.');
+                });
+                setOpen(false);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-green-200 hover:bg-green-900 transition"
+            >
+              Share Link
+            </button>
+            <button
+              onClick={() => {
+                const wizardData = {
+                  name: `${tournamentName} (Copy)`,
+                  teamAName: 'Team A',
+                  teamBName: 'Team B',
+                  players: [],
+                  teamAssignments: {},
+                  rounds: rounds.map((r) => ({
+                    id: crypto.randomUUID(),
+                    name: r.name,
+                    dayLabel: r.dayLabel,
+                    formatId: r.formatId,
+                    teamMode: r.teamMode,
+                    course: r.course,
+                    holesPlaying: r.holesPlaying,
+                    groupingMode: r.groupingMode,
+                    scoringMethod: r.scoringMethod,
+                    pointsForWin: r.pointsForWin,
+                    pointsForTie: r.pointsForTie,
+                    pointsForLoss: r.pointsForLoss,
+                    handicapAllowance: r.handicapAllowance,
+                    strokeMethod: r.strokeMethod,
+                    handicapBasis: r.handicapBasis,
+                    defaultTeeId: r.defaultTeeId,
+                    formatSettings: r.formatSettings,
+                    splitFormat: r.splitFormat,
+                    bonuses: r.bonuses.map((b) => ({ ...b, id: crypto.randomUUID(), result: undefined })),
+                    order: r.order,
+                  })),
+                  step: 'roster',
+                };
+                sessionStorage.setItem('tournament_wizard_draft', JSON.stringify(wizardData));
+                router.push('/tournament/new');
+                setOpen(false);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-green-200 hover:bg-green-900 transition"
+            >
+              Duplicate Format
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
