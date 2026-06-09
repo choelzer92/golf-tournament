@@ -1,7 +1,7 @@
 import type { Player, CourseSelection, GameScore } from './game-state';
 import type { TeamMode } from './formats';
 import { supabase } from './supabase';
-import { computePlayerStablefordPoints, computePlayerNetTotal, computeSplitMatchStatuses, computeNassauStatus, computeLiveMatchStatus, getHoleDataForRound } from './live-scoring';
+import { computePlayerStablefordPoints, computePlayerNetTotal, computeSplitMatchStatuses, computeNassauStatus, computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound } from './live-scoring';
 
 export type TournamentMode = 'team-event' | 'flight-bracket';
 
@@ -741,12 +741,20 @@ export function computeProjectedBonuses(
           }
         }
 
-        const status = computeLiveMatchStatus(scores, matchup, round, tournament);
-        if (!status || status.thru === 0) continue;
-        const diff = status.holesWonA - status.holesWonB;
-        if (diff > 0) { aWins++; details.push(`${matchup.groupLabel}: ${tournament.teams[0].name}`); }
-        else if (diff < 0) { bWins++; details.push(`${matchup.groupLabel}: ${tournament.teams[1].name}`); }
-        else { ties++; details.push(`${matchup.groupLabel}: Tied`); }
+        if (round.scoringMethod === 'stroke-play') {
+          const result = recomputeMatchResult(scores, matchup, round, tournament);
+          if (!result) continue;
+          if (result.winningTeamId === 'team-a') { aWins++; details.push(`${matchup.groupLabel}: ${tournament.teams[0].name}`); }
+          else if (result.winningTeamId === 'team-b') { bWins++; details.push(`${matchup.groupLabel}: ${tournament.teams[1].name}`); }
+          else { ties++; details.push(`${matchup.groupLabel}: Tied`); }
+        } else {
+          const status = computeLiveMatchStatus(scores, matchup, round, tournament);
+          if (!status || status.thru === 0) continue;
+          const diff = status.holesWonA - status.holesWonB;
+          if (diff > 0) { aWins++; details.push(`${matchup.groupLabel}: ${tournament.teams[0].name}`); }
+          else if (diff < 0) { bWins++; details.push(`${matchup.groupLabel}: ${tournament.teams[1].name}`); }
+          else { ties++; details.push(`${matchup.groupLabel}: Tied`); }
+        }
       }
 
       if (aWins + bWins + ties === 0) continue;
