@@ -19,6 +19,7 @@ export default function PlayGamePage() {
   const [teamNames, setTeamNames] = useState<{ A: string; B: string }>({ A: 'Team A', B: 'Team B' });
   const [strokesExpanded, setStrokesExpanded] = useState(false);
   const didAutoJump = useRef(false);
+  const remoteScoresRef = useRef<GameScore[]>([]);
 
   useEffect(() => {
     const data = sessionStorage.getItem('game_setup');
@@ -90,11 +91,17 @@ export default function PlayGamePage() {
     }
   }, [setup, scores]);
 
-  // Auto-save scores on local change only (not when remoteScores updates)
+  function mergeScores(local: GameScore[], remote: GameScore[]): GameScore[] {
+    const map = new Map<string, GameScore>();
+    for (const s of remote) map.set(`${s.playerId}_${s.hole}`, s);
+    for (const s of local) map.set(`${s.playerId}_${s.hole}`, s);
+    return Array.from(map.values());
+  }
+
+  // Auto-save merged scores on local change (ref avoids re-triggering on remote updates)
   useEffect(() => {
     if (!setup?.matchupId || scores.length === 0) return;
-    const matchupId = setup.matchupId;
-    saveGameScores(matchupId, scores);
+    saveGameScores(setup.matchupId, mergeScores(scores, remoteScoresRef.current));
   }, [setup?.matchupId, scores]);
 
   // Realtime subscription for remote team's scores
@@ -108,6 +115,7 @@ export default function PlayGamePage() {
     const channel = subscribeToScores(matchupId, (allScores) => {
       if (!Array.isArray(allScores)) return;
       const remote = allScores.filter((s: GameScore) => !localPlayerIds.has(s.playerId));
+      remoteScoresRef.current = remote;
       setRemoteScores(remote);
     });
 
@@ -115,13 +123,6 @@ export default function PlayGamePage() {
   }, [setup?.scoringTeam, setup?.matchupId, setup?.players]);
 
   if (!setup) return null;
-
-  function mergeScores(local: GameScore[], remote: GameScore[]): GameScore[] {
-    const map = new Map<string, GameScore>();
-    for (const s of remote) map.set(`${s.playerId}_${s.hole}`, s);
-    for (const s of local) map.set(`${s.playerId}_${s.hole}`, s);
-    return Array.from(map.values());
-  }
 
   // Derive team mode — fallback for older saved games without teamMode field
   const baseTeamMode = setup.teamMode || (setup.formatId === 'scramble' ? 'scramble' : setup.formatId === 'alternate-shot' ? 'alternate-shot' : setup.players.some((p) => p.team) ? 'best-ball' : 'individual');
