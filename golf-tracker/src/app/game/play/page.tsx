@@ -2240,16 +2240,14 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
     <div className="bg-gray-900 border-b border-gray-700">
       <button onClick={() => setExpanded((e) => !e)} className="w-full px-4 py-1.5">
         {/* Round match points + projection */}
-        <div className="flex items-center justify-center">
-          <div className="flex items-center justify-center gap-2 flex-1">
-            <span className="text-[10px] font-bold text-blue-400">{teamA.name}</span>
-            <span className="text-base font-black text-blue-300 tabular-nums">{roundPtsA}</span>
-            <span className="text-xs text-gray-600">–</span>
-            <span className="text-base font-black text-red-300 tabular-nums">{roundPtsB}</span>
-            <span className="text-[10px] font-bold text-red-400">{teamB.name}</span>
-          </div>
+        <div className="relative flex items-center justify-center gap-2">
+          <span className="text-[10px] font-bold text-blue-400">{teamA.name}</span>
+          <span className="text-base font-black text-blue-300 tabular-nums">{roundPtsA}</span>
+          <span className="text-xs text-gray-600">–</span>
+          <span className="text-base font-black text-red-300 tabular-nums">{roundPtsB}</span>
+          <span className="text-[10px] font-bold text-red-400">{teamB.name}</span>
           {currentRound && (
-            <span className="text-[9px] text-gray-500 whitespace-nowrap">(proj {roundProjA}–{roundProjB})</span>
+            <span className="absolute right-0 text-[9px] text-gray-500 whitespace-nowrap">(proj {roundProjA}–{roundProjB})</span>
           )}
         </div>
         {/* Current match stableford or status */}
@@ -2290,14 +2288,16 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
                   }
                 }
                 return (
-                  <div key={m.id} className="flex items-baseline flex-nowrap text-[10px]">
-                    <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
+                  <div key={m.id} className="flex items-baseline text-[10px]">
+                    <div className="flex-1 text-right min-w-0">
                       <span className="whitespace-nowrap text-blue-300">{mTeamANames}</span>
-                      <span className="font-bold tabular-nums min-w-[1.25rem] text-right text-blue-300">{mScoreA}</span>
                     </div>
-                    <span className="text-gray-600 mx-1.5 flex-shrink-0">–</span>
-                    <div className="flex-1 flex items-baseline justify-start gap-1 min-w-0">
-                      <span className="font-bold tabular-nums min-w-[1.25rem] text-red-300">{mScoreB}</span>
+                    <div className="flex items-baseline justify-center gap-1 px-1.5 shrink-0">
+                      <span className="font-bold tabular-nums w-5 text-right text-blue-300">{mScoreA}</span>
+                      <span className="text-gray-600">–</span>
+                      <span className="font-bold tabular-nums w-5 text-left text-red-300">{mScoreB}</span>
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
                       <span className="whitespace-nowrap text-red-300">{mTeamBNames}</span>
                     </div>
                   </div>
