@@ -163,21 +163,22 @@ function buildScoring(round: TournamentRound, format: typeof FORMATS[number] | u
     lines.push('Net score per hole = gross score - strokes received on that hole');
   }
 
+  lines.push('Each matchup is scored independently (your 2v2 or 1v1 group only — not the full team roster)');
   if (teamMode.id === 'best-ball') {
-    lines.push('Team score: best (lowest net / highest points) individual score on each hole');
+    lines.push('Matchup score: best (lowest net / highest points) individual score from your side on each hole');
   } else if (teamMode.id === 'two-best-balls') {
     const variant = (round.formatSettings?.ballSelection as string) || '1-net-1-gross';
     if (variant === '1-net-1-gross') {
-      lines.push('Team score: best net score + best gross score (must be different players)');
+      lines.push('Matchup score: best net + best gross from your side (must be different players)');
     } else if (variant === '2-best-net') {
-      lines.push('Team score: two best net scores from team');
+      lines.push('Matchup score: two best net scores from your side');
     } else {
-      lines.push('Team score: two best gross scores from team');
+      lines.push('Matchup score: two best gross scores from your side');
     }
   } else if (teamMode.id === 'combined') {
-    lines.push('Team score: all individual scores summed');
+    lines.push('Matchup score: all players on your side have their points summed together');
   } else if (teamMode.id === 'individual') {
-    lines.push('One player per side — their individual score IS the team score');
+    lines.push('1v1 — each player\'s individual score is compared directly to their opponent');
   }
 
   return lines;
