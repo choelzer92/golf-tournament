@@ -201,13 +201,27 @@ export function saveTournament(tournament: Tournament) {
   }).then();
 }
 
-export function saveGameScores(matchupId: string, scores: any) {
+export function saveGameScores(matchupId: string, scores: any, ownedPlayerIds?: string[]) {
   scoresCache.set(matchupId, scores);
-  supabase.from('game_scores').upsert({
-    matchup_id: matchupId,
-    data: scores,
-    updated_at: new Date().toISOString(),
-  }).then();
+
+  if (ownedPlayerIds && ownedPlayerIds.length > 0) {
+    const ownedScores = (scores as any[]).filter((s: any) => ownedPlayerIds.includes(s.playerId));
+    supabase.rpc('merge_game_scores', {
+      p_matchup_id: matchupId,
+      p_player_ids: ownedPlayerIds,
+      p_scores: ownedScores,
+    }).then();
+  } else {
+    supabase.from('game_scores').upsert({
+      matchup_id: matchupId,
+      data: scores,
+      updated_at: new Date().toISOString(),
+    }).then();
+  }
+}
+
+export function cacheGameScores(matchupId: string, scores: any) {
+  scoresCache.set(matchupId, scores);
 }
 
 export function loadGameScores(matchupId: string): any | null {

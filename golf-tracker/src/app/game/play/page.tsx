@@ -6,7 +6,7 @@ import type { GameSetup, GameScore, Player } from '@/lib/game-state';
 import { calcCourseHandicap } from '@/lib/game-state';
 import { isOneBallFormat, isTeamMode, resolveStablefordScale } from '@/lib/formats';
 import type { TournamentGameContext, Tournament } from '@/lib/tournament-state';
-import { loadTournament, saveTournament, saveGameScores, loadGameScores, fetchGameScores, fetchTournament, computeStandings, computeBonuses, computeProjectedBonuses, subscribeToScores } from '@/lib/tournament-state';
+import { loadTournament, saveTournament, saveGameScores, cacheGameScores, loadGameScores, fetchGameScores, fetchTournament, computeStandings, computeBonuses, computeProjectedBonuses, subscribeToScores } from '@/lib/tournament-state';
 import { computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, computeSplitMatchStatuses } from '@/lib/live-scoring';
 
 export default function PlayGamePage() {
@@ -128,8 +128,11 @@ export default function PlayGamePage() {
   useEffect(() => {
     if (!setup?.matchupId || scores.length === 0) return;
     const matchupId = setup.matchupId;
+    const ownedPlayerIds = setup.scoringTeam
+      ? setup.players.filter((p) => p.team === setup.scoringTeam).map((p) => p.id)
+      : undefined;
     const timeout = setTimeout(() => {
-      saveGameScores(matchupId, mergeScores(scores, remoteScoresRef.current));
+      saveGameScores(matchupId, mergeScores(scores, remoteScoresRef.current), ownedPlayerIds);
     }, 400);
     return () => clearTimeout(timeout);
   }, [setup?.matchupId, scores]);
@@ -2071,14 +2074,14 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
       }
     }
   }
-  // Ensure current scores are in localStorage before computing projected bonuses
+  // Ensure current scores are in cache before computing projected bonuses
   if (currentMatchupId && currentScores.length > 0) {
     const merged = [...remoteScores];
     for (const s of currentScores) {
       const idx = merged.findIndex((r) => r.playerId === s.playerId && r.hole === s.hole);
       if (idx >= 0) merged[idx] = s; else merged.push(s);
     }
-    saveGameScores(currentMatchupId, merged);
+    cacheGameScores(currentMatchupId, merged);
   }
 
   const projectedBonuses: { name: string; a: number; b: number; detail: string }[] = [];
