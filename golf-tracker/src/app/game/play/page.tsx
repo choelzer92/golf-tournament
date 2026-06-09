@@ -18,6 +18,7 @@ export default function PlayGamePage() {
   const [tournamentCtx, setTournamentCtx] = useState<TournamentGameContext | null>(null);
   const [teamNames, setTeamNames] = useState<{ A: string; B: string }>({ A: 'Team A', B: 'Team B' });
   const [strokesExpanded, setStrokesExpanded] = useState(false);
+  const [otherMatchupTick, setOtherMatchupTick] = useState(0);
   const didAutoJump = useRef(false);
   const remoteScoresRef = useRef<GameScore[]>([]);
 
@@ -154,6 +155,26 @@ export default function PlayGamePage() {
 
     return () => { channel.unsubscribe(); };
   }, [setup?.scoringTeam, setup?.matchupId, setup?.players]);
+
+  // Subscribe to other active matchups in the tournament for live overview updates
+  useEffect(() => {
+    if (!tournamentCtx || !setup?.matchupId) return;
+    const tournament = loadTournament(tournamentCtx.tournamentId);
+    if (!tournament) return;
+
+    const otherMatchupIds = tournament.rounds
+      .flatMap((r) => r.matchups)
+      .filter((m) => m.gameId && !m.result && m.id !== setup.matchupId)
+      .map((m) => m.id);
+
+    if (otherMatchupIds.length === 0) return;
+
+    const channels = otherMatchupIds.map((mid) =>
+      subscribeToScores(mid, () => setOtherMatchupTick((t) => t + 1))
+    );
+
+    return () => { channels.forEach((ch) => ch.unsubscribe()); };
+  }, [tournamentCtx?.tournamentId, setup?.matchupId]);
 
   if (!setup) return null;
 
@@ -550,7 +571,7 @@ export default function PlayGamePage() {
       </div>
 
       {tournamentCtx && (
-        <TournamentOverviewPanel tournamentCtx={tournamentCtx} currentMatchupId={tournamentCtx.matchupId} currentScores={scores} setup={setup} getScore={getScore} getPlayerStrokesOnHole={getPlayerStrokesOnHole} remoteScores={remoteScores} teamNames={teamNames} />
+        <TournamentOverviewPanel tournamentCtx={tournamentCtx} currentMatchupId={tournamentCtx.matchupId} currentScores={scores} setup={setup} getScore={getScore} getPlayerStrokesOnHole={getPlayerStrokesOnHole} remoteScores={remoteScores} otherMatchupTick={otherMatchupTick} />
       )}
 
       {setup.scoringTeam && remoteScores.length === 0 && !tournamentCtx && (
@@ -1927,7 +1948,7 @@ function TeamMatchStatus({
   );
 }
 
-function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScores, setup, getScore, getPlayerStrokesOnHole, remoteScores, teamNames }: {
+function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScores, setup, getScore, getPlayerStrokesOnHole, remoteScores, otherMatchupTick }: {
   tournamentCtx: TournamentGameContext;
   currentMatchupId: string;
   currentScores: GameScore[];
@@ -1935,8 +1956,9 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
   getScore: (playerId: string, hole: number) => number | null;
   getPlayerStrokesOnHole: (player: Player, holeHandicap: number, holeNumber?: number) => number;
   remoteScores: GameScore[];
-  teamNames: { A: string; B: string };
+  otherMatchupTick: number;
 }) {
+  void otherMatchupTick; // triggers re-render when other matchups update
   const tournament = loadTournament(tournamentCtx.tournamentId);
   if (!tournament) return null;
 
