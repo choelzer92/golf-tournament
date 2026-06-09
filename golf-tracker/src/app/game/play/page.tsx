@@ -435,10 +435,9 @@ export default function PlayGamePage() {
   return (
     <div className="min-h-full bg-gray-50">
       <header className="bg-green-800 text-white shadow">
-        <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-lg mx-auto px-4 py-1.5 flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold">{setup.course?.courseName || 'Game'}</h1>
-            <p className="text-xs text-green-200">{setup.formatId.replace('-', ' ').toUpperCase()}</p>
+            <h1 className="text-sm font-bold">{setup.course?.courseName || 'Game'}</h1>
           </div>
           <div className="flex items-center gap-3">
             {tournamentCtx && (
@@ -470,7 +469,7 @@ export default function PlayGamePage() {
         </div>
       </header>
 
-      <div className="bg-green-900 text-green-200 text-xs text-center py-1.5">
+      <div className="bg-green-900 text-green-200 text-[10px] text-center py-0.5">
         {(() => {
           const parts: string[] = [];
           // Format name
@@ -523,9 +522,9 @@ export default function PlayGamePage() {
         </div>
       )}
 
-      <main className="max-w-lg mx-auto px-4 py-4">
+      <main className="max-w-lg mx-auto px-4 py-2">
         {/* Stroke allocation & handicap details */}
-        <div className="mb-4">
+        <div className="mb-2">
           <button
             onClick={() => setStrokesExpanded(!strokesExpanded)}
             className="w-full flex items-center justify-between text-sm text-gray-600 hover:text-gray-900 py-1"
@@ -679,23 +678,23 @@ export default function PlayGamePage() {
         </div>
 
         {/* Hole navigation */}
-        <div className="flex items-center justify-between mb-4">
-          <button onClick={prevHole} disabled={isFirstHole} className="w-12 h-12 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 disabled:opacity-30 text-xl font-bold text-gray-700">
+        <div className="flex items-center justify-between mb-2">
+          <button onClick={prevHole} disabled={isFirstHole} className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 disabled:opacity-30 text-lg font-bold text-gray-700">
             ‹
           </button>
           <div className="text-center">
-            <p className="text-2xl font-bold text-gray-900">Hole {currentHole}</p>
-            <p className="text-sm text-gray-600">
+            <p className="text-xl font-bold text-gray-900">Hole {currentHole}</p>
+            <p className="text-xs text-gray-600">
               Par {currentHoleData?.par} · {currentHoleData?.yardage} yds · Hdcp {currentHoleData?.handicap}
             </p>
           </div>
-          <button onClick={nextHole} disabled={isLastHole} className="w-12 h-12 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 disabled:opacity-30 text-xl font-bold text-gray-700">
+          <button onClick={nextHole} disabled={isLastHole} className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 disabled:opacity-30 text-lg font-bold text-gray-700">
             ›
           </button>
         </div>
 
         {/* Score entry */}
-        <div className="space-y-3 mb-6">
+        <div className="space-y-2 mb-4">
           {oneBall ? (
             // One ball per team: one score entry per team
             [
@@ -713,9 +712,9 @@ export default function PlayGamePage() {
               const scoreOptions = Array.from({ length: par + 5 - low }, (_, i) => low + i);
 
               return (
-                <div key={team} className={`bg-white rounded-lg shadow p-4 border-l-4 ${color}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="font-medium text-gray-900">
+                <div key={team} className={`bg-white rounded-lg shadow px-3 py-2 border-l-4 ${color}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-medium text-gray-900">
                       <span className={`font-bold ${labelColor}`}>{teamNames[team]}</span>
                       <span className="ml-2 text-xs text-gray-500">
                         ({tp.map((p) => p.name.split(' ')[0]).join(', ')})
@@ -740,7 +739,7 @@ export default function PlayGamePage() {
                           // Set same score for all players on the team
                           tp.forEach((p) => setScore(p.id, currentHole, score));
                         }}
-                        className={`w-9 h-9 rounded-full text-sm font-bold transition ${
+                        className={`w-8 h-8 rounded-full text-sm font-bold transition ${
                           gross === score
                             ? 'bg-green-700 text-white'
                             : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -774,9 +773,9 @@ export default function PlayGamePage() {
               const teamDisplayName = player.team ? teamNames[player.team] : null;
 
               return (
-                <div key={player.id} className={`bg-white rounded-lg shadow p-4 border-l-4 ${teamColor}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="font-medium text-gray-900">
+                <div key={player.id} className={`bg-white rounded-lg shadow px-3 py-2 border-l-4 ${teamColor}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-medium text-gray-900">
                       {player.name}
                       {teamDisplayName && <span className={`ml-1.5 text-[10px] font-bold ${teamLabelColor}`}>{teamDisplayName}</span>}
                       {strokes > 0 && (
@@ -796,7 +795,7 @@ export default function PlayGamePage() {
                       <button
                         key={score}
                         onClick={() => setScore(player.id, currentHole, score)}
-                        className={`w-9 h-9 rounded-full text-sm font-bold transition ${
+                        className={`w-8 h-8 rounded-full text-sm font-bold transition ${
                           gross === score
                             ? 'bg-green-700 text-white'
                             : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
