@@ -303,12 +303,20 @@ export default function TournamentHubPage() {
               Duplicate Format
             </button>
           </div>
-          <button
-            onClick={() => router.push(`/tournament/${id}/rules`)}
-            className="mt-3 text-xs text-green-400 hover:text-white transition"
-          >
-            Scoring Rules & Format Guide
-          </button>
+          <div className="mt-3 flex items-center justify-center gap-4">
+            <button
+              onClick={() => router.push(`/tournament/${id}/hype`)}
+              className="text-xs text-yellow-400 hover:text-yellow-200 font-bold transition"
+            >
+              Tournament Preview
+            </button>
+            <button
+              onClick={() => router.push(`/tournament/${id}/rules`)}
+              className="text-xs text-green-400 hover:text-white transition"
+            >
+              Scoring Rules & Format Guide
+            </button>
+          </div>
         </div>
       </div>
 
