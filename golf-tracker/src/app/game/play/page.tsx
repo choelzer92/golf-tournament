@@ -266,7 +266,7 @@ export default function PlayGamePage() {
 
   function getPlayerRawCourseHandicap(player: Player): number {
     if (!player.handicapIndex) return 0;
-    const is9 = setup!.holesPlaying === 'front9' || setup!.holesPlaying === 'back9';
+    const is9 = setup!.holesPlaying === 'front9' || setup!.holesPlaying === 'back9' || !!setup!.splitFormat;
 
     if (setup!.handicapBasis === 'index') {
       return is9 ? player.handicapIndex / 2 : player.handicapIndex;
@@ -276,7 +276,9 @@ export default function PlayGamePage() {
     if (!playerTee) return 0;
 
     if (is9) {
-      const ratingType = setup!.holesPlaying === 'front9' ? 'Front' : 'Back';
+      const ratingType = setup!.splitFormat
+        ? (isBackNine ? 'Back' : 'Front')
+        : setup!.holesPlaying === 'front9' ? 'Front' : 'Back';
       const rating = playerTee.ratings?.find((r) => r.type === ratingType);
       if (rating && rating.slopeRating && rating.courseRating) {
         const par = (playerTee.holes || [])
@@ -498,7 +500,6 @@ export default function PlayGamePage() {
       <div className="bg-green-900 text-green-200 text-[10px] text-center py-0.5">
         {(() => {
           const parts: string[] = [];
-          // Format name
           const formatNames: Record<string, string> = {
             'stableford': 'Stableford',
             'stroke-play': 'Stroke Play',
@@ -508,13 +509,16 @@ export default function PlayGamePage() {
             'scramble': 'Scramble',
             'alternate-shot': 'Alternate Shot',
           };
-          parts.push(formatNames[setup.formatId] || setup.formatId.replace('-', ' '));
+          const activeFormatId = (setup.splitFormat && isBackNine) ? setup.splitFormat.formatId : setup.formatId;
+          const activeAllowance = (setup.splitFormat && isBackNine) ? (setup.splitFormat.handicapAllowance ?? 100) : (setup.handicapAllowance ?? 100);
+          const activeStrokeMethod = (setup.splitFormat && isBackNine) ? (setup.splitFormat.strokeMethod ?? 'off-the-low') : (setup.strokeMethod ?? 'off-the-low');
+          parts.push(formatNames[activeFormatId] || activeFormatId.replace('-', ' '));
 
           if (oneBall) {
             if (teamMode === 'scramble') {
-              parts.push((setup.handicapAllowance ?? -1) < 0 ? 'USGA Tiered' : `${setup.handicapAllowance}%`);
+              parts.push(activeAllowance < 0 ? 'USGA Tiered' : `${activeAllowance}%`);
             } else {
-              parts.push(`60/40 × ${setup.handicapAllowance ?? 50}%`);
+              parts.push(`60/40 × ${activeAllowance}%`);
             }
           } else {
             if (teamMode === 'two-best-balls') {
@@ -529,10 +533,10 @@ export default function PlayGamePage() {
             } else if (teamMode === 'individual') {
               parts.push('Individual');
             }
-            if (setup.handicapAllowance != null && setup.handicapAllowance !== 100) {
-              parts.push(`${setup.handicapAllowance}%`);
+            if (activeAllowance !== 100) {
+              parts.push(`${activeAllowance}%`);
             }
-            parts.push(setup.strokeMethod === 'off-the-low' ? 'Off the Low' : 'Full Handicap');
+            parts.push(activeStrokeMethod === 'off-the-low' ? 'Off the Low' : 'Full Handicap');
           }
           return parts.join(' · ');
         })()}
@@ -564,8 +568,10 @@ export default function PlayGamePage() {
               <div className="mt-2 rounded-lg border border-gray-200 bg-white px-3 py-2">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-600">
                   {(() => {
-                    const is9 = setup.holesPlaying === 'front9' || setup.holesPlaying === 'back9';
-                    const ratingType = setup.holesPlaying === 'front9' ? 'Front' : setup.holesPlaying === 'back9' ? 'Back' : 'Total';
+                    const is9 = setup.holesPlaying === 'front9' || setup.holesPlaying === 'back9' || !!setup.splitFormat;
+                    const ratingType = setup.splitFormat
+                      ? (isBackNine ? 'Back' : 'Front')
+                      : setup.holesPlaying === 'front9' ? 'Front' : setup.holesPlaying === 'back9' ? 'Back' : 'Total';
                     const tee = defaultTee;
                     const rating = tee?.ratings?.find((r) => r.type === ratingType) || tee?.ratings?.find((r) => r.type === 'Total');
                     return (
@@ -573,9 +579,12 @@ export default function PlayGamePage() {
                         <span className="font-medium text-gray-800">{is9 ? `${ratingType} 9` : '18 Holes'}</span>
                         {tee && <span className="font-medium">{tee.name} ({tee.totalYardage} yds)</span>}
                         {rating && <span>CR: {rating.courseRating} · Slope: {rating.slopeRating}</span>}
-                        <span>Allowance: {teamMode === 'scramble'
-                          ? ((setup.handicapAllowance ?? -1) < 0 ? 'Tiered' : `${setup.handicapAllowance}%`)
-                          : `${setup.handicapAllowance ?? 100}%`}</span>
+                        <span>Allowance: {(() => {
+                          const activeAllow = (setup.splitFormat && isBackNine) ? (setup.splitFormat.handicapAllowance ?? 100) : (setup.handicapAllowance ?? 100);
+                          return teamMode === 'scramble'
+                            ? (activeAllow < 0 ? 'Tiered' : `${activeAllow}%`)
+                            : `${activeAllow}%`;
+                        })()}</span>
                       </>
                     );
                   })()}
@@ -623,8 +632,10 @@ export default function PlayGamePage() {
                   <div className="space-y-1.5">
                     {sortedPlayers.map((player) => {
                       const playerTee = getPlayerTee(player);
-                      const is9 = setup.holesPlaying === 'front9' || setup.holesPlaying === 'back9';
-                      const ratingType = setup.holesPlaying === 'front9' ? 'Front'
+                      const is9 = setup.holesPlaying === 'front9' || setup.holesPlaying === 'back9' || !!setup.splitFormat;
+                      const ratingType = setup.splitFormat
+                        ? (isBackNine ? 'Back' : 'Front')
+                        : setup.holesPlaying === 'front9' ? 'Front'
                         : setup.holesPlaying === 'back9' ? 'Back' : 'Total';
                       const nineHoleRating = playerTee?.ratings?.find((r) => r.type === ratingType);
                       const totalRating = playerTee?.ratings?.find((r) => r.type === 'Total');
