@@ -156,7 +156,21 @@ function buildScoring(round: TournamentRound, format: typeof FORMATS[number] | u
     }
     lines.push('Points are based on NET score (gross score minus strokes received on that hole)');
   } else if (round.formatId === 'match-play') {
-    lines.push('Each hole is won, lost, or halved based on net score');
+    if (teamMode.id === 'two-best-balls') {
+      const variant = (round.formatSettings?.ballSelection as string) || '1-net-1-gross';
+      if (variant === '1-net-1-gross') {
+        lines.push('On each hole, each side combines their best net score (one player) + best gross score (a different player)');
+        lines.push('The side with the lower combined total wins the hole; ties are halved');
+      } else if (variant === '2-best-net') {
+        lines.push('On each hole, each side combines their two best net scores');
+        lines.push('The side with the lower combined total wins the hole; ties are halved');
+      } else {
+        lines.push('On each hole, each side combines their two best gross scores');
+        lines.push('The side with the lower combined total wins the hole; ties are halved');
+      }
+    } else {
+      lines.push('Each hole is won, lost, or halved based on net score');
+    }
     lines.push('Net score = gross score - strokes received on that hole');
   } else if (round.formatId === 'stroke-play') {
     lines.push('Total net strokes determine the winner');
@@ -169,14 +183,17 @@ function buildScoring(round: TournamentRound, format: typeof FORMATS[number] | u
   } else if (teamMode.id === 'two-best-balls') {
     const variant = (round.formatSettings?.ballSelection as string) || '1-net-1-gross';
     if (variant === '1-net-1-gross') {
-      lines.push('Matchup score: best net + best gross from your side (must be different players)');
+      lines.push('Your side\'s hole score = best net (one player) + best gross (a different player)');
+      lines.push('Compare that combined total to the other side\'s — lower wins the hole');
     } else if (variant === '2-best-net') {
-      lines.push('Matchup score: two best net scores from your side');
+      lines.push('Your side\'s hole score = two best net scores combined');
+      lines.push('Compare to the other side\'s combined total — lower wins the hole');
     } else {
-      lines.push('Matchup score: two best gross scores from your side');
+      lines.push('Your side\'s hole score = two best gross scores combined');
+      lines.push('Compare to the other side\'s combined total — lower wins the hole');
     }
   } else if (teamMode.id === 'combined') {
-    lines.push('Matchup score: all players on your side have their points summed together');
+    lines.push('Matchup score: all players on your side have their scores summed together');
   } else if (teamMode.id === 'individual') {
     lines.push('1v1 — each player\'s individual score is compared directly to their opponent');
   }
