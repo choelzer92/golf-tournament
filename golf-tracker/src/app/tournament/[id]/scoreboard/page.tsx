@@ -1093,8 +1093,8 @@ function NassauPanel({ round, tournament }: { round: TournamentRound; tournament
         <NassauSide label="Overall" side={nassau.overall} amount={money?.nassauOverall} />
       </div>
 
-      {/* Birdie/Eagle bonus */}
-      {(birdiesA > 0 || birdiesB > 0 || eaglesA > 0 || eaglesB > 0) && (
+      {/* Birdie/Eagle bonus — only show if junk bonus configured or money config has birdie/eagle values */}
+      {(round.bonuses.some((b) => b.type === 'junk') || (money && (money.birdieValue > 0 || money.eagleValue > 0))) && (birdiesA > 0 || birdiesB > 0 || eaglesA > 0 || eaglesB > 0) && (
         <div className="border-t border-gray-700 mt-2 pt-2">
           <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider mb-1">Bonuses</p>
           {(birdiesA > 0 || birdiesB > 0) && (

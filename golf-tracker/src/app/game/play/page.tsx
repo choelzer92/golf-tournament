@@ -90,13 +90,12 @@ export default function PlayGamePage() {
     }
   }, [setup, scores]);
 
-  // Auto-save scores on every change
+  // Auto-save scores on local change only (not when remoteScores updates)
   useEffect(() => {
     if (!setup?.matchupId || scores.length === 0) return;
     const matchupId = setup.matchupId;
-    const merged = mergeScores(scores, remoteScores);
-    saveGameScores(matchupId, merged);
-  }, [setup?.matchupId, scores, remoteScores]);
+    saveGameScores(matchupId, scores);
+  }, [setup?.matchupId, scores]);
 
   // Realtime subscription for remote team's scores
   useEffect(() => {
@@ -2227,7 +2226,7 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
         </div>
       )}
 
-      {/* Round total + projection + bonuses */}
+      {/* Round total + projection (only when multiple matchups) */}
       {currentRound && currentRound.matchups.length > 1 && (
         <div className="border-t border-gray-800 px-4 py-1.5">
           <div className="flex items-baseline flex-nowrap text-[10px]">
@@ -2250,25 +2249,29 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
               <span className="text-red-300/70">{projB - liveB + roundPtsB}</span>
             </div>
           </div>
-          {projectedBonuses.length > 0 && (
-            <details className="mt-1">
-              <summary className="text-[9px] text-gray-500 text-center cursor-pointer hover:text-gray-400">Bonuses</summary>
-              <div className="mt-1 space-y-0.5">
-                {projectedBonuses.map((pb) => (
-                  <div key={pb.name} className="flex items-baseline flex-nowrap text-[9px]">
-                    <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
-                      <span className="text-gray-500 whitespace-nowrap">{pb.name}</span>
-                      <span className="text-blue-300/70">{pb.a}</span>
-                    </div>
-                    <span className="text-gray-600 mx-1.5 text-sm flex-shrink-0">–</span>
-                    <div className="flex-1 flex items-baseline justify-start min-w-0">
-                      <span className="text-red-300/70">{pb.b}</span>
-                    </div>
+        </div>
+      )}
+
+      {/* Projected bonuses — always visible when present */}
+      {projectedBonuses.length > 0 && (
+        <div className={`${currentRound && currentRound.matchups.length > 1 ? '' : 'border-t border-gray-800'} px-4 py-1`}>
+          <details className="mt-0.5">
+            <summary className="text-[9px] text-gray-500 text-center cursor-pointer hover:text-gray-400">Bonuses</summary>
+            <div className="mt-1 space-y-0.5">
+              {projectedBonuses.map((pb) => (
+                <div key={pb.name} className="flex items-baseline flex-nowrap text-[9px]">
+                  <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
+                    <span className="text-gray-500 whitespace-nowrap">{pb.name}</span>
+                    <span className="text-blue-300/70">{pb.a}</span>
                   </div>
-                ))}
-              </div>
-            </details>
-          )}
+                  <span className="text-gray-600 mx-1.5 text-sm flex-shrink-0">–</span>
+                  <div className="flex-1 flex items-baseline justify-start min-w-0">
+                    <span className="text-red-300/70">{pb.b}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </details>
         </div>
       )}
 
