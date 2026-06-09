@@ -123,6 +123,39 @@ export interface TournamentMoneyGames {
   skins?: SkinsConfig;
 }
 
+export interface HypeMatchup {
+  playerA: string;
+  handicapA: string;
+  playerB: string;
+  handicapB: string;
+  callout: string;
+}
+
+export interface HypeRoundSection {
+  title: string;
+  points: string;
+  lines: string[];
+}
+
+export interface HypeRound {
+  title: string;
+  subtitle: string;
+  description: string[];
+  detail?: string;
+  intensity?: string[];
+  sections?: HypeRoundSection[];
+  bonuses?: string[];
+}
+
+export interface HypeContent {
+  tagline: string;
+  intro: string[];
+  rounds: HypeRound[];
+  matchups: HypeMatchup[];
+  closer: { title: string; lines: string[] };
+  finalWords: string[];
+}
+
 export interface Tournament {
   id: string;
   name: string;
@@ -136,6 +169,7 @@ export interface Tournament {
   status: 'setup' | 'active' | 'completed';
   moneyConfig?: { nassauFront: number; nassauBack: number; nassauOverall: number; birdieValue: number; eagleValue: number };
   moneyGames?: TournamentMoneyGames;
+  hypeContent?: HypeContent;
 }
 
 export interface TournamentListItem {

@@ -304,12 +304,22 @@ export default function TournamentHubPage() {
             </button>
           </div>
           <div className="mt-3 flex items-center justify-center gap-4">
+            {tournament.hypeContent && (
             <button
               onClick={() => router.push(`/tournament/${id}/hype`)}
               className="text-xs text-yellow-400 hover:text-yellow-200 font-bold transition"
             >
               Tournament Preview
             </button>
+            )}
+            {tournament.rounds.some((r) => r.status === 'completed') && (
+            <button
+              onClick={() => router.push(`/tournament/${id}/recap`)}
+              className="text-xs text-red-400 hover:text-red-200 font-bold transition"
+            >
+              {tournament.rounds.every((r) => r.status === 'completed') ? 'Tournament Recap' : 'Round Recaps'}
+            </button>
+            )}
             <button
               onClick={() => router.push(`/tournament/${id}/rules`)}
               className="text-xs text-green-400 hover:text-white transition"
