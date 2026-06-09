@@ -694,7 +694,7 @@ export default function PlayGamePage() {
         </div>
 
         {/* Score entry */}
-        <div className="space-y-2 mb-4">
+        <div className="space-y-3 mb-6">
           {oneBall ? (
             // One ball per team: one score entry per team
             [
@@ -712,9 +712,9 @@ export default function PlayGamePage() {
               const scoreOptions = Array.from({ length: par + 5 - low }, (_, i) => low + i);
 
               return (
-                <div key={team} className={`bg-white rounded-lg shadow px-3 py-2 border-l-4 ${color}`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium text-gray-900">
+                <div key={team} className={`bg-white rounded-lg shadow p-4 border-l-4 ${color}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="font-medium text-gray-900">
                       <span className={`font-bold ${labelColor}`}>{teamNames[team]}</span>
                       <span className="ml-2 text-xs text-gray-500">
                         ({tp.map((p) => p.name.split(' ')[0]).join(', ')})
@@ -739,7 +739,7 @@ export default function PlayGamePage() {
                           // Set same score for all players on the team
                           tp.forEach((p) => setScore(p.id, currentHole, score));
                         }}
-                        className={`w-8 h-8 rounded-full text-sm font-bold transition ${
+                        className={`w-9 h-9 rounded-full text-sm font-bold transition ${
                           gross === score
                             ? 'bg-green-700 text-white'
                             : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -773,9 +773,9 @@ export default function PlayGamePage() {
               const teamDisplayName = player.team ? teamNames[player.team] : null;
 
               return (
-                <div key={player.id} className={`bg-white rounded-lg shadow px-3 py-2 border-l-4 ${teamColor}`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium text-gray-900">
+                <div key={player.id} className={`bg-white rounded-lg shadow p-4 border-l-4 ${teamColor}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="font-medium text-gray-900">
                       {player.name}
                       {teamDisplayName && <span className={`ml-1.5 text-[10px] font-bold ${teamLabelColor}`}>{teamDisplayName}</span>}
                       {strokes > 0 && (
@@ -795,7 +795,7 @@ export default function PlayGamePage() {
                       <button
                         key={score}
                         onClick={() => setScore(player.id, currentHole, score)}
-                        className={`w-8 h-8 rounded-full text-sm font-bold transition ${
+                        className={`w-9 h-9 rounded-full text-sm font-bold transition ${
                           gross === score
                             ? 'bg-green-700 text-white'
                             : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -2168,139 +2168,113 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
     if (match) { currentScoreA = match[1]; currentScoreB = match[2]; }
   }
 
+  // Round projection: current round points + remaining projected as tied
+  const roundProjA = projA - liveA + roundPtsA;
+  const roundProjB = projB - liveB + roundPtsB;
+
+  const [expanded, setExpanded] = useState(false);
+
   return (
     <div className="bg-gray-900 border-b border-gray-700">
-      {/* Cumulative round score — the big number */}
-      <div className="px-4 pt-2.5 pb-1">
-        <div className="flex items-baseline flex-nowrap">
-          <div className="flex-1 flex items-baseline justify-end gap-1.5 min-w-0">
-            <span className="text-xs font-bold text-blue-400 whitespace-nowrap">{teamA.name}</span>
-            <span className="text-lg font-black text-blue-300 tabular-nums min-w-[1.5rem] text-right">{isStrokePlayStableford ? roundStbA : roundPtsA}</span>
-          </div>
-          <span className="text-sm text-gray-600 font-light mx-1.5 flex-shrink-0">–</span>
-          <div className="flex-1 flex items-baseline justify-start gap-1.5 min-w-0">
-            <span className="text-lg font-black text-red-300 tabular-nums min-w-[1.5rem]">{isStrokePlayStableford ? roundStbB : roundPtsB}</span>
-            <span className="text-xs font-bold text-red-400 whitespace-nowrap">{teamB.name}</span>
-          </div>
+      <button onClick={() => setExpanded((e) => !e)} className="w-full px-4 py-1.5">
+        {/* Round score + projection on one line */}
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-[10px] font-bold text-blue-400">{teamA.name}</span>
+          <span className="text-base font-black text-blue-300 tabular-nums">{isStrokePlayStableford ? roundStbA : roundPtsA}</span>
+          <span className="text-xs text-gray-600">–</span>
+          <span className="text-base font-black text-red-300 tabular-nums">{isStrokePlayStableford ? roundStbB : roundPtsB}</span>
+          <span className="text-[10px] font-bold text-red-400">{teamB.name}</span>
+          {currentRound && (
+            <span className="text-[9px] text-gray-500 ml-1">(proj {roundProjA}–{roundProjB})</span>
+          )}
         </div>
-      </div>
+        {/* Current match status */}
+        {currentMatchText && (
+          <p className="text-center text-[10px] text-gray-400 mt-0.5">{currentMatchText}</p>
+        )}
+      </button>
 
-      {/* Individual match scores */}
-      {currentRound && (
-        <div className="px-4 pb-2 space-y-0.5">
-          {[...currentRound.matchups].sort((a, b) => (a.id === currentMatchupId ? -1 : b.id === currentMatchupId ? 1 : 0)).map((m) => {
-            const mTeamANames = tournament.players.filter((p) => m.teamAPlayerIds.includes(p.id)).map((p) => p.name.split(' ')[0]).join('/');
-            const mTeamBNames = tournament.players.filter((p) => m.teamBPlayerIds.includes(p.id)).map((p) => p.name.split(' ')[0]).join('/');
-            let mScoreA = '–';
-            let mScoreB = '–';
-            if (m.id === currentMatchupId) {
-              mScoreA = currentScoreA;
-              mScoreB = currentScoreB;
-            } else if (m.result) {
-              const match = m.result.summary.match(/^(\d+)\s*[—–-]\s*(\d+)/);
-              if (match) { mScoreA = match[1]; mScoreB = match[2]; }
-            } else if (m.gameId) {
-              const mScores = loadGameScores(m.id);
-              if (mScores && mScores.length > 0) {
-                const liveResult = recomputeMatchResult(mScores, m, currentRound, tournament);
-                if (liveResult) {
-                  const match = liveResult.summary.match(/^(\d+)\s*[—–-]\s*(\d+)/);
+      {/* Expanded: bonuses + tournament totals */}
+      {expanded && (
+        <div className="border-t border-gray-800 px-4 py-1.5 space-y-1">
+          {/* Individual match scores (multi-matchup rounds) */}
+          {currentRound && currentRound.matchups.length > 1 && (
+            <div className="space-y-0.5">
+              {[...currentRound.matchups].sort((a, b) => (a.id === currentMatchupId ? -1 : b.id === currentMatchupId ? 1 : 0)).map((m) => {
+                const mTeamANames = tournament.players.filter((p) => m.teamAPlayerIds.includes(p.id)).map((p) => p.name.split(' ')[0]).join('/');
+                const mTeamBNames = tournament.players.filter((p) => m.teamBPlayerIds.includes(p.id)).map((p) => p.name.split(' ')[0]).join('/');
+                let mScoreA = '–';
+                let mScoreB = '–';
+                if (m.id === currentMatchupId) {
+                  mScoreA = currentScoreA;
+                  mScoreB = currentScoreB;
+                } else if (m.result) {
+                  const match = m.result.summary.match(/^(\d+)\s*[—–-]\s*(\d+)/);
                   if (match) { mScoreA = match[1]; mScoreB = match[2]; }
+                } else if (m.gameId) {
+                  const mScores = loadGameScores(m.id);
+                  if (mScores && mScores.length > 0) {
+                    const liveResult = recomputeMatchResult(mScores, m, currentRound, tournament);
+                    if (liveResult) {
+                      const match = liveResult.summary.match(/^(\d+)\s*[—–-]\s*(\d+)/);
+                      if (match) { mScoreA = match[1]; mScoreB = match[2]; }
+                    }
+                  }
                 }
-              }
-            }
-            return (
-              <div key={m.id} className="flex items-baseline flex-nowrap text-[10px]">
-                <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
-                  <span className="whitespace-nowrap text-blue-300">{mTeamANames}</span>
-                  <span className="font-bold tabular-nums min-w-[1.25rem] text-right text-blue-300">{mScoreA}</span>
-                </div>
-                <span className="text-gray-600 mx-1.5 text-sm flex-shrink-0">–</span>
-                <div className="flex-1 flex items-baseline justify-start gap-1 min-w-0">
-                  <span className="font-bold tabular-nums min-w-[1.25rem] text-red-300">{mScoreB}</span>
-                  <span className="whitespace-nowrap text-red-300">{mTeamBNames}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+                return (
+                  <div key={m.id} className="flex items-baseline flex-nowrap text-[10px]">
+                    <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
+                      <span className="whitespace-nowrap text-blue-300">{mTeamANames}</span>
+                      <span className="font-bold tabular-nums min-w-[1.25rem] text-right text-blue-300">{mScoreA}</span>
+                    </div>
+                    <span className="text-gray-600 mx-1.5 flex-shrink-0">–</span>
+                    <div className="flex-1 flex items-baseline justify-start gap-1 min-w-0">
+                      <span className="font-bold tabular-nums min-w-[1.25rem] text-red-300">{mScoreB}</span>
+                      <span className="whitespace-nowrap text-red-300">{mTeamBNames}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
-      {/* Round total + projection (only when multiple matchups) */}
-      {currentRound && currentRound.matchups.length > 1 && (
-        <div className="border-t border-gray-800 px-4 py-1.5">
-          <div className="flex items-baseline flex-nowrap text-[10px]">
-            <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
-              <span className="text-gray-500 uppercase tracking-wider whitespace-nowrap">Round</span>
-              <span className="font-bold text-blue-300">{roundPtsA}</span>
-            </div>
-            <span className="text-gray-600 mx-1.5 text-sm flex-shrink-0">–</span>
-            <div className="flex-1 flex items-baseline justify-start min-w-0">
-              <span className="font-bold text-red-300">{roundPtsB}</span>
-            </div>
-          </div>
-          <div className="flex items-baseline flex-nowrap text-[9px]">
-            <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
-              <span className="text-gray-500 whitespace-nowrap">proj</span>
-              <span className="text-blue-300/70">{projA - liveA + roundPtsA}</span>
-            </div>
-            <span className="text-gray-600 mx-1.5 text-sm flex-shrink-0">–</span>
-            <div className="flex-1 flex items-baseline justify-start min-w-0">
-              <span className="text-red-300/70">{projB - liveB + roundPtsB}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Projected bonuses — always visible when present */}
-      {projectedBonuses.length > 0 && (
-        <div className={`${currentRound && currentRound.matchups.length > 1 ? '' : 'border-t border-gray-800'} px-4 py-1`}>
-          <details className="mt-0.5">
-            <summary className="text-[9px] text-gray-500 text-center cursor-pointer hover:text-gray-400">Bonuses</summary>
-            <div className="mt-1 space-y-0.5">
+          {/* Projected bonuses */}
+          {projectedBonuses.length > 0 && (
+            <div className="space-y-0.5">
+              <p className="text-[9px] text-gray-500 uppercase tracking-wider text-center">Bonuses</p>
               {projectedBonuses.map((pb) => (
                 <div key={pb.name} className="flex items-baseline flex-nowrap text-[9px]">
                   <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
                     <span className="text-gray-500 whitespace-nowrap">{pb.name}</span>
                     <span className="text-blue-300/70">{pb.a}</span>
                   </div>
-                  <span className="text-gray-600 mx-1.5 text-sm flex-shrink-0">–</span>
+                  <span className="text-gray-600 mx-1 flex-shrink-0">–</span>
                   <div className="flex-1 flex items-baseline justify-start min-w-0">
                     <span className="text-red-300/70">{pb.b}</span>
                   </div>
                 </div>
               ))}
             </div>
-          </details>
+          )}
+
+          {/* Tournament total */}
+          <div className="flex items-baseline flex-nowrap text-[10px] pt-0.5 border-t border-gray-800">
+            <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
+              <span className="text-gray-500 uppercase tracking-wider whitespace-nowrap">Tourn</span>
+              <span className="font-bold text-blue-300">{liveA}</span>
+              <span className="text-blue-300/60 text-[9px]">({projA})</span>
+            </div>
+            <span className="text-gray-600 mx-1 flex-shrink-0">–</span>
+            <div className="flex-1 flex items-baseline justify-start gap-1 min-w-0">
+              <span className="font-bold text-red-300">{liveB}</span>
+              <span className="text-red-300/60 text-[9px]">({projB})</span>
+              {target && target > 0 && (
+                <span className="text-[9px] text-gray-500 whitespace-nowrap">· {target} to win</span>
+              )}
+            </div>
+          </div>
         </div>
       )}
-
-      {/* Tournament — always visible with projection */}
-      <div className="border-t border-gray-800 px-4 py-1.5">
-        <div className="flex items-baseline flex-nowrap text-[10px]">
-          <div className="flex-1 flex items-baseline justify-end gap-1.5 min-w-0">
-            <span className="text-gray-500 uppercase tracking-wider whitespace-nowrap">Tournament</span>
-            <span className="font-bold text-blue-300">{liveA}</span>
-          </div>
-          <span className="text-gray-600 mx-1.5 text-sm flex-shrink-0">–</span>
-          <div className="flex-1 flex items-baseline justify-start gap-1.5 min-w-0">
-            <span className="font-bold text-red-300">{liveB}</span>
-            {target && target > 0 && (
-              <span className="text-[9px] text-gray-500 whitespace-nowrap">({target} to win)</span>
-            )}
-          </div>
-        </div>
-        <div className="flex items-baseline flex-nowrap text-[9px]">
-          <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
-            <span className="text-gray-500 whitespace-nowrap">proj</span>
-            <span className="text-blue-300/70">{projA}</span>
-          </div>
-          <span className="text-gray-600 mx-1.5 text-sm flex-shrink-0">–</span>
-          <div className="flex-1 flex items-baseline justify-start min-w-0">
-            <span className="text-red-300/70">{projB}</span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
