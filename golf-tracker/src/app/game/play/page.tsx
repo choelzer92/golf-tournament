@@ -2097,8 +2097,6 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
   // Compute round totals (sum of all live match tournament points in this round)
   let roundPtsA = 0;
   let roundPtsB = 0;
-  let roundStbA = 0;
-  let roundStbB = 0;
   if (currentRound) {
     for (const m of currentRound.matchups) {
       if (m.result) {
@@ -2115,23 +2113,6 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
             const liveResult = recomputeMatchResult(mScores, m, currentRound, tournament);
             if (liveResult) { roundPtsA += liveResult.pointsTeamA; roundPtsB += liveResult.pointsTeamB; }
           }
-        }
-      }
-    }
-    // Round stableford totals (sum across all matches)
-    if (isStrokePlayStableford) {
-      roundStbA = currentStbA;
-      roundStbB = currentStbB;
-      for (const m of currentRound.matchups) {
-        if (m.id === currentMatchupId) continue;
-        if (!m.gameId) continue;
-        const mScores = m.result ? null : loadGameScores(m.id);
-        if (!mScores || mScores.length === 0) continue;
-        // Approximate: use the match result summary to extract stableford pts
-        const liveResult = recomputeMatchResult(mScores, m, currentRound, tournament);
-        if (liveResult && liveResult.summary) {
-          const match = liveResult.summary.match(/^(\d+)\s*[—–-]\s*(\d+)/);
-          if (match) { roundStbA += Number(match[1]); roundStbB += Number(match[2]); }
         }
       }
     }
@@ -2177,21 +2158,25 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
   return (
     <div className="bg-gray-900 border-b border-gray-700">
       <button onClick={() => setExpanded((e) => !e)} className="w-full px-4 py-1.5">
-        {/* Round score + projection on one line */}
+        {/* Round match points + projection */}
         <div className="flex items-center justify-center gap-2">
           <span className="text-[10px] font-bold text-blue-400">{teamA.name}</span>
-          <span className="text-base font-black text-blue-300 tabular-nums">{isStrokePlayStableford ? roundStbA : roundPtsA}</span>
+          <span className="text-base font-black text-blue-300 tabular-nums">{roundPtsA}</span>
           <span className="text-xs text-gray-600">–</span>
-          <span className="text-base font-black text-red-300 tabular-nums">{isStrokePlayStableford ? roundStbB : roundPtsB}</span>
+          <span className="text-base font-black text-red-300 tabular-nums">{roundPtsB}</span>
           <span className="text-[10px] font-bold text-red-400">{teamB.name}</span>
           {currentRound && (
             <span className="text-[9px] text-gray-500 ml-1">(proj {roundProjA}–{roundProjB})</span>
           )}
         </div>
-        {/* Current match status */}
-        {currentMatchText && (
+        {/* Current match stableford or status */}
+        {isStrokePlayStableford && (currentStbA > 0 || currentStbB > 0) ? (
+          <p className="text-center text-[10px] text-gray-400 mt-0.5">
+            This match: <span className="text-blue-300">{currentStbA}</span>–<span className="text-red-300">{currentStbB}</span> stb
+          </p>
+        ) : currentMatchText ? (
           <p className="text-center text-[10px] text-gray-400 mt-0.5">{currentMatchText}</p>
-        )}
+        ) : null}
       </button>
 
       {/* Expanded: bonuses + tournament totals */}
