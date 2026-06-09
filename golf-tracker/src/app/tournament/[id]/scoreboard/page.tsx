@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { GameScore } from '@/lib/game-state';
 import type { Tournament, TournamentRound, RoundMatchup } from '@/lib/tournament-state';
-import { loadTournament, loadGameScores, fetchGameScores, computeStandings, fetchTournament, subscribeToTournament, subscribeToScores, computeProjectedBonuses } from '@/lib/tournament-state';
+import { loadTournament, loadGameScores, fetchGameScores, computeStandings, fetchTournament, subscribeToTournament, subscribeToScores, computeProjectedBonuses, onVisibilityRefetch } from '@/lib/tournament-state';
 import type { ProjectedBonus } from '@/lib/tournament-state';
 import { computeTeamNassau, computeSkins, computeRoundBestNets, getPlayerDisplayName } from '@/lib/money-games';
 import { computeLiveMatchStatus, computeSplitMatchStatuses, computeNassauStatus, computeHoleWinners, getHoleDataForRound, getPlayerStrokesForHole, computePlayerStablefordPoints, recomputeMatchResult, getTeamStablefordForHole, computeMatchPlayStatusText } from '@/lib/live-scoring';
@@ -29,7 +29,7 @@ export default function ScoreboardPage() {
     return () => { channel.unsubscribe(); };
   }, [id, router]);
 
-  // Subscribe to score changes for all in-progress matchups
+  // Subscribe to score changes for all in-progress matchups + refetch on tab focus
   useEffect(() => {
     if (!tournament) return;
     const inProgressMatchups = tournament.rounds
@@ -38,15 +38,21 @@ export default function ScoreboardPage() {
 
     if (inProgressMatchups.length === 0) return;
 
+    const matchupIds = inProgressMatchups.map((m) => m.id);
+
     // Fetch latest scores for in-progress matchups, then trigger re-render
-    Promise.all(inProgressMatchups.map((m) => fetchGameScores(m.id))).then(() => {
+    Promise.all(matchupIds.map((mid) => fetchGameScores(mid))).then(() => {
       setScoreTick((t) => t + 1);
     });
 
     const channels = inProgressMatchups.map((m) =>
       subscribeToScores(m.id, () => setScoreTick((t) => t + 1))
     );
-    return () => { channels.forEach((ch) => ch.unsubscribe()); };
+
+    // Re-fetch when tab becomes visible (catches missed realtime events)
+    const cleanupVisibility = onVisibilityRefetch(matchupIds, () => setScoreTick((t) => t + 1));
+
+    return () => { channels.forEach((ch) => ch.unsubscribe()); cleanupVisibility(); };
   }, [tournament?.rounds.map((r) => r.matchups.filter((m) => m.gameId && !m.result).map((m) => m.id)).flat().join(',')]);
 
   if (!tournament) return null;

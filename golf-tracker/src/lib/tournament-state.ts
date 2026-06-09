@@ -258,16 +258,27 @@ export async function fetchTournament(id: string): Promise<Tournament | null> {
   return null;
 }
 
-// Fetch scores for a matchup from Supabase into cache
+// Fetch scores for a matchup from Supabase into cache (always hits network)
 export async function fetchGameScores(matchupId: string): Promise<any | null> {
-  const cached = scoresCache.get(matchupId);
-  if (cached) return cached;
   const { data } = await supabase.from('game_scores').select('data').eq('matchup_id', matchupId).single();
   if (data) {
     scoresCache.set(matchupId, data.data);
     return data.data;
   }
-  return null;
+  return scoresCache.get(matchupId) || null;
+}
+
+// Re-fetch scores for given matchup IDs when the page becomes visible again
+export function onVisibilityRefetch(matchupIds: string[], onRefreshed?: () => void) {
+  function handler() {
+    if (document.visibilityState === 'visible') {
+      Promise.all(matchupIds.map((id) => fetchGameScores(id))).then(() => {
+        onRefreshed?.();
+      });
+    }
+  }
+  document.addEventListener('visibilitychange', handler);
+  return () => document.removeEventListener('visibilitychange', handler);
 }
 
 // Subscribe to realtime score changes for a matchup

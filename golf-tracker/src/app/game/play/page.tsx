@@ -124,10 +124,14 @@ export default function PlayGamePage() {
     return Array.from(map.values());
   }
 
-  // Auto-save merged scores on local change (ref avoids re-triggering on remote updates)
+  // Auto-save merged scores on local change (debounced to avoid rapid-fire upserts)
   useEffect(() => {
     if (!setup?.matchupId || scores.length === 0) return;
-    saveGameScores(setup.matchupId, mergeScores(scores, remoteScoresRef.current));
+    const matchupId = setup.matchupId;
+    const timeout = setTimeout(() => {
+      saveGameScores(matchupId, mergeScores(scores, remoteScoresRef.current));
+    }, 400);
+    return () => clearTimeout(timeout);
   }, [setup?.matchupId, scores]);
 
   // Realtime subscription for remote team's scores
@@ -1490,7 +1494,7 @@ export default function PlayGamePage() {
     return best;
   }
 
-  function finishGame() {
+  async function finishGame() {
     if (tournamentCtx) {
       const tournament = loadTournament(tournamentCtx.tournamentId);
       if (tournament) {
@@ -1506,12 +1510,29 @@ export default function PlayGamePage() {
             const teamAPlayers = allPlayers.filter((p) => matchup.teamAPlayerIds.includes(p.id));
             const teamBPlayers = allPlayers.filter((p) => matchup.teamBPlayerIds.includes(p.id));
 
-            // Merge local + remote scores before saving
+            // Fetch latest scores from server to ensure we have all players' data
+            const serverScores = await fetchGameScores(tournamentCtx.matchupId);
             const allScores = setup!.scoringTeam
-              ? mergeScores(scores, remoteScores)
+              ? mergeScores(scores, Array.isArray(serverScores) ? serverScores : [])
               : scores;
 
-            // Save scores first (needed for bonus computations)
+            // Validate all players have scores for all holes before finalizing
+            const requiredHoleNumbers = holes.map((h) => h.number);
+            const missingPlayers: string[] = [];
+            for (const player of allPlayers) {
+              const playerScores = allScores.filter((s: GameScore) => s.playerId === player.id);
+              const scoredHoles = new Set(playerScores.map((s: GameScore) => s.hole));
+              const missing = requiredHoleNumbers.filter((h) => !scoredHoles.has(h));
+              if (missing.length > 0) {
+                missingPlayers.push(`${player.name.split(' ')[0]} (holes ${missing.join(', ')})`);
+              }
+            }
+            if (missingPlayers.length > 0) {
+              alert(`Cannot finish — missing scores:\n${missingPlayers.join('\n')}`);
+              return;
+            }
+
+            // Save complete scores
             saveGameScores(tournamentCtx.matchupId, allScores);
 
             let pointsTeamA = 0;
