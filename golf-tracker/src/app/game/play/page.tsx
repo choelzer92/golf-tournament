@@ -57,6 +57,32 @@ export default function PlayGamePage() {
       });
     }
 
+    // Fetch scores for all other active matchups in the tournament (for projections)
+    if (ctxRaw) {
+      const ctx = JSON.parse(ctxRaw) as TournamentGameContext;
+      const t = loadTournament(ctx.tournamentId);
+      if (t) {
+        for (const round of t.rounds) {
+          for (const m of round.matchups) {
+            if (m.gameId && !m.result && m.id !== parsed.matchupId) {
+              fetchGameScores(m.id);
+            }
+          }
+        }
+      } else {
+        fetchTournament(ctx.tournamentId).then((t) => {
+          if (!t) return;
+          for (const round of t.rounds) {
+            for (const m of round.matchups) {
+              if (m.gameId && !m.result && m.id !== parsed.matchupId) {
+                fetchGameScores(m.id);
+              }
+            }
+          }
+        });
+      }
+    }
+
     const startHole = parsed.holesPlaying === 'back9' ? 10 : 1;
     setCurrentHole(startHole);
   }, [router]);
