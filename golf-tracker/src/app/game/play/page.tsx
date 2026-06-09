@@ -125,15 +125,18 @@ export default function PlayGamePage() {
     return Array.from(map.values());
   }
 
-  // Auto-save merged scores on local change (debounced to avoid rapid-fire upserts)
+  // Cache scores immediately on every change so navigation doesn't lose data,
+  // but debounce the server write to avoid rapid-fire upserts
   useEffect(() => {
     if (!setup?.matchupId || scores.length === 0) return;
     const matchupId = setup.matchupId;
+    const merged = mergeScores(scores, remoteScoresRef.current);
+    cacheGameScores(matchupId, merged);
     const ownedPlayerIds = setup.scoringTeam
       ? setup.players.filter((p) => p.team === setup.scoringTeam).map((p) => p.id)
       : undefined;
     const timeout = setTimeout(() => {
-      saveGameScores(matchupId, mergeScores(scores, remoteScoresRef.current), ownedPlayerIds);
+      saveGameScores(matchupId, merged, ownedPlayerIds);
     }, 400);
     return () => clearTimeout(timeout);
   }, [setup?.matchupId, scores]);
