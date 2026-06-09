@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { GameSetup, GameScore, Player } from '@/lib/game-state';
 import { calcCourseHandicap } from '@/lib/game-state';
 import { isOneBallFormat, isTeamMode, resolveStablefordScale } from '@/lib/formats';
-import type { TournamentGameContext, Tournament, RoundMatchup } from '@/lib/tournament-state';
+import type { TournamentGameContext, Tournament } from '@/lib/tournament-state';
 import { loadTournament, saveTournament, saveGameScores, loadGameScores, fetchGameScores, fetchTournament, computeStandings, computeBonuses, computeProjectedBonuses, subscribeToScores } from '@/lib/tournament-state';
 import { computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, computeSplitMatchStatuses } from '@/lib/live-scoring';
 
@@ -473,11 +473,23 @@ export default function PlayGamePage() {
       <div className="bg-green-900 text-green-200 text-xs text-center py-1.5">
         {(() => {
           const parts: string[] = [];
+          // Format name
+          const formatNames: Record<string, string> = {
+            'stableford': 'Stableford',
+            'stroke-play': 'Stroke Play',
+            'match-play': 'Match Play',
+            'nassau': 'Nassau',
+            'skins': 'Skins',
+            'scramble': 'Scramble',
+            'alternate-shot': 'Alternate Shot',
+          };
+          parts.push(formatNames[setup.formatId] || setup.formatId.replace('-', ' '));
+
           if (oneBall) {
             if (teamMode === 'scramble') {
-              parts.push((setup.handicapAllowance ?? -1) < 0 ? 'Scramble (USGA Tiered)' : `Scramble (${setup.handicapAllowance}%)`);
+              parts.push((setup.handicapAllowance ?? -1) < 0 ? 'USGA Tiered' : `${setup.handicapAllowance}%`);
             } else {
-              parts.push(`Alt Shot (60/40 × ${setup.handicapAllowance ?? 50}%)`);
+              parts.push(`60/40 × ${setup.handicapAllowance ?? 50}%`);
             }
           } else {
             if (teamMode === 'two-best-balls') {
@@ -486,10 +498,10 @@ export default function PlayGamePage() {
               else if (variant === '2-best-gross') parts.push('Two Best Gross');
               else parts.push('Best Net + Best Gross');
             } else if (teamMode === 'best-ball') {
-              parts.push('Best Ball (Net)');
+              parts.push('Best Ball');
             } else if (teamMode === 'combined') {
               parts.push('Combined');
-            } else {
+            } else if (teamMode === 'individual') {
               parts.push('Individual');
             }
             if (setup.handicapAllowance != null && setup.handicapAllowance !== 100) {
@@ -2002,6 +2014,16 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
       }
     }
   }
+  // Ensure current scores are in localStorage before computing projected bonuses
+  if (currentMatchupId && currentScores.length > 0) {
+    const merged = [...remoteScores];
+    for (const s of currentScores) {
+      const idx = merged.findIndex((r) => r.playerId === s.playerId && r.hole === s.hole);
+      if (idx >= 0) merged[idx] = s; else merged.push(s);
+    }
+    saveGameScores(currentMatchupId, merged);
+  }
+
   const projectedBonuses: { name: string; a: number; b: number; detail: string }[] = [];
   for (const round of tournament.rounds) {
     if (round.status !== 'in-progress') continue;
@@ -2012,7 +2034,6 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
       projectedBonuses.push({ name: pb.bonusName, a: pb.projectedTeamAPoints, b: pb.projectedTeamBPoints, detail: pb.detail });
     }
   }
-  const hasProjection = projA !== liveA || projB !== liveB;
 
   // Live match status for split scoring
   let matchStatusText: string | null = null;
@@ -2034,8 +2055,6 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
     }
   }
 
-  const [expanded, setExpanded] = useState(false);
-  const hasOtherMatches = currentRound && currentRound.matchups.length > 1;
   const target = tournament.targetScore;
 
   // Current match result text (for non-split scoring too)
@@ -2076,92 +2095,175 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
     }
   }
 
+  // Compute round totals (sum of all live match tournament points in this round)
+  let roundPtsA = 0;
+  let roundPtsB = 0;
+  let roundStbA = 0;
+  let roundStbB = 0;
+  if (currentRound) {
+    for (const m of currentRound.matchups) {
+      if (m.result) {
+        roundPtsA += m.result.pointsTeamA;
+        roundPtsB += m.result.pointsTeamB;
+      } else if (m.gameId) {
+        if (m.id === currentMatchupId) {
+          const liveResult = currentScores.length > 0
+            ? recomputeMatchResult(currentScores, m, currentRound, tournament) : null;
+          if (liveResult) { roundPtsA += liveResult.pointsTeamA; roundPtsB += liveResult.pointsTeamB; }
+        } else {
+          const mScores = loadGameScores(m.id);
+          if (mScores && mScores.length > 0) {
+            const liveResult = recomputeMatchResult(mScores, m, currentRound, tournament);
+            if (liveResult) { roundPtsA += liveResult.pointsTeamA; roundPtsB += liveResult.pointsTeamB; }
+          }
+        }
+      }
+    }
+    // Round stableford totals (sum across all matches)
+    if (isStrokePlayStableford) {
+      roundStbA = currentStbA;
+      roundStbB = currentStbB;
+      for (const m of currentRound.matchups) {
+        if (m.id === currentMatchupId) continue;
+        if (!m.gameId) continue;
+        const mScores = m.result ? null : loadGameScores(m.id);
+        if (!mScores || mScores.length === 0) continue;
+        // Approximate: use the match result summary to extract stableford pts
+        const liveResult = recomputeMatchResult(mScores, m, currentRound, tournament);
+        if (liveResult && liveResult.summary) {
+          const match = liveResult.summary.match(/^(\d+)\s*[—–-]\s*(\d+)/);
+          if (match) { roundStbA += Number(match[1]); roundStbB += Number(match[2]); }
+        }
+      }
+    }
+  }
+
+
+  // Derive current match score display based on format
+  let currentScoreA: string = '–';
+  let currentScoreB: string = '–';
+  if (isStrokePlayStableford && (currentStbA > 0 || currentStbB > 0)) {
+    currentScoreA = String(currentStbA);
+    currentScoreB = String(currentStbB);
+  } else if (currentRound?.scoringMethod === 'match-play' && currentMatchup && currentScores.length > 0) {
+    const merged = [...remoteScores];
+    for (const s of currentScores) {
+      const idx = merged.findIndex((r) => r.playerId === s.playerId && r.hole === s.hole);
+      if (idx >= 0) merged[idx] = s; else merged.push(s);
+    }
+    const status = computeLiveMatchStatus(merged, currentMatchup, currentRound, tournament);
+    if (status && status.thru > 0) {
+      const diff = status.holesWonA - status.holesWonB;
+      if (diff === 0) {
+        currentScoreA = 'AS';
+        currentScoreB = `thru ${status.thru}`;
+      } else {
+        const leader = diff > 0 ? 'A' : 'B';
+        const up = Math.abs(diff);
+        currentScoreA = leader === 'A' ? `${up} UP` : `${up} DN`;
+        currentScoreB = leader === 'B' ? `${up} UP` : `${up} DN`;
+      }
+    }
+  } else if (currentMatchText) {
+    const match = currentMatchText.match(/^(\d+)\s*[—–-]\s*(\d+)/);
+    if (match) { currentScoreA = match[1]; currentScoreB = match[2]; }
+  }
+
   return (
     <div className="bg-gray-900 border-b border-gray-700">
-      {/* Primary: current match status + match projection */}
-      <button
-        onClick={() => setExpanded((e) => !e)}
-        className="w-full px-4 py-2 relative"
-      >
-        {/* Current match — the main thing scorers care about */}
-        {currentMatchText ? (
-          <p className="text-center text-sm font-bold text-green-400">{currentMatchText}</p>
-        ) : (
-          <p className="text-center text-sm font-medium text-gray-500">Match in progress</p>
-        )}
-
-        {/* Stableford totals for current match */}
-        {isStrokePlayStableford && (currentStbA > 0 || currentStbB > 0) && (
-          <p className="text-center text-[10px] text-gray-400 mt-0.5">
-            <span className="text-blue-300">{currentStbA}</span>
-            <span className="text-gray-600 mx-1">—</span>
-            <span className="text-red-300">{currentStbB}</span>
-            <span className="text-gray-500 ml-1">stableford</span>
-          </p>
-        )}
-
-        {/* Current match projected final */}
-        {matchProjA !== null && matchProjB !== null && (
-          <p className="text-center text-[10px] text-gray-400 mt-0.5">
-            proj <span className="text-blue-300">{matchProjA}</span>–<span className="text-red-300">{matchProjB}</span>
-          </p>
-        )}
-
-        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 text-xs transition-transform ${expanded ? 'rotate-180' : ''}`}>▾</span>
-      </button>
-
-      {/* Expanded: tournament context + details */}
-      {expanded && (
-        <div className="px-4 pb-3 pt-1 border-t border-gray-800 max-w-sm mx-auto">
-          {/* Overall tournament score + projection */}
-          <div className="py-2 text-center">
-            <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-1">Tournament</p>
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-blue-400 text-[9px] uppercase">{teamA.name}</span>
-              <span className="text-lg font-black text-white">{liveA}<span className="text-gray-600 mx-1 text-sm font-light">—</span>{liveB}</span>
-              <span className="text-red-400 text-[9px] uppercase">{teamB.name}</span>
-            </div>
-            {hasProjection && (
-              <p className="text-[10px] text-gray-500 mt-0.5">
-                proj <span className="text-blue-300">{projA}</span> — <span className="text-red-300">{projB}</span>
-              </p>
-            )}
-            {target && target > 0 && (
-              <p className="text-[9px] text-gray-500 mt-0.5">{target} to win</p>
-            )}
+      {/* Cumulative round score — the big number */}
+      <div className="px-4 pt-2.5 pb-1">
+        <div className="flex items-baseline flex-nowrap">
+          <div className="flex-1 flex items-baseline justify-end gap-1.5 min-w-0">
+            <span className="text-xs font-bold text-blue-400 whitespace-nowrap">{teamA.name}</span>
+            <span className="text-lg font-black text-blue-300 tabular-nums min-w-[1.5rem] text-right">{isStrokePlayStableford ? roundStbA : roundPtsA}</span>
           </div>
+          <span className="text-sm text-gray-600 font-light mx-1.5 flex-shrink-0">–</span>
+          <div className="flex-1 flex items-baseline justify-start gap-1.5 min-w-0">
+            <span className="text-lg font-black text-red-300 tabular-nums min-w-[1.5rem]">{isStrokePlayStableford ? roundStbB : roundPtsB}</span>
+            <span className="text-xs font-bold text-red-400 whitespace-nowrap">{teamB.name}</span>
+          </div>
+        </div>
+      </div>
 
-          {/* Round matches */}
-          {hasOtherMatches && (
-            <div className="pt-1">
-              <p className="text-[9px] text-gray-500 uppercase tracking-wider text-center mb-1">Round Matches</p>
-              <div className="space-y-0.5">
-                {currentRound.matchups.map((m) => (
-                  <OtherMatchupRow key={m.id} matchup={m} round={currentRound} tournament={tournament} isCurrent={m.id === currentMatchupId} />
-                ))}
+      {/* Individual match scores */}
+      {currentRound && (
+        <div className="px-4 pb-2 space-y-0.5">
+          {[...currentRound.matchups].sort((a, b) => (a.id === currentMatchupId ? -1 : b.id === currentMatchupId ? 1 : 0)).map((m) => {
+            const mTeamANames = tournament.players.filter((p) => m.teamAPlayerIds.includes(p.id)).map((p) => p.name.split(' ')[0]).join('/');
+            const mTeamBNames = tournament.players.filter((p) => m.teamBPlayerIds.includes(p.id)).map((p) => p.name.split(' ')[0]).join('/');
+            let mScoreA = '–';
+            let mScoreB = '–';
+            if (m.id === currentMatchupId) {
+              mScoreA = currentScoreA;
+              mScoreB = currentScoreB;
+            } else if (m.result) {
+              const match = m.result.summary.match(/^(\d+)\s*[—–-]\s*(\d+)/);
+              if (match) { mScoreA = match[1]; mScoreB = match[2]; }
+            } else if (m.gameId) {
+              const mScores = loadGameScores(m.id);
+              if (mScores && mScores.length > 0) {
+                const liveResult = recomputeMatchResult(mScores, m, currentRound, tournament);
+                if (liveResult) {
+                  const match = liveResult.summary.match(/^(\d+)\s*[—–-]\s*(\d+)/);
+                  if (match) { mScoreA = match[1]; mScoreB = match[2]; }
+                }
+              }
+            }
+            return (
+              <div key={m.id} className="flex items-baseline flex-nowrap text-[10px]">
+                <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
+                  <span className="whitespace-nowrap text-blue-300">{mTeamANames}</span>
+                  <span className="font-bold tabular-nums min-w-[1.25rem] text-right text-blue-300">{mScoreA}</span>
+                </div>
+                <span className="text-gray-600 mx-1.5 text-sm flex-shrink-0">–</span>
+                <div className="flex-1 flex items-baseline justify-start gap-1 min-w-0">
+                  <span className="font-bold tabular-nums min-w-[1.25rem] text-red-300">{mScoreB}</span>
+                  <span className="whitespace-nowrap text-red-300">{mTeamBNames}</span>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })}
+        </div>
+      )}
 
-          {/* Projected bonuses */}
-          {hasProjection && projectedBonuses.length > 0 && (
-            <details className="mt-2">
-              <summary className="text-[9px] text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-gray-400">
-                Projected Bonuses
-              </summary>
-              <div className="mt-1 space-y-1.5">
+      {/* Round total + projection + bonuses */}
+      {currentRound && currentRound.matchups.length > 1 && (
+        <div className="border-t border-gray-800 px-4 py-1.5">
+          <div className="flex items-baseline flex-nowrap text-[10px]">
+            <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
+              <span className="text-gray-500 uppercase tracking-wider whitespace-nowrap">Round</span>
+              <span className="font-bold text-blue-300">{roundPtsA}</span>
+            </div>
+            <span className="text-gray-600 mx-1.5 text-sm flex-shrink-0">–</span>
+            <div className="flex-1 flex items-baseline justify-start min-w-0">
+              <span className="font-bold text-red-300">{roundPtsB}</span>
+            </div>
+          </div>
+          <div className="flex items-baseline flex-nowrap text-[9px]">
+            <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
+              <span className="text-gray-500 whitespace-nowrap">proj</span>
+              <span className="text-blue-300/70">{projA - liveA + roundPtsA}</span>
+            </div>
+            <span className="text-gray-600 mx-1.5 text-sm flex-shrink-0">–</span>
+            <div className="flex-1 flex items-baseline justify-start min-w-0">
+              <span className="text-red-300/70">{projB - liveB + roundPtsB}</span>
+            </div>
+          </div>
+          {projectedBonuses.length > 0 && (
+            <details className="mt-1">
+              <summary className="text-[9px] text-gray-500 text-center cursor-pointer hover:text-gray-400">Bonuses</summary>
+              <div className="mt-1 space-y-0.5">
                 {projectedBonuses.map((pb) => (
-                  <div key={pb.name} className="text-[10px]">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">{pb.name}</span>
-                      <span className={pb.a > pb.b ? 'text-blue-400' : pb.b > pb.a ? 'text-red-400' : 'text-gray-500'}>
-                        {pb.a > pb.b ? teamA.name : pb.b > pb.a ? teamB.name : 'Tied'}
-                        {pb.a !== pb.b && <span className="text-gray-600 ml-1">(+{Math.max(pb.a, pb.b)})</span>}
-                      </span>
+                  <div key={pb.name} className="flex items-baseline flex-nowrap text-[9px]">
+                    <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
+                      <span className="text-gray-500 whitespace-nowrap">{pb.name}</span>
+                      <span className="text-blue-300/70">{pb.a}</span>
                     </div>
-                    {pb.detail && (
-                      <p className="text-[9px] text-gray-500 mt-0.5">{pb.detail}</p>
-                    )}
+                    <span className="text-gray-600 mx-1.5 text-sm flex-shrink-0">–</span>
+                    <div className="flex-1 flex items-baseline justify-start min-w-0">
+                      <span className="text-red-300/70">{pb.b}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -2169,50 +2271,35 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
           )}
         </div>
       )}
+
+      {/* Tournament — always visible with projection */}
+      <div className="border-t border-gray-800 px-4 py-1.5">
+        <div className="flex items-baseline flex-nowrap text-[10px]">
+          <div className="flex-1 flex items-baseline justify-end gap-1.5 min-w-0">
+            <span className="text-gray-500 uppercase tracking-wider whitespace-nowrap">Tournament</span>
+            <span className="font-bold text-blue-300">{liveA}</span>
+          </div>
+          <span className="text-gray-600 mx-1.5 text-sm flex-shrink-0">–</span>
+          <div className="flex-1 flex items-baseline justify-start gap-1.5 min-w-0">
+            <span className="font-bold text-red-300">{liveB}</span>
+            {target && target > 0 && (
+              <span className="text-[9px] text-gray-500 whitespace-nowrap">({target} to win)</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-baseline flex-nowrap text-[9px]">
+          <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
+            <span className="text-gray-500 whitespace-nowrap">proj</span>
+            <span className="text-blue-300/70">{projA}</span>
+          </div>
+          <span className="text-gray-600 mx-1.5 text-sm flex-shrink-0">–</span>
+          <div className="flex-1 flex items-baseline justify-start min-w-0">
+            <span className="text-red-300/70">{projB}</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-function OtherMatchupRow({ matchup, round, tournament, isCurrent }: { matchup: RoundMatchup; round: import('@/lib/tournament-state').TournamentRound; tournament: Tournament; isCurrent?: boolean }) {
-  const teamAPlayers = tournament.players.filter((p) => matchup.teamAPlayerIds.includes(p.id));
-  const teamBPlayers = tournament.players.filter((p) => matchup.teamBPlayerIds.includes(p.id));
-
-  const teamANames = teamAPlayers.map((p) => p.name.split(' ')[0]).join('/');
-  const teamBNames = teamBPlayers.map((p) => p.name.split(' ')[0]).join('/');
-
-  let scoreText = '';
-  let statusColor = 'text-gray-500';
-
-  if (matchup.result) {
-    scoreText = matchup.result.summary.replace(' (stableford pts)', '').replace(' (net)', '');
-    statusColor = 'text-green-400';
-  } else if (matchup.gameId) {
-    const mScores = loadGameScores(matchup.id);
-    if (mScores && mScores.length > 0) {
-      const liveResult = recomputeMatchResult(mScores, matchup, round, tournament);
-      if (liveResult) {
-        scoreText = liveResult.summary.replace(' (stableford pts)', '').replace(' (net)', '');
-        statusColor = 'text-yellow-300';
-      } else {
-        scoreText = '...';
-        statusColor = 'text-yellow-400';
-      }
-    } else {
-      scoreText = '...';
-      statusColor = 'text-gray-600';
-    }
-  }
-
-  return (
-    <div className={`flex justify-between text-[10px] ${isCurrent ? 'text-green-300' : 'text-gray-400'}`}>
-      <span>
-        <span className="text-blue-300">{teamANames}</span>
-        <span className="text-gray-600 mx-0.5">v</span>
-        <span className="text-red-300">{teamBNames}</span>
-        {isCurrent && <span className="ml-1 text-[8px] text-green-600">●</span>}
-      </span>
-      {scoreText && <span className={`font-medium ${statusColor}`}>{scoreText}</span>}
-    </div>
-  );
-}
 
