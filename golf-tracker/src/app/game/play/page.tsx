@@ -6,7 +6,7 @@ import type { GameSetup, GameScore, Player } from '@/lib/game-state';
 import { calcCourseHandicap } from '@/lib/game-state';
 import { isOneBallFormat, isTeamMode, resolveStablefordScale } from '@/lib/formats';
 import type { TournamentGameContext, Tournament } from '@/lib/tournament-state';
-import { loadTournament, saveTournament, saveGameScores, cacheGameScores, loadGameScores, fetchGameScores, fetchTournament, computeStandings, computeBonuses, computeProjectedBonuses, subscribeToScores } from '@/lib/tournament-state';
+import { loadTournament, saveTournament, saveGameScores, cacheGameScores, loadGameScores, fetchGameScores, fetchTournament, computeStandings, computeBonuses, computeProjectedBonuses, subscribeToScores, onVisibilityRefetch } from '@/lib/tournament-state';
 import { computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, computeSplitMatchStatuses } from '@/lib/live-scoring';
 
 export default function PlayGamePage() {
@@ -157,6 +157,7 @@ export default function PlayGamePage() {
   }, [setup?.scoringTeam, setup?.matchupId, setup?.players]);
 
   // Subscribe to other active matchups in the tournament for live overview updates
+  // + re-fetch on tab/app resume to catch missed events while idle
   useEffect(() => {
     if (!tournamentCtx || !setup?.matchupId) return;
     const tournament = loadTournament(tournamentCtx.tournamentId);
@@ -173,7 +174,9 @@ export default function PlayGamePage() {
       subscribeToScores(mid, () => setOtherMatchupTick((t) => t + 1))
     );
 
-    return () => { channels.forEach((ch) => ch.unsubscribe()); };
+    const cleanupVisibility = onVisibilityRefetch(otherMatchupIds, () => setOtherMatchupTick((t) => t + 1));
+
+    return () => { channels.forEach((ch) => ch.unsubscribe()); cleanupVisibility(); };
   }, [tournamentCtx?.tournamentId, setup?.matchupId]);
 
   if (!setup) return null;
