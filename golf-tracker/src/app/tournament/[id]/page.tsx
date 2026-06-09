@@ -229,7 +229,7 @@ export default function TournamentHubPage() {
             </div>
           )}
 
-          <div className="text-center mt-4 flex items-center justify-center gap-3">
+          <div className="text-center mt-4 flex flex-wrap items-center justify-center gap-3">
             <button
               onClick={() => router.push(`/tournament/${id}/scoreboard`)}
               className="text-sm bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition"
@@ -303,6 +303,12 @@ export default function TournamentHubPage() {
               Duplicate Format
             </button>
           </div>
+          <button
+            onClick={() => router.push(`/tournament/${id}/rules`)}
+            className="mt-3 text-xs text-green-400 hover:text-white transition"
+          >
+            Scoring Rules & Format Guide
+          </button>
         </div>
       </div>
 
