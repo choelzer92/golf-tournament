@@ -107,8 +107,12 @@ function buildHandicapCalc(round: TournamentRound, teamMode: typeof TEAM_MODES[n
   }
 
   if (strokeMethod === 'off-the-low') {
-    lines.push('Stroke Method: Off the low — lowest handicap player plays at 0, others get difference');
+    lines.push('Stroke Method: Off the low — the lowest handicap player in your matchup plays at 0, everyone else gets the difference');
+    lines.push('"The low" is determined per matchup (your foursome/group only), not across the whole tournament');
     lines.push('Playing Handicap = (Your Course Hcap × Allowance%) - (Low Player\'s Course Hcap × Allowance%)');
+    if (splitConfig) {
+      lines.push('For individual pairings (1v1), the low is per pairing — each pair has its own low player');
+    }
   } else {
     lines.push('Stroke Method: Full handicap — each player gets their full adjusted course handicap');
     lines.push('Playing Handicap = Your Course Hcap × Allowance%');
@@ -483,7 +487,7 @@ export default function TournamentRulesPage() {
             </div>
             <div>
               <p className="font-medium text-gray-900">Off the Low</p>
-              <p>The lowest-handicap player in the matchup plays at 0 strokes. Everyone else receives the difference between their handicap and the low player's. This keeps matchups fair regardless of overall group strength.</p>
+              <p>The lowest-handicap player in your matchup (foursome/group) plays at 0 strokes. Everyone else receives the difference between their handicap and that low player's. "The low" is always per matchup — a 4v4 has one low across all 8 players, a 2v2 has one low across 4, and a 1v1 pairing has one low between the 2. This keeps strokes relative within the group you're actually competing against.</p>
             </div>
             <div>
               <p className="font-medium text-gray-900">Handicap Allowance</p>
