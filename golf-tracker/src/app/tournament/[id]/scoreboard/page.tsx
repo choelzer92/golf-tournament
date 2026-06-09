@@ -830,25 +830,82 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
         const holeWinners = computeHoleWinners(savedScores, matchup, round, tournament);
 
         function getTeamNetForDisplay(teamPlayerIds: string[], hole: { number: number; par: number; handicap: number }): number | null {
-          const nets: number[] = [];
+          const playerScores: { pid: string; gross: number; net: number }[] = [];
           for (const pid of teamPlayerIds) {
             const sc = savedScores!.find((s) => s.playerId === pid && s.hole === hole.number);
             if (!sc) continue;
             const strokes = getPlayerStrokesForHole(pid, hole.handicap, hole.number, matchup, round, tournament);
-            nets.push(sc.grossScore - strokes);
+            playerScores.push({ pid, gross: sc.grossScore, net: sc.grossScore - strokes });
           }
-          if (nets.length === 0) return null;
-          nets.sort((a, b) => a - b);
+          if (playerScores.length === 0) return null;
 
           const activeTeamMode = (round.splitFormat && hole.number > 9) ? round.splitFormat.teamMode : round.teamMode;
           if (activeTeamMode === 'two-best-balls') {
-            return nets.length >= 2 ? nets[0] + nets[1] : null;
+            if (playerScores.length < 2) return null;
+            const activeSettings = (round.splitFormat && hole.number > 9) ? round.splitFormat.formatSettings : round.formatSettings;
+            const variant = (activeSettings?.ballSelection as string) || '1-net-1-gross';
+            if (variant === '2-best-net') {
+              const sorted = [...playerScores].sort((a, b) => a.net - b.net);
+              return sorted[0].net + sorted[1].net;
+            }
+            if (variant === '2-best-gross') {
+              const sorted = [...playerScores].sort((a, b) => a.gross - b.gross);
+              return sorted[0].gross + sorted[1].gross;
+            }
+            // 1-net-1-gross: best net from one player + best gross from a different player
+            let bestTotal = Infinity;
+            for (let i = 0; i < playerScores.length; i++) {
+              for (let j = 0; j < playerScores.length; j++) {
+                if (i === j) continue;
+                const total = playerScores[i].net + playerScores[j].gross;
+                if (total < bestTotal) bestTotal = total;
+              }
+            }
+            return bestTotal;
           }
           if (activeTeamMode === 'combined') {
-            return nets.reduce((s, n) => s + n, 0);
+            return playerScores.reduce((s, p) => s + p.net, 0);
           }
           // best-ball, individual, scramble, alternate-shot: single best net
-          return nets[0];
+          const sorted = [...playerScores].sort((a, b) => a.net - b.net);
+          return sorted[0].net;
+        }
+
+        // For two-best-balls: determine which players' scores were selected on each hole
+        function getSelectedPlayers(teamPlayerIds: string[], hole: { number: number; par: number; handicap: number }): { netPlayerId: string | null; grossPlayerId: string | null } {
+          const activeTeamMode = (round.splitFormat && hole.number > 9) ? round.splitFormat.teamMode : round.teamMode;
+          if (activeTeamMode !== 'two-best-balls') return { netPlayerId: null, grossPlayerId: null };
+
+          const playerScores: { pid: string; gross: number; net: number }[] = [];
+          for (const pid of teamPlayerIds) {
+            const sc = savedScores!.find((s) => s.playerId === pid && s.hole === hole.number);
+            if (!sc) continue;
+            const strokes = getPlayerStrokesForHole(pid, hole.handicap, hole.number, matchup, round, tournament);
+            playerScores.push({ pid, gross: sc.grossScore, net: sc.grossScore - strokes });
+          }
+          if (playerScores.length < 2) return { netPlayerId: null, grossPlayerId: null };
+
+          const activeSettings = (round.splitFormat && hole.number > 9) ? round.splitFormat.formatSettings : round.formatSettings;
+          const variant = (activeSettings?.ballSelection as string) || '1-net-1-gross';
+          if (variant === '2-best-net') {
+            const sorted = [...playerScores].sort((a, b) => a.net - b.net);
+            return { netPlayerId: sorted[0].pid, grossPlayerId: sorted[1].pid };
+          }
+          if (variant === '2-best-gross') {
+            const sorted = [...playerScores].sort((a, b) => a.gross - b.gross);
+            return { netPlayerId: sorted[0].pid, grossPlayerId: sorted[1].pid };
+          }
+          // 1-net-1-gross
+          let bestTotal = Infinity;
+          let bestI = 0, bestJ = 1;
+          for (let i = 0; i < playerScores.length; i++) {
+            for (let j = 0; j < playerScores.length; j++) {
+              if (i === j) continue;
+              const total = playerScores[i].net + playerScores[j].gross;
+              if (total < bestTotal) { bestTotal = total; bestI = i; bestJ = j; }
+            }
+          }
+          return { netPlayerId: playerScores[bestI].pid, grossPlayerId: playerScores[bestJ].pid };
         }
 
         return (
@@ -873,6 +930,7 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
             <tbody>
               {allPlayers.map((player) => {
                 const isTeamA = matchup.teamAPlayerIds.includes(player.id);
+                const teamIds = isTeamA ? matchup.teamAPlayerIds : matchup.teamBPlayerIds;
                 const total = holeData.reduce((sum, h) => {
                   const sc = savedScores.find((s) => s.playerId === player.id && s.hole === h.number);
                   return sum + (sc?.grossScore || 0);
@@ -910,10 +968,15 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
                         : netToPar === 0 ? 'text-gray-300'
                         : netToPar === 1 ? 'text-blue-400'
                         : 'text-blue-500 font-bold';
+                      // Indicate which balls are selected for two-best-balls
+                      const selected = getSelectedPlayers(teamIds, h);
+                      const isNetPick = selected.netPlayerId === player.id;
+                      const isGrossPick = selected.grossPlayerId === player.id;
+                      const pickIndicator = isNetPick ? 'border-b-2 border-green-400' : isGrossPick ? 'border-b-2 border-yellow-400' : '';
                       return (
                         <td key={h.number} className={`px-1 py-1 text-center ${scoreColorClass} ${cellBg}`}>
                           {score ? (
-                            <span className={`inline-flex items-center justify-center w-5 h-5 text-[11px] ${decoration}`}>{score}</span>
+                            <span className={`inline-flex items-center justify-center w-5 h-5 text-[11px] ${decoration} ${pickIndicator}`}>{score}</span>
                           ) : '–'}
                         </td>
                       );

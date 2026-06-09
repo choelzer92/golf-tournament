@@ -1,7 +1,7 @@
 import type { Player, CourseSelection, GameScore } from './game-state';
 import type { TeamMode } from './formats';
 import { supabase } from './supabase';
-import { computePlayerStablefordPoints, computePlayerNetTotal, computeSplitMatchStatuses, computeNassauStatus, computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound } from './live-scoring';
+import { computePlayerStablefordPoints, computePlayerNetTotal, computeSplitMatchStatuses, computeNassauStatus, computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, getPlayerStrokesForHole } from './live-scoring';
 
 export type TournamentMode = 'team-event' | 'flight-bracket';
 
@@ -650,13 +650,12 @@ export function computeBonuses(
           };
         }
       } else {
-        const tee = round.course?.teeSets.find((t) => t.id === (round.defaultTeeId || round.course?.teeSets[0]?.id)) || round.course?.teeSets[0];
-        const allHoles = (tee?.holes || []).sort((a, b) => a.number - b.number);
+        const holeData = getHoleDataForRound(round);
         const targetHoles = bonus.type === 'nassau-front'
-          ? allHoles.filter((h) => h.number <= 9)
+          ? holeData.filter((h) => h.number <= 9)
           : bonus.type === 'nassau-back'
-          ? allHoles.filter((h) => h.number > 9)
-          : allHoles;
+          ? holeData.filter((h) => h.number > 9)
+          : holeData;
 
         let totalNetA = 0;
         let totalNetB = 0;
@@ -670,11 +669,19 @@ export function computeBonuses(
           for (const hole of targetHoles) {
             for (const playerId of matchup.teamAPlayerIds) {
               const sc = scores.find((s) => s.playerId === playerId && s.hole === hole.number);
-              if (sc) { totalNetA += sc.grossScore; countA++; }
+              if (sc) {
+                const strokes = getPlayerStrokesForHole(playerId, hole.handicap, hole.number, matchup, round, tournament);
+                totalNetA += sc.grossScore - strokes;
+                countA++;
+              }
             }
             for (const playerId of matchup.teamBPlayerIds) {
               const sc = scores.find((s) => s.playerId === playerId && s.hole === hole.number);
-              if (sc) { totalNetB += sc.grossScore; countB++; }
+              if (sc) {
+                const strokes = getPlayerStrokesForHole(playerId, hole.handicap, hole.number, matchup, round, tournament);
+                totalNetB += sc.grossScore - strokes;
+                countB++;
+              }
             }
           }
         }
@@ -1000,31 +1007,39 @@ export function computeProjectedBonuses(
         }
       } else {
         // stroke-play nassau: compare net totals on target holes
-        const tee = round.course?.teeSets.find((t) => t.id === (round.defaultTeeId || round.course?.teeSets[0]?.id)) || round.course?.teeSets[0];
-        const allHoles = (tee?.holes || []).sort((a, b) => a.number - b.number);
+        const holeData = getHoleDataForRound(round);
         const targetHoles = bonus.type === 'nassau-front'
-          ? allHoles.filter((h) => h.number <= 9)
+          ? holeData.filter((h) => h.number <= 9)
           : bonus.type === 'nassau-back'
-          ? allHoles.filter((h) => h.number > 9)
-          : allHoles;
+          ? holeData.filter((h) => h.number > 9)
+          : holeData;
 
         let totalNetA = 0;
         let totalNetB = 0;
+        let hasAnyScores = false;
         for (const matchup of round.matchups) {
           const scores: GameScore[] | null = loadGameScores(matchup.id);
           if (!scores) continue;
           for (const hole of targetHoles) {
             for (const playerId of matchup.teamAPlayerIds) {
               const sc = scores.find((s) => s.playerId === playerId && s.hole === hole.number);
-              if (sc) totalNetA += sc.grossScore;
+              if (sc) {
+                const strokes = getPlayerStrokesForHole(playerId, hole.handicap, hole.number, matchup, round, tournament);
+                totalNetA += sc.grossScore - strokes;
+                hasAnyScores = true;
+              }
             }
             for (const playerId of matchup.teamBPlayerIds) {
               const sc = scores.find((s) => s.playerId === playerId && s.hole === hole.number);
-              if (sc) totalNetB += sc.grossScore;
+              if (sc) {
+                const strokes = getPlayerStrokesForHole(playerId, hole.handicap, hole.number, matchup, round, tournament);
+                totalNetB += sc.grossScore - strokes;
+                hasAnyScores = true;
+              }
             }
           }
         }
-        if (totalNetA === 0 && totalNetB === 0) continue;
+        if (!hasAnyScores) continue;
         const isTie = totalNetA === totalNetB;
         projected.push({
           bonusId: bonus.id, bonusName: bonus.name, points: bonus.points, scope: bonus.scope,

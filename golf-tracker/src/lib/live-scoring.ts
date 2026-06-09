@@ -257,7 +257,7 @@ function getTeamNetForHole(
     const firstWithScore = teamPlayers.find((p) => getScore(scores, p.id, hole.number) !== null);
     if (!firstWithScore) return null;
     const gross = getScore(scores, firstWithScore.id, hole.number)!;
-    const strokes = getPlayerStrokesOnHole(firstWithScore, hole.handicap, round, holes, allMatchupPlayers, hole.number);
+    const strokes = getTeamStrokesOnHole(teamPlayers, hole.handicap, round, holes, teamMode);
     return gross - strokes;
   }
 
