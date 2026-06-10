@@ -166,6 +166,7 @@ export default function PlayGamePage() {
 
   // Subscribe to other active matchups in the tournament for live overview updates
   // + re-fetch on tab/app resume to catch missed events while idle
+  // + poll every 30s as fallback for dropped WebSocket connections on mobile
   useEffect(() => {
     if (!tournamentCtx || !setup?.matchupId) return;
     const tournament = loadTournament(tournamentCtx.tournamentId);
@@ -184,7 +185,13 @@ export default function PlayGamePage() {
 
     const cleanupVisibility = onVisibilityRefetch(otherMatchupIds, () => setOtherMatchupTick((t) => t + 1));
 
-    return () => { channels.forEach((ch) => ch.unsubscribe()); cleanupVisibility(); };
+    const pollInterval = setInterval(() => {
+      Promise.all(otherMatchupIds.map((mid) => fetchGameScores(mid))).then(() => {
+        setOtherMatchupTick((t) => t + 1);
+      });
+    }, 30000);
+
+    return () => { channels.forEach((ch) => ch.unsubscribe()); cleanupVisibility(); clearInterval(pollInterval); };
   }, [tournamentCtx?.tournamentId, setup?.matchupId]);
 
   if (!setup) return null;
@@ -2170,9 +2177,14 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
     for (const matchup of round.matchups) {
       if (!matchup.gameId || matchup.result) continue;
       if (matchup.id === currentMatchupId) {
-        // Use current local scores for this match
-        if (currentScores.length > 0 && currentRound) {
-          const liveResult = recomputeMatchResult(currentScores, matchup, currentRound, tournament);
+        // Merge local + remote scores for accurate match result
+        const merged = [...remoteScores];
+        for (const s of currentScores) {
+          const idx = merged.findIndex((r) => r.playerId === s.playerId && r.hole === s.hole);
+          if (idx >= 0) merged[idx] = s; else merged.push(s);
+        }
+        if (merged.length > 0 && currentRound) {
+          const liveResult = recomputeMatchResult(merged, matchup, currentRound, tournament);
           if (liveResult) {
             liveA += liveResult.pointsTeamA;
             liveB += liveResult.pointsTeamB;
@@ -2487,8 +2499,13 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
         roundPtsB += m.result.pointsTeamB;
       } else if (m.gameId) {
         if (m.id === currentMatchupId) {
-          const liveResult = currentScores.length > 0
-            ? recomputeMatchResult(currentScores, m, currentRound, tournament) : null;
+          const merged = [...remoteScores];
+          for (const s of currentScores) {
+            const idx = merged.findIndex((r) => r.playerId === s.playerId && r.hole === s.hole);
+            if (idx >= 0) merged[idx] = s; else merged.push(s);
+          }
+          const liveResult = merged.length > 0
+            ? recomputeMatchResult(merged, m, currentRound, tournament) : null;
           if (liveResult) { roundPtsA += liveResult.pointsTeamA; roundPtsB += liveResult.pointsTeamB; }
         } else {
           const mScores = loadGameScores(m.id);
