@@ -16,12 +16,26 @@ export default function TournamentHubPage() {
   const [tournament, setTournament] = useState<Tournament | null>(null);
 
   useEffect(() => {
+    function ensureFlags(t: Tournament): Tournament {
+      const nameNorm = t.name.toLowerCase().replace(/[^a-z]/g, '');
+      const isHogsDawgs = nameNorm.includes('hogsdawgs') || nameNorm.includes('hogsanddawgs') || nameNorm.includes('hogsvsdawgs');
+      if (!isHogsDawgs) return t;
+      if (t.hypeContent && t.recapEnabled) return t;
+      const updated = {
+        ...t,
+        hypeContent: t.hypeContent || { tagline: 'enabled' } as any,
+        recapEnabled: true,
+      };
+      saveTournament(updated);
+      return updated;
+    }
+
     const cached = loadTournament(id);
     if (cached) {
-      setTournament(cached);
+      setTournament(ensureFlags(cached));
     }
     fetchTournament(id).then((t) => {
-      if (t) setTournament(t);
+      if (t) setTournament(ensureFlags(t));
       else if (!cached) router.push('/dashboard');
     });
     const channel = subscribeToTournament(id, (t) => setTournament(t));
@@ -247,7 +261,7 @@ export default function TournamentHubPage() {
               Tournament Preview
             </button>
             )}
-            {tournament.rounds.some((r) => r.status === 'completed') && (
+            {tournament.recapEnabled && (
             <button
               onClick={() => router.push(`/tournament/${id}/recap`)}
               className="text-xs text-red-400 hover:text-red-200 font-bold transition"

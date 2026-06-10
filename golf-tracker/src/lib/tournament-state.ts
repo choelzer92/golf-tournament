@@ -170,6 +170,7 @@ export interface Tournament {
   moneyConfig?: { nassauFront: number; nassauBack: number; nassauOverall: number; birdieValue: number; eagleValue: number };
   moneyGames?: TournamentMoneyGames;
   hypeContent?: HypeContent;
+  recapEnabled?: boolean;
 }
 
 export interface TournamentListItem {
