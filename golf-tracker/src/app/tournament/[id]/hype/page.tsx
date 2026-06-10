@@ -132,7 +132,7 @@ export default function TournamentHypePage() {
 
   useEffect(() => {
     function migrateIfNeeded(t: Tournament): Tournament {
-      if (t.hypeContent) return t;
+      if (t.hypeContent && t.hypeContent.intro) return t;
       const nameNorm = t.name.toLowerCase().replace(/[^a-z]/g, '');
       if (nameNorm.includes('hogsdawgs') || nameNorm.includes('hogsanddawgs') || nameNorm.includes('hogsvsdawgs')) {
         const updated = { ...t, hypeContent: LEGACY_HOGS_DAWGS_HYPE };
