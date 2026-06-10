@@ -7,7 +7,7 @@ import type { TeamMode } from '@/lib/formats';
 import type { Player, GameSetup, GameScore } from '@/lib/game-state';
 import type { Tournament, TournamentRound, RoundMatchup, RoundBonus, BonusType, SplitFormatConfig, SplitPairing } from '@/lib/tournament-state';
 import { loadTournament, saveTournament, loadGameScores, saveGameScores, fetchGameScores, computeBonuses, fetchTournament, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
-import { recomputeMatchResult, getPlayerStrokesForHole, computePlayerStablefordPoints } from '@/lib/live-scoring';
+import { recomputeMatchResult, getPlayerStrokesForHole, computePlayerStablefordPoints, computeSplitMatchStatuses } from '@/lib/live-scoring';
 
 export default function RoundDetailPage() {
   const router = useRouter();
@@ -180,8 +180,10 @@ export default function RoundDetailPage() {
     const teeId = freshRound.defaultTeeId || freshRound.course?.teeSets[0]?.id || null;
 
     allMatchupPlayers.forEach((p) => {
-      if (p.gender === 'F' && freshRound.course) {
-        // Find the women's tee with the same name as the default men's tee
+      const override = freshRound.playerTeeOverrides?.[p.id];
+      if (override) {
+        p.teeSetId = override;
+      } else if (p.gender === 'F' && freshRound.course) {
         const defaultTee = freshRound.course.teeSets.find((t) => t.id === teeId);
         const womensTee = freshRound.course.teeSets.find((t) => t.gender === 'F' && t.name === defaultTee?.name?.replace(' (W)', ''))
           || freshRound.course.teeSets.find((t) => t.gender === 'F');
@@ -293,6 +295,7 @@ export default function RoundDetailPage() {
           ) : (
             <RoundSettingsEditor
               round={round}
+              players={tournament!.players}
               onSave={(updated) => { updateRound(updated); setEditingSettings(false); }}
               onCancel={() => setEditingSettings(false)}
             />
@@ -589,9 +592,10 @@ export default function RoundDetailPage() {
 }
 
 function RoundSettingsEditor({
-  round, onSave, onCancel,
+  round, players, onSave, onCancel,
 }: {
   round: TournamentRound;
+  players: import('@/lib/game-state').Player[];
   onSave: (r: TournamentRound) => void;
   onCancel: () => void;
 }) {
@@ -622,6 +626,7 @@ function RoundSettingsEditor({
   const [splitAllowance, setSplitAllowance] = useState(round.splitFormat?.handicapAllowance ?? 100);
   const [splitStrokeMethod, setSplitStrokeMethod] = useState(round.splitFormat?.strokeMethod || 'off-the-low');
   const [splitFormatSettings, setSplitFormatSettings] = useState<Record<string, string | number | boolean>>(round.splitFormat?.formatSettings || {});
+  const [playerTeeOverrides, setPlayerTeeOverrides] = useState<Record<string, number>>(round.playerTeeOverrides || {});
   const [course, setCourse] = useState<import('@/lib/game-state').CourseSelection | null>(round.course);
   const [showCourseSearch, setShowCourseSearch] = useState(false);
 
@@ -664,6 +669,7 @@ function RoundSettingsEditor({
       strokeMethod,
       handicapBasis,
       defaultTeeId,
+      playerTeeOverrides: Object.keys(playerTeeOverrides).length > 0 ? playerTeeOverrides : undefined,
       course: course ? { ...course, selectedTeeId: defaultTeeId } : null,
       splitFormat,
       name: `${dayLabel} — ${format?.name || formatId}`,
@@ -975,6 +981,49 @@ function RoundSettingsEditor({
         </div>
       )}
 
+      {course && course.teeSets.length > 1 && (
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Per-Player Tees</label>
+          <div className="space-y-1.5">
+            {players.map((p) => {
+              const override = playerTeeOverrides[p.id];
+              const effectiveTee = override || defaultTeeId;
+              const isOverridden = override && override !== defaultTeeId;
+              return (
+                <div key={p.id} className="flex items-center gap-2">
+                  <span className={`text-sm w-28 truncate ${isOverridden ? 'font-medium text-green-800' : 'text-gray-600'}`}>
+                    {p.name.split(' ')[0]}
+                  </span>
+                  <select
+                    value={effectiveTee || ''}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (val === defaultTeeId) {
+                        const next = { ...playerTeeOverrides };
+                        delete next[p.id];
+                        setPlayerTeeOverrides(next);
+                      } else {
+                        setPlayerTeeOverrides({ ...playerTeeOverrides, [p.id]: val });
+                      }
+                    }}
+                    className={`flex-1 rounded-md border px-2 py-1 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500 ${
+                      isOverridden ? 'border-green-400 bg-green-50' : 'border-gray-300'
+                    }`}
+                  >
+                    {course.teeSets.map((ts) => (
+                      <option key={ts.id} value={ts.id}>
+                        {ts.name}{ts.gender === 'F' ? ' (W)' : ''} ({ts.totalYardage} yds)
+                        {ts.id === defaultTeeId ? ' — default' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Split Format (different scoring per nine) */}
       <div className="pt-3 border-t">
         <div className="flex items-center justify-between mb-2">
@@ -1181,14 +1230,39 @@ function MatchupCard({
         </div>
       </div>
 
-      {/* In-progress status bar */}
-      {!matchup.result && matchup.gameId && savedScores && savedScores.length > 0 && (
-        <div className="mb-3 py-2 px-3 bg-yellow-50 border border-yellow-200 rounded text-center">
-          <p className="text-xs text-yellow-800 font-medium">
-            Thru {new Set((savedScores as GameScore[]).map((s) => s.hole)).size} holes
-          </p>
-        </div>
-      )}
+      {/* In-progress status bar with live score */}
+      {!matchup.result && matchup.gameId && savedScores && savedScores.length > 0 && (() => {
+        const liveResult = recomputeMatchResult(savedScores, matchup, round, tournament);
+        const splitStatuses = computeSplitMatchStatuses(savedScores, matchup, round, tournament);
+        return (
+          <div className="mb-3">
+            <div className="py-2 px-3 bg-yellow-50 border border-yellow-200 rounded text-center">
+              {splitStatuses ? (
+                <div className="space-y-1">
+                  {splitStatuses.map((sm, idx) => {
+                    if (sm.status.thru === 0) return null;
+                    const diff = sm.status.holesWonA - sm.status.holesWonB;
+                    const statusText = diff === 0 ? 'AS' : diff > 0 ? `${tournament.teams[0].name} ${diff} UP` : `${tournament.teams[1].name} ${Math.abs(diff)} UP`;
+                    return (
+                      <p key={idx} className="text-xs text-yellow-800 font-medium">
+                        {sm.label}: {statusText} <span className="text-yellow-600">(thru {sm.status.thru})</span>
+                      </p>
+                    );
+                  })}
+                </div>
+              ) : liveResult ? (
+                <p className="text-xs text-yellow-800 font-medium">
+                  {liveResult.pointsTeamA} — {liveResult.pointsTeamB} · {liveResult.summary}
+                </p>
+              ) : (
+                <p className="text-xs text-yellow-800 font-medium">
+                  Thru {new Set((savedScores as GameScore[]).map((s) => s.hole)).size} holes
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {matchup.result ? (
         <>
@@ -1312,6 +1386,85 @@ function MatchupCard({
           >
             Resume Game
           </button>
+          {savedScores && holeNumbers.length > 0 && (
+            <div className="mt-2">
+              <button
+                onClick={() => setShowScorecard(!showScorecard)}
+                className="w-full text-xs text-green-700 hover:text-green-900 font-medium"
+              >
+                {showScorecard ? 'Hide Scorecard ▾' : 'Show Scorecard ▸'}
+              </button>
+              {showScorecard && (
+                <div className="mt-2 overflow-x-auto">
+                  <table className="text-xs w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="px-2 py-1 text-left text-gray-500 font-medium sticky left-0 bg-gray-100">#</th>
+                        {holeNumbers.map((h) => (
+                          <th key={h.number} className="px-1 py-1 text-center text-gray-500 font-medium min-w-[22px]">{h.number}</th>
+                        ))}
+                        <th className="px-2 py-1 text-center text-gray-500 font-medium">Tot</th>
+                      </tr>
+                      <tr>
+                        <td className="px-2 py-0.5 text-left text-gray-400 font-medium sticky left-0 bg-white">Par</td>
+                        {holeNumbers.map((h) => (
+                          <td key={h.number} className="px-1 py-0.5 text-center text-gray-400">{h.par}</td>
+                        ))}
+                        <td className="px-2 py-0.5 text-center text-gray-500 font-medium">{holeNumbers.reduce((s, h) => s + h.par, 0)}</td>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...teamAPlayers, ...teamBPlayers].map((player) => {
+                        const isTeamA = matchup.teamAPlayerIds.includes(player.id);
+                        const total = holeNumbers.reduce((sum, h) => {
+                          const sc = savedScores.find((s) => s.playerId === player.id && s.hole === h.number);
+                          return sum + (sc?.grossScore || 0);
+                        }, 0);
+                        return (
+                          <tr key={player.id} className="border-t border-gray-100">
+                            <td className={`px-2 py-1 font-medium whitespace-nowrap sticky left-0 bg-white ${isTeamA ? 'text-blue-700' : 'text-red-700'}`}>
+                              {player.name.split(' ')[0]}
+                            </td>
+                            {holeNumbers.map((h) => {
+                              const sc = savedScores.find((s) => s.playerId === player.id && s.hole === h.number);
+                              const score = sc?.grossScore;
+                              const strokes = score ? getPlayerStrokesForHole(player.id, h.handicap, h.number, matchup, round, tournament) : 0;
+                              const netScore = score ? score - strokes : null;
+                              const netToPar = netScore !== null ? netScore - h.par : null;
+                              const strokeBg = strokes > 0 ? 'bg-green-50' : '';
+                              const colorClass = !score ? 'text-gray-300'
+                                : score <= h.par - 2 ? 'text-yellow-600 font-bold'
+                                : score === h.par - 1 ? 'text-red-600 font-bold'
+                                : score === h.par ? 'text-gray-700'
+                                : score === h.par + 1 ? 'text-blue-600'
+                                : 'text-blue-800 font-bold';
+                              let decoration = '';
+                              if (netToPar !== null) {
+                                if (netToPar <= -2) decoration = 'ring-2 ring-offset-1 ring-yellow-500 rounded-full';
+                                else if (netToPar === -1) decoration = 'ring-1 ring-offset-1 ring-red-500 rounded-full';
+                                else if (netToPar === 1) decoration = 'ring-1 ring-offset-1 ring-blue-400 rounded-sm';
+                                else if (netToPar >= 2) decoration = 'ring-2 ring-offset-1 ring-blue-500 rounded-sm';
+                              }
+                              return (
+                                <td key={h.number} className={`px-1 py-1 text-center ${colorClass} ${strokeBg}`}>
+                                  {score ? (
+                                    <span className={`inline-flex items-center justify-center w-5 h-5 text-[11px] ${decoration}`}>{score}</span>
+                                  ) : '–'}
+                                </td>
+                              );
+                            })}
+                            <td className="px-2 py-1 text-center font-bold text-gray-900">
+                              {total || '–'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
           <button
             onClick={onReset}
             className="w-full text-[10px] text-gray-300 hover:text-red-500 transition-colors"
@@ -1488,9 +1641,9 @@ const BONUS_PRESETS: { type: BonusType; name: string; points: number; scope: 'pe
 ];
 
 const NASSAU_PRESETS: { type: BonusType; name: string; points: number; scope: 'per-matchup' | 'per-tournament-round' }[] = [
-  { type: 'nassau-front', name: 'Nassau — Front 9', points: 2, scope: 'per-tournament-round' },
-  { type: 'nassau-back', name: 'Nassau — Back 9', points: 2, scope: 'per-tournament-round' },
-  { type: 'nassau-overall', name: 'Nassau — Overall', points: 1, scope: 'per-tournament-round' },
+  { type: 'nassau-front', name: 'Nassau - Front 9', points: 2, scope: 'per-tournament-round' },
+  { type: 'nassau-back', name: 'Nassau - Back 9', points: 2, scope: 'per-tournament-round' },
+  { type: 'nassau-overall', name: 'Nassau - Overall', points: 1, scope: 'per-tournament-round' },
   { type: 'junk', name: 'Junk', points: 1, scope: 'per-tournament-round' },
 ];
 

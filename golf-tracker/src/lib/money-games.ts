@@ -77,8 +77,10 @@ export function getPlayerDisplayName(playerId: string, players: Player[]): strin
 
 function getPlayerTee(player: Player, round: TournamentRound): TeeSetOption | null {
   if (!round.course) return null;
-  if (player.teeSetId) {
-    return round.course.teeSets.find((t) => t.id === player.teeSetId)
+  const overrideTeeId = round.playerTeeOverrides?.[player.id];
+  const teeSetId = overrideTeeId || player.teeSetId;
+  if (teeSetId) {
+    return round.course.teeSets.find((t) => t.id === teeSetId)
       || round.course.teeSets.find((t) => t.id === round.defaultTeeId)
       || round.course.teeSets[0] || null;
   }

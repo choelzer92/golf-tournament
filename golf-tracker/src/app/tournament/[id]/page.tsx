@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { FORMATS } from '@/lib/formats';
 import type { Tournament, TournamentRound } from '@/lib/tournament-state';
-import type { GameScore } from '@/lib/game-state';
+import type { GameScore, Player } from '@/lib/game-state';
+import { calcCourseHandicap } from '@/lib/game-state';
 import { loadTournament, saveTournament, loadGameScores, computeStandings, exportTournament, fetchTournament, fetchGameScores, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
 import type { TournamentMoneyGames } from '@/lib/tournament-state';
-import { computeLiveMatchStatus, recomputeMatchResult } from '@/lib/live-scoring';
+import { computeLiveMatchStatus, recomputeMatchResult, computeSplitMatchStatuses } from '@/lib/live-scoring';
 
 export default function TournamentHubPage() {
   const router = useRouter();
@@ -114,10 +115,41 @@ export default function TournamentHubPage() {
           liveB += result.pointsTeamB;
         }
       } else {
-        const status = computeLiveMatchStatus(scores, matchup, round, tournament);
-        if (status) {
-          liveA += status.holesWonA * round.pointsForWin + status.holesTied * round.pointsForTie;
-          liveB += status.holesWonB * round.pointsForWin + status.holesTied * round.pointsForTie;
+        const splitStatuses = computeSplitMatchStatuses(scores, matchup, round, tournament);
+        if (splitStatuses) {
+          for (const sm of splitStatuses) {
+            const pts = sm.type === 'team'
+              ? { win: round.pointsForWin, tie: round.pointsForTie }
+              : { win: round.splitFormat?.pointsForWin ?? round.pointsForWin, tie: round.splitFormat?.pointsForTie ?? round.pointsForTie };
+            liveA += sm.status.holesWonA * pts.win + sm.status.holesTied * pts.tie;
+            liveB += sm.status.holesWonB * pts.win + sm.status.holesTied * pts.tie;
+          }
+        } else {
+          const status = computeLiveMatchStatus(scores, matchup, round, tournament);
+          if (status) {
+            liveA += status.holesWonA * round.pointsForWin + status.holesTied * round.pointsForTie;
+            liveB += status.holesWonB * round.pointsForWin + status.holesTied * round.pointsForTie;
+          }
+        }
+      }
+    }
+    // Add decided match-winner bonuses from completed sub-matches
+    if (round.status === 'in-progress' && round.splitFormat?.pairings?.length) {
+      for (const bonus of round.bonuses) {
+        if (bonus.result || bonus.type !== 'match-winner' || bonus.scope !== 'per-matchup') continue;
+        for (const matchup of round.matchups) {
+          if (matchup.result || !matchup.gameId) continue;
+          const scores: GameScore[] | null = loadGameScores(matchup.id);
+          if (!scores || scores.length === 0) continue;
+          const splitStatuses = computeSplitMatchStatuses(scores, matchup, round, tournament);
+          if (!splitStatuses) continue;
+          for (const sm of splitStatuses) {
+            if (sm.status.thru < 9) continue;
+            const diff = sm.status.holesWonA - sm.status.holesWonB;
+            if (diff > 0) liveA += bonus.points;
+            else if (diff < 0) liveB += bonus.points;
+            else { liveA += bonus.points * 0.5; liveB += bonus.points * 0.5; }
+          }
         }
       }
     }
@@ -280,8 +312,6 @@ export default function TournamentHubPage() {
       </div>
 
       <main className="max-w-3xl mx-auto px-4 py-6">
-        <MoneyGamesConfig tournament={tournament} onSave={(updated) => { saveTournament(updated); setTournament(updated); }} />
-
         <h2 className="text-lg font-semibold text-gray-900 mb-3">Rounds</h2>
 
         <div className="space-y-3 mb-6">
@@ -299,6 +329,12 @@ export default function TournamentHubPage() {
         {tournament.rounds.length === 0 && (
           <p className="text-center text-gray-500 py-8">No rounds scheduled yet.</p>
         )}
+
+        <PlayerTeesPanel tournament={tournament} onSave={(updated) => { saveTournament(updated); setTournament(updated); }} />
+
+        <MoneyGamesConfig tournament={tournament} onSave={(updated) => { saveTournament(updated); setTournament(updated); }} />
+
+        <SideGamesSection tournament={tournament} router={router} />
 
         <RosterEditor tournament={tournament} onSave={(updated) => { saveTournament(updated); setTournament(updated); }} />
       </main>
@@ -707,6 +743,169 @@ function MoneyGamesConfig({ tournament, onSave }: { tournament: Tournament; onSa
           <button onClick={save} className="w-full bg-green-700 hover:bg-green-600 text-white text-sm font-medium py-2 rounded-lg">
             Save Money Games
           </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SideGamesSection({ tournament, router }: { tournament: Tournament; router: ReturnType<typeof useRouter> }) {
+  const sideGame = tournament.sideGames?.[0];
+
+  return (
+    <section className="mb-6">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-lg font-semibold text-gray-900">Side Games</h2>
+        <button
+          onClick={() => router.push(`/tournament/${tournament.id}/side-games`)}
+          className="text-xs bg-green-100 text-green-800 hover:bg-green-200 px-3 py-1 rounded-full font-medium"
+        >
+          {sideGame ? 'Edit / Details' : 'Set Up'}
+        </button>
+      </div>
+      {sideGame ? (
+        <p className="text-sm text-gray-500">
+          {sideGame.name} — {sideGame.teams.length} teams · Results on{' '}
+          <button
+            onClick={() => router.push(`/tournament/${tournament.id}/scoreboard`)}
+            className="text-green-700 hover:text-green-900 underline font-medium"
+          >
+            Live Scoreboard
+          </button>
+        </p>
+      ) : (
+        <p className="text-sm text-gray-400">No side games configured.</p>
+      )}
+    </section>
+  );
+}
+
+function PlayerTeesPanel({ tournament, onSave }: { tournament: Tournament; onSave: (t: Tournament) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const [editingRoundId, setEditingRoundId] = useState<string | null>(null);
+  const [overrides, setOverrides] = useState<Record<string, number>>({});
+
+  const roundsWithCourse = tournament.rounds.filter((r) => r.course && r.course.teeSets.length > 1);
+  if (roundsWithCourse.length === 0) return null;
+
+  function startEdit(round: TournamentRound) {
+    setEditingRoundId(round.id);
+    setOverrides(round.playerTeeOverrides || {});
+  }
+
+  function saveOverrides() {
+    if (!editingRoundId) return;
+    const updated = {
+      ...tournament,
+      rounds: tournament.rounds.map((r) =>
+        r.id === editingRoundId
+          ? { ...r, playerTeeOverrides: Object.keys(overrides).length > 0 ? overrides : undefined }
+          : r
+      ),
+    };
+    onSave(updated);
+    setEditingRoundId(null);
+  }
+
+  function getEffectiveTeeName(player: Player, round: TournamentRound): string {
+    const teeId = round.playerTeeOverrides?.[player.id] || round.defaultTeeId;
+    const tee = round.course?.teeSets.find((t) => t.id === teeId) || round.course?.teeSets[0];
+    return tee ? tee.name : '–';
+  }
+
+  function getPlayerCourseHcap(player: Player, round: TournamentRound): string {
+    if (!player.handicapIndex) return '–';
+    const teeId = round.playerTeeOverrides?.[player.id] || round.defaultTeeId;
+    const tee = round.course?.teeSets.find((t) => t.id === teeId) || round.course?.teeSets[0];
+    if (!tee) return '–';
+    const totalRating = tee.ratings?.find((r) => r.type === 'Total');
+    if (!totalRating?.slopeRating || !totalRating?.courseRating) return '–';
+    const ch = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, tee.totalPar);
+    return isNaN(ch) ? '–' : ch.toFixed(1);
+  }
+
+  return (
+    <section className="mb-6">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-lg font-semibold text-gray-900">Player Tees</h2>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-xs text-green-700 hover:text-green-900 font-medium"
+        >
+          {expanded ? 'Hide' : 'Show'}
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="bg-white rounded-lg shadow p-4 space-y-4">
+          {roundsWithCourse.map((round) => {
+            const isEditing = editingRoundId === round.id;
+            return (
+              <div key={round.id} className="border-b last:border-b-0 pb-3 last:pb-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-800">{round.dayLabel || round.name}</span>
+                  {!isEditing ? (
+                    <button
+                      onClick={() => startEdit(round)}
+                      className="text-xs text-green-700 hover:text-green-900 font-medium"
+                    >
+                      Edit
+                    </button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button onClick={() => setEditingRoundId(null)} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                      <button onClick={saveOverrides} className="text-xs bg-green-700 text-white px-2 py-0.5 rounded hover:bg-green-800">Save</button>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  {tournament.players.map((p) => {
+                    if (isEditing) {
+                      const effectiveTee = overrides[p.id] || round.defaultTeeId;
+                      const isOverridden = overrides[p.id] && overrides[p.id] !== round.defaultTeeId;
+                      return (
+                        <div key={p.id} className="flex items-center gap-2">
+                          <span className={`text-sm w-24 truncate ${isOverridden ? 'font-medium text-green-800' : 'text-gray-600'}`}>
+                            {p.name.split(' ')[0]}
+                          </span>
+                          <select
+                            value={effectiveTee || ''}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              if (val === round.defaultTeeId) {
+                                const next = { ...overrides };
+                                delete next[p.id];
+                                setOverrides(next);
+                              } else {
+                                setOverrides({ ...overrides, [p.id]: val });
+                              }
+                            }}
+                            className={`flex-1 rounded border px-2 py-1 text-sm ${isOverridden ? 'border-green-400 bg-green-50' : 'border-gray-300'}`}
+                          >
+                            {round.course!.teeSets.map((ts) => (
+                              <option key={ts.id} value={ts.id}>
+                                {ts.name}{ts.gender === 'F' ? ' (W)' : ''}{ts.id === round.defaultTeeId ? ' — default' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    }
+                    const teeName = getEffectiveTeeName(p, round);
+                    const ch = getPlayerCourseHcap(p, round);
+                    const isOverridden = round.playerTeeOverrides?.[p.id] && round.playerTeeOverrides[p.id] !== round.defaultTeeId;
+                    return (
+                      <div key={p.id} className="flex items-center gap-3 text-sm">
+                        <span className={`w-24 truncate ${isOverridden ? 'font-medium text-green-800' : 'text-gray-600'}`}>{p.name.split(' ')[0]}</span>
+                        <span className={`${isOverridden ? 'text-green-700' : 'text-gray-500'}`}>{teeName}</span>
+                        <span className="text-gray-400">CH: {ch}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </section>

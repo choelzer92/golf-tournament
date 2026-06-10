@@ -92,6 +92,7 @@ export interface TournamentRound {
   strokeMethod: 'full' | 'off-the-low';
   handicapBasis: 'course' | 'index';
   defaultTeeId: number | null;
+  playerTeeOverrides?: Record<string, number>;
   formatSettings?: Record<string, string | number | boolean>;
   splitFormat?: SplitFormatConfig;
   bonuses: RoundBonus[];
@@ -121,6 +122,32 @@ export interface SkinsConfig {
 export interface TournamentMoneyGames {
   teamNassau?: TeamNassauConfig;
   skins?: SkinsConfig;
+}
+
+export interface SideGameTeam {
+  id: string;
+  name: string;
+  playerIds: string[];
+  linkedMatchupId: string | null;
+}
+
+export interface SideGameNassauConfig {
+  entryPerTeam: number;
+  payoutSplit?: number[];
+}
+
+export interface SideGame {
+  id: string;
+  name: string;
+  linkedRoundId: string;
+  course: CourseSelection | null;
+  teams: SideGameTeam[];
+  players: Player[];
+  ownMatchupId: string;
+  nassauConfig: SideGameNassauConfig;
+  handicapAllowance: number;
+  strokeMethod: 'full' | 'off-the-low';
+  status: 'active' | 'completed';
 }
 
 export interface HypeMatchup {
@@ -169,6 +196,7 @@ export interface Tournament {
   status: 'setup' | 'active' | 'completed';
   moneyConfig?: { nassauFront: number; nassauBack: number; nassauOverall: number; birdieValue: number; eagleValue: number };
   moneyGames?: TournamentMoneyGames;
+  sideGames?: SideGame[];
   hypeContent?: HypeContent;
   recapEnabled?: boolean;
 }
@@ -250,12 +278,21 @@ export function getTournamentList(): TournamentListItem[] {
   return list;
 }
 
+function sanitizeTournament(t: Tournament): Tournament {
+  for (const round of t.rounds) {
+    for (const bonus of round.bonuses) {
+      bonus.name = bonus.name.replace(/â/g, '-').replace(/—/g, '-');
+    }
+  }
+  return t;
+}
+
 // Fetch all tournaments from Supabase into cache
 export async function hydrateTournaments(): Promise<void> {
   const { data } = await supabase.from('tournaments').select('id, data');
   if (data) {
     for (const row of data) {
-      tournamentCache.set(row.id, row.data as Tournament);
+      tournamentCache.set(row.id, sanitizeTournament(row.data as Tournament));
     }
   }
 }
@@ -266,7 +303,7 @@ export async function fetchTournament(id: string): Promise<Tournament | null> {
   if (cached) return cached;
   const { data } = await supabase.from('tournaments').select('data').eq('id', id).single();
   if (data) {
-    const t = data.data as Tournament;
+    const t = sanitizeTournament(data.data as Tournament);
     tournamentCache.set(id, t);
     return t;
   }
@@ -329,6 +366,7 @@ export function subscribeToTournament(id: string, onUpdate: (tournament: Tournam
     }, (payload) => {
       const tournament = (payload.new as any)?.data as Tournament;
       if (tournament) {
+        sanitizeTournament(tournament);
         tournamentCache.set(id, tournament);
         onUpdate(tournament);
       }
@@ -797,13 +835,22 @@ export function computeProjectedBonuses(
         if (round.splitFormat && round.splitFormat.teamMode === 'individual' && round.splitFormat.pairings?.length) {
           const splitStatuses = computeSplitMatchStatuses(scores, matchup, round, tournament);
           if (splitStatuses) {
+            let pending = 0;
             for (const sm of splitStatuses) {
-              if (sm.status.thru === 0) continue;
+              if (sm.status.thru === 0) {
+                ties++;
+                pending++;
+                continue;
+              }
               const diff = sm.status.holesWonA - sm.status.holesWonB;
-              if (diff > 0) { aWins++; details.push(`${sm.label}: ${tournament.teams[0].name}`); }
-              else if (diff < 0) { bWins++; details.push(`${sm.label}: ${tournament.teams[1].name}`); }
-              else { ties++; details.push(`${sm.label}: Tied`); }
+              const teamLabel = sm.type === 'team'
+                ? `${matchup.groupLabel} F9`
+                : sm.label;
+              if (diff > 0) { aWins++; details.push(`${teamLabel}: ${tournament.teams[0].name}`); }
+              else if (diff < 0) { bWins++; details.push(`${teamLabel}: ${tournament.teams[1].name}`); }
+              else { ties++; details.push(`${teamLabel}: Tied`); }
             }
+            if (pending > 0) details.push(`${pending} not started`);
             continue;
           }
         }
