@@ -7,7 +7,9 @@ import { calcCourseHandicap } from '@/lib/game-state';
 import { isOneBallFormat, isTeamMode, resolveStablefordScale } from '@/lib/formats';
 import type { TournamentGameContext, Tournament } from '@/lib/tournament-state';
 import { loadTournament, saveTournament, saveGameScores, cacheGameScores, loadGameScores, fetchGameScores, fetchTournament, computeStandings, computeBonuses, computeProjectedBonuses, subscribeToScores, onVisibilityRefetch } from '@/lib/tournament-state';
-import { computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, computeSplitMatchStatuses } from '@/lib/live-scoring';
+import { computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, computeSplitMatchStatuses, type SplitMatchup } from '@/lib/live-scoring';
+import { computeSideGameResult } from '@/lib/side-game';
+import type { SideGameResult } from '@/lib/side-game';
 
 export default function PlayGamePage() {
   const router = useRouter();
@@ -19,6 +21,7 @@ export default function PlayGamePage() {
   const [teamNames, setTeamNames] = useState<{ A: string; B: string }>({ A: 'Team A', B: 'Team B' });
   const [strokesExpanded, setStrokesExpanded] = useState(false);
   const [otherMatchupTick, setOtherMatchupTick] = useState(0);
+  const [isSideGame, setIsSideGame] = useState(false);
   const didAutoJump = useRef(false);
   const remoteScoresRef = useRef<GameScore[]>([]);
 
@@ -34,6 +37,8 @@ export default function PlayGamePage() {
     const ctxRaw = sessionStorage.getItem('game_tournament_context');
     if (ctxRaw) {
       const ctx = JSON.parse(ctxRaw) as TournamentGameContext;
+      const ctxParsed = JSON.parse(ctxRaw);
+      if (ctxParsed.sideGameMode) setIsSideGame(true);
       setTournamentCtx(ctx);
       const t = loadTournament(ctx.tournamentId);
       if (t) {
@@ -502,7 +507,7 @@ export default function PlayGamePage() {
             <h1 className="text-sm font-bold">{setup.course?.courseName || 'Game'}</h1>
           </div>
           <div className="flex items-center gap-3">
-            {tournamentCtx && (
+            {tournamentCtx && !isSideGame && (
               <button
                 onClick={() => router.push(`/tournament/${tournamentCtx.tournamentId}/scoreboard`)}
                 className="text-sm text-green-200 hover:text-white font-medium"
@@ -510,9 +515,19 @@ export default function PlayGamePage() {
                 Scoreboard
               </button>
             )}
+            {isSideGame && tournamentCtx && (
+              <button
+                onClick={() => router.push(`/tournament/${tournamentCtx.tournamentId}/side-games/scoreboard`)}
+                className="text-sm text-green-200 hover:text-white font-medium"
+              >
+                Leaderboard
+              </button>
+            )}
             <button
               onClick={() => {
-                if (tournamentCtx) {
+                if (tournamentCtx && isSideGame) {
+                  router.push(`/tournament/${tournamentCtx.tournamentId}/side-games`);
+                } else if (tournamentCtx) {
                   router.push(`/tournament/${tournamentCtx.tournamentId}`);
                 } else {
                   router.push('/dashboard');
@@ -571,8 +586,12 @@ export default function PlayGamePage() {
         })()}
       </div>
 
-      {tournamentCtx && (
+      {tournamentCtx && !isSideGame && (
         <TournamentOverviewPanel tournamentCtx={tournamentCtx} currentMatchupId={tournamentCtx.matchupId} currentScores={scores} setup={setup} getScore={getScore} getPlayerStrokesOnHole={getPlayerStrokesOnHole} remoteScores={remoteScores} otherMatchupTick={otherMatchupTick} />
+      )}
+
+      {isSideGame && tournamentCtx && (
+        <SideGameFlightPanel tournamentId={tournamentCtx.tournamentId} currentScores={scores} ownMatchupId={tournamentCtx.matchupId} />
       )}
 
       {setup.scoringTeam && remoteScores.length === 0 && !tournamentCtx && (
@@ -1520,7 +1539,20 @@ export default function PlayGamePage() {
   }
 
   async function finishGame() {
+    if (!confirm('Finish this game and lock scores? This cannot be undone.')) return;
+
     if (tournamentCtx) {
+      // Side game mode: just save scores and navigate back
+      const ctxRaw = sessionStorage.getItem('game_tournament_context');
+      const ctxParsed = ctxRaw ? JSON.parse(ctxRaw) : null;
+      if (ctxParsed?.sideGameMode) {
+        saveGameScores(tournamentCtx.matchupId, scores);
+        sessionStorage.removeItem('game_setup');
+        sessionStorage.removeItem('game_tournament_context');
+        router.push(`/tournament/${tournamentCtx.tournamentId}/side-games`);
+        return;
+      }
+
       const tournament = loadTournament(tournamentCtx.tournamentId);
       if (tournament) {
         const round = tournament.rounds.find((r) => r.id === tournamentCtx.roundId);
@@ -1949,6 +1981,116 @@ function TeamMatchStatus({
   );
 }
 
+function SideGameFlightPanel({ tournamentId, currentScores, ownMatchupId }: {
+  tournamentId: string;
+  currentScores: GameScore[];
+  ownMatchupId: string;
+}) {
+  const [result, setResult] = useState<SideGameResult | null>(null);
+  const [tick, setTick] = useState(0);
+  const [flightExpanded, setFlightExpanded] = useState(false);
+
+  useEffect(() => {
+    const tournament = loadTournament(tournamentId);
+    if (!tournament?.sideGames?.length) return;
+    const sideGame = tournament.sideGames[0];
+
+    const matchupIds = new Set<string>();
+    for (const team of sideGame.teams) {
+      if (team.linkedMatchupId) matchupIds.add(team.linkedMatchupId);
+    }
+    matchupIds.add(sideGame.ownMatchupId);
+    const ids = Array.from(matchupIds);
+
+    function recompute() {
+      const allScores = new Map<string, GameScore[]>();
+      for (const mid of ids) {
+        if (mid === ownMatchupId) {
+          allScores.set(mid, currentScores);
+        } else {
+          const cached = loadGameScores(mid);
+          if (cached) allScores.set(mid, cached);
+        }
+      }
+      setResult(computeSideGameResult(sideGame, allScores));
+    }
+
+    Promise.all(ids.filter((id) => id !== ownMatchupId).map((mid) => fetchGameScores(mid))).then(recompute);
+
+    const channels = ids
+      .filter((id) => id !== ownMatchupId)
+      .map((mid) => subscribeToScores(mid, () => { setTick((t) => t + 1); }));
+
+    return () => { channels.forEach((ch) => ch.unsubscribe()); };
+  }, [tournamentId]);
+
+  // Recompute when own scores change or tick updates
+  useEffect(() => {
+    const tournament = loadTournament(tournamentId);
+    if (!tournament?.sideGames?.length) return;
+    const sideGame = tournament.sideGames[0];
+
+    const allScores = new Map<string, GameScore[]>();
+    const matchupIds = new Set<string>();
+    for (const team of sideGame.teams) {
+      if (team.linkedMatchupId) matchupIds.add(team.linkedMatchupId);
+    }
+    matchupIds.add(sideGame.ownMatchupId);
+
+    for (const mid of matchupIds) {
+      if (mid === ownMatchupId) {
+        allScores.set(mid, currentScores);
+      } else {
+        const cached = loadGameScores(mid);
+        if (cached) allScores.set(mid, cached);
+      }
+    }
+    setResult(computeSideGameResult(sideGame, allScores));
+  }, [currentScores, tick, tournamentId]);
+
+  if (!result || result.thruHole === 0) return null;
+
+  const overallLeg = result.nassauLegs.find((l) => l.leg === 'overall');
+  if (!overallLeg) return null;
+
+  function abbreviateTeam(name: string): string {
+    const parts = name.split('/');
+    if (parts.length === 1) return parts[0].slice(0, 4);
+    return parts.map((p) => p.slice(0, 3)).join('/');
+  }
+
+  return (
+    <div className="bg-gray-800 px-4 py-2">
+      <div className="max-w-lg mx-auto">
+        <button onClick={() => setFlightExpanded((e) => !e)} className="w-full text-left">
+          <div className="flex items-center gap-1">
+            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Flight · Thru {result.thruHole}</p>
+            <div className="flex gap-2 ml-auto">
+              {overallLeg.rankings.map((r, i) => (
+                <span key={r.teamId} className={`text-xs ${i === 0 ? 'text-green-300 font-medium' : 'text-gray-400'}`}>
+                  {abbreviateTeam(r.teamName)} {r.points}
+                </span>
+              ))}
+            </div>
+            <span className="text-gray-500 text-[10px] ml-1">{flightExpanded ? '▾' : '▸'}</span>
+          </div>
+        </button>
+        {flightExpanded && (
+          <div className="mt-1.5 space-y-0.5 border-t border-gray-700 pt-1.5">
+            {overallLeg.rankings.map((r, i) => (
+              <div key={r.teamId} className={`flex items-center text-xs ${i === 0 ? 'text-green-300' : 'text-gray-300'}`}>
+                <span className="text-gray-500 w-4">{r.place}.</span>
+                <span className="flex-1">{r.teamName}</span>
+                <span className="font-medium tabular-nums">{r.points} pts</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScores, setup, getScore, getPlayerStrokesOnHole, remoteScores, otherMatchupTick }: {
   tournamentCtx: TournamentGameContext;
   currentMatchupId: string;
@@ -2107,18 +2249,104 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
     cacheGameScores(currentMatchupId, merged);
   }
 
+  const decidedBonuses: { name: string; a: number; b: number; detail: string }[] = [];
   const projectedBonuses: { name: string; a: number; b: number; detail: string }[] = [];
   for (const round of tournament.rounds) {
     if (round.status !== 'in-progress') continue;
-    const roundProjected = computeProjectedBonuses(round, tournament);
-    for (const pb of roundProjected) {
-      projA += pb.projectedTeamAPoints;
-      projB += pb.projectedTeamBPoints;
-      projectedBonuses.push({ name: pb.bonusName, a: pb.projectedTeamAPoints, b: pb.projectedTeamBPoints, detail: pb.detail });
+
+    for (const bonus of round.bonuses) {
+      if (bonus.result) continue;
+      if (bonus.type !== 'match-winner' || bonus.scope !== 'per-matchup') {
+        const roundProjected = computeProjectedBonuses(round, tournament);
+        for (const pb of roundProjected) {
+          if (pb.bonusId !== bonus.id) continue;
+          projA += pb.projectedTeamAPoints;
+          projB += pb.projectedTeamBPoints;
+          projectedBonuses.push({ name: pb.bonusName, a: pb.projectedTeamAPoints, b: pb.projectedTeamBPoints, detail: pb.detail });
+        }
+        continue;
+      }
+
+      // Split decided vs projected for match-winner per-matchup
+      let decidedA = 0, decidedB = 0;
+      let projBonusA = 0, projBonusB = 0;
+      const decidedDetails: string[] = [];
+      const projDetails: string[] = [];
+
+      for (const matchup of round.matchups) {
+        if (matchup.result) {
+          if (matchup.result.winningTeamId === 'team-a') decidedA++;
+          else if (matchup.result.winningTeamId === 'team-b') decidedB++;
+          else { decidedA += 0.5; decidedB += 0.5; }
+          continue;
+        }
+        let matchScores: GameScore[];
+        if (matchup.id === currentMatchupId) {
+          const merged = [...remoteScores];
+          for (const s of currentScores) {
+            const idx = merged.findIndex((r) => r.playerId === s.playerId && r.hole === s.hole);
+            if (idx >= 0) merged[idx] = s; else merged.push(s);
+          }
+          matchScores = merged;
+        } else {
+          const loaded = loadGameScores(matchup.id);
+          if (!loaded || loaded.length === 0) continue;
+          matchScores = loaded;
+        }
+
+        if (round.splitFormat && round.splitFormat.teamMode === 'individual' && round.splitFormat.pairings?.length) {
+          const splitStatuses = computeSplitMatchStatuses(matchScores, matchup, round, tournament);
+          if (splitStatuses) {
+            for (const sm of splitStatuses) {
+              const totalHolesForSm = sm.holes === 'front' ? 9 : 9;
+              const isComplete = sm.status.thru >= totalHolesForSm;
+              const diff = sm.status.holesWonA - sm.status.holesWonB;
+              const teamLabel = sm.type === 'team' ? `${matchup.groupLabel} F9` : sm.label;
+
+              if (isComplete) {
+                if (diff > 0) { decidedA++; decidedDetails.push(`${teamLabel}: ${tournament.teams[0].name}`); }
+                else if (diff < 0) { decidedB++; decidedDetails.push(`${teamLabel}: ${tournament.teams[1].name}`); }
+                else { decidedA += 0.5; decidedB += 0.5; decidedDetails.push(`${teamLabel}: Tied`); }
+              } else if (sm.status.thru > 0) {
+                if (diff > 0) { projBonusA++; projDetails.push(`${teamLabel}: ${tournament.teams[0].name}`); }
+                else if (diff < 0) { projBonusB++; projDetails.push(`${teamLabel}: ${tournament.teams[1].name}`); }
+                else { projBonusA += 0.5; projBonusB += 0.5; projDetails.push(`${teamLabel}: Tied`); }
+              } else {
+                projBonusA += 0.5; projBonusB += 0.5;
+                projDetails.push(`${teamLabel}: not started`);
+              }
+            }
+            continue;
+          }
+        }
+
+        const liveResult = recomputeMatchResult(matchScores, matchup, round, tournament);
+        if (liveResult) {
+          if (liveResult.winningTeamId === 'team-a') { projBonusA++; projDetails.push(`${matchup.groupLabel}: ${tournament.teams[0].name}`); }
+          else if (liveResult.winningTeamId === 'team-b') { projBonusB++; projDetails.push(`${matchup.groupLabel}: ${tournament.teams[1].name}`); }
+          else { projBonusA += 0.5; projBonusB += 0.5; projDetails.push(`${matchup.groupLabel}: Tied`); }
+        }
+      }
+
+      const decidedPtsA = decidedA * bonus.points;
+      const decidedPtsB = decidedB * bonus.points;
+      const projPtsA = projBonusA * bonus.points;
+      const projPtsB = projBonusB * bonus.points;
+
+      if (decidedPtsA > 0 || decidedPtsB > 0) {
+        decidedBonuses.push({ name: bonus.name, a: decidedPtsA, b: decidedPtsB, detail: decidedDetails.join(' · ') });
+      }
+      if (projPtsA > 0 || projPtsB > 0) {
+        projectedBonuses.push({ name: bonus.name, a: projPtsA, b: projPtsB, detail: projDetails.join(' · ') });
+      }
+      liveA += decidedPtsA;
+      liveB += decidedPtsB;
+      projA += decidedPtsA + projPtsA;
+      projB += decidedPtsB + projPtsB;
     }
   }
 
-  // Live match status for split scoring
+  // Live match status for display in collapsed bar
   let matchStatusText: string | null = null;
   if (setup.scoringTeam && currentMatchup && currentRound) {
     const merged = [...remoteScores];
@@ -2127,14 +2355,39 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
       if (idx >= 0) merged[idx] = s;
       else merged.push(s);
     }
-    const matchStatus = computeLiveMatchStatus(merged, currentMatchup, currentRound, tournament);
-    if (matchStatus && matchStatus.thru > 0) {
-      const diff = matchStatus.holesWonA - matchStatus.holesWonB;
-      matchStatusText = diff === 0 ? `All Square thru ${matchStatus.thru}`
-        : diff > 0 ? `${teamA.name} ${diff} UP thru ${matchStatus.thru}`
-        : `${teamB.name} ${-diff} UP thru ${matchStatus.thru}`;
-    } else if (remoteScores.length === 0) {
-      matchStatusText = `Waiting for ${setup.scoringTeam === 'A' ? teamB.name : teamA.name}...`;
+    if (currentRound.splitFormat) {
+      const splitStatuses = computeSplitMatchStatuses(merged, currentMatchup, currentRound, tournament);
+      if (splitStatuses && splitStatuses.some((sm) => sm.status.thru > 0)) {
+        const parts: string[] = [];
+        for (const sm of splitStatuses) {
+          const diff = sm.status.holesWonA - sm.status.holesWonB;
+          const label = sm.type === 'team' ? 'Team' : sm.label;
+          if (sm.status.thru === 0) {
+            parts.push(`${label}: –`);
+          } else if (diff === 0) {
+            parts.push(`${label}: AS`);
+          } else if (sm.type === 'team') {
+            const leader = diff > 0 ? teamA.name : teamB.name;
+            parts.push(`${label}: ${leader} ${Math.abs(diff)}UP`);
+          } else {
+            const leader = diff > 0 ? sm.playerA.name.split(' ')[0] : sm.playerB.name.split(' ')[0];
+            parts.push(`${label}: ${leader} ${Math.abs(diff)}UP`);
+          }
+        }
+        matchStatusText = parts.join(' · ');
+      } else if (remoteScores.length === 0) {
+        matchStatusText = `Waiting for ${setup.scoringTeam === 'A' ? teamB.name : teamA.name}...`;
+      }
+    } else {
+      const matchStatus = computeLiveMatchStatus(merged, currentMatchup, currentRound, tournament);
+      if (matchStatus && matchStatus.thru > 0) {
+        const diff = matchStatus.holesWonA - matchStatus.holesWonB;
+        matchStatusText = diff === 0 ? `All Square thru ${matchStatus.thru}`
+          : diff > 0 ? `${teamA.name} ${diff} UP thru ${matchStatus.thru}`
+          : `${teamB.name} ${-diff} UP thru ${matchStatus.thru}`;
+      } else if (remoteScores.length === 0) {
+        matchStatusText = `Waiting for ${setup.scoringTeam === 'A' ? teamB.name : teamA.name}...`;
+      }
     }
   }
 
@@ -2143,9 +2396,37 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
   // Current match result text (for non-split scoring too)
   let currentMatchText: string | null = matchStatusText;
   if (!currentMatchText && currentScores.length > 0 && currentMatchup && currentRound) {
-    const liveResult = recomputeMatchResult(currentScores, currentMatchup, currentRound, tournament);
-    if (liveResult) {
-      currentMatchText = liveResult.summary.replace(' (stableford pts)', ' stb').replace(' (net)', '');
+    if (currentRound.splitFormat) {
+      const merged = [...remoteScores];
+      for (const s of currentScores) {
+        const idx = merged.findIndex((r) => r.playerId === s.playerId && r.hole === s.hole);
+        if (idx >= 0) merged[idx] = s; else merged.push(s);
+      }
+      const splitStatuses = computeSplitMatchStatuses(merged, currentMatchup, currentRound, tournament);
+      if (splitStatuses && splitStatuses.some((sm) => sm.status.thru > 0)) {
+        const parts: string[] = [];
+        for (const sm of splitStatuses) {
+          const diff = sm.status.holesWonA - sm.status.holesWonB;
+          const label = sm.type === 'team' ? 'Team' : sm.label;
+          if (sm.status.thru === 0) {
+            parts.push(`${label}: –`);
+          } else if (diff === 0) {
+            parts.push(`${label}: AS`);
+          } else if (sm.type === 'team') {
+            const leader = diff > 0 ? teamA.name : teamB.name;
+            parts.push(`${label}: ${leader} ${Math.abs(diff)}UP`);
+          } else {
+            const leader = diff > 0 ? sm.playerA.name.split(' ')[0] : sm.playerB.name.split(' ')[0];
+            parts.push(`${label}: ${leader} ${Math.abs(diff)}UP`);
+          }
+        }
+        currentMatchText = parts.join(' · ');
+      }
+    } else {
+      const liveResult = recomputeMatchResult(currentScores, currentMatchup, currentRound, tournament);
+      if (liveResult) {
+        currentMatchText = liveResult.summary.replace(' (stableford pts)', ' stb').replace(' (net)', '');
+      }
     }
   }
 
@@ -2157,14 +2438,31 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
     if (liveResult) {
       if (currentRound.scoringMethod === 'match-play') {
         const totalHoles = getHoleDataForRound(currentRound).length;
-        const status = computeLiveMatchStatus(currentScores, currentMatchup, currentRound, tournament);
-        if (status && status.thru < totalHoles) {
-          const remaining = totalHoles - status.thru;
-          matchProjA = liveResult.pointsTeamA + remaining * currentRound.pointsForTie;
-          matchProjB = liveResult.pointsTeamB + remaining * currentRound.pointsForTie;
-        } else {
+        const splitStatuses = computeSplitMatchStatuses(currentScores, currentMatchup, currentRound, tournament);
+        if (splitStatuses) {
           matchProjA = liveResult.pointsTeamA;
           matchProjB = liveResult.pointsTeamB;
+          for (const sm of splitStatuses) {
+            const pts = sm.type === 'team'
+              ? { tie: currentRound.pointsForTie }
+              : { tie: currentRound.splitFormat?.pointsForTie ?? currentRound.pointsForTie };
+            const smTotalHoles = sm.holes === 'front' ? Math.min(9, totalHoles) : Math.max(0, totalHoles - 9);
+            const remaining = smTotalHoles - sm.status.thru;
+            if (remaining > 0) {
+              matchProjA += remaining * pts.tie;
+              matchProjB += remaining * pts.tie;
+            }
+          }
+        } else {
+          const status = computeLiveMatchStatus(currentScores, currentMatchup, currentRound, tournament);
+          if (status && status.thru < totalHoles) {
+            const remaining = totalHoles - status.thru;
+            matchProjA = liveResult.pointsTeamA + remaining * currentRound.pointsForTie;
+            matchProjB = liveResult.pointsTeamB + remaining * currentRound.pointsForTie;
+          } else {
+            matchProjA = liveResult.pointsTeamA;
+            matchProjB = liveResult.pointsTeamB;
+          }
         }
       } else {
         matchProjA = liveResult.pointsTeamA;
@@ -2181,6 +2479,7 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
   // Compute round totals (sum of all live match tournament points in this round)
   let roundPtsA = 0;
   let roundPtsB = 0;
+  const awardedBonuses: { name: string; a: number; b: number; detail?: string }[] = [];
   if (currentRound) {
     for (const m of currentRound.matchups) {
       if (m.result) {
@@ -2200,8 +2499,38 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
         }
       }
     }
+    // Add finalized bonus points to round total
+    for (const bonus of currentRound.bonuses) {
+      if (!bonus.result) continue;
+      let a = 0;
+      let b = 0;
+      if (bonus.scope === 'per-matchup' && (bonus.result.teamAWins != null || bonus.result.teamBWins != null)) {
+        const aWins = bonus.result.teamAWins || 0;
+        const bWins = bonus.result.teamBWins || 0;
+        const ties = bonus.result.ties || 0;
+        a = aWins * bonus.points + ties * bonus.points * 0.5;
+        b = bWins * bonus.points + ties * bonus.points * 0.5;
+      } else if (bonus.result.winningTeamId === teamA.id) {
+        a = bonus.points;
+      } else if (bonus.result.winningTeamId === teamB.id) {
+        b = bonus.points;
+      } else {
+        a = bonus.points * 0.5;
+        b = bonus.points * 0.5;
+      }
+      roundPtsA += a;
+      roundPtsB += b;
+      if (a > 0 || b > 0) {
+        awardedBonuses.push({ name: bonus.name, a, b, detail: bonus.result.detail });
+      }
+    }
   }
 
+  // Add decided (live-computed) bonus points to round totals
+  for (const db of decidedBonuses) {
+    roundPtsA += db.a;
+    roundPtsB += db.b;
+  }
 
   // Derive current match score display based on format
   let currentScoreA: string = '–';
@@ -2215,17 +2544,26 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
       const idx = merged.findIndex((r) => r.playerId === s.playerId && r.hole === s.hole);
       if (idx >= 0) merged[idx] = s; else merged.push(s);
     }
-    const status = computeLiveMatchStatus(merged, currentMatchup, currentRound, tournament);
-    if (status && status.thru > 0) {
-      const diff = status.holesWonA - status.holesWonB;
-      if (diff === 0) {
-        currentScoreA = 'AS';
-        currentScoreB = `thru ${status.thru}`;
-      } else {
-        const leader = diff > 0 ? 'A' : 'B';
-        const up = Math.abs(diff);
-        currentScoreA = leader === 'A' ? `${up} UP` : `${up} DN`;
-        currentScoreB = leader === 'B' ? `${up} UP` : `${up} DN`;
+    // Split format: show points directly
+    if (currentRound.splitFormat) {
+      const liveResult = recomputeMatchResult(merged, currentMatchup, currentRound, tournament);
+      if (liveResult) {
+        currentScoreA = String(liveResult.pointsTeamA);
+        currentScoreB = String(liveResult.pointsTeamB);
+      }
+    } else {
+      const status = computeLiveMatchStatus(merged, currentMatchup, currentRound, tournament);
+      if (status && status.thru > 0) {
+        const diff = status.holesWonA - status.holesWonB;
+        if (diff === 0) {
+          currentScoreA = 'AS';
+          currentScoreB = `thru ${status.thru}`;
+        } else {
+          const leader = diff > 0 ? 'A' : 'B';
+          const up = Math.abs(diff);
+          currentScoreA = leader === 'A' ? `${up} UP` : `${up} DN`;
+          currentScoreB = leader === 'B' ? `${up} UP` : `${up} DN`;
+        }
       }
     }
   } else if (currentMatchText) {
@@ -2253,12 +2591,12 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
             <span className="absolute right-0 text-[9px] text-gray-500 whitespace-nowrap">(proj {roundProjA}–{roundProjB})</span>
           )}
         </div>
-        {/* Current match stableford or status */}
+        {/* Current match stableford or status (hidden for split format — details in expanded view) */}
         {isStrokePlayStableford && (currentStbA > 0 || currentStbB > 0) ? (
           <p className="text-center text-[10px] text-gray-400 mt-0.5">
             This match: <span className="text-blue-300">{currentStbA}</span>–<span className="text-red-300">{currentStbB}</span> stb
           </p>
-        ) : currentMatchText ? (
+        ) : currentMatchText && !currentRound?.splitFormat ? (
           <p className="text-center text-[10px] text-gray-400 mt-0.5">{currentMatchText}</p>
         ) : null}
       </button>
@@ -2267,9 +2605,94 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
       {expanded && (
         <div className="border-t border-gray-800 px-4 py-1.5 space-y-1">
           {/* Individual match scores (multi-matchup rounds) */}
-          {currentRound && currentRound.matchups.length > 1 && (
+          {currentRound && currentRound.matchups.length > 1 && currentRound.splitFormat && (() => {
+            const matchWinnerBonus = currentRound.bonuses.find((b) => b.type === 'match-winner' && b.scope === 'per-matchup');
+            const allSubMatches: { sm: SplitMatchup; matchupId: string; mTeamANames: string; mTeamBNames: string }[] = [];
+            for (const m of currentRound.matchups) {
+              const mTeamANames = tournament.players.filter((p) => m.teamAPlayerIds.includes(p.id)).map((p) => p.name.split(' ')[0]).join('/');
+              const mTeamBNames = tournament.players.filter((p) => m.teamBPlayerIds.includes(p.id)).map((p) => p.name.split(' ')[0]).join('/');
+              let matchScores: GameScore[] | null = null;
+              if (m.id === currentMatchupId) {
+                const merged = [...remoteScores];
+                for (const s of currentScores) {
+                  const idx = merged.findIndex((r) => r.playerId === s.playerId && r.hole === s.hole);
+                  if (idx >= 0) merged[idx] = s; else merged.push(s);
+                }
+                matchScores = merged;
+              } else if (m.gameId) {
+                matchScores = loadGameScores(m.id);
+              }
+              const splitStatuses = matchScores && matchScores.length > 0
+                ? computeSplitMatchStatuses(matchScores, m, currentRound, tournament) : null;
+              if (splitStatuses) {
+                for (const sm of splitStatuses) {
+                  allSubMatches.push({ sm, matchupId: m.id, mTeamANames, mTeamBNames });
+                }
+              }
+            }
+
+            // Sort: front 9 first, then back 9; within each group, current matchup first
+            allSubMatches.sort((a, b) => {
+              const aFront = a.sm.holes === 'front' ? 0 : 1;
+              const bFront = b.sm.holes === 'front' ? 0 : 1;
+              if (aFront !== bFront) return aFront - bFront;
+              const aCurrent = a.matchupId === currentMatchupId ? 0 : 1;
+              const bCurrent = b.matchupId === currentMatchupId ? 0 : 1;
+              return aCurrent - bCurrent;
+            });
+
+            if (allSubMatches.length === 0) return null;
+
+            return (
+              <div className="space-y-0.5">
+                {allSubMatches.map(({ sm, matchupId, mTeamANames, mTeamBNames }) => {
+                  const pts = sm.type === 'team'
+                    ? { win: currentRound.pointsForWin, tie: currentRound.pointsForTie }
+                    : { win: currentRound.splitFormat?.pointsForWin ?? currentRound.pointsForWin, tie: currentRound.splitFormat?.pointsForTie ?? currentRound.pointsForTie };
+                  const scoreA = sm.status.holesWonA * pts.win + sm.status.holesTied * pts.tie;
+                  const scoreB = sm.status.holesWonB * pts.win + sm.status.holesTied * pts.tie;
+                  const nameA = sm.type === 'team' ? mTeamANames : sm.playerA.name.split(' ')[0];
+                  const nameB = sm.type === 'team' ? mTeamBNames : sm.playerB.name.split(' ')[0];
+                  const labelSuffix = sm.type === 'team' ? 'F9' : 'B9';
+
+                  const isComplete = sm.status.thru >= 9;
+                  let bonusText: string | null = null;
+                  let bonusColorA = '';
+                  let bonusColorB = '';
+                  if (matchWinnerBonus && isComplete) {
+                    const diff = sm.status.holesWonA - sm.status.holesWonB;
+                    if (diff > 0) { bonusText = `+${matchWinnerBonus.points}`; bonusColorA = 'text-green-400'; }
+                    else if (diff < 0) { bonusText = `+${matchWinnerBonus.points}`; bonusColorB = 'text-green-400'; }
+                    else { bonusText = `+${matchWinnerBonus.points * 0.5}`; bonusColorA = 'text-yellow-400'; bonusColorB = 'text-yellow-400'; }
+                  }
+
+                  return (
+                    <div key={`${matchupId}-${sm.label}`} className="flex items-baseline text-[10px]">
+                      <div className="flex-1 text-right min-w-0 flex items-baseline justify-end gap-0.5">
+                        <span className="whitespace-nowrap text-blue-300">{nameA}</span>
+                        {bonusColorA && <span className={`text-[8px] ${bonusColorA}`}>{bonusText}</span>}
+                      </div>
+                      <div className="flex items-baseline justify-center gap-1 px-1.5 shrink-0">
+                        <span className="font-bold tabular-nums w-4 text-right text-blue-300">{sm.status.thru > 0 ? scoreA : '–'}</span>
+                        <span className="text-gray-600">–</span>
+                        <span className="font-bold tabular-nums w-4 text-left text-red-300">{sm.status.thru > 0 ? scoreB : '–'}</span>
+                      </div>
+                      <div className="flex-1 text-left min-w-0 flex items-baseline gap-0.5">
+                        {bonusColorB && <span className={`text-[8px] ${bonusColorB}`}>{bonusText}</span>}
+                        <span className="whitespace-nowrap text-red-300">{nameB}</span>
+                      </div>
+                      <span className="text-[8px] text-gray-600 ml-0.5">{labelSuffix}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          {/* Individual match scores: non-split rounds */}
+          {currentRound && currentRound.matchups.length > 1 && !currentRound.splitFormat && (
             <div className="space-y-0.5">
-              {[...currentRound.matchups].sort((a, b) => (a.id === currentMatchupId ? -1 : b.id === currentMatchupId ? 1 : 0)).map((m) => {
+              {currentRound.matchups.map((m) => {
                 const mTeamANames = tournament.players.filter((p) => m.teamAPlayerIds.includes(p.id)).map((p) => p.name.split(' ')[0]).join('/');
                 const mTeamBNames = tournament.players.filter((p) => m.teamBPlayerIds.includes(p.id)).map((p) => p.name.split(' ')[0]).join('/');
                 let mScoreA = '–';
@@ -2278,15 +2701,15 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
                   mScoreA = currentScoreA;
                   mScoreB = currentScoreB;
                 } else if (m.result) {
-                  const match = m.result.summary.match(/^(\d+)\s*[—–-]\s*(\d+)/);
-                  if (match) { mScoreA = match[1]; mScoreB = match[2]; }
+                  mScoreA = String(m.result.pointsTeamA);
+                  mScoreB = String(m.result.pointsTeamB);
                 } else if (m.gameId) {
                   const mScores = loadGameScores(m.id);
                   if (mScores && mScores.length > 0) {
                     const liveResult = recomputeMatchResult(mScores, m, currentRound, tournament);
                     if (liveResult) {
-                      const match = liveResult.summary.match(/^(\d+)\s*[—–-]\s*(\d+)/);
-                      if (match) { mScoreA = match[1]; mScoreB = match[2]; }
+                      mScoreA = String(liveResult.pointsTeamA);
+                      mScoreB = String(liveResult.pointsTeamB);
                     }
                   }
                 }
@@ -2309,24 +2732,44 @@ function TournamentOverviewPanel({ tournamentCtx, currentMatchupId, currentScore
             </div>
           )}
 
-          {/* Projected bonuses */}
-          {projectedBonuses.length > 0 && (
-            <div className="space-y-0.5">
-              <p className="text-[9px] text-gray-500 uppercase tracking-wider text-center">Bonuses</p>
-              {projectedBonuses.map((pb) => (
-                <div key={pb.name} className="flex items-baseline flex-nowrap text-[9px]">
-                  <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
-                    <span className="text-gray-500 whitespace-nowrap">{pb.name}</span>
-                    <span className="text-blue-300/70">{pb.a}</span>
+          {/* Bonuses: combined by name with projected portion shown inline */}
+          {(decidedBonuses.length > 0 || awardedBonuses.length > 0 || projectedBonuses.length > 0) && (() => {
+            const combined = new Map<string, { a: number; b: number; projA: number; projB: number }>();
+            for (const ab of awardedBonuses) {
+              const entry = combined.get(ab.name) || { a: 0, b: 0, projA: 0, projB: 0 };
+              entry.a += ab.a; entry.b += ab.b;
+              combined.set(ab.name, entry);
+            }
+            for (const db of decidedBonuses) {
+              const entry = combined.get(db.name) || { a: 0, b: 0, projA: 0, projB: 0 };
+              entry.a += db.a; entry.b += db.b;
+              combined.set(db.name, entry);
+            }
+            for (const pb of projectedBonuses) {
+              const entry = combined.get(pb.name) || { a: 0, b: 0, projA: 0, projB: 0 };
+              entry.projA += pb.a; entry.projB += pb.b;
+              combined.set(pb.name, entry);
+            }
+            return (
+              <div className="space-y-0.5">
+                <p className="text-[9px] text-gray-500 uppercase tracking-wider text-center">Bonuses</p>
+                {[...combined.entries()].map(([name, { a, b, projA: pA, projB: pB }]) => (
+                  <div key={name} className="flex items-baseline flex-nowrap text-[9px]">
+                    <div className="flex-1 flex items-baseline justify-end gap-1 min-w-0">
+                      <span className="text-gray-400 whitespace-nowrap">{name}</span>
+                      <span className="text-blue-300">{a}</span>
+                      {pA > 0 && <span className="text-blue-300/50">({a + pA})</span>}
+                    </div>
+                    <span className="text-gray-600 mx-1 flex-shrink-0">–</span>
+                    <div className="flex-1 flex items-baseline justify-start gap-1 min-w-0">
+                      <span className="text-red-300">{b}</span>
+                      {pB > 0 && <span className="text-red-300/50">({b + pB})</span>}
+                    </div>
                   </div>
-                  <span className="text-gray-600 mx-1 flex-shrink-0">–</span>
-                  <div className="flex-1 flex items-baseline justify-start min-w-0">
-                    <span className="text-red-300/70">{pb.b}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Tournament total */}
           <div className="flex items-baseline flex-nowrap text-[10px] pt-0.5 border-t border-gray-800">
