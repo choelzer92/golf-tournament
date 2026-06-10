@@ -147,6 +147,7 @@ export default function PlayGamePage() {
   }, [setup?.matchupId, scores]);
 
   // Realtime subscription for remote team's scores
+  // + poll every 15s and on tab resume as fallback for dropped WebSocket
   useEffect(() => {
     if (!setup?.scoringTeam || !setup?.matchupId) return;
     const matchupId = setup.matchupId;
@@ -154,14 +155,28 @@ export default function PlayGamePage() {
       setup.players.filter((p) => p.team === setup.scoringTeam).map((p) => p.id)
     );
 
-    const channel = subscribeToScores(matchupId, (allScores) => {
+    function applyRemote(allScores: any) {
       if (!Array.isArray(allScores)) return;
       const remote = allScores.filter((s: GameScore) => !localPlayerIds.has(s.playerId));
       remoteScoresRef.current = remote;
       setRemoteScores(remote);
+    }
+
+    const channel = subscribeToScores(matchupId, applyRemote);
+
+    const pollInterval = setInterval(() => {
+      fetchGameScores(matchupId).then((allScores) => {
+        if (allScores) applyRemote(allScores);
+      });
+    }, 15000);
+
+    const cleanupVisibility = onVisibilityRefetch([matchupId], () => {
+      fetchGameScores(matchupId).then((allScores) => {
+        if (allScores) applyRemote(allScores);
+      });
     });
 
-    return () => { channel.unsubscribe(); };
+    return () => { channel.unsubscribe(); clearInterval(pollInterval); cleanupVisibility(); };
   }, [setup?.scoringTeam, setup?.matchupId, setup?.players]);
 
   // Subscribe to other active matchups in the tournament for live overview updates
