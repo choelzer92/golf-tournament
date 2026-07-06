@@ -1,8 +1,37 @@
 import type { Player, GameScore, TeeSetOption } from './game-state';
 import type { TournamentRound, RoundMatchup, Tournament, SplitPairing } from './tournament-state';
 import { calcCourseHandicap } from './game-state';
-import type { TeamMode, StablefordScale } from './formats';
+import type { TeamMode, StablefordScale, TwoBestBallsVariant } from './formats';
 import { resolveStablefordScale, STABLEFORD_SCALES } from './formats';
+
+// Shared "best ball" team-hole primitive. Given each player's {gross, net} on a
+// single hole, return the team's hole score for the given two-best-balls variant.
+// Requires at least two players with scores; otherwise the team hole is incomplete.
+export function bestBallTeamHoleScore(
+  playerScores: { gross: number; net: number }[],
+  variant: TwoBestBallsVariant
+): number | null {
+  if (playerScores.length < 2) return null;
+
+  if (variant === '2-best-net') {
+    const sorted = [...playerScores].sort((a, b) => a.net - b.net);
+    return sorted[0].net + sorted[1].net;
+  }
+  if (variant === '2-best-gross') {
+    const sorted = [...playerScores].sort((a, b) => a.gross - b.gross);
+    return sorted[0].gross + sorted[1].gross;
+  }
+  // 1-net-1-gross: best net from one player + best gross from a different player
+  let bestTotal = Infinity;
+  for (let i = 0; i < playerScores.length; i++) {
+    for (let j = 0; j < playerScores.length; j++) {
+      if (i === j) continue;
+      const total = playerScores[i].net + playerScores[j].gross;
+      if (total < bestTotal) bestTotal = total;
+    }
+  }
+  return bestTotal;
+}
 
 interface HoleData {
   number: number;
@@ -280,7 +309,7 @@ function getTeamNetForHole(
     const activeSettings = (round.splitFormat && hole.number > 9)
       ? round.splitFormat.formatSettings
       : round.formatSettings;
-    const variant = (activeSettings?.ballSelection as string) || '1-net-1-gross';
+    const variant = (activeSettings?.ballSelection as TwoBestBallsVariant) || '1-net-1-gross';
     const playerScores: { gross: number; net: number }[] = [];
     for (const p of teamPlayers) {
       const gross = getScore(scores, p.id, hole.number);
@@ -288,26 +317,7 @@ function getTeamNetForHole(
       const strokes = getPlayerStrokesOnHole(p, hole.handicap, round, holes, allMatchupPlayers, hole.number);
       playerScores.push({ gross, net: gross - strokes });
     }
-    if (playerScores.length < 2) return null;
-
-    if (variant === '2-best-net') {
-      const sorted = [...playerScores].sort((a, b) => a.net - b.net);
-      return sorted[0].net + sorted[1].net;
-    }
-    if (variant === '2-best-gross') {
-      const sorted = [...playerScores].sort((a, b) => a.gross - b.gross);
-      return sorted[0].gross + sorted[1].gross;
-    }
-    // 1-net-1-gross: best net from one player + best gross from a different player
-    let bestTotal = Infinity;
-    for (let i = 0; i < playerScores.length; i++) {
-      for (let j = 0; j < playerScores.length; j++) {
-        if (i === j) continue;
-        const total = playerScores[i].net + playerScores[j].gross;
-        if (total < bestTotal) bestTotal = total;
-      }
-    }
-    return bestTotal;
+    return bestBallTeamHoleScore(playerScores, variant);
   }
 
   // best-ball (default)

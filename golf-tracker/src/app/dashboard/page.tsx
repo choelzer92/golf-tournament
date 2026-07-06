@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTournamentList, importTournament, hydrateTournaments, type TournamentListItem } from '@/lib/tournament-state';
+import { getPoolGameList, hydratePoolGames, type PoolGameListItem } from '@/lib/pool-game';
 
 interface TeeRating {
   RatingType: 'Front' | 'Back' | 'Total';
@@ -65,6 +66,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [tournaments, setTournaments] = useState<TournamentListItem[]>([]);
+  const [poolGames, setPoolGames] = useState<PoolGameListItem[]>([]);
 
   useEffect(() => {
     const token = sessionStorage.getItem('ghin_token');
@@ -80,6 +82,9 @@ export default function DashboardPage() {
     }
     hydrateTournaments().then(() => {
       setTournaments(getTournamentList());
+    });
+    hydratePoolGames().then(() => {
+      setPoolGames(getPoolGameList());
     });
   }, [router]);
 
@@ -230,6 +235,12 @@ export default function DashboardPage() {
             New Tournament
           </button>
           <button
+            onClick={() => router.push('/pool/new')}
+            className="flex-1 min-w-[140px] rounded-lg bg-blue-700 px-6 py-4 text-white font-bold text-lg hover:bg-blue-800 shadow-md"
+          >
+            Pool Game
+          </button>
+          <button
             onClick={() => {
               const input = document.createElement('input');
               input.type = 'file';
@@ -304,6 +315,35 @@ export default function DashboardPage() {
                     {t.teamAName} <span className="font-bold">{t.teamAPoints}</span>
                     {' — '}
                     <span className="font-bold">{t.teamBPoints}</span> {t.teamBName}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {poolGames.length > 0 && (
+          <section className="mb-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">Pool Games</h2>
+            <div className="space-y-2">
+              {poolGames.map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => router.push(`/pool/${g.id}`)}
+                  className={`w-full text-left bg-white rounded-lg shadow p-4 hover:shadow-md transition ${g.status === 'completed' ? 'opacity-75' : ''}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-gray-900">{g.name}</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      g.status === 'active' ? 'bg-green-100 text-green-800' :
+                      g.status === 'completed' ? 'bg-gray-100 text-gray-600' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {g.status}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {g.teamCount} foursome{g.teamCount !== 1 ? 's' : ''} · {g.playerCount} player{g.playerCount !== 1 ? 's' : ''}
                   </p>
                 </button>
               ))}

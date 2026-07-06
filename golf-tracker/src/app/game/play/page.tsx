@@ -10,6 +10,13 @@ import { loadTournament, saveTournament, saveGameScores, cacheGameScores, loadGa
 import { computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, computeSplitMatchStatuses, type SplitMatchup } from '@/lib/live-scoring';
 import { computeSideGameResult } from '@/lib/side-game';
 import type { SideGameResult } from '@/lib/side-game';
+import type { PoolGame } from '@/lib/pool-game';
+import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame } from '@/lib/pool-game';
+
+interface PoolGameContext {
+  poolGameId: string;
+  matchupId: string;
+}
 
 export default function PlayGamePage() {
   const router = useRouter();
@@ -22,6 +29,8 @@ export default function PlayGamePage() {
   const [strokesExpanded, setStrokesExpanded] = useState(false);
   const [otherMatchupTick, setOtherMatchupTick] = useState(0);
   const [isSideGame, setIsSideGame] = useState(false);
+  const [poolCtx, setPoolCtx] = useState<PoolGameContext | null>(null);
+  const [poolGame, setPoolGame] = useState<PoolGame | null>(null);
   const didAutoJump = useRef(false);
   const remoteScoresRef = useRef<GameScore[]>([]);
 
@@ -48,6 +57,16 @@ export default function PlayGamePage() {
           if (t) setTeamNames({ A: t.teams[0].name, B: t.teams[1].name });
         });
       }
+    }
+
+    // Pool money game: self-contained N-foursome pool (no 2-team tournament).
+    const poolRaw = sessionStorage.getItem('game_pool_context');
+    if (poolRaw) {
+      const pctx = JSON.parse(poolRaw) as PoolGameContext;
+      setPoolCtx(pctx);
+      const cached = loadPoolGame(pctx.poolGameId);
+      if (cached) setPoolGame(cached);
+      fetchPoolGame(pctx.poolGameId).then((g) => { if (g) setPoolGame(g); });
     }
 
     // Load previously saved scores for this matchup
@@ -122,6 +141,13 @@ export default function PlayGamePage() {
       setCurrentHole(playingHoles[playingHoles.length - 1].number);
     }
   }, [setup, scores]);
+
+  // Keep the pool game fresh (CTP picks from other foursomes) while scoring.
+  useEffect(() => {
+    if (!poolCtx) return;
+    const channel = subscribeToPoolGame(poolCtx.poolGameId, (g) => setPoolGame(g));
+    return () => { channel.unsubscribe(); };
+  }, [poolCtx]);
 
   function mergeScores(local: GameScore[], remote: GameScore[]): GameScore[] {
     const map = new Map<string, GameScore>();
@@ -545,9 +571,19 @@ export default function PlayGamePage() {
                 Leaderboard
               </button>
             )}
+            {poolCtx && (
+              <button
+                onClick={() => router.push(`/pool/${poolCtx.poolGameId}/leaderboard`)}
+                className="text-sm text-green-200 hover:text-white font-medium"
+              >
+                Leaderboard
+              </button>
+            )}
             <button
               onClick={() => {
-                if (tournamentCtx && isSideGame) {
+                if (poolCtx) {
+                  router.push(`/pool/${poolCtx.poolGameId}`);
+                } else if (tournamentCtx && isSideGame) {
                   router.push(`/tournament/${tournamentCtx.tournamentId}/side-games`);
                 } else if (tournamentCtx) {
                   router.push(`/tournament/${tournamentCtx.tournamentId}`);
@@ -557,7 +593,7 @@ export default function PlayGamePage() {
               }}
               className="text-sm text-green-200 hover:text-white"
             >
-              {tournamentCtx ? 'Back' : 'End'}
+              {tournamentCtx || poolCtx ? 'Back' : 'End'}
             </button>
           </div>
         </div>
@@ -799,6 +835,40 @@ export default function PlayGamePage() {
             ›
           </button>
         </div>
+
+        {/* Closest to the pin — pool game, par 3s only. Last team to claim it holds it. */}
+        {poolCtx && poolGame && currentHoleData?.par === 3 && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-3">
+            <p className="text-xs font-semibold text-emerald-800 mb-2">
+              📍 Closest to the pin — who&apos;s inside on hole {currentHole}?
+            </p>
+            <div className="flex gap-1.5 flex-wrap">
+              {visiblePlayers.map((player) => {
+                const isWinner = poolGame.ctpWinners?.[currentHole] === player.id;
+                return (
+                  <button
+                    key={player.id}
+                    onClick={() => setCtpWinner(currentHole, isWinner ? null : player.id)}
+                    className={`px-3 h-9 rounded-full text-sm font-medium transition ${
+                      isWinner ? 'bg-emerald-600 text-white' : 'bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100'
+                    }`}
+                  >
+                    {player.name.split(' ')[0]}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setCtpWinner(currentHole, null)}
+                className={`px-3 h-9 rounded-full text-sm font-medium transition ${
+                  !poolGame.ctpWinners?.[currentHole] ? 'bg-gray-300 text-gray-700' : 'bg-white border border-gray-300 text-gray-500 hover:bg-gray-100'
+                }`}
+              >
+                None
+              </button>
+            </div>
+            <p className="text-[11px] text-emerald-700 mt-1.5">Adds to your team&apos;s junk points. Editable later on the pool page.</p>
+          </div>
+        )}
 
         {/* Score entry */}
         <div className="space-y-3 mb-6">
@@ -1560,8 +1630,30 @@ export default function PlayGamePage() {
     return best;
   }
 
+  function setCtpWinner(hole: number, playerId: string | null) {
+    if (!poolGame) return;
+    // Read the latest persisted pool game so we don't clobber another foursome's CTP picks.
+    const latest = loadPoolGame(poolGame.id) || poolGame;
+    const updated: PoolGame = {
+      ...latest,
+      ctpWinners: { ...latest.ctpWinners, [hole]: playerId },
+    };
+    savePoolGame(updated);
+    setPoolGame(updated);
+  }
+
   async function finishGame() {
     if (!confirm('Finish this game and lock scores? This cannot be undone.')) return;
+
+    // Pool money game: just persist this foursome's scores and return to the hub.
+    // Pool standings/payouts are computed on the leaderboard from all foursomes.
+    if (poolCtx) {
+      saveGameScores(poolCtx.matchupId, scores);
+      sessionStorage.removeItem('game_setup');
+      sessionStorage.removeItem('game_pool_context');
+      router.push(`/pool/${poolCtx.poolGameId}`);
+      return;
+    }
 
     if (tournamentCtx) {
       // Side game mode: just save scores and navigate back
