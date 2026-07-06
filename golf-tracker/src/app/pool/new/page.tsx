@@ -102,9 +102,9 @@ export default function NewPoolGamePage() {
         if (data.junkValues) setJunkValues(data.junkValues);
         if (data.ballSelection) setBallSelection(data.ballSelection);
         if (data.course) setCourse(data.course);
-        if (data.players) setPlayers(data.players);
-        if (data.teams) setTeams(data.teams);
-        if (data.step) setStep(data.step);
+        // Intentionally NOT restoring players/teams/step: the day's field is a
+        // fresh per-game selection (the roster is the durable store), so every
+        // new game starts with nobody selected. Name/course/config still restore.
       }
     } catch {}
     setHydrated(true);
@@ -891,17 +891,28 @@ function FieldStep({
       <div className="bg-white rounded-lg shadow p-4 mb-4">
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm font-semibold text-gray-800">
-            Choose from roster
-            <span className="ml-2 text-xs font-normal text-gray-500">{players.length} in field</span>
+            Choose who&apos;s playing
+            <span className="ml-2 text-xs font-normal text-gray-500">{players.length} selected</span>
           </p>
-          <button
-            onClick={doRefreshRoster}
-            disabled={refreshing}
-            className="text-xs text-green-700 hover:text-green-900 font-medium disabled:opacity-50"
-            title="Re-pull current handicap indexes from GHIN for all saved players"
-          >
-            {refreshing ? 'Refreshing…' : '↻ Refresh handicaps'}
-          </button>
+          <div className="flex items-center gap-3">
+            {players.length > 0 && (
+              <button
+                onClick={() => setPlayers([])}
+                className="text-xs text-gray-500 hover:text-red-600 font-medium"
+                title="Deselect everyone and start fresh"
+              >
+                Clear
+              </button>
+            )}
+            <button
+              onClick={doRefreshRoster}
+              disabled={refreshing}
+              className="text-xs text-green-700 hover:text-green-900 font-medium disabled:opacity-50"
+              title="Re-pull current handicap indexes from GHIN for all saved players"
+            >
+              {refreshing ? 'Refreshing…' : '↻ Refresh handicaps'}
+            </button>
+          </div>
         </div>
         {refreshNote && <p className="text-xs text-gray-500 mb-2">{refreshNote}</p>}
         <input
