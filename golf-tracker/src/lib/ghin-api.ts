@@ -146,10 +146,10 @@ export async function getGolferHandicap(token: string, ghinNumber: number) {
   return golfers[0] || data.golfer || data;
 }
 
-// Best-effort name search against GHIN's /golfers.json. The `ghin` npm package
-// drops name params, so we hit the endpoint directly (same as getGolferHandicap).
-// GHIN's name search is unofficial and may be restricted/rate-limited — callers
-// should treat an empty array as "no results" and fall back to the saved roster.
+// Name search against GHIN's /golfers.json. The `ghin` npm package parses
+// first_name/last_name but then discards them (only golfer_id is forwarded), so
+// we call the endpoint directly. GHIN requires status=Active to return matches;
+// state is a bare 2-letter code here (NOT the US-XX form the course API uses).
 export async function searchGolfersByName(
   token: string,
   firstName: string,
@@ -159,6 +159,7 @@ export async function searchGolfersByName(
   const params: Record<string, string> = {
     source: 'GHINcom',
     from_ghin: 'true',
+    status: 'Active',
     sorting_criteria: 'full_name',
     order: 'asc',
     per_page: '25',
@@ -166,8 +167,10 @@ export async function searchGolfersByName(
   };
   if (firstName) params.first_name = firstName;
   if (lastName) params.last_name = lastName;
-  if (state) params.state = state.includes('-') ? state : `US-${state}`;
+  if (state) params.state = state.replace(/^US-/, '');
 
   const data = await ghinFetch('/golfers.json', token, params);
-  return (data.golfers || []) as Record<string, unknown>[];
+  const golfers = (data.golfers || []) as Record<string, unknown>[];
+  console.log(`GHIN name search "${firstName} ${lastName}" state=${state || '-'} -> ${golfers.length} results; keys: ${Object.keys(data).join(',')}`);
+  return golfers;
 }

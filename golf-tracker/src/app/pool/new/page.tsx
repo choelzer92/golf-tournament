@@ -766,7 +766,9 @@ function FieldStep({
   async function searchGhinByName() {
     const token = getToken();
     if (!token) { setGsNote('Log in to GHIN (via the Course step) to search by name.'); return; }
-    if (!gsFirst && !gsLast) return;
+    // GHIN name search requires a last name AND a state to return results.
+    if (!gsLast.trim()) { setGsNote('Enter a last name to search.'); return; }
+    if (!gsState.trim()) { setGsNote('Enter a state (e.g. VA) — GHIN requires it to search by name.'); return; }
     setGsLoading(true);
     setGsSearched(false);
     setGsNote('');
@@ -779,18 +781,18 @@ function FieldStep({
       const data = await res.json();
       if (!res.ok) {
         setGsResults([]);
-        setGsNote('No GHIN matches — use your saved roster or add by GHIN #');
+        setGsNote(data.error || 'Search failed — try again or add by GHIN #');
         return;
       }
       const golfers: any[] = data.golfers || [];
       setGsResults(golfers);
       setGsSearched(true);
       if (golfers.length === 0) {
-        setGsNote('No GHIN matches — use your saved roster or add by GHIN #');
+        setGsNote(`No golfers named "${gsLast}" found in ${gsState.toUpperCase()}. Check spelling/state, or add by GHIN #.`);
       }
     } catch {
       setGsResults([]);
-      setGsNote('No GHIN matches — use your saved roster or add by GHIN #');
+      setGsNote('Search failed — check your connection or add by GHIN #');
     } finally {
       setGsLoading(false);
     }
@@ -927,15 +929,16 @@ function FieldStep({
         </div>
       </div>
 
-      {/* GHIN name search (best-effort) */}
+      {/* GHIN name search */}
       <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <p className="text-sm font-semibold text-gray-800 mb-2">Search GHIN by name</p>
+        <p className="text-sm font-semibold text-gray-800 mb-0.5">Search GHIN by name</p>
+        <p className="text-xs text-gray-500 mb-2">Last name and state required. First name optional to narrow it down.</p>
         <div className="flex gap-2 flex-wrap">
           <input
             type="text"
             value={gsFirst}
             onChange={(e) => setGsFirst(e.target.value)}
-            placeholder="First name"
+            placeholder="First (optional)"
             className="flex-1 min-w-[100px] rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
           />
           <input
@@ -955,7 +958,7 @@ function FieldStep({
           />
           <button
             onClick={searchGhinByName}
-            disabled={gsLoading || (!gsFirst && !gsLast)}
+            disabled={gsLoading || !gsLast.trim() || !gsState.trim()}
             className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800 disabled:opacity-50"
           >
             {gsLoading ? '...' : 'Search GHIN'}
