@@ -18,7 +18,9 @@ import {
   type RosterPlayer,
   hydrateRoster,
   searchRoster,
+  getRoster,
   upsertRosterPlayer,
+  refreshRosterHandicaps,
 } from '@/lib/roster';
 
 const WIZARD_KEY = 'pool_wizard_draft';
@@ -653,6 +655,8 @@ function FieldStep({
 
   const [rosterQuery, setRosterQuery] = useState('');
   const [rosterResults, setRosterResults] = useState<RosterPlayer[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshNote, setRefreshNote] = useState('');
 
   const [ghinInput, setGhinInput] = useState('');
   const [ghinLoading, setGhinLoading] = useState(false);
@@ -694,7 +698,49 @@ function FieldStep({
       ghinNumber: rp.ghinNumber ?? undefined,
       teeSetId: defaultTeeId,
     };
-    setPlayers([...players, newPlayer]);
+    const nextPlayers = [...players, newPlayer];
+    setPlayers(nextPlayers);
+
+    // Auto-refresh: pull this player's current index from GHIN so every new
+    // game uses up-to-date handicaps. Non-blocking — updates in place on return.
+    const token = getToken();
+    if (token && rp.ghinNumber != null) {
+      fetch('/api/ghin/golfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, ghin_number: rp.ghinNumber }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          const hi = parseFloat(data?.golfer?.handicap_index ?? data?.golfer?.hi_value ?? '');
+          if (isNaN(hi) || hi === rp.handicapIndex) return;
+          setPlayers(nextPlayers.map((p) => (p.id === rp.id ? { ...p, handicapIndex: hi } : p)));
+          upsertRosterPlayer({ ...rp, handicapIndex: hi });
+        })
+        .catch(() => { /* keep the cached index on any failure */ });
+    }
+  }
+
+  async function doRefreshRoster() {
+    const token = getToken();
+    if (!token) { setRefreshNote('Log in via the Course step to refresh from GHIN.'); return; }
+    setRefreshing(true);
+    setRefreshNote('');
+    try {
+      const count = await refreshRosterHandicaps(token);
+      refreshRoster(rosterQuery);
+      // Reflect any updated indexes on players already in this field.
+      const updated = getRoster();
+      setPlayers(players.map((p) => {
+        const rp = updated.find((r) => r.ghinNumber != null && r.ghinNumber === p.ghinNumber);
+        return rp && rp.handicapIndex != null ? { ...p, handicapIndex: rp.handicapIndex } : p;
+      }));
+      setRefreshNote(count > 0 ? `Updated ${count} handicap${count === 1 ? '' : 's'} from GHIN.` : 'Handicaps already current.');
+    } catch {
+      setRefreshNote('Refresh failed — check your connection.');
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   async function addByGhin() {
@@ -844,7 +890,18 @@ function FieldStep({
 
       {/* Saved roster search */}
       <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <p className="text-sm font-semibold text-gray-800 mb-2">Add from saved roster</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm font-semibold text-gray-800">Add from saved roster</p>
+          <button
+            onClick={doRefreshRoster}
+            disabled={refreshing}
+            className="text-xs text-green-700 hover:text-green-900 font-medium disabled:opacity-50"
+            title="Re-pull current handicap indexes from GHIN for all saved players"
+          >
+            {refreshing ? 'Refreshing…' : '↻ Refresh handicaps'}
+          </button>
+        </div>
+        {refreshNote && <p className="text-xs text-gray-500 mb-2">{refreshNote}</p>}
         <input
           type="text"
           value={rosterQuery}
