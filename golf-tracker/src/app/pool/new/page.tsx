@@ -879,7 +879,6 @@ function FieldStep({
   }
 
   const fieldIds = new Set(players.map((p) => p.id));
-  const availableRoster = rosterResults.filter((rp) => !fieldIds.has(rp.id));
 
   const canProceed = players.length >= 2;
 
@@ -888,10 +887,13 @@ function FieldStep({
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Build Field ({players.length})</h2>
 
-      {/* Saved roster search */}
+      {/* Saved roster — alphabetical checklist, tap to add/remove today's field */}
       <div className="bg-white rounded-lg shadow p-4 mb-4">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-sm font-semibold text-gray-800">Add from saved roster</p>
+          <p className="text-sm font-semibold text-gray-800">
+            Choose from roster
+            <span className="ml-2 text-xs font-normal text-gray-500">{players.length} in field</span>
+          </p>
           <button
             onClick={doRefreshRoster}
             disabled={refreshing}
@@ -906,26 +908,34 @@ function FieldStep({
           type="text"
           value={rosterQuery}
           onChange={(e) => refreshRoster(e.target.value)}
-          placeholder="Search saved players by name"
+          placeholder="Filter by name…"
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
         />
-        <div className="mt-2 flex flex-wrap gap-2">
-          {availableRoster.length === 0 && (
-            <p className="text-xs text-gray-500">No saved players{rosterQuery ? ' match' : ' yet'}. Add by GHIN # or manually below.</p>
-          )}
-          {availableRoster.slice(0, 30).map((rp) => (
-            <button
-              key={rp.id}
-              onClick={() => addRosterPlayer(rp)}
-              className="rounded-full border border-green-300 bg-green-50 px-3 py-1 text-sm text-green-800 hover:bg-green-100"
-            >
-              {rp.name}
-              <span className="ml-1 text-xs text-green-600">
-                ({rp.handicapIndex ?? '—'}{rp.gender ? ` · ${rp.gender}` : ''})
-              </span>
-            </button>
-          ))}
-        </div>
+        {rosterResults.length === 0 ? (
+          <p className="mt-2 text-xs text-gray-500">No saved players{rosterQuery ? ' match' : ' yet'}. Add by GHIN # or manually below.</p>
+        ) : (
+          <ul className="mt-2 max-h-80 overflow-y-auto divide-y divide-gray-100 rounded-md border border-gray-100">
+            {rosterResults.map((rp) => {
+              const inField = fieldIds.has(rp.id);
+              return (
+                <li key={rp.id}>
+                  <button
+                    onClick={() => (inField ? removePlayer(rp.id) : addRosterPlayer(rp))}
+                    className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm hover:bg-gray-50 ${inField ? 'bg-green-50' : ''}`}
+                  >
+                    <span className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border ${inField ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300 bg-white'}`}>
+                      {inField ? '✓' : ''}
+                    </span>
+                    <span className="flex-1 font-medium text-gray-900">{rp.name}</span>
+                    <span className="text-xs text-gray-500">
+                      {rp.handicapIndex ?? '—'}{rp.gender ? ` · ${rp.gender}` : ''}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
       {/* Add by GHIN # + manual */}
