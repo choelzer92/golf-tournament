@@ -1594,17 +1594,22 @@ function TeamsStep({
                   if (!p) return null;
                   const hcap = course ? Math.round(hcapOf(p)) : null;
                   return (
-                    <li key={pid} className="flex items-center justify-between gap-2 rounded bg-gray-50 px-2 py-1">
-                      <span className="text-sm text-gray-900 truncate min-w-0">
-                        {p.name}
-                        {hcap !== null && <span className="ml-1 text-xs text-gray-500">({hcap})</span>}
-                      </span>
+                    <li key={pid} className="flex items-center gap-2 rounded bg-gray-50 px-2 py-1">
+                      <span className="text-sm text-gray-900 truncate min-w-0 flex-1">{p.name}</span>
+                      {hcap !== null && (
+                        <span
+                          className="flex-shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums"
+                          title="Course handicap on this tee"
+                        >
+                          {hcap}
+                        </span>
+                      )}
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {course && course.teeSets.length > 1 && (
                           <select
                             value={p.teeSetId ?? ''}
                             onChange={(e) => changePlayerTee(pid, Number(e.target.value))}
-                            className="text-xs rounded border border-gray-300 px-1 py-0.5 shadow-sm focus:border-green-500 focus:outline-none max-w-[110px]"
+                            className="text-xs rounded border border-gray-300 px-1 py-0.5 shadow-sm focus:border-green-500 focus:outline-none max-w-[96px]"
                             title="Tee"
                           >
                             {course.teeSets.map((ts) => (
