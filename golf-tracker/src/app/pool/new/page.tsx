@@ -274,6 +274,8 @@ export default function NewPoolGamePage() {
             entryPerPlayer={parseFloat(entryPerPlayer) || 0}
             players={players}
             teams={teams}
+            course={course}
+            handicapAllowance={parseFloat(handicapAllowance) || 100}
             potDollars={potDollars}
             setPotDollars={setPotDollars}
             potEdited={potEdited}
@@ -1652,12 +1654,14 @@ function TeamsStep({
 }
 
 function CreateStep({
-  name, entryPerPlayer, players, teams, potDollars, setPotDollars, potEdited, setPotEdited, onCreate, onBack,
+  name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited, onCreate, onBack,
 }: {
   name: string;
   entryPerPlayer: number;
   players: Player[];
   teams: PoolTeam[];
+  course: CourseSelection | null;
+  handicapAllowance: number;
   potDollars: PotDollars | null;
   setPotDollars: (d: PotDollars | null) => void;
   potEdited: boolean;
@@ -1666,6 +1670,7 @@ function CreateStep({
 }) {
   const playerById = new Map(players.map((p) => [p.id, p]));
   const pot = players.length * entryPerPlayer;
+  const teeNameOf = (p: Player) => course?.teeSets.find((t) => t.id === p.teeSetId)?.name ?? null;
 
   // Auto-fill the dollar split from the team-count standard, unless the user has
   // edited it. Re-runs if the number of teams changes.
@@ -1750,23 +1755,40 @@ function CreateStep({
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-2">Foursomes</p>
           <div className="grid gap-2 sm:grid-cols-2">
-            {teams.map((team) => (
-              <div key={team.id} className="rounded-lg border border-gray-200 p-2">
-                <p className="text-sm font-medium text-gray-900">
-                  {team.name}
-                  {team.teeTime ? <span className="ml-2 text-xs text-gray-500">{team.teeTime}</span> : null}
-                </p>
-                {team.playerIds.map((pid) => {
-                  const p = playerById.get(pid);
-                  if (!p) return null;
-                  return (
-                    <p key={pid} className="text-sm text-gray-600">
-                      {p.name} ({p.handicapIndex ?? '—'})
+            {teams.map((team) => {
+              const combined = team.playerIds.reduce((s, pid) => {
+                const p = playerById.get(pid);
+                return p && course ? s + getPoolPlayingHandicap(p, course, handicapAllowance) : s;
+              }, 0);
+              return (
+                <div key={team.id} className="rounded-lg border border-gray-200 p-2">
+                  <div className="flex items-baseline justify-between mb-1">
+                    <p className="text-sm font-medium text-gray-900">
+                      {team.name}
+                      {team.teeTime ? <span className="ml-2 text-xs text-gray-500">{team.teeTime}</span> : null}
                     </p>
-                  );
-                })}
-              </div>
-            ))}
+                    {course && <span className="text-xs text-gray-500">CHcp {Math.round(combined)}</span>}
+                  </div>
+                  {team.playerIds.map((pid) => {
+                    const p = playerById.get(pid);
+                    if (!p) return null;
+                    const chcp = course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance)) : null;
+                    const tee = teeNameOf(p);
+                    return (
+                      <div key={pid} className="flex items-center gap-2 text-sm text-gray-600 py-0.5">
+                        <span className="truncate min-w-0 flex-1">{p.name}</span>
+                        {tee && <span className="flex-shrink-0 text-xs text-gray-400">{tee}</span>}
+                        {chcp !== null && (
+                          <span className="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums" title="Course handicap on this tee">
+                            {chcp}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
