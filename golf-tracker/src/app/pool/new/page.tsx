@@ -118,7 +118,7 @@ export default function NewPoolGamePage() {
   const [name, setName] = useState('');
   const [entryPerPlayer, setEntryPerPlayer] = useState('25');
   const [handicapAllowance, setHandicapAllowance] = useState('100');
-  const [strokeMethod, setStrokeMethod] = useState<'full' | 'off-the-low'>('full');
+  const [strokeMethod, setStrokeMethod] = useState<'full' | 'off-the-low'>('off-the-low');
   const [potSplitPct, setPotSplitPct] = useState<PotSplitPct>(potSplitToPct(DEFAULT_POT_SPLIT));
   const [positionSplitText, setPositionSplitText] = useState('100');
   const [junkValues, setJunkValues] = useState<PoolJunkValues>({ ...DEFAULT_JUNK_VALUES });
