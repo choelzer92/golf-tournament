@@ -13,6 +13,7 @@ import {
   getPoolPlayingHandicap,
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
+  balanceTeamsByHandicap,
 } from '@/lib/pool-game';
 import {
   type RosterPlayer,
@@ -1375,94 +1376,8 @@ function TeamsStep({
 
   function autoBalance() {
     const numTeams = Math.max(1, Math.ceil(players.length / 4));
-    // Even team sizes: the first `extra` teams get one extra player.
-    const base = Math.floor(players.length / numTeams);
-    const extra = players.length % numTeams;
-    const caps = Array.from({ length: numTeams }, (_, i) => base + (i < extra ? 1 : 0));
-
-    // Work in index space over players sorted high -> low by course handicap.
-    const sorted = [...players].sort((a, b) => hcapOf(b) - hcapOf(a));
-    const h = sorted.map((p) => hcapOf(p));
-    const n = h.length;
-    const total = h.reduce((s, v) => s + v, 0);
-    const spreadOf = (sums: number[]) => Math.max(...sums) - Math.min(...sums);
-
-    // --- 1) Greedy LPT: each player to the least-loaded team with room. ---
-    const buckets: number[][] = Array.from({ length: numTeams }, () => []);
-    const sums = new Array(numTeams).fill(0);
-    for (let idx = 0; idx < n; idx++) {
-      let best = -1;
-      for (let t = 0; t < numTeams; t++) {
-        if (buckets[t].length >= caps[t]) continue;
-        if (best === -1 || sums[t] < sums[best]) best = t;
-      }
-      buckets[best].push(idx);
-      sums[best] += h[idx];
-    }
-
-    // --- 2) 2-swap local improvement (cheap, cleans up the greedy seed). ---
-    let improved = true;
-    let guard = 0;
-    while (improved && guard++ < 300) {
-      improved = false;
-      for (let a = 0; a < numTeams && !improved; a++) {
-        for (let b = a + 1; b < numTeams && !improved; b++) {
-          for (let i = 0; i < buckets[a].length && !improved; i++) {
-            for (let j = 0; j < buckets[b].length; j++) {
-              const before = spreadOf(sums);
-              sums[a] += h[buckets[b][j]] - h[buckets[a][i]];
-              sums[b] += h[buckets[a][i]] - h[buckets[b][j]];
-              if (spreadOf(sums) < before - 1e-9) {
-                const tmp = buckets[a][i]; buckets[a][i] = buckets[b][j]; buckets[b][j] = tmp;
-                improved = true;
-                break;
-              }
-              sums[a] -= h[buckets[b][j]] - h[buckets[a][i]];
-              sums[b] -= h[buckets[a][i]] - h[buckets[b][j]];
-            }
-          }
-        }
-      }
-    }
-
-    // --- 3) Exact branch-and-bound, seeded with the swap result so any early
-    // exit still returns something >= as good. Assign players high->low; prune
-    // when the optimistic spread (curMax - total/numTeams) can't beat best. ---
-    let bestSpread = spreadOf(sums);
-    let bestAssign = buckets.map((b) => [...b]);
-    const avg = total / numTeams;
-    const deadline = Date.now() + 800; // hard budget; search only ever improves on the seed
-    const curSums = new Array(numTeams).fill(0);
-    const curCnt = new Array(numTeams).fill(0);
-    const curTeams: number[][] = Array.from({ length: numTeams }, () => []);
-    let bailed = false;
-
-    function rec(i: number) {
-      if (bailed || bestSpread === 0) return;
-      if (Date.now() > deadline) { bailed = true; return; }
-      if (i === n) {
-        const sp = Math.max(...curSums) - Math.min(...curSums);
-        if (sp < bestSpread) { bestSpread = sp; bestAssign = curTeams.map((t) => [...t]); }
-        return;
-      }
-      const curMax = Math.max(...curSums);
-      if (curMax - avg >= bestSpread) return; // optimistic lower bound on final spread
-      const seen = new Set<string>();
-      // Try emptier teams first for better solutions sooner.
-      const order = [...Array(numTeams).keys()].sort((x, y) => curSums[x] - curSums[y]);
-      for (const t of order) {
-        if (curCnt[t] >= caps[t]) continue;
-        const key = `${curSums[t]}:${curCnt[t]}`; // symmetry: skip equivalent teams
-        if (seen.has(key)) continue;
-        seen.add(key);
-        curSums[t] += h[i]; curCnt[t] += 1; curTeams[t].push(i);
-        rec(i + 1);
-        curTeams[t].pop(); curSums[t] -= h[i]; curCnt[t] -= 1;
-      }
-    }
-    rec(0);
-
-    setTeams(bestAssign.map((idxs, i) => makeTeam(i, idxs.map((idx) => sorted[idx].id))));
+    const groups = balanceTeamsByHandicap(players, numTeams, hcapOf);
+    setTeams(groups.map((ids, i) => makeTeam(i, ids)));
   }
 
   function movePlayer(playerId: string, fromTeamId: string, toTeamId: string) {

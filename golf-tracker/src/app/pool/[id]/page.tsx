@@ -14,7 +14,9 @@ import {
   getFieldLow,
   getPar3Holes,
   distinctRankingsForPlayers,
+  balanceTeamsByHandicap,
 } from '@/lib/pool-game';
+import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import {
   type RosterPlayer,
   hydrateRoster,
@@ -417,6 +419,12 @@ function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame)
   const course = game.course;
   const playerById = new Map(game.players.map((p) => [p.id, p]));
 
+  // Fetch each foursome's scores into cache on entering edit mode, so the
+  // re-balance "scores exist?" check (via loadGameScores) is accurate.
+  useEffect(() => {
+    game.teams.forEach((t) => { fetchGameScores(t.matchupId); });
+  }, [game.teams]);
+
   function renameTeam(teamId: string, newName: string) {
     onSave({
       ...game,
@@ -487,8 +495,71 @@ function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame)
     onSave({ ...game, players, teams });
   }
 
+  // Reassign the field into `newGroups` (arrays of player IDs), reusing the
+  // EXISTING team slots so each foursome keeps its matchupId. If any foursome
+  // already has scores, warn — and on confirm, clear all scores for the round
+  // (the old cards no longer match the reshuffled players).
+  function applyReshuffle(newGroups: string[][]) {
+    const teamsWithScores = game.teams.filter((t) => {
+      const s = loadGameScores(t.matchupId);
+      return Array.isArray(s) && s.length > 0;
+    });
+    if (teamsWithScores.length > 0) {
+      const ok = confirm(
+        `${teamsWithScores.length} foursome${teamsWithScores.length === 1 ? '' : 's'} already ` +
+        `${teamsWithScores.length === 1 ? 'has' : 'have'} scores entered. Re-balancing reshuffles ` +
+        `players, so those scores will be cleared for the round. Continue?`
+      );
+      if (!ok) return;
+      for (const t of game.teams) saveGameScores(t.matchupId, []);
+    }
+    // Keep existing team slots (id, name, matchupId, teeTime); just swap playerIds.
+    const numTeams = Math.max(game.teams.length, newGroups.length);
+    const teams = Array.from({ length: numTeams }, (_, i) => {
+      const existing = game.teams[i];
+      const playerIds = newGroups[i] ?? [];
+      if (existing) return { ...existing, playerIds };
+      return { id: crypto.randomUUID(), name: `Team ${i + 1}`, playerIds, matchupId: crypto.randomUUID() };
+    });
+    onSave({ ...game, teams });
+  }
+
+  function autoBalance() {
+    const numTeams = Math.max(1, Math.ceil(game.players.length / 4));
+    const groups = balanceTeamsByHandicap(
+      game.players,
+      numTeams,
+      (p) => getPoolPlayingHandicap(p, course, game.handicapAllowance)
+    );
+    applyReshuffle(groups);
+  }
+
+  function autoGenerate() {
+    const groups: string[][] = [];
+    for (let i = 0; i < game.players.length; i += 4) {
+      groups.push(game.players.slice(i, i + 4).map((p) => p.id));
+    }
+    applyReshuffle(groups);
+  }
+
   return (
     <div className="space-y-3">
+      {game.teams.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={autoBalance}
+            className="rounded-md border border-green-700 px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50"
+          >
+            Auto-balance by course HCP
+          </button>
+          <button
+            onClick={autoGenerate}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 font-medium hover:bg-gray-100"
+          >
+            Auto-generate foursomes
+          </button>
+        </div>
+      )}
       {game.teams.map((team) => (
         <div key={team.id} className="bg-white rounded-lg shadow p-4">
           <div className="mb-3">

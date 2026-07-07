@@ -324,6 +324,100 @@ export function distinctRankingsForPlayers(game: PoolGame, playerIds: string[]):
   });
 }
 
+// Balance players into `numTeams` groups with the most-even combined handicap.
+// Greedy LPT seed -> 2-swap local improvement -> exact branch-and-bound (seeded
+// so any early exit still returns >= as good; symmetry-pruned; 800ms budget).
+// Returns player IDs grouped per team. `hcapOf` supplies each player's handicap.
+export function balanceTeamsByHandicap(
+  players: Player[],
+  numTeams: number,
+  hcapOf: (p: Player) => number
+): string[][] {
+  const nt = Math.max(1, numTeams);
+  const base = Math.floor(players.length / nt);
+  const extra = players.length % nt;
+  const caps = Array.from({ length: nt }, (_, i) => base + (i < extra ? 1 : 0));
+
+  const sorted = [...players].sort((a, b) => hcapOf(b) - hcapOf(a)); // high -> low
+  const h = sorted.map((p) => hcapOf(p));
+  const n = h.length;
+  const total = h.reduce((s, v) => s + v, 0);
+  const spreadOf = (sums: number[]) => Math.max(...sums) - Math.min(...sums);
+
+  // 1) Greedy LPT: each player onto the least-loaded team with room.
+  const buckets: number[][] = Array.from({ length: nt }, () => []);
+  const sums = new Array(nt).fill(0);
+  for (let idx = 0; idx < n; idx++) {
+    let best = -1;
+    for (let t = 0; t < nt; t++) {
+      if (buckets[t].length >= caps[t]) continue;
+      if (best === -1 || sums[t] < sums[best]) best = t;
+    }
+    buckets[best].push(idx);
+    sums[best] += h[idx];
+  }
+
+  // 2) 2-swap local improvement.
+  let improved = true;
+  let guard = 0;
+  while (improved && guard++ < 300) {
+    improved = false;
+    for (let a = 0; a < nt && !improved; a++) {
+      for (let b = a + 1; b < nt && !improved; b++) {
+        for (let i = 0; i < buckets[a].length && !improved; i++) {
+          for (let j = 0; j < buckets[b].length; j++) {
+            const before = spreadOf(sums);
+            sums[a] += h[buckets[b][j]] - h[buckets[a][i]];
+            sums[b] += h[buckets[a][i]] - h[buckets[b][j]];
+            if (spreadOf(sums) < before - 1e-9) {
+              const tmp = buckets[a][i]; buckets[a][i] = buckets[b][j]; buckets[b][j] = tmp;
+              improved = true;
+              break;
+            }
+            sums[a] -= h[buckets[b][j]] - h[buckets[a][i]];
+            sums[b] -= h[buckets[a][i]] - h[buckets[b][j]];
+          }
+        }
+      }
+    }
+  }
+
+  // 3) Exact branch-and-bound, seeded with the swap result.
+  let bestSpread = spreadOf(sums);
+  let bestAssign = buckets.map((b) => [...b]);
+  const avg = total / nt;
+  const deadline = Date.now() + 800;
+  const curSums = new Array(nt).fill(0);
+  const curCnt = new Array(nt).fill(0);
+  const curTeams: number[][] = Array.from({ length: nt }, () => []);
+  let bailed = false;
+
+  function rec(i: number) {
+    if (bailed || bestSpread === 0) return;
+    if (Date.now() > deadline) { bailed = true; return; }
+    if (i === n) {
+      const sp = Math.max(...curSums) - Math.min(...curSums);
+      if (sp < bestSpread) { bestSpread = sp; bestAssign = curTeams.map((t) => [...t]); }
+      return;
+    }
+    if (Math.max(...curSums) - avg >= bestSpread) return;
+    const seen = new Set<string>();
+    const order = [...Array(nt).keys()].sort((x, y) => curSums[x] - curSums[y]);
+    for (const t of order) {
+      if (curCnt[t] >= caps[t]) continue;
+      const key = `${curSums[t]}:${curCnt[t]}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      curSums[t] += h[i]; curCnt[t] += 1; curTeams[t].push(i);
+      rec(i + 1);
+      curTeams[t].pop(); curSums[t] -= h[i]; curCnt[t] -= 1;
+    }
+  }
+  rec(0);
+
+  return bestAssign.map((idxs) => idxs.map((idx) => sorted[idx].id));
+}
+
 // ---------------------------------------------------------------------------
 // Pot distribution — winner-take-all by default, ties split the pooled amount
 // evenly. Distributes GROSS dollars (each team already paid entry into the pot).
