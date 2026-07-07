@@ -19,6 +19,7 @@ import {
   hydrateRoster,
   searchRoster,
   getRoster,
+  getRosterPlayerByGhin,
   upsertRosterPlayer,
   refreshRosterHandicaps,
 } from '@/lib/roster';
@@ -29,6 +30,49 @@ type Step = 'details' | 'course' | 'field' | 'teams' | 'create';
 
 function getToken() {
   return sessionStorage.getItem('ghin_token');
+}
+
+// Pick a tee for a player, STRICTLY within their gender. This matters because a
+// course's men's and women's tees can share a name AND yardage yet carry
+// different course ratings/slopes and different hole stroke-index (verified live
+// at Spring Creek). Assigning a woman a men's tee id would silently corrupt her
+// handicap, so we only ever choose from tees whose own gender matches the player.
+// Priority: remembered tee name (within gender) -> gender default -> first
+// same-gender tee -> course default.
+function pickTeeForPlayer(
+  course: CourseSelection | null,
+  gender: 'M' | 'F' | undefined,
+  rememberedTeeName: string | null | undefined
+): number | undefined {
+  if (!course || course.teeSets.length === 0) return undefined;
+  const tees = course.teeSets;
+  const g: 'M' | 'F' = gender === 'F' ? 'F' : 'M';
+
+  // Gender pool by the tee's own gender flag (the reliable signal). Fall back to
+  // the (W) name suffix only if tees somehow lack a gender, then to all tees.
+  let pool = tees.filter((t) => t.gender === g);
+  if (pool.length === 0) {
+    pool = tees.filter((t) => (g === 'F' ? /\(w\)/i.test(t.name) : !/\(w\)/i.test(t.name)));
+  }
+  if (pool.length === 0) pool = tees;
+
+  // Normalize for comparison: strip a trailing "(W)" and lowercase.
+  const norm = (n: string) => n.replace(/\s*\(w\)\s*$/i, '').trim().toLowerCase();
+
+  // 1) Remembered tee by name, matched WITHIN the gender pool.
+  if (rememberedTeeName) {
+    const want = norm(rememberedTeeName);
+    const hit = pool.find((t) => norm(t.name) === want);
+    if (hit) return hit.id;
+  }
+
+  // 2) Gender default: men -> "3 Stars", women -> "1 Star" (by base name).
+  const wantDefault = g === 'F' ? '1 star' : '3 stars';
+  const def = pool.find((t) => norm(t.name) === wantDefault);
+  if (def) return def.id;
+
+  // 3) First same-gender tee, else course default.
+  return pool[0]?.id ?? course.selectedTeeId ?? tees[0]?.id ?? undefined;
 }
 
 // Percentages (front/back/overall/junk) held as strings so the inputs stay editable.
@@ -207,6 +251,7 @@ export default function NewPoolGamePage() {
           <TeamsStep
             course={course}
             players={players}
+            setPlayers={setPlayers}
             teams={teams}
             setTeams={setTeams}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
@@ -550,7 +595,11 @@ function CourseStep({
       }));
       const mensTeeSets = allTeeSets.filter((t) => t.gender === 'M');
       const womensTeeSets = allTeeSets.filter((t) => t.gender === 'F');
-      const teeSets = mensTeeSets.length > 0 ? [...mensTeeSets, ...womensTeeSets.map((t) => ({ ...t, name: `${t.name} (W)` }))] : allTeeSets;
+      // Suffix women's tees with (W), but idempotently — never produce "(W) (W)"
+      // if GHIN already includes it.
+      const teeSets = mensTeeSets.length > 0
+        ? [...mensTeeSets, ...womensTeeSets.map((t) => ({ ...t, name: /\(w\)/i.test(t.name) ? t.name : `${t.name} (W)` }))]
+        : allTeeSets;
 
       setCourse({
         courseId: courseResult.CourseID,
@@ -686,8 +735,6 @@ function FieldStep({
   handicapAllowance: number;
   onNext: () => void; onBack: () => void;
 }) {
-  const defaultTeeId = course?.selectedTeeId ?? undefined;
-
   const [rosterQuery, setRosterQuery] = useState('');
   const [rosterResults, setRosterResults] = useState<RosterPlayer[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -731,7 +778,7 @@ function FieldStep({
       handicapIndex: rp.handicapIndex,
       gender: rp.gender ?? undefined,
       ghinNumber: rp.ghinNumber ?? undefined,
-      teeSetId: defaultTeeId,
+      teeSetId: pickTeeForPlayer(course, rp.gender ?? undefined, rp.defaultTeeName),
     };
     const nextPlayers = [...players, newPlayer];
     setPlayers(nextPlayers);
@@ -796,13 +843,14 @@ function FieldStep({
       const ghinGender = (golfer.gender || golfer.Gender || '').toLowerCase();
       const gender: 'M' | 'F' = ghinGender === 'female' || ghinGender === 'f' ? 'F' : 'M';
       const ghinNumber = Number(ghinInput);
+      const remembered = getRosterPlayerByGhin(ghinNumber)?.defaultTeeName ?? null;
       const newPlayer: Player = {
         id: crypto.randomUUID(),
         name: `${golfer.first_name} ${golfer.last_name}`,
         handicapIndex: isNaN(hi) ? null : hi,
         gender,
         ghinNumber,
-        teeSetId: defaultTeeId,
+        teeSetId: pickTeeForPlayer(course, gender, remembered),
       };
       setPlayers([...players, newPlayer]);
       upsertRosterPlayer({
@@ -811,6 +859,7 @@ function FieldStep({
         name: newPlayer.name,
         handicapIndex: newPlayer.handicapIndex,
         gender,
+        defaultTeeName: null,
       });
       setGhinInput('');
       refreshRoster(rosterQuery);
@@ -830,7 +879,7 @@ function FieldStep({
       name: nameInput,
       handicapIndex,
       gender: genderInput,
-      teeSetId: defaultTeeId,
+      teeSetId: pickTeeForPlayer(course, genderInput, null),
     };
     setPlayers([...players, newPlayer]);
     upsertRosterPlayer({
@@ -839,6 +888,7 @@ function FieldStep({
       name: nameInput,
       handicapIndex,
       gender: genderInput,
+      defaultTeeName: null,
     });
     setNameInput('');
     setHandicapInput('');
@@ -886,13 +936,14 @@ function FieldStep({
     const ghinGender = (g.gender || g.Gender || '').toLowerCase();
     const gender: 'M' | 'F' = ghinGender === 'female' || ghinGender === 'f' ? 'F' : 'M';
     const id = crypto.randomUUID();
+    const remembered = !isNaN(ghinNumber) ? (getRosterPlayerByGhin(ghinNumber)?.defaultTeeName ?? null) : null;
     const newPlayer: Player = {
       id,
       name: `${g.first_name ?? ''} ${g.last_name ?? ''}`.trim(),
       handicapIndex: isNaN(hi) ? null : hi,
       gender,
       ghinNumber: isNaN(ghinNumber) ? undefined : ghinNumber,
-      teeSetId: defaultTeeId,
+      teeSetId: pickTeeForPlayer(course, gender, remembered),
     };
     setPlayers([...players, newPlayer]);
     upsertRosterPlayer({
@@ -901,6 +952,7 @@ function FieldStep({
       name: newPlayer.name,
       handicapIndex: newPlayer.handicapIndex,
       gender,
+      defaultTeeName: null,
     });
     refreshRoster(rosterQuery);
   }
@@ -911,6 +963,19 @@ function FieldStep({
 
   function changePlayerTee(id: string, teeSetId: number) {
     setPlayers(players.map((p) => (p.id === id ? { ...p, teeSetId } : p)));
+    // Remember this tee (by name) for next time this player is added.
+    const player = players.find((p) => p.id === id);
+    const teeName = course?.teeSets.find((t) => t.id === teeSetId)?.name;
+    if (player && teeName) {
+      upsertRosterPlayer({
+        id: player.id,
+        ghinNumber: player.ghinNumber ?? null,
+        name: player.name,
+        handicapIndex: player.handicapIndex,
+        gender: player.gender ?? null,
+        defaultTeeName: teeName,
+      });
+    }
   }
 
   const fieldIds = new Set(players.map((p) => p.id));
@@ -1172,10 +1237,10 @@ function makeTeam(index: number, playerIds: string[]): PoolTeam {
 }
 
 function TeamsStep({
-  course, players, teams, setTeams, handicapAllowance, onNext, onBack,
+  course, players, setPlayers, teams, setTeams, handicapAllowance, onNext, onBack,
 }: {
   course: CourseSelection | null;
-  players: Player[];
+  players: Player[]; setPlayers: (p: Player[]) => void;
   teams: PoolTeam[]; setTeams: (t: PoolTeam[]) => void;
   handicapAllowance: number;
   onNext: () => void; onBack: () => void;
@@ -1184,6 +1249,22 @@ function TeamsStep({
 
   function hcapOf(p: Player): number {
     return course ? getPoolPlayingHandicap(p, course, handicapAllowance) : (p.handicapIndex ?? 0);
+  }
+
+  function changePlayerTee(id: string, teeSetId: number) {
+    setPlayers(players.map((p) => (p.id === id ? { ...p, teeSetId } : p)));
+    const player = players.find((p) => p.id === id);
+    const teeName = course?.teeSets.find((t) => t.id === teeSetId)?.name;
+    if (player && teeName) {
+      upsertRosterPlayer({
+        id: player.id,
+        ghinNumber: player.ghinNumber ?? null,
+        name: player.name,
+        handicapIndex: player.handicapIndex,
+        gender: player.gender ?? null,
+        defaultTeeName: teeName,
+      });
+    }
   }
 
   function autoGenerate() {
@@ -1344,20 +1425,34 @@ function TeamsStep({
                   const hcap = course ? Math.round(hcapOf(p)) : null;
                   return (
                     <li key={pid} className="flex items-center justify-between gap-2 rounded bg-gray-50 px-2 py-1">
-                      <span className="text-sm text-gray-900 truncate">
+                      <span className="text-sm text-gray-900 truncate min-w-0">
                         {p.name}
                         {hcap !== null && <span className="ml-1 text-xs text-gray-500">({hcap})</span>}
                       </span>
-                      <select
-                        value={team.id}
-                        onChange={(e) => movePlayer(pid, team.id, e.target.value)}
-                        className="text-xs rounded border border-gray-300 px-1 py-0.5 shadow-sm focus:border-green-500 focus:outline-none"
-                        title="Move to team"
-                      >
-                        {teams.map((t) => (
-                          <option key={t.id} value={t.id}>{t.name}</option>
-                        ))}
-                      </select>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {course && course.teeSets.length > 1 && (
+                          <select
+                            value={p.teeSetId ?? ''}
+                            onChange={(e) => changePlayerTee(pid, Number(e.target.value))}
+                            className="text-xs rounded border border-gray-300 px-1 py-0.5 shadow-sm focus:border-green-500 focus:outline-none max-w-[110px]"
+                            title="Tee"
+                          >
+                            {course.teeSets.map((ts) => (
+                              <option key={ts.id} value={ts.id}>{ts.name}</option>
+                            ))}
+                          </select>
+                        )}
+                        <select
+                          value={team.id}
+                          onChange={(e) => movePlayer(pid, team.id, e.target.value)}
+                          className="text-xs rounded border border-gray-300 px-1 py-0.5 shadow-sm focus:border-green-500 focus:outline-none"
+                          title="Move to team"
+                        >
+                          {teams.map((t) => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                          ))}
+                        </select>
+                      </div>
                     </li>
                   );
                 })}
