@@ -26,7 +26,7 @@ import {
 
 const WIZARD_KEY = 'pool_wizard_draft';
 
-type Step = 'details' | 'course' | 'field' | 'teams' | 'create';
+type Step = 'details' | 'course' | 'field' | 'tees' | 'teams' | 'create';
 
 function getToken() {
   return sessionStorage.getItem('ghin_token');
@@ -239,8 +239,19 @@ export default function NewPoolGamePage() {
             players={players}
             setPlayers={setPlayers}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
-            onNext={() => setStep('teams')}
+            onNext={() => setStep('tees')}
             onBack={() => setStep('course')}
+          />
+        )}
+
+        {step === 'tees' && (
+          <TeesStep
+            course={course}
+            players={players}
+            setPlayers={setPlayers}
+            handicapAllowance={parseFloat(handicapAllowance) || 100}
+            onNext={() => setStep('teams')}
+            onBack={() => setStep('field')}
           />
         )}
 
@@ -253,7 +264,7 @@ export default function NewPoolGamePage() {
             setTeams={setTeams}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             onNext={() => setStep('create')}
-            onBack={() => setStep('field')}
+            onBack={() => setStep('tees')}
           />
         )}
 
@@ -281,6 +292,7 @@ function StepIndicator({ current, course }: { current: Step; course: CourseSelec
     { key: 'details', label: 'Details' },
     { key: 'course', label: course?.courseName || 'Course' },
     { key: 'field', label: 'Field' },
+    { key: 'tees', label: 'Tees' },
     { key: 'teams', label: 'Teams' },
     { key: 'create', label: 'Create' },
   ];
@@ -1204,6 +1216,122 @@ function makeTeam(index: number, playerIds: string[]): PoolTeam {
   };
 }
 
+// Visual "who's playing from where" step: players grouped by their assigned tee,
+// tap a player to move them to a different (same-gender) tee. Purely for setting/
+// reviewing tees before forming teams — tees remain editable in the Teams step too.
+function TeesStep({
+  course, players, setPlayers, handicapAllowance, onNext, onBack,
+}: {
+  course: CourseSelection | null;
+  players: Player[]; setPlayers: (p: Player[]) => void;
+  handicapAllowance: number;
+  onNext: () => void; onBack: () => void;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  function changePlayerTee(id: string, teeSetId: number) {
+    setPlayers(players.map((p) => (p.id === id ? { ...p, teeSetId } : p)));
+    setEditingId(null);
+    const player = players.find((p) => p.id === id);
+    const teeName = course?.teeSets.find((t) => t.id === teeSetId)?.name;
+    if (player && teeName) {
+      upsertRosterPlayer({
+        id: player.id,
+        ghinNumber: player.ghinNumber ?? null,
+        name: player.name,
+        handicapIndex: player.handicapIndex,
+        gender: player.gender ?? null,
+        defaultTeeName: teeName,
+      });
+    }
+  }
+
+  // Group players by their assigned tee, in the course's tee order.
+  const groups = (course?.teeSets || [])
+    .map((tee) => ({
+      tee,
+      members: players.filter((p) => (p.teeSetId ?? course?.selectedTeeId) === tee.id),
+    }))
+    .filter((g) => g.members.length > 0);
+  const unassigned = players.filter((p) => !course?.teeSets.some((t) => t.id === (p.teeSetId ?? course?.selectedTeeId)));
+
+  return (
+    <div>
+      <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
+      <h2 className="text-lg font-semibold text-gray-900 mb-1">Tees ({players.length})</h2>
+      <p className="text-sm text-gray-500 mb-4">Who&apos;s playing from where. Tap a player to change their tee. You can also adjust tees later in Teams.</p>
+
+      {!course || course.teeSets.length === 0 ? (
+        <p className="text-sm text-gray-500 bg-white rounded-lg shadow p-4">No course selected — go back and pick a course to assign tees.</p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {groups.map(({ tee, members }) => (
+            <div key={tee.id} className="bg-white rounded-lg shadow p-3">
+              <div className="flex items-baseline justify-between mb-2 border-b pb-1">
+                <p className="text-sm font-semibold text-gray-900">{tee.name}</p>
+                <span className="text-xs text-gray-500">{members.length}</span>
+              </div>
+              <ul className="space-y-1">
+                {members.map((p) => {
+                  const hcap = course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance)) : null;
+                  const g: 'M' | 'F' = p.gender === 'F' ? 'F' : 'M';
+                  const genderTees = course.teeSets.filter((t) => (t.gender ?? 'M') === g);
+                  const teeOptions = genderTees.length > 0 ? genderTees : course.teeSets;
+                  return (
+                    <li key={p.id}>
+                      <button
+                        onClick={() => setEditingId(editingId === p.id ? null : p.id)}
+                        className="w-full flex items-center justify-between gap-2 rounded px-2 py-1 hover:bg-gray-50 text-left"
+                      >
+                        <span className="text-sm text-gray-900 truncate">
+                          {p.name}
+                          <span className={`ml-1 text-xs ${g === 'F' ? 'text-pink-500' : 'text-blue-500'}`}>{g}</span>
+                          {hcap !== null && <span className="ml-1 text-xs text-gray-500">({hcap})</span>}
+                        </span>
+                        <span className="text-xs text-gray-400">{editingId === p.id ? '▾' : 'change'}</span>
+                      </button>
+                      {editingId === p.id && (
+                        <div className="flex flex-wrap gap-1 px-2 pb-2 pt-1">
+                          {teeOptions.map((t) => (
+                            <button
+                              key={t.id}
+                              onClick={() => changePlayerTee(p.id, t.id)}
+                              className={`text-xs px-2 py-0.5 rounded-full border ${
+                                t.id === p.teeSetId
+                                  ? 'bg-green-700 text-white border-green-700'
+                                  : 'bg-white text-gray-600 border-gray-300 hover:border-green-400'
+                              }`}
+                            >
+                              {t.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+          {unassigned.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-sm font-semibold text-amber-800 mb-2">No tee yet</p>
+              <p className="text-xs text-amber-700">{unassigned.map((p) => p.name).join(', ')}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      <button
+        onClick={onNext}
+        className="w-full mt-4 rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800"
+      >
+        Next: Teams
+      </button>
+    </div>
+  );
+}
+
 function TeamsStep({
   course, players, setPlayers, teams, setTeams, handicapAllowance, onNext, onBack,
 }: {
@@ -1245,20 +1373,94 @@ function TeamsStep({
 
   function autoBalance() {
     const numTeams = Math.max(1, Math.ceil(players.length / 4));
-    const sorted = [...players].sort((a, b) => hcapOf(b) - hcapOf(a)); // high to low
-    const buckets: string[][] = Array.from({ length: numTeams }, () => []);
-    // Snake draft across teams.
-    let dir = 1;
-    let col = 0;
-    for (const p of sorted) {
-      buckets[col].push(p.id);
-      if (dir === 1) {
-        if (col === numTeams - 1) { dir = -1; } else { col++; }
-      } else {
-        if (col === 0) { dir = 1; } else { col--; }
+    // Even team sizes: the first `extra` teams get one extra player.
+    const base = Math.floor(players.length / numTeams);
+    const extra = players.length % numTeams;
+    const caps = Array.from({ length: numTeams }, (_, i) => base + (i < extra ? 1 : 0));
+
+    // Work in index space over players sorted high -> low by course handicap.
+    const sorted = [...players].sort((a, b) => hcapOf(b) - hcapOf(a));
+    const h = sorted.map((p) => hcapOf(p));
+    const n = h.length;
+    const total = h.reduce((s, v) => s + v, 0);
+    const spreadOf = (sums: number[]) => Math.max(...sums) - Math.min(...sums);
+
+    // --- 1) Greedy LPT: each player to the least-loaded team with room. ---
+    const buckets: number[][] = Array.from({ length: numTeams }, () => []);
+    const sums = new Array(numTeams).fill(0);
+    for (let idx = 0; idx < n; idx++) {
+      let best = -1;
+      for (let t = 0; t < numTeams; t++) {
+        if (buckets[t].length >= caps[t]) continue;
+        if (best === -1 || sums[t] < sums[best]) best = t;
+      }
+      buckets[best].push(idx);
+      sums[best] += h[idx];
+    }
+
+    // --- 2) 2-swap local improvement (cheap, cleans up the greedy seed). ---
+    let improved = true;
+    let guard = 0;
+    while (improved && guard++ < 300) {
+      improved = false;
+      for (let a = 0; a < numTeams && !improved; a++) {
+        for (let b = a + 1; b < numTeams && !improved; b++) {
+          for (let i = 0; i < buckets[a].length && !improved; i++) {
+            for (let j = 0; j < buckets[b].length; j++) {
+              const before = spreadOf(sums);
+              sums[a] += h[buckets[b][j]] - h[buckets[a][i]];
+              sums[b] += h[buckets[a][i]] - h[buckets[b][j]];
+              if (spreadOf(sums) < before - 1e-9) {
+                const tmp = buckets[a][i]; buckets[a][i] = buckets[b][j]; buckets[b][j] = tmp;
+                improved = true;
+                break;
+              }
+              sums[a] -= h[buckets[b][j]] - h[buckets[a][i]];
+              sums[b] -= h[buckets[a][i]] - h[buckets[b][j]];
+            }
+          }
+        }
       }
     }
-    setTeams(buckets.map((ids, i) => makeTeam(i, ids)));
+
+    // --- 3) Exact branch-and-bound, seeded with the swap result so any early
+    // exit still returns something >= as good. Assign players high->low; prune
+    // when the optimistic spread (curMax - total/numTeams) can't beat best. ---
+    let bestSpread = spreadOf(sums);
+    let bestAssign = buckets.map((b) => [...b]);
+    const avg = total / numTeams;
+    const deadline = Date.now() + 800; // hard budget; search only ever improves on the seed
+    const curSums = new Array(numTeams).fill(0);
+    const curCnt = new Array(numTeams).fill(0);
+    const curTeams: number[][] = Array.from({ length: numTeams }, () => []);
+    let bailed = false;
+
+    function rec(i: number) {
+      if (bailed || bestSpread === 0) return;
+      if (Date.now() > deadline) { bailed = true; return; }
+      if (i === n) {
+        const sp = Math.max(...curSums) - Math.min(...curSums);
+        if (sp < bestSpread) { bestSpread = sp; bestAssign = curTeams.map((t) => [...t]); }
+        return;
+      }
+      const curMax = Math.max(...curSums);
+      if (curMax - avg >= bestSpread) return; // optimistic lower bound on final spread
+      const seen = new Set<string>();
+      // Try emptier teams first for better solutions sooner.
+      const order = [...Array(numTeams).keys()].sort((x, y) => curSums[x] - curSums[y]);
+      for (const t of order) {
+        if (curCnt[t] >= caps[t]) continue;
+        const key = `${curSums[t]}:${curCnt[t]}`; // symmetry: skip equivalent teams
+        if (seen.has(key)) continue;
+        seen.add(key);
+        curSums[t] += h[i]; curCnt[t] += 1; curTeams[t].push(i);
+        rec(i + 1);
+        curTeams[t].pop(); curSums[t] -= h[i]; curCnt[t] -= 1;
+      }
+    }
+    rec(0);
+
+    setTeams(bestAssign.map((idxs, i) => makeTeam(i, idxs.map((idx) => sorted[idx].id))));
   }
 
   function movePlayer(playerId: string, fromTeamId: string, toTeamId: string) {
