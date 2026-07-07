@@ -17,6 +17,7 @@ import {
   balanceTeamsByHandicap,
 } from '@/lib/pool-game';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
+import { SHARE_TOKEN } from '@/lib/invite-gate';
 import {
   type RosterPlayer,
   hydrateRoster,
@@ -69,6 +70,7 @@ export default function PoolHubPage() {
   const id = params.id as string;
   const [game, setGame] = useState<PoolGame | null>(null);
   const [editing, setEditing] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     const cached = loadPoolGame(id);
@@ -151,6 +153,12 @@ export default function PoolHubPage() {
           </div>
           <div className="flex items-center gap-4">
             <button
+              onClick={() => setSharing(true)}
+              className="text-sm font-medium text-green-200 hover:text-white"
+            >
+              Share
+            </button>
+            <button
               onClick={() => setEditing((e) => !e)}
               className={`text-sm font-medium ${editing ? 'text-white' : 'text-green-200 hover:text-white'}`}
             >
@@ -162,6 +170,8 @@ export default function PoolHubPage() {
           </div>
         </div>
       </header>
+
+      {sharing && <SharePanel gameId={id} gameName={game.name} onClose={() => setSharing(false)} />}
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {/* Leaderboard CTA */}
@@ -231,6 +241,68 @@ function FieldLowBanner({ game }: { game: PoolGame }) {
       <p className="text-xs text-gray-500">
         Full handicap — low man: <span className="font-medium text-gray-700">{low.playerName.split(' ')[0]}</span> (CHcp {low.courseHandicap})
       </p>
+    </div>
+  );
+}
+
+function SharePanel({ gameId, gameName, onClose }: { gameId: string; gameName: string; onClose: () => void }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const playerLink = `${origin}/pool/${gameId}?key=${SHARE_TOKEN}`;
+  const organizerLink = `${origin}/pool/new?key=${SHARE_TOKEN}`;
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(playerLink)}`;
+
+  async function share(which: 'player' | 'organizer') {
+    const url = which === 'player' ? playerLink : organizerLink;
+    const title = which === 'player' ? `${gameName} — enter scores` : 'Create a pool game';
+    // Native share sheet on mobile, else copy to clipboard.
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try { await navigator.share({ title, url }); return; } catch { /* fell through to copy */ }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(which);
+      setTimeout(() => setCopied((c) => (c === which ? null : c)), 2000);
+    } catch { /* clipboard blocked — user can long-press the field */ }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-900">Share</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">&times;</button>
+        </div>
+
+        {/* Player scoring link — no GHIN login needed */}
+        <div className="mb-5">
+          <p className="text-sm font-semibold text-gray-800">Players — enter scores</p>
+          <p className="text-xs text-gray-500 mb-2">Anyone in the group can open this to see the leaderboard and enter scores. No GHIN login needed.</p>
+          <div className="flex gap-2">
+            <input readOnly value={playerLink} className="flex-1 min-w-0 rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-600" onFocus={(e) => e.currentTarget.select()} />
+            <button onClick={() => share('player')} className="flex-shrink-0 rounded-md bg-green-700 px-3 py-1.5 text-sm text-white font-medium hover:bg-green-800">
+              {copied === 'player' ? 'Copied!' : 'Share'}
+            </button>
+          </div>
+          <div className="mt-3 flex justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qrSrc} alt="QR code to open the game" width={180} height={180} className="rounded-lg border border-gray-200" />
+          </div>
+          <p className="text-center text-[11px] text-gray-400 mt-1">Scan on the tee to open the game</p>
+        </div>
+
+        {/* Organizer link — opens setup to create their own game (their GHIN) */}
+        <div className="pt-3 border-t">
+          <p className="text-sm font-semibold text-gray-800">Organizer — create a game</p>
+          <p className="text-xs text-gray-500 mb-2">Send this to someone who wants to set up their own pool game. They&apos;ll log into their own GHIN.</p>
+          <div className="flex gap-2">
+            <input readOnly value={organizerLink} className="flex-1 min-w-0 rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-600" onFocus={(e) => e.currentTarget.select()} />
+            <button onClick={() => share('organizer')} className="flex-shrink-0 rounded-md border border-green-700 px-3 py-1.5 text-sm text-green-700 font-medium hover:bg-green-50">
+              {copied === 'organizer' ? 'Copied!' : 'Share'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

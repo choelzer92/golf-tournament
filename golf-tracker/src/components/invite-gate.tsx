@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { checkInviteCode, setAccessCookie, hasAccessCookie } from '@/lib/invite-gate';
+import { checkInviteCode, setAccessCookie, hasAccessCookie, checkShareTokenInUrl } from '@/lib/invite-gate';
 
 export function InviteGate({ children }: { children: React.ReactNode }) {
   const [authorized, setAuthorized] = useState(false);
@@ -10,7 +10,8 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    setAuthorized(hasAccessCookie());
+    // A valid share token in the URL grants access without the invite code.
+    setAuthorized(hasAccessCookie() || checkShareTokenInUrl());
     setChecking(false);
   }, []);
 
