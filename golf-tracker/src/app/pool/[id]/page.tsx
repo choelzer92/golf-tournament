@@ -177,13 +177,19 @@ export default function PoolHubPage() {
       {sharing && <SharePanel onClose={() => setSharing(false)} />}
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-        {/* Leaderboard CTA */}
-        <div className="flex justify-center">
+        {/* Leaderboard + Scorecards CTAs */}
+        <div className="flex justify-center gap-3">
           <button
             onClick={() => router.push(`/pool/${id}/leaderboard`)}
             className="text-sm bg-green-700 hover:bg-green-600 text-white px-5 py-2.5 rounded-lg font-medium transition"
           >
             Leaderboard
+          </button>
+          <button
+            onClick={() => router.push(`/pool/${id}/scorecards`)}
+            className="text-sm bg-white border border-green-700 text-green-700 hover:bg-green-50 px-5 py-2.5 rounded-lg font-medium transition"
+          >
+            Scorecards
           </button>
         </div>
 
