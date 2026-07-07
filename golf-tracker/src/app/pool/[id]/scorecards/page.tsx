@@ -3,13 +3,42 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { PoolGame, PoolTeamDetail } from '@/lib/pool-game';
-import { loadPoolGame, fetchPoolGame, computePoolPlayerDetails, getPoolPlayingHandicap } from '@/lib/pool-game';
+import { loadPoolGame, fetchPoolGame, computePoolPlayerDetails } from '@/lib/pool-game';
+
+// The real Spring Creek scorecard (rendered to PNG, in /public). Names + stroke
+// dots are overlaid on top. All positions are % of the image so they scale and
+// print consistently. Calibrated once per course and saved to localStorage.
+const CARD_IMG = '/spring-creek-scorecard.png';
+const CARD_ASPECT = 1600 / 1236; // width / height of the PNG
+
+interface Calib {
+  front1X: number;  // % X, center of hole 1 column
+  frontStep: number; // % X per hole across the front nine
+  back1X: number;    // % X, center of hole 10 column
+  backStep: number;  // % X per hole across the back nine
+  nameX: number;     // % X where player names print
+  row1Y: number;     // % Y, center of the first player row
+  rowStep: number;   // % Y per player row
+}
+
+// Defaults read off the PNG layout — a starting point; fine-tune once on screen.
+const DEFAULT_CALIB: Calib = {
+  front1X: 13.4, frontStep: 3.35,
+  back1X: 51.2, backStep: 3.32,
+  nameX: 3.0, row1Y: 51.5, rowStep: 2.15,
+};
+
+function calibKey(courseId: number | undefined) {
+  return `poolcard_calib_${courseId ?? 'default'}`;
+}
 
 export default function PoolScorecardsPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
   const [game, setGame] = useState<PoolGame | null>(null);
+  const [calib, setCalib] = useState<Calib>(DEFAULT_CALIB);
+  const [showCalib, setShowCalib] = useState(false);
 
   useEffect(() => {
     const cached = loadPoolGame(id);
@@ -20,164 +49,141 @@ export default function PoolScorecardsPage() {
     });
   }, [id, router]);
 
-  // Stroke allocation per player (off their own tee). No scores needed.
+  // Load any saved alignment for this course.
+  useEffect(() => {
+    if (!game) return;
+    try {
+      const saved = localStorage.getItem(calibKey(game.course?.courseId));
+      if (saved) setCalib({ ...DEFAULT_CALIB, ...JSON.parse(saved) });
+    } catch { /* ignore */ }
+  }, [game]);
+
   const details = useMemo(() => (game ? computePoolPlayerDetails(game, new Map()) : []), [game]);
 
   if (!game) return null;
 
-  const holeNums = Array.from({ length: 18 }, (_, i) => i + 1);
-  const front = holeNums.slice(0, 9);
-  const back = holeNums.slice(9);
-
-  // Par + stroke index come from the course (par is tee-independent; SI shown is
-  // the default tee's — each player's dots use their own tee, computed already).
-  const tee = game.course?.teeSets.find((t) => t.id === game.course?.selectedTeeId) || game.course?.teeSets[0];
-  const holeInfo = new Map((tee?.holes || []).map((h) => [h.number, h]));
-  const parOf = (n: number) => holeInfo.get(n)?.par ?? '';
-  const sumPar = (nums: number[]) => nums.reduce((s, n) => s + (holeInfo.get(n)?.par ?? 0), 0);
+  function saveCalib() {
+    try { localStorage.setItem(calibKey(game!.course?.courseId), JSON.stringify(calib)); } catch { /* ignore */ }
+    setShowCalib(false);
+  }
+  function resetCalib() { setCalib(DEFAULT_CALIB); }
 
   return (
-    <div className="min-h-full bg-gray-100">
-      {/* On-screen toolbar (hidden when printing) */}
+    <div className="min-h-full bg-gray-200">
+      {/* Landscape print + hide chrome on print */}
+      <style>{`@media print { @page { size: landscape; margin: 0; } body { background: white; } }`}</style>
+
+      {/* Toolbar (hidden on print) */}
       <div className="print:hidden bg-green-800 text-white">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold">{game.name} — Scorecards</h1>
             <p className="text-xs text-green-200">{game.teams.length} foursome{game.teams.length === 1 ? '' : 's'} · one card per page</p>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => window.print()} className="rounded-md bg-white text-green-800 px-4 py-1.5 text-sm font-semibold hover:bg-green-50">
-              Print
+            <button onClick={() => setShowCalib((s) => !s)} className="text-sm text-green-200 hover:text-white">
+              {showCalib ? 'Hide align' : 'Align'}
             </button>
+            <button onClick={() => window.print()} className="rounded-md bg-white text-green-800 px-4 py-1.5 text-sm font-semibold hover:bg-green-50">Print</button>
             <button onClick={() => router.push(`/pool/${id}`)} className="text-sm text-green-200 hover:text-white">Back</button>
           </div>
         </div>
-        <div className="max-w-5xl mx-auto px-4 pb-3 text-xs text-green-100">
-          Dots (● / ●●) mark the holes each player receives a stroke, based on their tee. Boxes are blank to write scores.
-        </div>
+        {showCalib && <CalibPanel calib={calib} setCalib={setCalib} onSave={saveCalib} onReset={resetCalib} />}
       </div>
 
-      <div className="max-w-5xl mx-auto p-4 space-y-6 print:space-y-0 print:p-0">
-        {details.map((team, idx) => {
-          const poolTeam = game.teams.find((t) => t.id === team.teamId);
-          return (
-            <div key={team.teamId} className={`bg-white rounded-lg shadow print:shadow-none print:rounded-none ${idx > 0 ? 'print:break-before-page' : ''}`}>
-              <Card
-                game={game}
-                team={team}
-                teeTime={poolTeam?.teeTime}
-                front={front}
-                back={back}
-                parOf={parOf}
-                sumPar={sumPar}
-              />
-            </div>
-          );
-        })}
+      <div className="max-w-6xl mx-auto p-3 space-y-4 print:p-0 print:space-y-0 print:max-w-none">
+        {details.map((team, idx) => (
+          <div key={team.teamId} className={idx > 0 ? 'print:break-before-page' : ''}>
+            <ScorecardOverlay game={game} team={team} calib={calib} />
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-function Card({
-  game, team, teeTime, front, back, parOf, sumPar,
-}: {
-  game: PoolGame;
-  team: PoolTeamDetail;
-  teeTime?: string;
-  front: number[];
-  back: number[];
-  parOf: (n: number) => number | string;
-  sumPar: (nums: number[]) => number;
-}) {
-  const teeNameOf = (playerId: string) => {
-    const p = game.players.find((x) => x.id === playerId);
-    return game.course?.teeSets.find((t) => t.id === p?.teeSetId)?.name ?? '';
-  };
-  const chcpOf = (playerId: string) => {
-    const p = game.players.find((x) => x.id === playerId);
-    return p && game.course ? Math.round(getPoolPlayingHandicap(p, game.course, game.handicapAllowance)) : null;
-  };
+function ScorecardOverlay({ game, team, calib }: { game: PoolGame; team: PoolTeamDetail; calib: Calib }) {
+  const holeX = (n: number) => (n <= 9 ? calib.front1X + (n - 1) * calib.frontStep : calib.back1X + (n - 10) * calib.backStep);
+  const rowY = (i: number) => calib.row1Y + i * calib.rowStep;
   const strokesOn = (holes: PoolTeamDetail['players'][number]['holes'], n: number) =>
     holes.find((h) => h.holeNumber === n)?.strokes ?? 0;
 
-  // A 9-hole block of columns: hole numbers, par, then a total column.
-  const th = 'border border-gray-400 text-center text-[10px] font-semibold px-1 py-0.5';
-  const td = 'border border-gray-400 text-center text-xs px-1 py-1 h-7';
-
-  function HoleHeader({ holes, totLabel }: { holes: number[]; totLabel: string }) {
-    return (
-      <>
-        {holes.map((n) => <th key={n} className={`${th} w-7`}>{n}</th>)}
-        <th className={`${th} w-9 bg-gray-100`}>{totLabel}</th>
-      </>
-    );
-  }
+  const poolTeam = game.teams.find((t) => t.id === team.teamId);
 
   return (
-    <div className="p-4">
-      {/* Header band — recreates the course card masthead */}
-      <div className="bg-green-800 text-white rounded-t-md px-4 py-2 flex items-baseline justify-between">
-        <div>
-          <p className="text-lg font-bold tracking-wide">SPRING CREEK</p>
-          <p className="text-[10px] text-green-200 uppercase tracking-widest">Golf Club · Gordonsville, VA</p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm font-semibold">{team.teamName}</p>
-          {teeTime && <p className="text-[10px] text-green-200">Tee {teeTime}</p>}
-        </div>
+    <div className="relative w-full bg-white shadow print:shadow-none" style={{ aspectRatio: String(CARD_ASPECT) }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={CARD_IMG} alt="Spring Creek scorecard" className="absolute inset-0 w-full h-full object-contain" />
+
+      {/* Group label (top area, over blank space near the logo) */}
+      <div className="absolute" style={{ left: '3%', top: '46.5%' }}>
+        <span className="text-[1.4vw] print:text-[10pt] font-bold text-gray-800">
+          {poolTeam?.name}{poolTeam?.teeTime ? ` · ${poolTeam.teeTime}` : ''}
+        </span>
       </div>
 
-      <table className="w-full border-collapse table-fixed">
-        <thead>
-          {/* Front nine header */}
-          <tr className="bg-green-50">
-            <th className={`${th} text-left w-40`}>HOLE</th>
-            <HoleHeader holes={front} totLabel="OUT" />
-            <HoleHeader holes={back} totLabel="IN" />
-            <th className={`${th} w-10 bg-gray-200`}>TOT</th>
-          </tr>
-          <tr>
-            <th className={`${th} text-left`}>PAR</th>
-            {front.map((n) => <th key={n} className={th}>{parOf(n)}</th>)}
-            <th className={`${th} bg-gray-100`}>{sumPar(front)}</th>
-            {back.map((n) => <th key={n} className={th}>{parOf(n)}</th>)}
-            <th className={`${th} bg-gray-100`}>{sumPar(back)}</th>
-            <th className={`${th} bg-gray-200`}>{sumPar([...front, ...back])}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {team.players.map((pl) => {
-            const tn = teeNameOf(pl.playerId);
-            const chcp = chcpOf(pl.playerId);
-            const cell = (n: number) => {
+      {team.players.map((pl, i) => {
+        const y = rowY(i);
+        return (
+          <div key={pl.playerId}>
+            {/* Player name in the row's left cell */}
+            <div className="absolute -translate-y-1/2 whitespace-nowrap" style={{ left: `${calib.nameX}%`, top: `${y}%` }}>
+              <span className="text-[0.95vw] print:text-[8pt] font-semibold text-gray-900">{pl.playerName}</span>
+            </div>
+            {/* Stroke dots — upper-right of each hole box */}
+            {Array.from({ length: 18 }, (_, k) => k + 1).map((n) => {
               const s = strokesOn(pl.holes, n);
+              if (s <= 0) return null;
               return (
-                <td key={n} className={td}>
-                  {s > 0 && <span className="text-green-700 font-bold align-top text-[9px] leading-none">{'•'.repeat(s)}</span>}
-                </td>
+                <div
+                  key={n}
+                  className="absolute -translate-y-1/2 text-green-700"
+                  style={{
+                    left: `${holeX(n) + calib.frontStep * 0.32}%`, // nudge toward right of the box
+                    top: `${y - calib.rowStep * 0.34}%`,           // nudge toward top of the box
+                    lineHeight: 1,
+                  }}
+                >
+                  <span className="text-[0.7vw] print:text-[7pt] font-bold">{'•'.repeat(s)}</span>
+                </div>
               );
-            };
-            return (
-              <tr key={pl.playerId}>
-                <td className="border border-gray-400 px-1 py-1 h-7 text-xs">
-                  <span className="font-semibold text-gray-900">{pl.playerName}</span>
-                  <span className="text-[9px] text-gray-500 ml-1">{tn}{chcp !== null ? ` (${chcp})` : ''}</span>
-                </td>
-                {front.map(cell)}
-                <td className={`${td} bg-gray-50`}></td>
-                {back.map(cell)}
-                <td className={`${td} bg-gray-50`}></td>
-                <td className={`${td} bg-gray-100`}></td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
-      <p className="text-[9px] text-gray-400 mt-1">
-        {game.handicapAllowance}% handicap{game.strokeMethod === 'off-the-low' ? ' · off the low' : ''} · dots mark strokes received (off each player&apos;s tee)
-      </p>
+function CalibPanel({ calib, setCalib, onSave, onReset }: {
+  calib: Calib; setCalib: (c: Calib) => void; onSave: () => void; onReset: () => void;
+}) {
+  const fields: { key: keyof Calib; label: string; step: number }[] = [
+    { key: 'nameX', label: 'Name X', step: 0.2 },
+    { key: 'row1Y', label: 'Row 1 Y', step: 0.2 },
+    { key: 'rowStep', label: 'Row gap', step: 0.05 },
+    { key: 'front1X', label: 'Hole 1 X', step: 0.2 },
+    { key: 'frontStep', label: 'Front gap', step: 0.05 },
+    { key: 'back1X', label: 'Hole 10 X', step: 0.2 },
+    { key: 'backStep', label: 'Back gap', step: 0.05 },
+  ];
+  return (
+    <div className="max-w-6xl mx-auto px-4 pb-3">
+      <p className="text-xs text-green-100 mb-2">Nudge until names sit in the blank rows and dots land in the hole boxes, then Save. (Saved per course.)</p>
+      <div className="flex flex-wrap gap-3 items-end">
+        {fields.map(({ key, label, step }) => (
+          <label key={key} className="text-[11px] text-green-100">
+            <span className="block mb-0.5">{label}</span>
+            <input
+              type="number" step={step} value={calib[key]}
+              onChange={(e) => setCalib({ ...calib, [key]: parseFloat(e.target.value) || 0 })}
+              className="w-20 rounded border border-green-600 bg-green-900 px-1.5 py-1 text-white text-xs"
+            />
+          </label>
+        ))}
+        <button onClick={onSave} className="rounded-md bg-white text-green-800 px-3 py-1.5 text-xs font-semibold">Save alignment</button>
+        <button onClick={onReset} className="text-xs text-green-200 underline">Reset</button>
+      </div>
     </div>
   );
 }
