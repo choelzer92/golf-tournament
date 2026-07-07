@@ -246,6 +246,32 @@ function buildHcapMap(game: PoolGame): Map<string, number> {
   return adjusted;
 }
 
+export interface FieldLowInfo {
+  playerId: string;
+  playerName: string;
+  courseHandicap: number;  // their raw course handicap (the baseline everyone plays off)
+  applies: boolean;        // true only when strokeMethod is off-the-low
+}
+
+// The field's low man — the player with the lowest raw course handicap. Under
+// off-the-low, everyone plays their course handicap minus this value.
+export function getFieldLow(game: PoolGame): FieldLowInfo | null {
+  if (game.players.length === 0) return null;
+  let lowId = game.players[0].id;
+  let lowH = Infinity;
+  for (const p of game.players) {
+    const h = getPoolPlayingHandicap(p, game.course, game.handicapAllowance);
+    if (h < lowH) { lowH = h; lowId = p.id; }
+  }
+  const player = game.players.find((p) => p.id === lowId);
+  return {
+    playerId: lowId,
+    playerName: player?.name ?? '?',
+    courseHandicap: Math.round(lowH),
+    applies: game.strokeMethod === 'off-the-low',
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Pot distribution — winner-take-all by default, ties split the pooled amount
 // evenly. Distributes GROSS dollars (each team already paid entry into the pot).

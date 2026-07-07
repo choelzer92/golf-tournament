@@ -687,31 +687,40 @@ export default function PlayGamePage() {
           </button>
           {strokesExpanded && (
             <>
-              {/* Course & rating info */}
+              {/* Course & rating info — one row per DISTINCT tee in play (men's and
+                  women's tees differ in rating, slope, and hole stroke index). */}
               <div className="mt-2 rounded-lg border border-gray-200 bg-white px-3 py-2">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-600">
-                  {(() => {
-                    const is9 = setup.holesPlaying === 'front9' || setup.holesPlaying === 'back9' || !!setup.splitFormat;
-                    const ratingType = setup.splitFormat
-                      ? (isBackNine ? 'Back' : 'Front')
-                      : setup.holesPlaying === 'front9' ? 'Front' : setup.holesPlaying === 'back9' ? 'Back' : 'Total';
-                    const tee = defaultTee;
-                    const rating = tee?.ratings?.find((r) => r.type === ratingType) || tee?.ratings?.find((r) => r.type === 'Total');
-                    return (
-                      <>
+                {(() => {
+                  const is9 = setup.holesPlaying === 'front9' || setup.holesPlaying === 'back9' || !!setup.splitFormat;
+                  const ratingType = setup.splitFormat
+                    ? (isBackNine ? 'Back' : 'Front')
+                    : setup.holesPlaying === 'front9' ? 'Front' : setup.holesPlaying === 'back9' ? 'Back' : 'Total';
+                  const activeAllow = (setup.splitFormat && isBackNine) ? (setup.splitFormat.handicapAllowance ?? 100) : (setup.handicapAllowance ?? 100);
+                  const strokeMethodLabel = ((setup.splitFormat && isBackNine) ? (setup.splitFormat.strokeMethod ?? 'off-the-low') : (setup.strokeMethod ?? 'off-the-low'));
+                  // Distinct tees actually assigned to players (fall back to default).
+                  const teeIds = Array.from(new Set(setup.players.map((p) => getPlayerTee(p)?.id).filter((x): x is number => x != null)));
+                  const teesInPlay = teeIds.length > 0
+                    ? teeIds.map((id) => setup.course?.teeSets.find((t) => t.id === id)).filter((t): t is NonNullable<typeof t> => !!t)
+                    : (defaultTee ? [defaultTee] : []);
+                  return (
+                    <div className="text-[11px] text-gray-600 space-y-1">
+                      <div className="flex flex-wrap gap-x-4">
                         <span className="font-medium text-gray-800">{is9 ? `${ratingType} 9` : '18 Holes'}</span>
-                        {tee && <span className="font-medium">{tee.name} ({tee.totalYardage} yds)</span>}
-                        {rating && <span>CR: {rating.courseRating} · Slope: {rating.slopeRating}</span>}
-                        <span>Allowance: {(() => {
-                          const activeAllow = (setup.splitFormat && isBackNine) ? (setup.splitFormat.handicapAllowance ?? 100) : (setup.handicapAllowance ?? 100);
-                          return teamMode === 'scramble'
-                            ? (activeAllow < 0 ? 'Tiered' : `${activeAllow}%`)
-                            : `${activeAllow}%`;
-                        })()}</span>
-                      </>
-                    );
-                  })()}
-                </div>
+                        <span>Allowance: {teamMode === 'scramble' ? (activeAllow < 0 ? 'Tiered' : `${activeAllow}%`) : `${activeAllow}%`}</span>
+                        <span>{strokeMethodLabel === 'off-the-low' ? 'Off the Low' : 'Full Handicap'}</span>
+                      </div>
+                      {teesInPlay.map((tee) => {
+                        const rating = tee.ratings?.find((r) => r.type === ratingType) || tee.ratings?.find((r) => r.type === 'Total');
+                        return (
+                          <div key={tee.id} className="flex flex-wrap gap-x-3">
+                            <span className="font-medium">{tee.name} ({tee.totalYardage} yds)</span>
+                            {rating && <span>CR: {rating.courseRating} · Slope: {rating.slopeRating}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Handicap breakdown */}
@@ -815,20 +824,46 @@ export default function PlayGamePage() {
                         </tr>
                       ))
                     ) : (
-                      sortedPlayers.map((player) => (
-                        <tr key={player.id} className="border-t border-gray-100">
-                          <td className={`px-2 py-1 font-medium whitespace-nowrap sticky left-0 bg-white ${player.team === 'A' ? 'text-blue-700' : player.team === 'B' ? 'text-red-700' : 'text-gray-700'}`}>{player.name.split(' ')[0]}</td>
-                          {holes.map((h) => {
-                            const strokes = getPlayerStrokesOnHole(player, h.handicap, h.number);
-                            return (
-                              <td key={h.number} className="px-1.5 py-1 text-center">
-                                {strokes > 0 && <span className="text-orange-600">{'●'.repeat(strokes)}</span>}
-                                {strokes < 0 && <span className="text-purple-600">{'○'.repeat(Math.abs(strokes))}</span>}
+                      <>
+                        {/* Per-tee stroke-index reference: one row per distinct tee in
+                            play, showing THAT tee's hole difficulty ranking. Men's and
+                            women's tees rank holes differently, so this makes each
+                            player's stroke holes explainable. */}
+                        {(() => {
+                          const teeIds = Array.from(new Set(sortedPlayers.map((p) => getPlayerTee(p)?.id).filter((x): x is number => x != null)));
+                          const tees = teeIds.map((id) => setup.course?.teeSets.find((t) => t.id === id)).filter((t): t is NonNullable<typeof t> => !!t);
+                          if (tees.length < 1) return null;
+                          return tees.map((tee) => (
+                            <tr key={`idx-${tee.id}`} className="border-t border-gray-100 bg-gray-50/60">
+                              <td className="px-2 py-1 text-[10px] text-gray-500 italic whitespace-nowrap sticky left-0 bg-gray-50/60">{tee.name} SI</td>
+                              {holes.map((h) => {
+                                const si = tee.holes.find((x) => x.number === h.number)?.handicap;
+                                return <td key={h.number} className="px-1.5 py-1 text-center text-[10px] text-gray-400">{si ?? '–'}</td>;
+                              })}
+                            </tr>
+                          ));
+                        })()}
+                        {sortedPlayers.map((player) => {
+                          const pTee = getPlayerTee(player);
+                          return (
+                            <tr key={player.id} className="border-t border-gray-100">
+                              <td className={`px-2 py-1 font-medium whitespace-nowrap sticky left-0 bg-white ${player.team === 'A' ? 'text-blue-700' : player.team === 'B' ? 'text-red-700' : 'text-gray-700'}`}>
+                                {player.name.split(' ')[0]}
+                                {pTee && <span className="ml-1 text-[9px] font-normal text-gray-400">{pTee.name}</span>}
                               </td>
-                            );
-                          })}
-                        </tr>
-                      ))
+                              {holes.map((h) => {
+                                const strokes = getPlayerStrokesOnHole(player, h.handicap, h.number);
+                                return (
+                                  <td key={h.number} className="px-1.5 py-1 text-center">
+                                    {strokes > 0 && <span className="text-orange-600">{'●'.repeat(strokes)}</span>}
+                                    {strokes < 0 && <span className="text-purple-600">{'○'.repeat(Math.abs(strokes))}</span>}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </>
                     )}
                   </tbody>
                 </table>
