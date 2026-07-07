@@ -40,6 +40,18 @@ export default function PoolHubPage() {
 
   function enterScores(team: PoolTeam) {
     const players = playersForTeam(team);
+    const strokeMethod = game!.strokeMethod || 'full';
+
+    // For off-the-low, compute the field-low playing handicap across the WHOLE
+    // field and pass it as a fixed baseline, so this foursome's scorecard nets
+    // match the pool leaderboard (which also subtracts the field low).
+    let offTheLowBaseline: number | undefined;
+    if (strokeMethod === 'off-the-low' && game!.players.length > 0) {
+      offTheLowBaseline = Math.min(
+        ...game!.players.map((p) => getPoolPlayingHandicap(p, game!.course, game!.handicapAllowance))
+      );
+    }
+
     const setup: GameSetup = {
       formatId: 'stroke-play',
       teamMode: 'two-best-balls',
@@ -47,10 +59,11 @@ export default function PoolHubPage() {
       players,
       handicapAllowance: game!.handicapAllowance,
       holesPlaying: '18',
-      strokeMethod: 'full',
+      strokeMethod,
       handicapBasis: 'course',
       formatSettings: { ballSelection: game!.ballSelection },
       matchupId: team.matchupId,
+      offTheLowBaseline,
     };
 
     sessionStorage.setItem('game_setup', JSON.stringify(setup));

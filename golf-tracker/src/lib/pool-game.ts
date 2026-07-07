@@ -43,6 +43,7 @@ export interface PoolGame {
   ballSelection: TwoBestBallsVariant;         // default '1-net-1-gross'
   entryPerPlayer: number;                      // e.g. 25
   handicapAllowance: number;                   // percent, e.g. 100
+  strokeMethod?: 'full' | 'off-the-low';       // default 'full'; off-the-low subtracts field-low handicap
   potSplit: PoolPotSplit;                      // default 0.25 each
   positionSplit: number[];                     // e.g. [100] winner-take-all
   junkValues: PoolJunkValues;                  // 1 / 2 / 3 / 1 / 1
@@ -156,6 +157,17 @@ function getPlayerTee(player: Player, course: CourseSelection | null): TeeSetOpt
   return course.teeSets.find((t) => t.id === course.selectedTeeId) || course.teeSets[0] || null;
 }
 
+// A player's stroke index (hole "handicap") for a hole, read from THEIR OWN tee.
+// Men's and women's tees often rank hole difficulty differently (e.g. Spring
+// Creek differs on 14 of 18 holes), so strokes must be allocated per that
+// player's tee, not the shared default tee. Falls back to the passed-in default
+// index if the player's tee lacks the hole.
+function playerHoleStrokeIndex(player: Player, course: CourseSelection | null, holeNumber: number, fallbackIndex: number): number {
+  const tee = getPlayerTee(player, course);
+  const h = tee?.holes.find((x) => x.number === holeNumber);
+  return h ? h.handicap : fallbackIndex;
+}
+
 // Full course handicap x allowance, off the player's own tee (par/rating/slope).
 export function getPoolPlayingHandicap(player: Player, course: CourseSelection | null, allowance: number): number {
   if (!player.handicapIndex) return 0;
@@ -172,6 +184,23 @@ export function getPoolPlayingHandicap(player: Player, course: CourseSelection |
 
 export function getPar3Holes(course: CourseSelection | null): number[] {
   return getHoleData(course).filter((h) => h.par === 3).map((h) => h.number);
+}
+
+// Build each player's playing handicap. For 'off-the-low', the lowest playing
+// handicap in the whole field is subtracted from everyone (field plays off the
+// low). Every team is measured off the same baseline, keeping cross-team
+// comparison fair; the low player plays to scratch.
+function buildHcapMap(game: PoolGame): Map<string, number> {
+  const raw = new Map<string, number>();
+  for (const player of game.players) {
+    raw.set(player.id, getPoolPlayingHandicap(player, game.course, game.handicapAllowance));
+  }
+  if (game.strokeMethod !== 'off-the-low' || raw.size === 0) return raw;
+
+  const low = Math.min(...raw.values());
+  const adjusted = new Map<string, number>();
+  for (const [id, h] of raw) adjusted.set(id, h - low);
+  return adjusted;
 }
 
 // ---------------------------------------------------------------------------
@@ -225,6 +254,7 @@ export function distributePot(
 // ---------------------------------------------------------------------------
 
 function teamHoleScore(
+  game: PoolGame,
   team: PoolTeam,
   hole: HoleData,
   scores: GameScore[],
@@ -236,8 +266,11 @@ function teamHoleScore(
   for (const pid of team.playerIds) {
     const sc = scores.find((s) => s.playerId === pid && s.hole === hole.number);
     if (!sc) continue;
+    const player = game.players.find((p) => p.id === pid);
     const hcap = hcapMap.get(pid) ?? 0;
-    const strokes = getMoneyStrokesOnHole(hcap, hole.handicap, numHoles);
+    // Allocate strokes using this player's OWN tee's stroke index for the hole.
+    const strokeIndex = player ? playerHoleStrokeIndex(player, game.course, hole.number, hole.handicap) : hole.handicap;
+    const strokes = getMoneyStrokesOnHole(hcap, strokeIndex, numHoles);
     playerScores.push({ gross: sc.grossScore, net: sc.grossScore - strokes });
   }
   return bestBallTeamHoleScore(playerScores, variant);
@@ -359,11 +392,9 @@ export function computePoolResult(
   }
   const numHoles = holes.length;
 
-  // Pre-compute each player's playing handicap off their own tee.
-  const hcapMap = new Map<string, number>();
-  for (const player of game.players) {
-    hcapMap.set(player.id, getPoolPlayingHandicap(player, game.course, game.handicapAllowance));
-  }
+  // Pre-compute each player's playing handicap off their own tee (field-low
+  // subtracted when strokeMethod is off-the-low).
+  const hcapMap = buildHcapMap(game);
 
   // Per-team, per-hole team score (best net + best gross).
   const holeScoresByTeam = new Map<string, Map<number, number | null>>();
@@ -371,7 +402,7 @@ export function computePoolResult(
     const scores = scoresByMatchup.get(team.matchupId) || [];
     const perHole = new Map<number, number | null>();
     for (const hole of holes) {
-      perHole.set(hole.number, teamHoleScore(team, hole, scores, hcapMap, numHoles, game.ballSelection));
+      perHole.set(hole.number, teamHoleScore(game, team, hole, scores, hcapMap, numHoles, game.ballSelection));
     }
     holeScoresByTeam.set(team.id, perHole);
   }
@@ -492,10 +523,7 @@ export function computePoolPlayerDetails(
   if (holes.length === 0) return [];
   const numHoles = holes.length;
 
-  const hcapMap = new Map<string, number>();
-  for (const player of game.players) {
-    hcapMap.set(player.id, getPoolPlayingHandicap(player, game.course, game.handicapAllowance));
-  }
+  const hcapMap = buildHcapMap(game);
 
   return game.teams.map((team) => {
     const scores = scoresByMatchup.get(team.matchupId) || [];
@@ -508,7 +536,8 @@ export function computePoolPlayerDetails(
       let grossTotal: number | null = null;
       let netTotal: number | null = null;
       for (const hole of holes) {
-        const strokes = getMoneyStrokesOnHole(playingHcap, hole.handicap, numHoles);
+        const strokeIndex = playerHoleStrokeIndex(player, game.course, hole.number, hole.handicap);
+        const strokes = getMoneyStrokesOnHole(playingHcap, strokeIndex, numHoles);
         const sc = scores.find((s) => s.playerId === pid && s.hole === hole.number);
         const gross = sc ? sc.grossScore : null;
         const net = gross !== null ? gross - strokes : null;

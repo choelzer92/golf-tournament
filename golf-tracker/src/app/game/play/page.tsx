@@ -442,6 +442,13 @@ export default function PlayGamePage() {
     const hcap = getPlayerEffectiveHcap(player, holeNumber);
     if (getActiveStrokeMethod(holeNumber) === 'full') return hcap;
 
+    // Pool games pass a fixed field-low baseline so this scorecard matches the
+    // pool leaderboard (which subtracts the low of the whole field, not just
+    // the 4 players on this screen).
+    if (setup!.offTheLowBaseline !== undefined) {
+      return hcap - setup!.offTheLowBaseline;
+    }
+
     // Off the low: determine the comparison pool
     let pool = setup!.players;
 
@@ -462,6 +469,16 @@ export default function PlayGamePage() {
     const rawHcap = getPlayingHandicap(player, holeNumber);
     const playingHcap = Math.round(rawHcap);
     const numHoles = setup!.splitFormat ? 9 : holes.length;
+
+    // Allocate strokes off the player's OWN tee stroke index — men's and women's
+    // tees often rank hole difficulty differently, so a shared default index
+    // would give strokes on the wrong holes for a mixed-gender field. Only for
+    // full-18 play; 9-hole/split formats re-rank the index 1–9 separately.
+    if (holeNumber !== undefined && setup!.holesPlaying === '18' && !setup!.splitFormat) {
+      const ownTee = getPlayerTee(player);
+      const ownHole = ownTee?.holes.find((h) => h.number === holeNumber);
+      if (ownHole) holeHandicap = ownHole.handicap;
+    }
 
     if (playingHcap === 0) return 0;
 

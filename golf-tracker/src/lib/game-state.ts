@@ -71,6 +71,10 @@ export interface GameSetup {
   splitFormat?: SplitFormatSetup;
   scoringTeam?: 'A' | 'B';
   matchupId?: string;
+  // Pool games: fixed off-the-low baseline (the field-low playing handicap),
+  // so a foursome's scorecard matches the pool leaderboard instead of computing
+  // "the low" from just the 4 players on screen.
+  offTheLowBaseline?: number;
 }
 
 export interface GameScore {

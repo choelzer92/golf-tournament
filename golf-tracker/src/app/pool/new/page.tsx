@@ -74,6 +74,7 @@ export default function NewPoolGamePage() {
   const [name, setName] = useState('');
   const [entryPerPlayer, setEntryPerPlayer] = useState('25');
   const [handicapAllowance, setHandicapAllowance] = useState('100');
+  const [strokeMethod, setStrokeMethod] = useState<'full' | 'off-the-low'>('full');
   const [potSplitPct, setPotSplitPct] = useState<PotSplitPct>(potSplitToPct(DEFAULT_POT_SPLIT));
   const [positionSplitText, setPositionSplitText] = useState('100');
   const [junkValues, setJunkValues] = useState<PoolJunkValues>({ ...DEFAULT_JUNK_VALUES });
@@ -97,6 +98,7 @@ export default function NewPoolGamePage() {
         if (typeof data.name === 'string') setName(data.name);
         if (typeof data.entryPerPlayer === 'string') setEntryPerPlayer(data.entryPerPlayer);
         if (typeof data.handicapAllowance === 'string') setHandicapAllowance(data.handicapAllowance);
+        if (data.strokeMethod === 'full' || data.strokeMethod === 'off-the-low') setStrokeMethod(data.strokeMethod);
         if (data.potSplitPct) setPotSplitPct(data.potSplitPct);
         if (typeof data.positionSplitText === 'string') setPositionSplitText(data.positionSplitText);
         if (data.junkValues) setJunkValues(data.junkValues);
@@ -114,10 +116,10 @@ export default function NewPoolGamePage() {
   useEffect(() => {
     if (!hydrated) return;
     sessionStorage.setItem(WIZARD_KEY, JSON.stringify({
-      name, entryPerPlayer, handicapAllowance, potSplitPct, positionSplitText,
+      name, entryPerPlayer, handicapAllowance, strokeMethod, potSplitPct, positionSplitText,
       junkValues, ballSelection, course, players, teams, step,
     }));
-  }, [hydrated, name, entryPerPlayer, handicapAllowance, potSplitPct, positionSplitText,
+  }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, potSplitPct, positionSplitText,
       junkValues, ballSelection, course, players, teams, step]);
 
   function createPoolGame() {
@@ -132,6 +134,7 @@ export default function NewPoolGamePage() {
       ballSelection,
       entryPerPlayer: parseFloat(entryPerPlayer) || 0,
       handicapAllowance: parseFloat(handicapAllowance) || 100,
+      strokeMethod,
       potSplit: pctToPotSplit(potSplitPct),
       positionSplit: parsePositionSplit(positionSplitText),
       junkValues,
@@ -166,6 +169,8 @@ export default function NewPoolGamePage() {
             setEntryPerPlayer={setEntryPerPlayer}
             handicapAllowance={handicapAllowance}
             setHandicapAllowance={setHandicapAllowance}
+            strokeMethod={strokeMethod}
+            setStrokeMethod={setStrokeMethod}
             potSplitPct={potSplitPct}
             setPotSplitPct={setPotSplitPct}
             positionSplitText={positionSplitText}
@@ -252,12 +257,14 @@ function StepIndicator({ current, course }: { current: Step; course: CourseSelec
 
 function DetailsStep({
   name, setName, entryPerPlayer, setEntryPerPlayer, handicapAllowance, setHandicapAllowance,
+  strokeMethod, setStrokeMethod,
   potSplitPct, setPotSplitPct, positionSplitText, setPositionSplitText,
   junkValues, setJunkValues, ballSelection, setBallSelection, onNext,
 }: {
   name: string; setName: (s: string) => void;
   entryPerPlayer: string; setEntryPerPlayer: (s: string) => void;
   handicapAllowance: string; setHandicapAllowance: (s: string) => void;
+  strokeMethod: 'full' | 'off-the-low'; setStrokeMethod: (v: 'full' | 'off-the-low') => void;
   potSplitPct: PotSplitPct; setPotSplitPct: (p: PotSplitPct) => void;
   positionSplitText: string; setPositionSplitText: (s: string) => void;
   junkValues: PoolJunkValues; setJunkValues: (v: PoolJunkValues) => void;
@@ -331,6 +338,34 @@ function DetailsStep({
               className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-800 mb-1">Handicap Strokes</label>
+          <div className="flex gap-2">
+            {([
+              { v: 'full', label: 'Full handicap' },
+              { v: 'off-the-low', label: 'Off the low' },
+            ] as const).map(({ v, label }) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setStrokeMethod(v)}
+                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                  strokeMethod === v
+                    ? 'border-green-600 bg-green-600 text-white'
+                    : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            {strokeMethod === 'off-the-low'
+              ? 'Lowest-handicap player in the field plays to scratch; everyone else plays the difference.'
+              : 'Every player uses their full course handicap × allowance.'}
+          </p>
         </div>
 
         <div className="pt-2 border-t">
