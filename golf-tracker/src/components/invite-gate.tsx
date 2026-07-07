@@ -1,25 +1,37 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { checkInviteCode, setAccessCookie, hasAccessCookie, checkShareTokenInUrl } from '@/lib/invite-gate';
+import { usePathname, useRouter } from 'next/navigation';
+import { checkInviteCode, setAccessCookie, getAccessLevel, checkShareTokenInUrl, isPoolAllowedPath, type AccessLevel } from '@/lib/invite-gate';
 
 export function InviteGate({ children }: { children: React.ReactNode }) {
-  const [authorized, setAuthorized] = useState(false);
+  const [level, setLevel] = useState<AccessLevel | null>(null);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(true);
+  const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
-    // A valid share token in the URL grants access without the invite code.
-    setAuthorized(hasAccessCookie() || checkShareTokenInUrl());
+    // An organizer token in the URL grants 'pool' access; otherwise use the cookie.
+    const fromToken = checkShareTokenInUrl();
+    setLevel(fromToken ?? getAccessLevel());
     setChecking(false);
   }, []);
+
+  // A 'pool'-level visitor (share link) may only see pool routes. If they land
+  // anywhere else, send them to the pool setup rather than exposing the full app.
+  useEffect(() => {
+    if (level === 'pool' && pathname && !isPoolAllowedPath(pathname)) {
+      router.replace('/pool/new');
+    }
+  }, [level, pathname, router]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (checkInviteCode(code)) {
-      setAccessCookie();
-      setAuthorized(true);
+      setAccessCookie('full');
+      setLevel('full');
       setError('');
     } else {
       setError('Invalid code. Try again.');
@@ -28,7 +40,13 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
 
   if (checking) return null;
 
-  if (authorized) return <>{children}</>;
+  if (level === 'full') return <>{children}</>;
+
+  if (level === 'pool') {
+    // Allowed on pool routes; the redirect effect handles anything else.
+    if (pathname && isPoolAllowedPath(pathname)) return <>{children}</>;
+    return null;
+  }
 
   return (
     <div className="flex-1 flex items-center justify-center p-4 min-h-screen bg-gray-50">

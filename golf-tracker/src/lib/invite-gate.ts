@@ -2,37 +2,56 @@ const COOKIE_NAME = 'golf_access';
 const VALID_CODES = ['birdie2026'];
 const EXPIRY_SECONDS = 60 * 60 * 48; // 48 hours
 
-// Secret token used in share links (?key=...) to grant app access without typing
-// the invite code. Anyone with a link is in — that's the intent for sharing a
-// pool game with a group.
-export const SHARE_TOKEN = 'poolparty2026';
+// Access levels:
+//  - 'full': the owner (entered the invite code) — the whole app.
+//  - 'pool': arrived via an organizer share link — pool games only (create,
+//    manage, scorecards). Blocked from the dashboard and the tournament side.
+export type AccessLevel = 'full' | 'pool';
+
+// Secret token used in organizer share links (?key=...). Grants 'pool' access
+// (create/manage pool games) WITHOUT exposing the full app.
+export const ORGANIZER_TOKEN = 'poolparty2026';
+
+// Routes a 'pool'-level (share-link) visitor may see. Everything else (dashboard,
+// tournament pages, quick game) requires 'full' access.
+export function isPoolAllowedPath(pathname: string): boolean {
+  return pathname === '/pool' || pathname.startsWith('/pool/') || pathname === '/game/play';
+}
 
 export function checkInviteCode(code: string): boolean {
   return VALID_CODES.includes(code.trim().toLowerCase());
 }
 
-// If the URL carries a valid share token (?key=...), grant access and return true.
-// Called on mount by the gate before prompting for an invite code.
-export function checkShareTokenInUrl(): boolean {
-  if (typeof window === 'undefined') return false;
+export function setAccessCookie(level: AccessLevel = 'full') {
+  document.cookie = `${COOKIE_NAME}=${level}; path=/; max-age=${EXPIRY_SECONDS}; SameSite=Lax`;
+}
+
+export function getAccessLevel(): AccessLevel | null {
+  if (typeof document === 'undefined') return null;
+  const c = document.cookie.split(';').map((x) => x.trim()).find((x) => x.startsWith(`${COOKIE_NAME}=`));
+  if (!c) return null;
+  const val = c.slice(COOKIE_NAME.length + 1);
+  return val === 'full' || val === 'pool' ? val : 'full'; // legacy 'granted' cookie -> full
+}
+
+export function hasAccessCookie(): boolean {
+  return getAccessLevel() !== null;
+}
+
+// If the URL carries the organizer token (?key=...), grant 'pool' access and
+// return that level. Returns null if no valid token present.
+export function checkShareTokenInUrl(): AccessLevel | null {
+  if (typeof window === 'undefined') return null;
   try {
     const key = new URLSearchParams(window.location.search).get('key');
-    if (key && key === SHARE_TOKEN) {
-      setAccessCookie();
-      return true;
+    if (key && key === ORGANIZER_TOKEN) {
+      setAccessCookie('pool');
+      return 'pool';
     }
   } catch {
     // ignore malformed URLs
   }
-  return false;
-}
-
-export function setAccessCookie() {
-  document.cookie = `${COOKIE_NAME}=granted; path=/; max-age=${EXPIRY_SECONDS}; SameSite=Lax`;
-}
-
-export function hasAccessCookie(): boolean {
-  return document.cookie.split(';').some((c) => c.trim().startsWith(`${COOKIE_NAME}=`));
+  return null;
 }
 
 export function clearAccessCookie() {
