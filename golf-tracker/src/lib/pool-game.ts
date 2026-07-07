@@ -272,6 +272,58 @@ export function getFieldLow(game: PoolGame): FieldLowInfo | null {
   };
 }
 
+export interface DistinctRanking {
+  label: string;                    // "Men" / "Women" if gender-clean, else tee names
+  strokeIndexByHole: Record<number, number>; // hole number -> stroke index
+}
+
+// Collapse the tees a set of players is actually using into DISTINCT hole-ranking
+// rows. Men's and women's tees usually differ, but some courses (e.g. Old Trail)
+// share a ranking across genders by tee color — so we dedupe by the ranking
+// sequence itself, then label by gender when a ranking is single-gender, else by
+// the tee names that share it. Avoids a redundant row per tee.
+export function distinctRankingsForPlayers(game: PoolGame, playerIds: string[]): DistinctRanking[] {
+  const course = game.course;
+  if (!course) return [];
+  const seen = new Map<string, { tees: TeeSetOption[]; genders: Set<'M' | 'F'> }>();
+  const teeIdsUsed = new Set<number>();
+
+  for (const pid of playerIds) {
+    const player = game.players.find((p) => p.id === pid);
+    if (!player) continue;
+    const tee = getPlayerTee(player, course);
+    if (!tee || teeIdsUsed.has(tee.id)) continue;
+    teeIdsUsed.add(tee.id);
+    const holes = [...tee.holes].sort((a, b) => a.number - b.number);
+    const key = holes.map((h) => h.handicap).join(',');
+    const entry = seen.get(key) || { tees: [], genders: new Set<'M' | 'F'>() };
+    entry.tees.push(tee);
+    entry.genders.add((player.gender ?? tee.gender ?? 'M') as 'M' | 'F');
+    seen.set(key, entry);
+  }
+
+  const stripW = (n: string) => n.replace(/\s*\(w\)\s*$/i, '');
+  const groups = Array.from(seen.values());
+
+  // A gender label ("Men"/"Women") is only unambiguous if that gender maps to a
+  // SINGLE ranking. If two men's tees have different rankings, label both by tee
+  // name instead so they're distinguishable.
+  const genderRankingCount = { M: 0, F: 0 };
+  for (const g of groups) {
+    if (g.genders.size === 1) genderRankingCount[g.genders.has('F') ? 'F' : 'M']++;
+  }
+
+  return groups.map(({ tees, genders }) => {
+    const strokeIndexByHole: Record<number, number> = {};
+    for (const h of tees[0].holes) strokeIndexByHole[h.number] = h.handicap;
+    const soleGender = genders.size === 1 ? (genders.has('F') ? 'F' : 'M') : null;
+    const label = soleGender && genderRankingCount[soleGender] === 1
+      ? (soleGender === 'F' ? 'Women' : 'Men')
+      : Array.from(new Set(tees.map((t) => stripW(t.name)))).join(' / ');
+    return { label, strokeIndexByHole };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Pot distribution — winner-take-all by default, ties split the pooled amount
 // evenly. Distributes GROSS dollars (each team already paid entry into the pot).

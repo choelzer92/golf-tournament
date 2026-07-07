@@ -13,6 +13,7 @@ import {
   computePoolPlayerDetails,
   getFieldLow,
   getPar3Holes,
+  distinctRankingsForPlayers,
 } from '@/lib/pool-game';
 import {
   type RosterPlayer,
@@ -325,65 +326,83 @@ function FoursomeCard({
 // playing handicap and each player's OWN-tee stroke index (both already baked
 // into computePoolPlayerDetails), so no scores are required.
 function StrokeAllocation({ detail, game }: { detail: PoolTeamDetail; game: PoolGame }) {
-  const front = Array.from({ length: 9 }, (_, i) => i + 1);
-  const back = Array.from({ length: 9 }, (_, i) => i + 10);
-
-  function dots(strokes: number): string {
-    if (strokes >= 2) return '●●';
-    if (strokes === 1) return '●';
-    return '·';
-  }
+  const nines: { label: string; holes: number[] }[] = [
+    { label: 'OUT', holes: Array.from({ length: 9 }, (_, i) => i + 1) },
+    { label: 'IN', holes: Array.from({ length: 9 }, (_, i) => i + 10) },
+  ];
 
   function strokesFor(playerHoles: PoolTeamDetail['players'][number]['holes'], holeNumber: number): number {
     return playerHoles.find((h) => h.holeNumber === holeNumber)?.strokes ?? 0;
   }
 
-  // Each player's own tee (men's and women's tees rank holes differently, so the
-  // per-hole "SI" shown is that player's tee's ranking — explains their strokes).
-  function teeFor(playerId: string) {
+  function teeName(playerId: string): string | null {
     const p = game.players.find((x) => x.id === playerId);
     if (!p) return null;
-    return game.course?.teeSets.find((t) => t.id === p.teeSetId)
-      ?? game.course?.teeSets.find((t) => t.id === game.course?.selectedTeeId)
-      ?? null;
+    return game.course?.teeSets.find((t) => t.id === p.teeSetId)?.name ?? null;
   }
 
+  // Distinct hole rankings among this foursome's tees (gender-labeled when clean).
+  const rankings = distinctRankingsForPlayers(game, detail.players.map((p) => p.playerId));
+
   return (
-    <div className="mt-1 rounded-lg bg-gray-50 border border-gray-100 p-3 space-y-3">
+    <div className="mt-1 rounded-lg bg-gray-50 border border-gray-200 p-3 space-y-4">
       {detail.players.map((pl) => {
         const totalStrokes = pl.holes.reduce((s, h) => s + h.strokes, 0);
-        const tee = teeFor(pl.playerId);
-        const siOf = (holeNumber: number) => tee?.holes.find((h) => h.number === holeNumber)?.handicap ?? null;
+        const tn = teeName(pl.playerId);
         return (
           <div key={pl.playerId}>
-            <div className="flex items-baseline justify-between mb-1">
-              <p className="text-sm font-medium text-gray-800">
+            <div className="flex items-baseline justify-between mb-1.5">
+              <p className="text-sm font-semibold text-gray-800">
                 {pl.playerName.split(' ')[0]}
-                {tee && <span className="ml-1 text-[10px] font-normal text-gray-400">{tee.name}</span>}
+                {tn && <span className="ml-1.5 text-[10px] font-normal text-gray-400">{tn}</span>}
               </p>
               <p className="text-xs text-gray-500">
-                HCP {Math.round(pl.playingHcap)} · {totalStrokes} stroke{totalStrokes === 1 ? '' : 's'}
+                <span className="font-medium text-gray-700">{Math.round(pl.playingHcap)}</span> hcp
+                <span className="mx-1 text-gray-300">·</span>
+                <span className="font-medium text-green-700">{totalStrokes}</span> strokes
               </p>
             </div>
-            {[front, back].map((holes, rowIdx) => (
-              <div key={rowIdx} className="grid grid-cols-9 gap-px mb-0.5">
-                {holes.map((holeNumber) => {
-                  const strokes = strokesFor(pl.holes, holeNumber);
-                  return (
-                    <div key={holeNumber} className="text-center">
-                      <div className="text-[9px] leading-none text-gray-400">{holeNumber}</div>
-                      <div className={`text-xs leading-tight ${strokes > 0 ? 'text-green-700 font-bold' : 'text-gray-300'}`}>
-                        {dots(strokes)}
-                      </div>
-                      <div className="text-[8px] leading-none text-gray-300">{siOf(holeNumber) ?? ''}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+            <div className="flex gap-3">
+              {nines.map((nine) => (
+                <div key={nine.label} className="flex-1">
+                  <div className="flex gap-px">
+                    {nine.holes.map((holeNumber) => {
+                      const strokes = strokesFor(pl.holes, holeNumber);
+                      return (
+                        <div
+                          key={holeNumber}
+                          className={`flex-1 rounded-sm text-center py-1 ${
+                            strokes >= 2 ? 'bg-green-600 text-white' : strokes === 1 ? 'bg-green-100 text-green-800' : 'bg-white text-gray-300'
+                          }`}
+                          title={`Hole ${holeNumber}`}
+                        >
+                          <div className="text-[8px] leading-none opacity-60">{holeNumber}</div>
+                          <div className="text-[11px] leading-tight font-semibold h-3">{strokes > 0 ? strokes : ''}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         );
       })}
+
+      {/* Distinct hole rankings in play (SI = stroke index; lower = harder). */}
+      {rankings.length > 0 && (
+        <div className="pt-2 border-t border-gray-200 space-y-1">
+          <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Hole rankings (SI)</p>
+          {rankings.map((r) => (
+            <div key={r.label} className="text-[10px] text-gray-500">
+              <span className="font-semibold text-gray-600">{r.label}:</span>{' '}
+              <span className="tabular-nums">
+                {Array.from({ length: 18 }, (_, i) => r.strokeIndexByHole[i + 1] ?? '–').join(' ')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

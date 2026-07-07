@@ -825,23 +825,43 @@ export default function PlayGamePage() {
                       ))
                     ) : (
                       <>
-                        {/* Per-tee stroke-index reference: one row per distinct tee in
-                            play, showing THAT tee's hole difficulty ranking. Men's and
-                            women's tees rank holes differently, so this makes each
-                            player's stroke holes explainable. */}
+                        {/* Distinct hole-ranking reference rows. Men's and women's tees
+                            usually rank holes differently; some courses share a ranking
+                            across genders by tee. Dedupe by the ranking sequence and label
+                            by gender when single-gender, else by the tees that share it. */}
                         {(() => {
-                          const teeIds = Array.from(new Set(sortedPlayers.map((p) => getPlayerTee(p)?.id).filter((x): x is number => x != null)));
-                          const tees = teeIds.map((id) => setup.course?.teeSets.find((t) => t.id === id)).filter((t): t is NonNullable<typeof t> => !!t);
-                          if (tees.length < 1) return null;
-                          return tees.map((tee) => (
-                            <tr key={`idx-${tee.id}`} className="border-t border-gray-100 bg-gray-50/60">
-                              <td className="px-2 py-1 text-[10px] text-gray-500 italic whitespace-nowrap sticky left-0 bg-gray-50/60">{tee.name} SI</td>
-                              {holes.map((h) => {
-                                const si = tee.holes.find((x) => x.number === h.number)?.handicap;
-                                return <td key={h.number} className="px-1.5 py-1 text-center text-[10px] text-gray-400">{si ?? '–'}</td>;
-                              })}
-                            </tr>
-                          ));
+                          type TeeT = NonNullable<ReturnType<typeof getPlayerTee>>;
+                          const byKey = new Map<string, { tees: TeeT[]; genders: Set<'M' | 'F'> }>();
+                          const teeSeen = new Set<number>();
+                          for (const p of sortedPlayers) {
+                            const tee = getPlayerTee(p);
+                            if (!tee || teeSeen.has(tee.id)) continue;
+                            teeSeen.add(tee.id);
+                            const key = [...tee.holes].sort((a, b) => a.number - b.number).map((x) => x.handicap).join(',');
+                            const e = byKey.get(key) || { tees: [], genders: new Set<'M' | 'F'>() };
+                            e.tees.push(tee);
+                            e.genders.add((p.gender ?? tee.gender ?? 'M') as 'M' | 'F');
+                            byKey.set(key, e);
+                          }
+                          const strip = (n: string) => n.replace(/\s*\(w\)\s*$/i, '');
+                          const groups = Array.from(byKey.values());
+                          const genderCount = { M: 0, F: 0 };
+                          for (const g of groups) if (g.genders.size === 1) genderCount[g.genders.has('F') ? 'F' : 'M']++;
+                          return groups.map((e, i) => {
+                            const sole = e.genders.size === 1 ? (e.genders.has('F') ? 'F' : 'M') : null;
+                            const label = sole && genderCount[sole] === 1
+                              ? (sole === 'F' ? 'Women' : 'Men')
+                              : Array.from(new Set(e.tees.map((t) => strip(t.name)))).join('/');
+                            return (
+                              <tr key={`idx-${i}`} className="border-t border-gray-100 bg-gray-50/60">
+                                <td className="px-2 py-1 text-[10px] text-gray-500 italic whitespace-nowrap sticky left-0 bg-gray-50/60">{label} SI</td>
+                                {holes.map((h) => {
+                                  const si = e.tees[0].holes.find((x) => x.number === h.number)?.handicap;
+                                  return <td key={h.number} className="px-1.5 py-1 text-center text-[10px] text-gray-400">{si ?? '–'}</td>;
+                                })}
+                              </tr>
+                            );
+                          });
                         })()}
                         {sortedPlayers.map((player) => {
                           const pTee = getPlayerTee(player);
