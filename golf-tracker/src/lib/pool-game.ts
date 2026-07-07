@@ -66,6 +66,49 @@ export const DEFAULT_POT_SPLIT: PoolPotSplit = {
   junk: 0.25,
 };
 
+// The organizer's standard pot split, in DOLLARS per leg (front/back/overall/junk),
+// keyed by number of teams. Each row sums to teams × $100 (a foursome buys in at
+// 4 × $25). 2–5 are his exact historical splits; 6+ extend the 5-team base by
+// +$25 to every leg per additional team (verified against his 6-team intuition
+// of 175/175/150/100). Everything is editable per game in setup.
+export interface PoolLegDollars {
+  front: number;
+  back: number;
+  overall: number;
+  junk: number;
+}
+
+const POOL_SPLIT_TABLE: Record<number, PoolLegDollars> = {
+  2: { front: 70, back: 70, overall: 40, junk: 20 },
+  3: { front: 100, back: 100, overall: 60, junk: 40 },
+  4: { front: 100, back: 100, overall: 100, junk: 100 },
+  5: { front: 150, back: 150, overall: 125, junk: 75 },
+};
+
+// Dollar split for N teams: exact table for 2–5, else extend the 5-team base by
+// +$25 per leg for each team beyond 5. For 0/1 teams, returns an even split of
+// teams×100 so the UI still shows something sensible.
+export function poolSplitDollarsForTeams(numTeams: number): PoolLegDollars {
+  if (POOL_SPLIT_TABLE[numTeams]) return { ...POOL_SPLIT_TABLE[numTeams] };
+  if (numTeams >= 6) {
+    const step = numTeams - 5;
+    const b = POOL_SPLIT_TABLE[5];
+    return { front: b.front + 25 * step, back: b.back + 25 * step, overall: b.overall + 25 * step, junk: b.junk + 25 * step };
+  }
+  // 0 or 1 team — degenerate; even quarters of teams×100 (min 100).
+  const pot = Math.max(1, numTeams) * 100;
+  const q = pot / 4;
+  return { front: q, back: q, overall: q, junk: q };
+}
+
+// Convert dollar legs to pot fractions (what PoolGame stores). Guards against a
+// zero total.
+export function dollarsToPotSplit(d: PoolLegDollars): PoolPotSplit {
+  const total = d.front + d.back + d.overall + d.junk;
+  if (total <= 0) return { ...DEFAULT_POT_SPLIT };
+  return { front: d.front / total, back: d.back / total, overall: d.overall / total, junk: d.junk / total };
+}
+
 export type PoolLegKey = 'front' | 'back' | 'overall' | 'junk';
 
 export interface PoolTeamLegStanding {

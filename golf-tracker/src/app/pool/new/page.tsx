@@ -8,11 +8,11 @@ import {
   type PoolGame,
   type PoolTeam,
   type PoolJunkValues,
-  type PoolPotSplit,
   DEFAULT_JUNK_VALUES,
-  DEFAULT_POT_SPLIT,
   savePoolGame,
   getPoolPlayingHandicap,
+  poolSplitDollarsForTeams,
+  dollarsToPotSplit,
 } from '@/lib/pool-game';
 import {
   type RosterPlayer,
@@ -75,30 +75,21 @@ function pickTeeForPlayer(
   return pool[0]?.id ?? course.selectedTeeId ?? tees[0]?.id ?? undefined;
 }
 
-// Percentages (front/back/overall/junk) held as strings so the inputs stay editable.
-interface PotSplitPct {
+// Pot legs entered in DOLLARS (front/back/overall/junk), held as strings so the
+// inputs stay editable. Auto-filled from the team-count table but overridable.
+interface PotDollars {
   front: string;
   back: string;
   overall: string;
   junk: string;
 }
 
-function potSplitToPct(split: PoolPotSplit): PotSplitPct {
-  return {
-    front: String(Math.round(split.front * 100)),
-    back: String(Math.round(split.back * 100)),
-    overall: String(Math.round(split.overall * 100)),
-    junk: String(Math.round(split.junk * 100)),
-  };
+function legDollarsToStrings(d: { front: number; back: number; overall: number; junk: number }): PotDollars {
+  return { front: String(d.front), back: String(d.back), overall: String(d.overall), junk: String(d.junk) };
 }
 
-function pctToPotSplit(pct: PotSplitPct): PoolPotSplit {
-  return {
-    front: (parseFloat(pct.front) || 0) / 100,
-    back: (parseFloat(pct.back) || 0) / 100,
-    overall: (parseFloat(pct.overall) || 0) / 100,
-    junk: (parseFloat(pct.junk) || 0) / 100,
-  };
+function potDollarsTotal(d: PotDollars): number {
+  return (parseFloat(d.front) || 0) + (parseFloat(d.back) || 0) + (parseFloat(d.overall) || 0) + (parseFloat(d.junk) || 0);
 }
 
 function parsePositionSplit(text: string): number[] {
@@ -119,7 +110,10 @@ export default function NewPoolGamePage() {
   const [entryPerPlayer, setEntryPerPlayer] = useState('25');
   const [handicapAllowance, setHandicapAllowance] = useState('100');
   const [strokeMethod, setStrokeMethod] = useState<'full' | 'off-the-low'>('off-the-low');
-  const [potSplitPct, setPotSplitPct] = useState<PotSplitPct>(potSplitToPct(DEFAULT_POT_SPLIT));
+  // Pot legs in dollars; null until the Review step auto-fills from team count.
+  // `potEdited` guards the auto-fill from clobbering a manual override.
+  const [potDollars, setPotDollars] = useState<PotDollars | null>(null);
+  const [potEdited, setPotEdited] = useState(false);
   const [positionSplitText, setPositionSplitText] = useState('100');
   const [junkValues, setJunkValues] = useState<PoolJunkValues>({ ...DEFAULT_JUNK_VALUES });
   const [ballSelection, setBallSelection] = useState<TwoBestBallsVariant>('1-net-1-gross');
@@ -143,7 +137,7 @@ export default function NewPoolGamePage() {
         if (typeof data.entryPerPlayer === 'string') setEntryPerPlayer(data.entryPerPlayer);
         if (typeof data.handicapAllowance === 'string') setHandicapAllowance(data.handicapAllowance);
         if (data.strokeMethod === 'full' || data.strokeMethod === 'off-the-low') setStrokeMethod(data.strokeMethod);
-        if (data.potSplitPct) setPotSplitPct(data.potSplitPct);
+        if (data.potDollars) { setPotDollars(data.potDollars); setPotEdited(!!data.potEdited); }
         if (typeof data.positionSplitText === 'string') setPositionSplitText(data.positionSplitText);
         if (data.junkValues) setJunkValues(data.junkValues);
         if (data.ballSelection) setBallSelection(data.ballSelection);
@@ -160,14 +154,19 @@ export default function NewPoolGamePage() {
   useEffect(() => {
     if (!hydrated) return;
     sessionStorage.setItem(WIZARD_KEY, JSON.stringify({
-      name, entryPerPlayer, handicapAllowance, strokeMethod, potSplitPct, positionSplitText,
+      name, entryPerPlayer, handicapAllowance, strokeMethod, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, course, players, teams, step,
     }));
-  }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, potSplitPct, positionSplitText,
+  }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, course, players, teams, step]);
 
   function createPoolGame() {
     const id = crypto.randomUUID();
+    // Effective dollar split: manual override if set, else the standard for this
+    // team count. Stored as pot fractions (compute engine multiplies by the pot).
+    const effectiveDollars = potDollars
+      ? { front: parseFloat(potDollars.front) || 0, back: parseFloat(potDollars.back) || 0, overall: parseFloat(potDollars.overall) || 0, junk: parseFloat(potDollars.junk) || 0 }
+      : poolSplitDollarsForTeams(teams.length);
     const game: PoolGame = {
       id,
       name: name || 'Pool Game',
@@ -179,7 +178,7 @@ export default function NewPoolGamePage() {
       entryPerPlayer: parseFloat(entryPerPlayer) || 0,
       handicapAllowance: parseFloat(handicapAllowance) || 100,
       strokeMethod,
-      potSplit: pctToPotSplit(potSplitPct),
+      potSplit: dollarsToPotSplit(effectiveDollars),
       positionSplit: parsePositionSplit(positionSplitText),
       junkValues,
       ctpWinners: {},
@@ -215,8 +214,6 @@ export default function NewPoolGamePage() {
             setHandicapAllowance={setHandicapAllowance}
             strokeMethod={strokeMethod}
             setStrokeMethod={setStrokeMethod}
-            potSplitPct={potSplitPct}
-            setPotSplitPct={setPotSplitPct}
             positionSplitText={positionSplitText}
             setPositionSplitText={setPositionSplitText}
             junkValues={junkValues}
@@ -266,7 +263,10 @@ export default function NewPoolGamePage() {
             entryPerPlayer={parseFloat(entryPerPlayer) || 0}
             players={players}
             teams={teams}
-            potSplitPct={potSplitPct}
+            potDollars={potDollars}
+            setPotDollars={setPotDollars}
+            potEdited={potEdited}
+            setPotEdited={setPotEdited}
             onCreate={createPoolGame}
             onBack={() => setStep('teams')}
           />
@@ -303,39 +303,24 @@ function StepIndicator({ current, course }: { current: Step; course: CourseSelec
 function DetailsStep({
   name, setName, entryPerPlayer, setEntryPerPlayer, handicapAllowance, setHandicapAllowance,
   strokeMethod, setStrokeMethod,
-  potSplitPct, setPotSplitPct, positionSplitText, setPositionSplitText,
+  positionSplitText, setPositionSplitText,
   junkValues, setJunkValues, ballSelection, setBallSelection, onNext,
 }: {
   name: string; setName: (s: string) => void;
   entryPerPlayer: string; setEntryPerPlayer: (s: string) => void;
   handicapAllowance: string; setHandicapAllowance: (s: string) => void;
   strokeMethod: 'full' | 'off-the-low'; setStrokeMethod: (v: 'full' | 'off-the-low') => void;
-  potSplitPct: PotSplitPct; setPotSplitPct: (p: PotSplitPct) => void;
   positionSplitText: string; setPositionSplitText: (s: string) => void;
   junkValues: PoolJunkValues; setJunkValues: (v: PoolJunkValues) => void;
   ballSelection: TwoBestBallsVariant; setBallSelection: (v: TwoBestBallsVariant) => void;
   onNext: () => void;
 }) {
-  const potSum =
-    (parseFloat(potSplitPct.front) || 0) +
-    (parseFloat(potSplitPct.back) || 0) +
-    (parseFloat(potSplitPct.overall) || 0) +
-    (parseFloat(potSplitPct.junk) || 0);
-  const potSumOff = Math.abs(potSum - 100) > 0.01;
-
   const junkFields: { key: keyof PoolJunkValues; label: string }[] = [
     { key: 'birdie', label: 'Birdie' },
     { key: 'eagle', label: 'Eagle' },
     { key: 'albatross', label: 'Albatross' },
     { key: 'groupHug', label: 'Group Hug' },
     { key: 'ctp', label: 'CTP' },
-  ];
-
-  const potFields: { key: keyof PotSplitPct; label: string }[] = [
-    { key: 'front', label: 'Front 9' },
-    { key: 'back', label: 'Back 9' },
-    { key: 'overall', label: 'Overall' },
-    { key: 'junk', label: 'Junk' },
   ];
 
   const ballOptions: { value: TwoBestBallsVariant; label: string }[] = [
@@ -414,24 +399,7 @@ function DetailsStep({
         </div>
 
         <div className="pt-2 border-t">
-          <p className="text-sm font-semibold text-gray-800 mb-2">Pot Split (%)</p>
-          <div className="grid grid-cols-4 gap-2">
-            {potFields.map(({ key, label }) => (
-              <div key={key}>
-                <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={potSplitPct[key]}
-                  onChange={(e) => setPotSplitPct({ ...potSplitPct, [key]: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
-              </div>
-            ))}
-          </div>
-          <p className={`text-xs mt-1 ${potSumOff ? 'text-amber-600' : 'text-gray-500'}`}>
-            Total: {potSum}%{potSumOff ? ' — should sum to 100%' : ''}
-          </p>
+          <p className="text-xs text-gray-500">Pot split (front / back / overall / junk) is set on the final step — it fills in automatically from the number of teams.</p>
         </div>
 
         <div className="pt-2 border-t">
@@ -1477,17 +1445,43 @@ function TeamsStep({
 }
 
 function CreateStep({
-  name, entryPerPlayer, players, teams, potSplitPct, onCreate, onBack,
+  name, entryPerPlayer, players, teams, potDollars, setPotDollars, potEdited, setPotEdited, onCreate, onBack,
 }: {
   name: string;
   entryPerPlayer: number;
   players: Player[];
   teams: PoolTeam[];
-  potSplitPct: PotSplitPct;
+  potDollars: PotDollars | null;
+  setPotDollars: (d: PotDollars | null) => void;
+  potEdited: boolean;
+  setPotEdited: (b: boolean) => void;
   onCreate: () => void; onBack: () => void;
 }) {
   const playerById = new Map(players.map((p) => [p.id, p]));
   const pot = players.length * entryPerPlayer;
+
+  // Auto-fill the dollar split from the team-count standard, unless the user has
+  // edited it. Re-runs if the number of teams changes.
+  useEffect(() => {
+    if (potEdited) return;
+    setPotDollars(legDollarsToStrings(poolSplitDollarsForTeams(teams.length)));
+  }, [teams.length, potEdited, setPotDollars]);
+
+  const effective: PotDollars = potDollars ?? legDollarsToStrings(poolSplitDollarsForTeams(teams.length));
+  const splitTotal = potDollarsTotal(effective);
+  const balanced = Math.abs(splitTotal - pot) < 0.01;
+
+  const potFields: { key: keyof PotDollars; label: string }[] = [
+    { key: 'front', label: 'Front 9' },
+    { key: 'back', label: 'Back 9' },
+    { key: 'overall', label: 'Overall' },
+    { key: 'junk', label: 'Junk' },
+  ];
+
+  function setLeg(key: keyof PotDollars, value: string) {
+    setPotEdited(true);
+    setPotDollars({ ...effective, [key]: value });
+  }
 
   return (
     <div>
@@ -1516,9 +1510,33 @@ function CreateStep({
         </div>
 
         <div className="pt-2 border-t">
-          <p className="text-sm font-semibold text-gray-800 mb-1">Pot Split</p>
-          <p className="text-sm text-gray-600">
-            Front {potSplitPct.front}% · Back {potSplitPct.back}% · Overall {potSplitPct.overall}% · Junk {potSplitPct.junk}%
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-gray-800">Pot Split ($ per pot)</p>
+            {potEdited && (
+              <button
+                onClick={() => { setPotEdited(false); setPotDollars(legDollarsToStrings(poolSplitDollarsForTeams(teams.length))); }}
+                className="text-xs text-green-700 hover:text-green-900 font-medium"
+              >
+                Reset to standard
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {potFields.map(({ key, label }) => (
+              <div key={key}>
+                <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={effective[key]}
+                  onChange={(e) => setLeg(key, e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+            ))}
+          </div>
+          <p className={`text-xs mt-1 ${balanced ? 'text-gray-500' : 'text-amber-600'}`}>
+            Split total: ${splitTotal} vs pot ${pot}{balanced ? ' ✓' : ' — should match the pot'}
           </p>
         </div>
 
