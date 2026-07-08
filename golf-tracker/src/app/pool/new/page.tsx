@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { TwoBestBallsVariant } from '@/lib/formats';
 import type { Player, CourseSelection, TeeSetOption } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
 import { PoolShareButton } from '@/components/pool-share';
+import { GhinLoginModal } from '@/components/ghin-login-modal';
 import {
   type PoolGame,
   type PoolTeam,
@@ -765,6 +766,10 @@ function FieldStep({
   const [gsSearched, setGsSearched] = useState(false);
   const [gsNote, setGsNote] = useState('');
 
+  // Shown when a GHIN call fails (token expired). Re-login, then retry via retryRef.
+  const [showLogin, setShowLogin] = useState(false);
+  const retryRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     hydrateRoster().then(async () => {
       setRosterResults(searchRoster(''));
@@ -855,8 +860,9 @@ function FieldStep({
   }
 
   async function addByGhin() {
+    if (!ghinInput) return;
     const token = getToken();
-    if (!token || !ghinInput) return;
+    if (!token) { retryRef.current = addByGhin; setShowLogin(true); return; }
     setGhinLoading(true);
     setGhinError('');
     try {
@@ -866,7 +872,7 @@ function FieldStep({
         body: JSON.stringify({ token, ghin_number: Number(ghinInput) }),
       });
       const data = await res.json();
-      if (!res.ok) { setGhinError(data.error || 'Lookup failed'); return; }
+      if (!res.ok) { retryRef.current = addByGhin; setShowLogin(true); return; }
       const golfer = data.golfer;
       const hi = parseGhinIndex(golfer.handicap_index ?? golfer.hi_value);
       const ghinGender = (golfer.gender || golfer.Gender || '').toLowerCase();
@@ -924,11 +930,11 @@ function FieldStep({
   }
 
   async function searchGhinByName() {
-    const token = getToken();
-    if (!token) { setGsNote('Log in to GHIN (via the Course step) to search by name.'); return; }
     // GHIN name search requires a last name AND a state to return results.
     if (!gsLast.trim()) { setGsNote('Enter a last name to search.'); return; }
     if (!gsState.trim()) { setGsNote('Enter a state (e.g. VA) — GHIN requires it to search by name.'); return; }
+    const token = getToken();
+    if (!token) { retryRef.current = searchGhinByName; setShowLogin(true); return; }
     setGsLoading(true);
     setGsSearched(false);
     setGsNote('');
@@ -941,7 +947,8 @@ function FieldStep({
       const data = await res.json();
       if (!res.ok) {
         setGsResults([]);
-        setGsNote(data.error || 'Search failed — try again or add by GHIN #');
+        retryRef.current = searchGhinByName;
+        setShowLogin(true);
         return;
       }
       const golfers: any[] = data.golfers || [];
@@ -1013,6 +1020,11 @@ function FieldStep({
 
   return (
     <div>
+      <GhinLoginModal
+        open={showLogin}
+        onCloseAction={() => setShowLogin(false)}
+        onDoneAction={() => { setShowLogin(false); const r = retryRef.current; retryRef.current = null; r?.(); }}
+      />
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Build Field ({players.length})</h2>
 

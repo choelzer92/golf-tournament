@@ -19,6 +19,7 @@ import {
 } from '@/lib/pool-game';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
+import { GhinLoginModal } from '@/components/ghin-login-modal';
 import {
   type RosterPlayer,
   hydrateRoster,
@@ -72,6 +73,7 @@ export default function PoolHubPage() {
   const [game, setGame] = useState<PoolGame | null>(null);
   const [editing, setEditing] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   // Share-link (pool) visitors don't have the dashboard; give them "New Game" instead.
   const [poolOnly, setPoolOnly] = useState(false);
   useEffect(() => { setPoolOnly(getAccessLevel() === 'pool'); }, []);
@@ -115,11 +117,12 @@ export default function PoolHubPage() {
   // yesterday, handicaps changed overnight" case). Updates indexes in place,
   // stamps the refresh time, and returns how many changed. Also writes fresh
   // indexes back to the roster so future games start current.
-  async function refreshGameHandicaps(): Promise<number> {
+  async function refreshGameHandicaps(): Promise<{ ok: boolean; changed: number }> {
     const token = getToken();
-    if (!token || !game) return 0;
+    if (!token || !game) return { ok: false, changed: 0 }; // no token -> needs login
     const now = new Date().toISOString();
     let changed = 0;
+    let authFailed = false;
     const players = await Promise.all(game.players.map(async (p) => {
       if (p.ghinNumber == null) return p;
       try {
@@ -127,7 +130,7 @@ export default function PoolHubPage() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token, ghin_number: p.ghinNumber }),
         });
-        if (!res.ok) return p;
+        if (!res.ok) { authFailed = true; return p; } // expired/invalid token
         const { golfer } = await res.json();
         const hi = parseGhinIndex(golfer?.handicap_index ?? golfer?.hi_value);
         if (hi === null) return p;
@@ -137,10 +140,12 @@ export default function PoolHubPage() {
           handicapIndex: hi, gender: p.gender ?? null, defaultTeeName: null, hcapUpdatedAt: now,
         });
         return { ...p, handicapIndex: hi };
-      } catch { return p; }
+      } catch { authFailed = true; return p; }
     }));
+    // Only stamp/persist if we actually got data (don't fake a refresh on failure).
+    if (authFailed && changed === 0) return { ok: false, changed: 0 };
     persist({ ...game, players, handicapsRefreshedAt: now });
-    return changed;
+    return { ok: true, changed };
   }
 
   function enterScores(team: PoolTeam) {
@@ -209,6 +214,12 @@ export default function PoolHubPage() {
 
       {sharing && <SharePanel onClose={() => setSharing(false)} />}
 
+      <GhinLoginModal
+        open={showLogin}
+        onCloseAction={() => setShowLogin(false)}
+        onDoneAction={() => { setShowLogin(false); refreshGameHandicaps(); }}
+      />
+
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {/* Leaderboard + Scorecards CTAs */}
         <div className="flex justify-center gap-3">
@@ -228,7 +239,7 @@ export default function PoolHubPage() {
 
         {/* Handicap refresh — re-pull from GHIN (e.g. teams set up the night
             before, indexes changed overnight) and offer to re-balance. */}
-        <HandicapRefresh game={game} onRefresh={refreshGameHandicaps} onRebalance={() => setEditing(true)} />
+        <HandicapRefresh game={game} onRefresh={refreshGameHandicaps} onRebalance={() => setEditing(true)} onNeedsLogin={() => setShowLogin(true)} />
 
         {/* Field-low banner — explains how the low man sets everyone's strokes */}
         <FieldLowBanner game={game} />
@@ -277,10 +288,11 @@ function timeAgo(iso?: string): string {
   return `${d} day${d === 1 ? '' : 's'} ago`;
 }
 
-function HandicapRefresh({ game, onRefresh, onRebalance }: {
+function HandicapRefresh({ game, onRefresh, onRebalance, onNeedsLogin }: {
   game: PoolGame;
-  onRefresh: () => Promise<number>;
+  onRefresh: () => Promise<{ ok: boolean; changed: number }>;
   onRebalance: () => void;
+  onNeedsLogin: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<number | null>(null);
@@ -293,8 +305,9 @@ function HandicapRefresh({ game, onRefresh, onRebalance }: {
     setBusy(true);
     setResult(null);
     try {
-      const changed = await onRefresh();
-      setResult(changed);
+      const res = await onRefresh();
+      if (!res.ok) { onNeedsLogin(); return; }  // token expired -> prompt re-login
+      setResult(res.changed);
     } finally {
       setBusy(false);
     }
