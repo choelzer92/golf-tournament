@@ -56,17 +56,20 @@ async function renderCardImage(): Promise<string> {
   return cardImagePromise;
 }
 
-// Background = the crisp PDF render (shared across every foursome card).
-function PdfBackground({ className }: { className?: string }) {
+// Background = the crisp PDF render (shared across every foursome card). It's an
+// IN-FLOW image (block, width:100%, height:auto) so it defines the card's real
+// height — the overlay then positions against that on every browser.
+function PdfBackground() {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
     renderCardImage().then((s) => { if (alive) setSrc(s); }).catch(() => {});
     return () => { alive = false; };
   }, []);
-  if (!src) return <div className={`${className ?? ''} bg-gray-50 animate-pulse`} />;
+  // Placeholder holds the card's shape (via aspect-ratio) until the image loads.
+  if (!src) return <div className="w-full bg-gray-50 animate-pulse" style={{ aspectRatio: String(CARD_ASPECT) }} />;
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="Spring Creek scorecard" className={`${className ?? ''} object-contain`} />;
+  return <img src={src} alt="Spring Creek scorecard" className="block w-full h-auto" />;
 }
 
 export default function PoolScorecardsPage() {
@@ -165,15 +168,16 @@ function ScorecardOverlay({ game, team, calib }: { game: PoolGame; team: PoolTea
   const poolTeam = game.teams.find((t) => t.id === team.teamId);
 
   return (
-    // `container-type: inline-size` makes cqw units resolve against THIS card's
-    // width, so overlay text scales with the card — identical on phone, desktop,
-    // print. (inline-size, not size: it needs no definite height and is far more
-    // reliable on mobile Safari with an aspect-ratio box.)
+    // The IMAGE defines the card's height (in-flow, width:100% height:auto), and
+    // the overlay is an absolute layer over it. This makes percentage top/left
+    // resolve against the image's REAL rendered height on every browser —
+    // iOS Safari mis-resolves % heights derived from `aspect-ratio`, which pushed
+    // the overlay "high". `container-type: inline-size` scales cqw text by width.
     <div
       className="relative w-full bg-white shadow print:shadow-none"
-      style={{ aspectRatio: String(CARD_ASPECT), containerType: 'inline-size' }}
+      style={{ containerType: 'inline-size' }}
     >
-      <PdfBackground className="absolute inset-0 w-full h-full" />
+      <PdfBackground />
 
       {/* Group label (top area, over blank space near the logo) */}
       <div className="absolute" style={{ left: '3%', top: '46.5%' }}>
