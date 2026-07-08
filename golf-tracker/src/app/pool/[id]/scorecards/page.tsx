@@ -23,11 +23,13 @@ interface Calib {
   rowStep: number;   // % Y per player row
 }
 
-// Defaults read off the PNG layout — a starting point; fine-tune once on screen.
+// Defaults measured from the scorecard PDF by pixel-detecting its grid lines
+// (hole-column and player-row boundaries), so cards align out of the box. The
+// Align panel can still fine-tune per course if a printer shifts things.
 const DEFAULT_CALIB: Calib = {
-  front1X: 13.4, frontStep: 3.35,
-  back1X: 51.2, backStep: 3.32,
-  nameX: 3.0, row1Y: 51.5, rowStep: 2.15,
+  front1X: 16.0, frontStep: 3.5,
+  back1X: 54.23, backStep: 3.51,
+  nameX: 4.0, row1Y: 53.27, rowStep: 2.69,
 };
 
 function calibKey(courseId: number | undefined) {
