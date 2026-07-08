@@ -55,7 +55,7 @@ export default function LoginPage() {
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label htmlFor="ghin" className="block text-sm font-medium text-gray-700">
-              GHIN Number or Email
+              GHIN Email
             </label>
             <input
               id="ghin"
@@ -63,7 +63,7 @@ export default function LoginPage() {
               value={ghinNumber}
               onChange={(e) => setGhinNumber(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-              placeholder="GHIN number or email"
+              placeholder="GHIN email"
               required
             />
           </div>

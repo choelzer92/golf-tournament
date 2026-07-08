@@ -27,7 +27,10 @@ async function getFirebaseToken(): Promise<string> {
   return data.authToken.token;
 }
 
-export async function ghinLogin(username: string, password: string): Promise<string> {
+// Returns the bearer token AND the golfer_user identity from the login response
+// (has the golfer's GHIN + name), so callers can identify the user even when
+// they log in by email rather than GHIN number.
+export async function ghinLogin(username: string, password: string): Promise<{ token: string; golferUser: Record<string, unknown> | null }> {
   const firebaseToken = await getFirebaseToken();
 
   const res = await fetch(`${GHIN_BASE}/golfer_login.json`, {
@@ -46,7 +49,7 @@ export async function ghinLogin(username: string, password: string): Promise<str
   }
 
   const data = await res.json();
-  return data.golfer_user.golfer_user_token;
+  return { token: data.golfer_user.golfer_user_token, golferUser: data.golfer_user ?? null };
 }
 
 async function ghinFetch(path: string, token: string, params?: Record<string, string>) {

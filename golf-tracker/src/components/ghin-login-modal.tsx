@@ -52,7 +52,7 @@ export function GhinLoginModal({ open, onDoneAction, onCloseAction }: {
         <form onSubmit={submit} className="space-y-2">
           <input
             type="text" value={user} onChange={(e) => setUser(e.target.value)}
-            placeholder="GHIN number or email" autoFocus
+            placeholder="GHIN email" autoFocus
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
           />
           <input
