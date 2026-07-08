@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { PoolGame, PoolTeamDetail } from '@/lib/pool-game';
-import { loadPoolGame, fetchPoolGame, computePoolPlayerDetails } from '@/lib/pool-game';
+import { loadPoolGame, fetchPoolGame, savePoolGame, computePoolPlayerDetails } from '@/lib/pool-game';
 
 // The real Spring Creek scorecard. We render the ORIGINAL vector PDF to a
 // high-res canvas (crisp at any print size) and overlay names + stroke dots on
@@ -86,9 +86,14 @@ export default function PoolScorecardsPage() {
     });
   }, [id, router]);
 
-  // Load any saved alignment for this course.
+  // Load saved alignment: prefer the game's (shared across devices via the DB),
+  // then a per-device localStorage value, else defaults.
   useEffect(() => {
     if (!game) return;
+    if (game.scorecardCalib) {
+      setCalib({ ...DEFAULT_CALIB, ...game.scorecardCalib });
+      return;
+    }
     try {
       const saved = localStorage.getItem(calibKey(game.course?.courseId));
       if (saved) setCalib({ ...DEFAULT_CALIB, ...JSON.parse(saved) });
@@ -100,6 +105,10 @@ export default function PoolScorecardsPage() {
   if (!game) return null;
 
   function saveCalib() {
+    // Persist to the game so the alignment syncs to every device (his phone,
+    // your computer). Also keep a local copy as a courtesy fallback.
+    savePoolGame({ ...game!, scorecardCalib: { ...calib } });
+    setGame({ ...game!, scorecardCalib: { ...calib } });
     try { localStorage.setItem(calibKey(game!.course?.courseId), JSON.stringify(calib)); } catch { /* ignore */ }
     setShowCalib(false);
   }
@@ -148,12 +157,17 @@ function ScorecardOverlay({ game, team, calib }: { game: PoolGame; team: PoolTea
   const poolTeam = game.teams.find((t) => t.id === team.teamId);
 
   return (
-    <div className="relative w-full bg-white shadow print:shadow-none" style={{ aspectRatio: String(CARD_ASPECT) }}>
+    // `container-type: size` makes cqw/cqh units resolve against THIS card, so
+    // the overlay text scales with the card — identical on phone, desktop, print.
+    <div
+      className="relative w-full bg-white shadow print:shadow-none"
+      style={{ aspectRatio: String(CARD_ASPECT), containerType: 'size' }}
+    >
       <PdfBackground className="absolute inset-0 w-full h-full" />
 
       {/* Group label (top area, over blank space near the logo) */}
       <div className="absolute" style={{ left: '3%', top: '46.5%' }}>
-        <span className="text-[1.4vw] print:text-[10pt] font-bold text-gray-800">
+        <span className="font-bold text-gray-800" style={{ fontSize: '1.7cqw' }}>
           {poolTeam?.name}{poolTeam?.teeTime ? ` · ${poolTeam.teeTime}` : ''}
         </span>
       </div>
@@ -164,7 +178,7 @@ function ScorecardOverlay({ game, team, calib }: { game: PoolGame; team: PoolTea
           <div key={pl.playerId}>
             {/* Player name in the row's left cell */}
             <div className="absolute -translate-y-1/2 whitespace-nowrap" style={{ left: `${calib.nameX}%`, top: `${y}%` }}>
-              <span className="text-[0.95vw] print:text-[8pt] font-semibold text-gray-900">{pl.playerName}</span>
+              <span className="font-semibold text-gray-900" style={{ fontSize: '1.25cqw' }}>{pl.playerName}</span>
             </div>
             {/* Stroke dots — upper-right of each hole box */}
             {Array.from({ length: 18 }, (_, k) => k + 1).map((n) => {
@@ -180,7 +194,7 @@ function ScorecardOverlay({ game, team, calib }: { game: PoolGame; team: PoolTea
                     lineHeight: 1,
                   }}
                 >
-                  <span className="text-[0.7vw] print:text-[7pt] font-bold">{'•'.repeat(s)}</span>
+                  <span className="font-bold" style={{ fontSize: '1cqw' }}>{'•'.repeat(s)}</span>
                 </div>
               );
             })}

@@ -51,6 +51,7 @@ export interface PoolGame {
   status: 'setup' | 'active' | 'completed';
   handicapsRefreshedAt?: string;               // ISO time this game's handicaps were last pulled from GHIN
   createdByGhin?: number;                       // GHIN number of the organizer who created it (for their history)
+  scorecardCalib?: Record<string, number>;     // saved printable-scorecard overlay alignment (shared across devices)
 }
 
 export const DEFAULT_JUNK_VALUES: PoolJunkValues = {
