@@ -50,6 +50,7 @@ export interface PoolGame {
   ctpWinners: Record<number, string | null>;  // par-3 holeNumber -> playerId
   status: 'setup' | 'active' | 'completed';
   handicapsRefreshedAt?: string;               // ISO time this game's handicaps were last pulled from GHIN
+  createdByGhin?: number;                       // GHIN number of the organizer who created it (for their history)
 }
 
 export const DEFAULT_JUNK_VALUES: PoolJunkValues = {
@@ -814,8 +815,10 @@ export interface PoolGameListItem {
   teamCount: number;
   playerCount: number;
   createdAt: string;
+  createdByGhin?: number;
 }
 
+// All pool games (newest first). Owner/dashboard view.
 export function getPoolGameList(): PoolGameListItem[] {
   const list: PoolGameListItem[] = [];
   for (const g of poolGameCache.values()) {
@@ -826,9 +829,15 @@ export function getPoolGameList(): PoolGameListItem[] {
       teamCount: g.teams.length,
       playerCount: g.players.length,
       createdAt: g.createdAt,
+      createdByGhin: g.createdByGhin,
     });
   }
   return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+// Only the games created by a given GHIN number (an organizer's own history).
+export function getPoolGameListForGhin(ghinNumber: number): PoolGameListItem[] {
+  return getPoolGameList().filter((g) => g.createdByGhin === ghinNumber);
 }
 
 export function subscribeToPoolGame(id: string, onUpdate: (game: PoolGame) => void) {

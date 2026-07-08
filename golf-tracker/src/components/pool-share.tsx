@@ -10,7 +10,7 @@ export function PoolShareButton({ className, label = 'Share' }: { className?: st
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const organizerLink = `${origin}/pool/new?key=${ORGANIZER_TOKEN}`;
+  const organizerLink = `${origin}/pool?key=${ORGANIZER_TOKEN}`;
   const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(organizerLink)}`;
 
   async function share() {

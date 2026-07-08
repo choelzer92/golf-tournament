@@ -36,6 +36,20 @@ function getToken() {
   return sessionStorage.getItem('ghin_token');
 }
 
+// The logged-in organizer's GHIN number (from the stored GHIN identity), used to
+// tag games they create so they build a personal history. null if not logged in.
+function getCreatorGhin(): number | null {
+  try {
+    const raw = sessionStorage.getItem('ghin_golfer');
+    if (!raw) return null;
+    const g = JSON.parse(raw);
+    const n = Number(g?.ghin ?? g?.ghin_number ?? g?.id);
+    return isNaN(n) ? null : n;
+  } catch {
+    return null;
+  }
+}
+
 // Pick a tee for a player, STRICTLY within their gender. This matters because a
 // course's men's and women's tees can share a name AND yardage yet carry
 // different course ratings/slopes and different hole stroke-index (verified live
@@ -188,6 +202,7 @@ export default function NewPoolGamePage() {
       ctpWinners: {},
       status: 'active',
       handicapsRefreshedAt: new Date().toISOString(),
+      createdByGhin: getCreatorGhin() ?? undefined,
     };
 
     savePoolGame(game);
@@ -202,7 +217,7 @@ export default function NewPoolGamePage() {
           <h1 className="text-xl font-bold">New Pool Game</h1>
           <div className="flex items-center gap-4">
             <PoolShareButton className="text-sm text-green-200 hover:text-white font-medium" label="Share" />
-            <button onClick={() => router.push('/dashboard')} className="text-sm text-green-200 hover:text-white">
+            <button onClick={() => router.push('/pool')} className="text-sm text-green-200 hover:text-white">
               Cancel
             </button>
           </div>
@@ -515,6 +530,9 @@ function CourseStep({
         return;
       }
       sessionStorage.setItem('ghin_token', data.token);
+      // Capture the organizer's GHIN identity so games they create are tied to
+      // them (their "My Pool Games" history).
+      if (data.golfer) sessionStorage.setItem('ghin_golfer', JSON.stringify(data.golfer));
       setNoToken(false);
     } catch {
       setAuthError('Connection error');

@@ -200,8 +200,8 @@ export default function PoolHubPage() {
             >
               {editing ? 'Done editing' : 'Edit'}
             </button>
-            <button onClick={() => router.push(poolOnly ? '/pool/new' : '/dashboard')} className="text-sm text-green-200 hover:text-white">
-              {poolOnly ? 'New Game' : 'Dashboard'}
+            <button onClick={() => router.push(poolOnly ? '/pool' : '/dashboard')} className="text-sm text-green-200 hover:text-white">
+              {poolOnly ? 'My Games' : 'Dashboard'}
             </button>
           </div>
         </div>
