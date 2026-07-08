@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTournamentList, importTournament, hydrateTournaments, type TournamentListItem } from '@/lib/tournament-state';
 import { parseGhinIndex } from '@/lib/game-state';
+import { PoolShareButton } from '@/components/pool-share';
 import { getPoolGameList, hydratePoolGames, type PoolGameListItem } from '@/lib/pool-game';
 
 interface TeeRating {
@@ -323,9 +324,16 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {poolGames.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">Pool Games</h2>
+        <section className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-900">Pool Games</h2>
+            <PoolShareButton className="text-sm text-green-700 hover:text-green-900 font-medium" label="↗ Share organizer link" />
+          </div>
+          {poolGames.length === 0 ? (
+            <p className="text-sm text-gray-500 bg-white rounded-lg shadow p-4">
+              No pool games yet. Tap <span className="font-medium">Pool Game</span> above to create one, or share the organizer link so someone else can.
+            </p>
+          ) : (
             <div className="space-y-2">
               {poolGames.map((g) => (
                 <button
@@ -349,8 +357,8 @@ export default function DashboardPage() {
                 </button>
               ))}
             </div>
-          </section>
-        )}
+          )}
+        </section>
 
         <section className="mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Course Lookup</h2>

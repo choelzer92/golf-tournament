@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { TwoBestBallsVariant } from '@/lib/formats';
 import type { Player, CourseSelection, TeeSetOption } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
+import { PoolShareButton } from '@/components/pool-share';
 import {
   type PoolGame,
   type PoolTeam,
@@ -199,9 +200,12 @@ export default function NewPoolGamePage() {
       <header className="bg-green-800 text-white shadow">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold">New Pool Game</h1>
-          <button onClick={() => router.push('/dashboard')} className="text-sm text-green-200 hover:text-white">
-            Cancel
-          </button>
+          <div className="flex items-center gap-4">
+            <PoolShareButton className="text-sm text-green-200 hover:text-white font-medium" label="Share" />
+            <button onClick={() => router.push('/dashboard')} className="text-sm text-green-200 hover:text-white">
+              Cancel
+            </button>
+          </div>
         </div>
       </header>
 
