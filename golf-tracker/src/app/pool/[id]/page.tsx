@@ -110,6 +110,38 @@ export default function PoolHubPage() {
     setGame(updated);
   }
 
+  // Re-pull this game's players' handicap indexes from GHIN (for the "set up
+  // yesterday, handicaps changed overnight" case). Updates indexes in place,
+  // stamps the refresh time, and returns how many changed. Also writes fresh
+  // indexes back to the roster so future games start current.
+  async function refreshGameHandicaps(): Promise<number> {
+    const token = getToken();
+    if (!token || !game) return 0;
+    const now = new Date().toISOString();
+    let changed = 0;
+    const players = await Promise.all(game.players.map(async (p) => {
+      if (p.ghinNumber == null) return p;
+      try {
+        const res = await fetch('/api/ghin/golfer', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, ghin_number: p.ghinNumber }),
+        });
+        if (!res.ok) return p;
+        const { golfer } = await res.json();
+        const hi = parseFloat(golfer?.handicap_index ?? golfer?.hi_value ?? '');
+        if (isNaN(hi)) return p;
+        if (hi !== p.handicapIndex) changed++;
+        upsertRosterPlayer({
+          id: p.id, ghinNumber: p.ghinNumber, name: p.name,
+          handicapIndex: hi, gender: p.gender ?? null, defaultTeeName: null, hcapUpdatedAt: now,
+        });
+        return { ...p, handicapIndex: hi };
+      } catch { return p; }
+    }));
+    persist({ ...game, players, handicapsRefreshedAt: now });
+    return changed;
+  }
+
   function enterScores(team: PoolTeam) {
     const players = playersForTeam(team);
     const strokeMethod = game!.strokeMethod || 'full';
@@ -193,6 +225,10 @@ export default function PoolHubPage() {
           </button>
         </div>
 
+        {/* Handicap refresh — re-pull from GHIN (e.g. teams set up the night
+            before, indexes changed overnight) and offer to re-balance. */}
+        <HandicapRefresh game={game} onRefresh={refreshGameHandicaps} onRebalance={() => setEditing(true)} />
+
         {/* Field-low banner — explains how the low man sets everyone's strokes */}
         <FieldLowBanner game={game} />
 
@@ -226,6 +262,71 @@ export default function PoolHubPage() {
         {/* CTP editor / finalize surface */}
         <CtpEditor game={game} onSave={persist} />
       </main>
+    </div>
+  );
+}
+
+function timeAgo(iso?: string): string {
+  if (!iso) return 'never';
+  const ms = Date.now() - new Date(iso).getTime();
+  const h = Math.floor(ms / 3_600_000);
+  if (h < 1) return 'just now';
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d} day${d === 1 ? '' : 's'} ago`;
+}
+
+function HandicapRefresh({ game, onRefresh, onRebalance }: {
+  game: PoolGame;
+  onRefresh: () => Promise<number>;
+  onRebalance: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<number | null>(null);
+
+  const refreshedAt = game.handicapsRefreshedAt;
+  const staleMs = 24 * 60 * 60 * 1000;
+  const isStale = !refreshedAt || (Date.now() - new Date(refreshedAt).getTime()) > staleMs;
+
+  async function doRefresh() {
+    setBusy(true);
+    setResult(null);
+    try {
+      const changed = await onRefresh();
+      setResult(changed);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className={`rounded-lg border px-4 py-2.5 ${isStale ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'}`}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-xs text-gray-600">
+          {isStale
+            ? <span className="text-amber-800 font-medium">Handicaps last refreshed {timeAgo(refreshedAt)} — may have changed.</span>
+            : <span>Handicaps refreshed {timeAgo(refreshedAt)}.</span>}
+        </p>
+        <button
+          onClick={doRefresh}
+          disabled={busy}
+          className="text-xs font-medium text-green-700 hover:text-green-900 disabled:opacity-50"
+        >
+          {busy ? 'Refreshing…' : '↻ Refresh from GHIN'}
+        </button>
+      </div>
+      {result !== null && (
+        <div className="mt-1.5 text-xs">
+          {result > 0 ? (
+            <span className="text-gray-700">
+              {result} handicap{result === 1 ? '' : 's'} changed.{' '}
+              <button onClick={onRebalance} className="text-green-700 font-medium hover:text-green-900 underline">Re-balance teams</button>
+            </span>
+          ) : (
+            <span className="text-gray-500">Handicaps already up to date.</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

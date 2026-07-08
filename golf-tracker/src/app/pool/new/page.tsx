@@ -23,6 +23,7 @@ import {
   getRosterPlayerByGhin,
   upsertRosterPlayer,
   refreshRosterHandicaps,
+  getOldestHcapRefresh,
 } from '@/lib/roster';
 
 const WIZARD_KEY = 'pool_wizard_draft';
@@ -184,6 +185,7 @@ export default function NewPoolGamePage() {
       junkValues,
       ctpWinners: {},
       status: 'active',
+      handicapsRefreshedAt: new Date().toISOString(),
     };
 
     savePoolGame(game);
@@ -741,9 +743,30 @@ function FieldStep({
   const [gsNote, setGsNote] = useState('');
 
   useEffect(() => {
-    hydrateRoster().then(() => {
+    hydrateRoster().then(async () => {
       setRosterResults(searchRoster(''));
+      // Auto-refresh from GHIN if the roster's handicaps are stale (>24h) or
+      // never refreshed — so new games start current without hammering GHIN
+      // every time. Manual "Refresh handicaps" is always available too.
+      const token = getToken();
+      if (!token) return;
+      const oldest = getOldestHcapRefresh();
+      const staleMs = 24 * 60 * 60 * 1000;
+      const isStale = oldest === null || (Date.now() - new Date(oldest).getTime()) > staleMs;
+      if (!isStale) return;
+      setRefreshing(true);
+      setRefreshNote('Refreshing handicaps from GHIN…');
+      try {
+        const changed = await refreshRosterHandicaps(token);
+        setRosterResults(searchRoster(rosterQuery));
+        setRefreshNote(changed > 0 ? `Updated ${changed} handicap${changed === 1 ? '' : 's'} from GHIN.` : 'Handicaps up to date.');
+      } catch {
+        setRefreshNote('Could not refresh from GHIN — using saved handicaps.');
+      } finally {
+        setRefreshing(false);
+      }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function refreshRoster(query: string) {

@@ -49,6 +49,7 @@ export interface PoolGame {
   junkValues: PoolJunkValues;                  // 1 / 2 / 3 / 1 / 1
   ctpWinners: Record<number, string | null>;  // par-3 holeNumber -> playerId
   status: 'setup' | 'active' | 'completed';
+  handicapsRefreshedAt?: string;               // ISO time this game's handicaps were last pulled from GHIN
 }
 
 export const DEFAULT_JUNK_VALUES: PoolJunkValues = {
