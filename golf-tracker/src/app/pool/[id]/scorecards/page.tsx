@@ -165,11 +165,13 @@ function ScorecardOverlay({ game, team, calib }: { game: PoolGame; team: PoolTea
   const poolTeam = game.teams.find((t) => t.id === team.teamId);
 
   return (
-    // `container-type: size` makes cqw/cqh units resolve against THIS card, so
-    // the overlay text scales with the card — identical on phone, desktop, print.
+    // `container-type: inline-size` makes cqw units resolve against THIS card's
+    // width, so overlay text scales with the card — identical on phone, desktop,
+    // print. (inline-size, not size: it needs no definite height and is far more
+    // reliable on mobile Safari with an aspect-ratio box.)
     <div
       className="relative w-full bg-white shadow print:shadow-none"
-      style={{ aspectRatio: String(CARD_ASPECT), containerType: 'size' }}
+      style={{ aspectRatio: String(CARD_ASPECT), containerType: 'inline-size' }}
     >
       <PdfBackground className="absolute inset-0 w-full h-full" />
 
