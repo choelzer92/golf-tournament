@@ -473,14 +473,22 @@ function FoursomeCard({
         )}
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3">
-        {players.map((p) => (
-          <span key={p.id} className="text-sm text-gray-700">
-            {p.name.split(' ')[0]}
-            <span className="text-xs text-gray-400 ml-0.5">
-              ({Math.round(getPoolPlayingHandicap(p, game.course, game.handicapAllowance))})
+        {players.map((p) => {
+          // Show STROKES RECEIVED in this game (accounts for off-the-low),
+          // matching the expanded stroke box — not the raw course handicap.
+          const pd = detail?.players.find((x) => x.playerId === p.id);
+          const strokes = pd ? pd.holes.reduce((s, h) => s + h.strokes, 0) : null;
+          return (
+            <span key={p.id} className="text-sm text-gray-700">
+              {p.name.split(' ')[0]}
+              {strokes !== null && (
+                <span className="text-xs text-gray-400 ml-0.5" title="Strokes received in this game">
+                  ({strokes} {strokes === 1 ? 'stroke' : 'strokes'})
+                </span>
+              )}
             </span>
-          </span>
-        ))}
+          );
+        })}
       </div>
       <button
         onClick={onEnterScores}
