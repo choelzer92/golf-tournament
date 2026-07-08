@@ -5,11 +5,13 @@ import { useRouter, useParams } from 'next/navigation';
 import type { PoolGame, PoolTeamDetail } from '@/lib/pool-game';
 import { loadPoolGame, fetchPoolGame, computePoolPlayerDetails } from '@/lib/pool-game';
 
-// The real Spring Creek scorecard (rendered to PNG, in /public). Names + stroke
-// dots are overlaid on top. All positions are % of the image so they scale and
-// print consistently. Calibrated once per course and saved to localStorage.
-const CARD_IMG = '/spring-creek-scorecard.png';
-const CARD_ASPECT = 1600 / 1236; // width / height of the PNG
+// The real Spring Creek scorecard. We render the ORIGINAL vector PDF to a
+// high-res canvas (crisp at any print size) and overlay names + stroke dots on
+// top. Positions are % of the card so they scale and print consistently;
+// calibrated once per course and saved to localStorage.
+const CARD_PDF = '/spring-creek-scorecard.pdf';
+const CARD_ASPECT = 792 / 612; // PDF MediaBox (landscape US Letter)
+const RENDER_SCALE = 2.5;       // supersample for a sharp background
 
 interface Calib {
   front1X: number;  // % X, center of hole 1 column
@@ -30,6 +32,39 @@ const DEFAULT_CALIB: Calib = {
 
 function calibKey(courseId: number | undefined) {
   return `poolcard_calib_${courseId ?? 'default'}`;
+}
+
+// Render the vector PDF to a PNG data URL ONCE, then share it across all cards.
+let cardImagePromise: Promise<string> | null = null;
+async function renderCardImage(): Promise<string> {
+  if (cardImagePromise) return cardImagePromise;
+  cardImagePromise = (async () => {
+    const pdfjs = await import('pdfjs-dist');
+    pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+    const doc = await pdfjs.getDocument({ url: CARD_PDF }).promise;
+    const page = await doc.getPage(1);
+    const viewport = page.getViewport({ scale: RENDER_SCALE });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const ctx = canvas.getContext('2d')!;
+    await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+    return canvas.toDataURL('image/png');
+  })();
+  return cardImagePromise;
+}
+
+// Background = the crisp PDF render (shared across every foursome card).
+function PdfBackground({ className }: { className?: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    renderCardImage().then((s) => { if (alive) setSrc(s); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  if (!src) return <div className={`${className ?? ''} bg-gray-50 animate-pulse`} />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="Spring Creek scorecard" className={`${className ?? ''} object-contain`} />;
 }
 
 export default function PoolScorecardsPage() {
@@ -112,8 +147,7 @@ function ScorecardOverlay({ game, team, calib }: { game: PoolGame; team: PoolTea
 
   return (
     <div className="relative w-full bg-white shadow print:shadow-none" style={{ aspectRatio: String(CARD_ASPECT) }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={CARD_IMG} alt="Spring Creek scorecard" className="absolute inset-0 w-full h-full object-contain" />
+      <PdfBackground className="absolute inset-0 w-full h-full" />
 
       {/* Group label (top area, over blank space near the logo) */}
       <div className="absolute" style={{ left: '3%', top: '46.5%' }}>
