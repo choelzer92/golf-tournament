@@ -800,6 +800,23 @@ export async function fetchPoolGame(id: string): Promise<PoolGame | null> {
   return cached || null;
 }
 
+// --- Per-course scorecard alignment (shared across games & devices) ---------
+
+// Fetch a course's saved scorecard alignment (null if none set yet).
+export async function fetchCourseScorecardAlignment(courseId: number): Promise<Record<string, number> | null> {
+  const { data } = await supabase.from('course_scorecards').select('alignment').eq('course_id', courseId).single();
+  return (data?.alignment as Record<string, number>) ?? null;
+}
+
+// Save a course's scorecard alignment (upsert by course id).
+export function saveCourseScorecardAlignment(courseId: number, alignment: Record<string, number>) {
+  supabase.from('course_scorecards').upsert({
+    course_id: courseId,
+    alignment,
+    updated_at: new Date().toISOString(),
+  }).then();
+}
+
 export async function hydratePoolGames(): Promise<void> {
   const { data } = await supabase.from('pool_games').select('id, data');
   if (data) {

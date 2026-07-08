@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { PoolGame, PoolTeamDetail } from '@/lib/pool-game';
-import { loadPoolGame, fetchPoolGame, savePoolGame, computePoolPlayerDetails } from '@/lib/pool-game';
+import { loadPoolGame, fetchPoolGame, computePoolPlayerDetails, fetchCourseScorecardAlignment, saveCourseScorecardAlignment } from '@/lib/pool-game';
 
 // The real Spring Creek scorecard. We render the ORIGINAL vector PDF to a
 // high-res canvas (crisp at any print size) and overlay names + stroke dots on
@@ -86,18 +86,26 @@ export default function PoolScorecardsPage() {
     });
   }, [id, router]);
 
-  // Load saved alignment: prefer the game's (shared across devices via the DB),
-  // then a per-device localStorage value, else defaults.
+  // Load saved alignment by COURSE (set once per course, reused by every game
+  // there on any device). Falls back to a game-level or per-device value from
+  // older saves, else defaults.
   useEffect(() => {
     if (!game) return;
-    if (game.scorecardCalib) {
-      setCalib({ ...DEFAULT_CALIB, ...game.scorecardCalib });
-      return;
-    }
-    try {
-      const saved = localStorage.getItem(calibKey(game.course?.courseId));
-      if (saved) setCalib({ ...DEFAULT_CALIB, ...JSON.parse(saved) });
-    } catch { /* ignore */ }
+    const courseId = game.course?.courseId;
+    let cancelled = false;
+    (async () => {
+      if (courseId != null) {
+        const byCourse = await fetchCourseScorecardAlignment(courseId);
+        if (!cancelled && byCourse) { setCalib({ ...DEFAULT_CALIB, ...byCourse }); return; }
+      }
+      if (cancelled) return;
+      if (game.scorecardCalib) { setCalib({ ...DEFAULT_CALIB, ...game.scorecardCalib }); return; }
+      try {
+        const saved = localStorage.getItem(calibKey(courseId));
+        if (saved) setCalib({ ...DEFAULT_CALIB, ...JSON.parse(saved) });
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
   }, [game]);
 
   const details = useMemo(() => (game ? computePoolPlayerDetails(game, new Map()) : []), [game]);
@@ -105,11 +113,11 @@ export default function PoolScorecardsPage() {
   if (!game) return null;
 
   function saveCalib() {
-    // Persist to the game so the alignment syncs to every device (his phone,
-    // your computer). Also keep a local copy as a courtesy fallback.
-    savePoolGame({ ...game!, scorecardCalib: { ...calib } });
-    setGame({ ...game!, scorecardCalib: { ...calib } });
-    try { localStorage.setItem(calibKey(game!.course?.courseId), JSON.stringify(calib)); } catch { /* ignore */ }
+    // Save against the COURSE so it's reused by every game at this course, on
+    // every device. localStorage kept as a courtesy offline fallback.
+    const courseId = game!.course?.courseId;
+    if (courseId != null) saveCourseScorecardAlignment(courseId, { ...calib });
+    try { localStorage.setItem(calibKey(courseId), JSON.stringify(calib)); } catch { /* ignore */ }
     setShowCalib(false);
   }
   function resetCalib() { setCalib(DEFAULT_CALIB); }
