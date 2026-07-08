@@ -206,6 +206,22 @@ export default function NewPoolGamePage() {
       createdByGhin: getCreatorGhin() ?? undefined,
     };
 
+    // Remember each player's tee (by name) for next time — whatever they're
+    // actually playing here, auto-picked or manually chosen. Without this, a
+    // player whose tee was never manually toggled reverts to the gender default.
+    for (const p of players) {
+      const teeName = course?.teeSets.find((t) => t.id === p.teeSetId)?.name;
+      if (!teeName) continue;
+      upsertRosterPlayer({
+        id: p.id,
+        ghinNumber: p.ghinNumber ?? null,
+        name: p.name,
+        handicapIndex: p.handicapIndex,
+        gender: p.gender ?? null,
+        defaultTeeName: teeName,
+      });
+    }
+
     savePoolGame(game);
     sessionStorage.removeItem(WIZARD_KEY);
     router.push('/pool/' + game.id);
