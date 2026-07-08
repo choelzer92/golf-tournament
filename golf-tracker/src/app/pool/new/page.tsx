@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { TwoBestBallsVariant } from '@/lib/formats';
 import type { Player, CourseSelection, TeeSetOption } from '@/lib/game-state';
+import { parseGhinIndex } from '@/lib/game-state';
 import {
   type PoolGame,
   type PoolTeam,
@@ -800,8 +801,8 @@ function FieldStep({
       })
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
-          const hi = parseFloat(data?.golfer?.handicap_index ?? data?.golfer?.hi_value ?? '');
-          if (isNaN(hi) || hi === rp.handicapIndex) return;
+          const hi = parseGhinIndex(data?.golfer?.handicap_index ?? data?.golfer?.hi_value);
+          if (hi === null || hi === rp.handicapIndex) return;
           setPlayers(nextPlayers.map((p) => (p.id === rp.id ? { ...p, handicapIndex: hi } : p)));
           upsertRosterPlayer({ ...rp, handicapIndex: hi });
         })
@@ -845,7 +846,7 @@ function FieldStep({
       const data = await res.json();
       if (!res.ok) { setGhinError(data.error || 'Lookup failed'); return; }
       const golfer = data.golfer;
-      const hi = parseFloat(golfer.handicap_index ?? golfer.hi_value ?? '0');
+      const hi = parseGhinIndex(golfer.handicap_index ?? golfer.hi_value);
       const ghinGender = (golfer.gender || golfer.Gender || '').toLowerCase();
       const gender: 'M' | 'F' = ghinGender === 'female' || ghinGender === 'f' ? 'F' : 'M';
       const ghinNumber = Number(ghinInput);
@@ -853,7 +854,7 @@ function FieldStep({
       const newPlayer: Player = {
         id: crypto.randomUUID(),
         name: `${golfer.first_name} ${golfer.last_name}`,
-        handicapIndex: isNaN(hi) ? null : hi,
+        handicapIndex: hi,
         gender,
         ghinNumber,
         teeSetId: pickTeeForPlayer(course, gender, remembered),
@@ -938,7 +939,7 @@ function FieldStep({
   function addGhinSearchResult(g: any) {
     const ghinNumber = Number(g.ghin ?? g.id);
     if (!isNaN(ghinNumber) && existingGhins.has(ghinNumber)) return;
-    const hi = parseFloat(g.handicap_index ?? g.hi_value ?? '');
+    const hi = parseGhinIndex(g.handicap_index ?? g.hi_value);
     const ghinGender = (g.gender || g.Gender || '').toLowerCase();
     const gender: 'M' | 'F' = ghinGender === 'female' || ghinGender === 'f' ? 'F' : 'M';
     const id = crypto.randomUUID();
@@ -946,7 +947,7 @@ function FieldStep({
     const newPlayer: Player = {
       id,
       name: `${g.first_name ?? ''} ${g.last_name ?? ''}`.trim(),
-      handicapIndex: isNaN(hi) ? null : hi,
+      handicapIndex: hi,
       gender,
       ghinNumber: isNaN(ghinNumber) ? undefined : ghinNumber,
       teeSetId: pickTeeForPlayer(course, gender, remembered),

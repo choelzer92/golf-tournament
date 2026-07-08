@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { parseGhinIndex } from './game-state';
 
 // A saved, reusable player. Grows every match so players are entered once and
 // found by name thereafter. `id` is the app-generated UUID reused across games.
@@ -108,8 +109,8 @@ export async function refreshRosterHandicaps(token: string): Promise<number> {
       });
       if (!res.ok) continue;
       const { golfer } = await res.json();
-      const hi = parseFloat(golfer?.handicap_index ?? golfer?.hi_value ?? '');
-      if (isNaN(hi)) continue;
+      const hi = parseGhinIndex(golfer?.handicap_index ?? golfer?.hi_value);
+      if (hi === null) continue;
       if (hi !== player.handicapIndex) changed++;
       await upsertRosterPlayer({ ...player, handicapIndex: hi, hcapUpdatedAt: now });
     } catch {

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FORMATS, TEAM_MODES, getTeamModeConfig, resolveAllowance, type GameFormat, type FormatSetting, type TeamMode } from '@/lib/formats';
 import type { Player, CourseSelection, TeeSetOption, GameSetup, StrokeMethod, HandicapBasis } from '@/lib/game-state';
-import { calcCourseHandicap } from '@/lib/game-state';
+import { calcCourseHandicap, parseGhinIndex } from '@/lib/game-state';
 import type { Tournament, TournamentRound, RoundMatchup } from '@/lib/tournament-state';
 import { saveTournament } from '@/lib/tournament-state';
 
@@ -469,7 +469,7 @@ function PlayersStep({
       if (!res.ok) return;
 
       const golfer = data.golfer;
-      const hi = parseFloat(golfer.handicap_index ?? golfer.hi_value ?? '0');
+      const hi = parseGhinIndex(golfer.handicap_index ?? golfer.hi_value) ?? 0;
       const newPlayer: Player = {
         id: crypto.randomUUID(),
         name: `${golfer.first_name} ${golfer.last_name}`,

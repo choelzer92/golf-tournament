@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Player, CourseSelection, TeeSetOption, HandicapBasis } from '@/lib/game-state';
+import { parseGhinIndex } from '@/lib/game-state';
 import type { Tournament, TournamentRound, RoundBonus } from '@/lib/tournament-state';
 import { saveTournament } from '@/lib/tournament-state';
 import { DEFAULT_MONEY_CONFIG, type MoneyConfig } from '@/lib/money-game';
@@ -558,7 +559,7 @@ function PlayersStep({
       const newPlayer: Player = {
         id: crypto.randomUUID(),
         name: `${g.first_name} ${g.last_name}`,
-        handicapIndex: g.handicap_index ?? g.hi_value ?? null,
+        handicapIndex: parseGhinIndex(g.handicap_index ?? g.hi_value),
         gender: g.gender === 'Female' ? 'F' : 'M',
         ghinNumber: Number(ghinInput),
       };

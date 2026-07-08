@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTournamentList, importTournament, hydrateTournaments, type TournamentListItem } from '@/lib/tournament-state';
+import { parseGhinIndex } from '@/lib/game-state';
 import { getPoolGameList, hydratePoolGames, type PoolGameListItem } from '@/lib/pool-game';
 
 interface TeeRating {
@@ -409,7 +410,7 @@ export default function DashboardPage() {
         {selectedCourse && (
           <CourseDetailsView
             course={selectedCourse}
-            handicapIndex={Number(golfer.handicap_index) || 0}
+            handicapIndex={parseGhinIndex(golfer.handicap_index) ?? 0}
             onBack={() => setSelectedCourse(null)}
           />
         )}

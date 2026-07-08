@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { GameSetup, Player, CourseSelection, TeeSetOption } from '@/lib/game-state';
+import { parseGhinIndex } from '@/lib/game-state';
 import type { PoolGame, PoolTeam, PoolTeamDetail } from '@/lib/pool-game';
 import {
   loadPoolGame,
@@ -128,8 +129,8 @@ export default function PoolHubPage() {
         });
         if (!res.ok) return p;
         const { golfer } = await res.json();
-        const hi = parseFloat(golfer?.handicap_index ?? golfer?.hi_value ?? '');
-        if (isNaN(hi)) return p;
+        const hi = parseGhinIndex(golfer?.handicap_index ?? golfer?.hi_value);
+        if (hi === null) return p;
         if (hi !== p.handicapIndex) changed++;
         upsertRosterPlayer({
           id: p.id, ghinNumber: p.ghinNumber, name: p.name,
@@ -877,7 +878,7 @@ function AddPlayerPanel({
       const data = await res.json();
       if (!res.ok) { setGhinError(data.error || 'Lookup failed'); return; }
       const golfer = data.golfer;
-      const hi = parseFloat(golfer.handicap_index ?? golfer.hi_value ?? '0');
+      const hi = parseGhinIndex(golfer.handicap_index ?? golfer.hi_value);
       const ghinGender = (golfer.gender || golfer.Gender || '').toLowerCase();
       const gender: 'M' | 'F' = ghinGender === 'female' || ghinGender === 'f' ? 'F' : 'M';
       const ghinNumber = Number(ghinInput);
@@ -886,7 +887,7 @@ function AddPlayerPanel({
       const newPlayer: Player = {
         id: crypto.randomUUID(),
         name: `${golfer.first_name} ${golfer.last_name}`,
-        handicapIndex: isNaN(hi) ? null : hi,
+        handicapIndex: hi,
         gender,
         ghinNumber,
         teeSetId: pickTeeForPlayer(course, gender, remembered),

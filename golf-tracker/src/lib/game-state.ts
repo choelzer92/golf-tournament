@@ -98,3 +98,18 @@ export function calcCourseHandicap(
 ): number {
   return handicapIndex * (slopeRating / 113) + (courseRating - par);
 }
+
+// Parse a GHIN handicap index into a number with the correct sign. GHIN sends
+// "plus" handicaps (better than scratch) as a "+"-prefixed string like "+0.4",
+// which must become NEGATIVE (-0.4) — a plus golfer ADDS strokes. parseFloat
+// alone treats "+0.4" as +0.4, silently dropping the sign (an ~1-stroke error).
+// Non-numeric values (e.g. "NH" = no handicap) return null.
+export function parseGhinIndex(raw: unknown): number | null {
+  if (raw === null || raw === undefined) return null;
+  const s = String(raw).trim();
+  if (s === '') return null;
+  const isPlus = s.startsWith('+');
+  const n = parseFloat(isPlus ? s.slice(1) : s);
+  if (isNaN(n)) return null;
+  return isPlus ? -n : n;
+}

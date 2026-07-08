@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FORMATS, TEAM_MODES, getTeamModeConfig, resolveAllowance } from '@/lib/formats';
 import type { TeamMode } from '@/lib/formats';
 import type { Player, CourseSelection, TeeSetOption } from '@/lib/game-state';
+import { parseGhinIndex } from '@/lib/game-state';
 import type { Tournament, TournamentRound, Team, DisplayMode } from '@/lib/tournament-state';
 import { saveTournament } from '@/lib/tournament-state';
 
@@ -331,7 +332,7 @@ function RosterStep({
       const data = await res.json();
       if (!res.ok) return;
       const golfer = data.golfer;
-      const hi = parseFloat(golfer.handicap_index ?? golfer.hi_value ?? '0');
+      const hi = parseGhinIndex(golfer.handicap_index ?? golfer.hi_value) ?? 0;
       const ghinGender = (golfer.gender || golfer.Gender || '').toLowerCase();
       const newPlayer: Player = {
         id: crypto.randomUUID(),
