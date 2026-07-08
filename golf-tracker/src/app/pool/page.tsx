@@ -32,8 +32,10 @@ export default function PoolGamesListPage() {
     setIsOwner(owner);
     hydratePoolGames().then(() => {
       const ghin = creatorGhin();
-      // Owner sees all; a share-link organizer sees only games they created.
-      setGames(owner || ghin === null ? getPoolGameList() : getPoolGameListForGhin(ghin));
+      // Owner (full access) sees all pool games. A share-link organizer sees ONLY
+      // games created under their GHIN — and NONE until they've logged in and made
+      // one (never everyone's games).
+      setGames(owner ? getPoolGameList() : ghin === null ? [] : getPoolGameListForGhin(ghin));
       setLoading(false);
     });
   }, []);
