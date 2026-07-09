@@ -51,6 +51,7 @@ export interface PoolGame {
   status: 'setup' | 'active' | 'completed';
   handicapsRefreshedAt?: string;               // ISO time this game's handicaps were last pulled from GHIN
   createdByGhin?: number;                       // GHIN number of the organizer who created it (for their history)
+  lockedGroups?: string[][];                    // player-id groups kept on the same team through auto-balance
 }
 
 export const DEFAULT_JUNK_VALUES: PoolJunkValues = {
@@ -447,6 +448,114 @@ export function balanceTeamsByHandicap(
   rec(0);
 
   return bestAssign.map((idxs) => idxs.map((idx) => sorted[idx].id));
+}
+
+// Balance into `numTeams` even-handicap groups while honoring PAIRING LOCKS:
+// every set of player IDs in `locks` must land on the same team. Players not in
+// any lock are free. With no locks this defers to balanceTeamsByHandicap (the
+// exact solver) so the common case is unchanged.
+//
+// Approach: treat each lock as a single super-player whose handicap is the sum
+// of its members and whose size is its member count; free players are size-1
+// units. Greedily place units heaviest-first onto the least-loaded team that
+// still has room (respecting each team's capacity), then run unit-level 2-swaps
+// that preserve capacity. Locked members thus always share a team, and the rest
+// balances around them.
+export function balanceTeamsWithLocks(
+  players: Player[],
+  numTeams: number,
+  hcapOf: (p: Player) => number,
+  locks: string[][]
+): string[][] {
+  const nt = Math.max(1, numTeams);
+  const byId = new Map(players.map((p) => [p.id, p]));
+
+  // Build units. A lock with >=2 present members is one unit; everyone else is
+  // a singleton. Guard against a player id appearing in multiple locks (first
+  // wins) or a lock naming an absent player.
+  const claimed = new Set<string>();
+  const units: { ids: string[]; h: number; size: number }[] = [];
+  for (const group of locks) {
+    const ids = group.filter((id) => byId.has(id) && !claimed.has(id));
+    if (ids.length < 2) continue; // a 1-member "lock" is just a free player
+    ids.forEach((id) => claimed.add(id));
+    units.push({ ids, h: ids.reduce((s, id) => s + hcapOf(byId.get(id)!), 0), size: ids.length });
+  }
+  for (const p of players) {
+    if (claimed.has(p.id)) continue;
+    units.push({ ids: [p.id], h: hcapOf(p), size: 1 });
+  }
+
+  // If nothing is actually locked, use the exact balancer.
+  if (units.every((u) => u.size === 1)) {
+    return balanceTeamsByHandicap(players, nt, hcapOf);
+  }
+
+  const base = Math.floor(players.length / nt);
+  const extra = players.length % nt;
+  const caps = Array.from({ length: nt }, (_, i) => base + (i < extra ? 1 : 0));
+
+  // Greedy: heaviest unit first onto the least-loaded team that can still fit it.
+  const order = [...units].sort((a, b) => b.h - a.h);
+  const teams: { units: typeof units; sum: number; count: number }[] =
+    Array.from({ length: nt }, () => ({ units: [], sum: 0, count: 0 }));
+  for (const u of order) {
+    let best = -1;
+    for (let t = 0; t < nt; t++) {
+      if (teams[t].count + u.size > caps[t]) continue;
+      if (best === -1 || teams[t].sum < teams[best].sum) best = t;
+    }
+    if (best === -1) { // no team has room (uneven lock sizes) — least-loaded overall
+      for (let t = 0; t < nt; t++) if (best === -1 || teams[t].sum < teams[best].sum) best = t;
+    }
+    teams[best].units.push(u); teams[best].sum += u.h; teams[best].count += u.size;
+  }
+
+  // Unit-level 2-swaps that keep every team within capacity and reduce spread.
+  const spread = () => Math.max(...teams.map((t) => t.sum)) - Math.min(...teams.map((t) => t.sum));
+  let improved = true, guard = 0;
+  while (improved && guard++ < 400) {
+    improved = false;
+    for (let a = 0; a < nt && !improved; a++) {
+      for (let b = a + 1; b < nt && !improved; b++) {
+        for (let i = 0; i < teams[a].units.length && !improved; i++) {
+          for (let j = 0; j < teams[b].units.length; j++) {
+            const ua = teams[a].units[i], ub = teams[b].units[j];
+            if (teams[a].count - ua.size + ub.size > caps[a]) continue;
+            if (teams[b].count - ub.size + ua.size > caps[b]) continue;
+            const before = spread();
+            teams[a].sum += ub.h - ua.h; teams[b].sum += ua.h - ub.h;
+            teams[a].count += ub.size - ua.size; teams[b].count += ua.size - ub.size;
+            if (spread() < before - 1e-9) {
+              teams[a].units[i] = ub; teams[b].units[j] = ua;
+              improved = true; break;
+            }
+            teams[a].sum -= ub.h - ua.h; teams[b].sum -= ua.h - ub.h;
+            teams[a].count -= ub.size - ua.size; teams[b].count -= ua.size - ub.size;
+          }
+        }
+      }
+    }
+  }
+
+  return teams.map((t) => t.units.flatMap((u) => u.ids));
+}
+
+// Order a set of player IDs by playing handicap, LOW to HIGH (the organizer
+// wants each foursome listed best-to-worst instead of the snake-draft order).
+export function sortPlayerIdsByHcap(
+  playerIds: string[],
+  players: Player[],
+  course: CourseSelection | null,
+  allowance: number
+): string[] {
+  const byId = new Map(players.map((p) => [p.id, p]));
+  return [...playerIds].sort((a, b) => {
+    const pa = byId.get(a), pb = byId.get(b);
+    const ha = pa ? getPoolPlayingHandicap(pa, course, allowance) : 0;
+    const hb = pb ? getPoolPlayingHandicap(pb, course, allowance) : 0;
+    return ha - hb;
+  });
 }
 
 // ---------------------------------------------------------------------------

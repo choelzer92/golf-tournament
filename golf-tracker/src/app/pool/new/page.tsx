@@ -7,6 +7,7 @@ import type { Player, CourseSelection, TeeSetOption } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
 import { PoolShareButton } from '@/components/pool-share';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
+import { PairingLocks } from '@/components/pairing-locks';
 import { saveGhinIdentity, getCreatorGhin } from '@/lib/pool-identity';
 import { getAccessLevel } from '@/lib/invite-gate';
 import {
@@ -18,7 +19,8 @@ import {
   getPoolPlayingHandicap,
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
-  balanceTeamsByHandicap,
+  balanceTeamsWithLocks,
+  sortPlayerIdsByHcap,
   teeOptionsForPlayer,
 } from '@/lib/pool-game';
 import {
@@ -134,6 +136,9 @@ export default function NewPoolGamePage() {
 
   // Teams
   const [teams, setTeams] = useState<PoolTeam[]>([]);
+  // Pairing locks — groups of player IDs the organizer wants kept on the same
+  // team through auto-balance (e.g. "Corky + Larry Grist").
+  const [lockedGroups, setLockedGroups] = useState<string[][]>([]);
 
   // Hydrate wizard draft on mount
   useEffect(() => {
@@ -193,6 +198,9 @@ export default function NewPoolGamePage() {
       status: 'active',
       handicapsRefreshedAt: new Date().toISOString(),
       createdByGhin: getCreatorGhin() ?? undefined,
+      // Persist pairing locks onto the game so they can be reused/edited when the
+      // organizer reopens it (locks live on the game, not just the wizard).
+      lockedGroups: lockedGroups.length > 0 ? lockedGroups : undefined,
     };
 
     // Remember each player's tee (by name) for next time — whatever they're
@@ -291,6 +299,8 @@ export default function NewPoolGamePage() {
             setPlayers={setPlayers}
             teams={teams}
             setTeams={setTeams}
+            lockedGroups={lockedGroups}
+            setLockedGroups={setLockedGroups}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             onNext={() => setStep('create')}
             onBack={() => setStep('tees')}
@@ -1402,16 +1412,15 @@ function TeesStep({
 }
 
 function TeamsStep({
-  course, players, setPlayers, teams, setTeams, handicapAllowance, onNext, onBack,
+  course, players, setPlayers, teams, setTeams, lockedGroups, setLockedGroups, handicapAllowance, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
   teams: PoolTeam[]; setTeams: (t: PoolTeam[]) => void;
+  lockedGroups: string[][]; setLockedGroups: (g: string[][]) => void;
   handicapAllowance: number;
   onNext: () => void; onBack: () => void;
 }) {
-  const playerById = new Map(players.map((p) => [p.id, p]));
-
   function hcapOf(p: Player): number {
     return course ? getPoolPlayingHandicap(p, course, handicapAllowance) : (p.handicapIndex ?? 0);
   }
@@ -1432,25 +1441,27 @@ function TeamsStep({
     }
   }
 
+  // Auto-generate: sequential foursomes, each sorted low->high.
   function autoGenerate() {
     const groups: string[][] = [];
     for (let i = 0; i < players.length; i += 4) {
       groups.push(players.slice(i, i + 4).map((p) => p.id));
     }
-    setTeams(groups.map((ids, i) => makeTeam(i, ids)));
+    setTeams(groups.map((ids, i) => makeTeam(i, sortPlayerIdsByHcap(ids, players, course, handicapAllowance))));
   }
 
+  // Auto-balance honoring pairing locks; each team sorted low->high.
   function autoBalance() {
     const numTeams = Math.max(1, Math.ceil(players.length / 4));
-    const groups = balanceTeamsByHandicap(players, numTeams, hcapOf);
-    setTeams(groups.map((ids, i) => makeTeam(i, ids)));
+    const groups = balanceTeamsWithLocks(players, numTeams, hcapOf, lockedGroups);
+    setTeams(groups.map((ids, i) => makeTeam(i, sortPlayerIdsByHcap(ids, players, course, handicapAllowance))));
   }
 
   function movePlayer(playerId: string, fromTeamId: string, toTeamId: string) {
     if (fromTeamId === toTeamId) return;
     setTeams(teams.map((t) => {
       if (t.id === fromTeamId) return { ...t, playerIds: t.playerIds.filter((id) => id !== playerId) };
-      if (t.id === toTeamId) return { ...t, playerIds: [...t.playerIds, playerId] };
+      if (t.id === toTeamId) return { ...t, playerIds: sortPlayerIdsByHcap([...t.playerIds, playerId], players, course, handicapAllowance) };
       return t;
     }));
   }
@@ -1463,6 +1474,27 @@ function TeamsStep({
     setTeams(teams.map((t) => (t.id === teamId ? { ...t, teeTime } : t)));
   }
 
+  // Reorder teams (send-out order): move one team up or down the list.
+  function moveTeam(index: number, dir: -1 | 1) {
+    const j = index + dir;
+    if (j < 0 || j >= teams.length) return;
+    const next = [...teams];
+    [next[index], next[j]] = [next[j], next[index]];
+    setTeams(next);
+  }
+
+  // Order teams by tee time (blank times sink to the bottom).
+  function sortTeamsByTeeTime() {
+    const next = [...teams].sort((a, b) => {
+      const ta = (a.teeTime || '').trim(), tb = (b.teeTime || '').trim();
+      if (!ta && !tb) return 0;
+      if (!ta) return 1;
+      if (!tb) return -1;
+      return ta.localeCompare(tb);
+    });
+    setTeams(next);
+  }
+
   function addTeam() {
     setTeams([...teams, makeTeam(teams.length, [])]);
   }
@@ -1473,7 +1505,7 @@ function TeamsStep({
     const remaining = teams.filter((t) => t.id !== teamId);
     // Push orphaned players onto the first remaining team (if any).
     if (removed.playerIds.length > 0 && remaining.length > 0) {
-      remaining[0] = { ...remaining[0], playerIds: [...remaining[0].playerIds, ...removed.playerIds] };
+      remaining[0] = { ...remaining[0], playerIds: sortPlayerIdsByHcap([...remaining[0].playerIds, ...removed.playerIds], players, course, handicapAllowance) };
     }
     setTeams(remaining);
   }
@@ -1483,7 +1515,7 @@ function TeamsStep({
 
   function teamCombinedHcap(team: PoolTeam): number {
     return team.playerIds.reduce((sum, id) => {
-      const p = playerById.get(id);
+      const p = players.find((x) => x.id === id);
       return p ? sum + hcapOf(p) : sum;
     }, 0);
   }
@@ -1495,18 +1527,27 @@ function TeamsStep({
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Set Teams</h2>
 
+      {/* Pairing locks — keep chosen players on the same team through balancing */}
+      <div className="mb-4">
+        <PairingLocks
+          players={players}
+          lockedGroups={lockedGroups}
+          setLockedGroupsAction={setLockedGroups}
+        />
+      </div>
+
       <div className="flex gap-2 flex-wrap mb-4">
         <button
-          onClick={autoGenerate}
+          onClick={autoBalance}
           className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800"
         >
-          Auto-generate foursomes
+          Auto-balance by course HCP
         </button>
         <button
-          onClick={autoBalance}
+          onClick={autoGenerate}
           className="rounded-md border border-green-700 px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50"
         >
-          Auto-balance by course HCP
+          Auto-generate foursomes
         </button>
         <button
           onClick={addTeam}
@@ -1514,6 +1555,14 @@ function TeamsStep({
         >
           + Add team
         </button>
+        {teams.length > 1 && (
+          <button
+            onClick={sortTeamsByTeeTime}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 font-medium hover:bg-gray-100"
+          >
+            Order by tee time
+          </button>
+        )}
       </div>
 
       {unassigned.length > 0 && (
@@ -1537,9 +1586,24 @@ function TeamsStep({
         </div>
       ) : (
         <div className="grid gap-3 mb-4 sm:grid-cols-2">
-          {teams.map((team) => (
+          {teams.map((team, teamIdx) => (
             <div key={team.id} className="bg-white rounded-lg shadow p-3">
               <div className="flex items-center gap-2 mb-2">
+                {/* Reorder controls — the order teams are sent out in */}
+                <div className="flex flex-col leading-none">
+                  <button
+                    onClick={() => moveTeam(teamIdx, -1)}
+                    disabled={teamIdx === 0}
+                    className="text-gray-400 hover:text-gray-700 disabled:opacity-30 text-xs"
+                    title="Move team up"
+                  >▲</button>
+                  <button
+                    onClick={() => moveTeam(teamIdx, 1)}
+                    disabled={teamIdx === teams.length - 1}
+                    className="text-gray-400 hover:text-gray-700 disabled:opacity-30 text-xs"
+                    title="Move team down"
+                  >▼</button>
+                </div>
                 <input
                   type="text"
                   value={team.name}
@@ -1573,7 +1637,7 @@ function TeamsStep({
 
               <ul className="space-y-1">
                 {team.playerIds.map((pid) => {
-                  const p = playerById.get(pid);
+                  const p = players.find((x) => x.id === pid);
                   if (!p) return null;
                   const hcap = course ? Math.round(hcapOf(p)) : null;
                   return (
@@ -1600,16 +1664,20 @@ function TeamsStep({
                             ))}
                           </select>
                         )}
-                        <select
-                          value={team.id}
-                          onChange={(e) => movePlayer(pid, team.id, e.target.value)}
-                          className="text-xs rounded border border-gray-300 px-1 py-0.5 shadow-sm focus:border-green-500 focus:outline-none"
-                          title="Move to team"
-                        >
-                          {teams.map((t) => (
-                            <option key={t.id} value={t.id}>{t.name}</option>
-                          ))}
-                        </select>
+                        {/* Obvious labeled Move control */}
+                        <label className="flex items-center gap-1 text-[10px] text-gray-500">
+                          <span className="font-medium">Move</span>
+                          <select
+                            value={team.id}
+                            onChange={(e) => movePlayer(pid, team.id, e.target.value)}
+                            className="text-xs rounded border border-gray-300 px-1 py-0.5 shadow-sm focus:border-green-500 focus:outline-none"
+                            title="Move this player to another team"
+                          >
+                            {teams.map((t) => (
+                              <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                          </select>
+                        </label>
                       </div>
                     </li>
                   );

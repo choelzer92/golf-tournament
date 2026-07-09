@@ -15,13 +15,15 @@ import {
   getFieldLow,
   getPar3Holes,
   distinctRankingsForPlayers,
-  balanceTeamsByHandicap,
+  balanceTeamsWithLocks,
+  sortPlayerIdsByHcap,
   teeOptionsForPlayer,
   playerTeeGenderMismatch,
 } from '@/lib/pool-game';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
+import { PairingLocks } from '@/components/pairing-locks';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
 import {
   type RosterPlayer,
@@ -631,17 +633,41 @@ function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame)
     });
   }
 
-  // Move a player between foursomes — preserves each team's matchupId.
+  const sortIds = (ids: string[]) => sortPlayerIdsByHcap(ids, game.players, course, game.handicapAllowance);
+
+  // Move a player between foursomes — preserves each team's matchupId. The
+  // destination stays sorted low->high.
   function movePlayer(playerId: string, fromTeamId: string, toTeamId: string) {
     if (fromTeamId === toTeamId) return;
     onSave({
       ...game,
       teams: game.teams.map((t) => {
         if (t.id === fromTeamId) return { ...t, playerIds: t.playerIds.filter((id) => id !== playerId) };
-        if (t.id === toTeamId) return { ...t, playerIds: [...t.playerIds, playerId] };
+        if (t.id === toTeamId) return { ...t, playerIds: sortIds([...t.playerIds, playerId]) };
         return t;
       }),
     });
+  }
+
+  // Reorder foursomes (the order they're sent out in), preserving matchupIds.
+  function moveTeam(index: number, dir: -1 | 1) {
+    const j = index + dir;
+    if (j < 0 || j >= game.teams.length) return;
+    const next = [...game.teams];
+    [next[index], next[j]] = [next[j], next[index]];
+    onSave({ ...game, teams: next });
+  }
+
+  // Order foursomes by tee time (blank times sink to the bottom).
+  function sortTeamsByTeeTime() {
+    const next = [...game.teams].sort((a, b) => {
+      const ta = (a.teeTime || '').trim(), tb = (b.teeTime || '').trim();
+      if (!ta && !tb) return 0;
+      if (!ta) return 1;
+      if (!tb) return -1;
+      return ta.localeCompare(tb);
+    });
+    onSave({ ...game, teams: next });
   }
 
   // Change a player's tee (updates game.players) and remember it on the roster.
@@ -674,14 +700,14 @@ function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame)
     });
   }
 
-  // Add a new player to game.players and onto a chosen foursome.
+  // Add a new player to game.players and onto a chosen foursome (kept sorted).
   function addPlayer(player: Player, toTeamId: string) {
     const players = game.players.some((p) => p.id === player.id)
       ? game.players.map((p) => (p.id === player.id ? player : p))
       : [...game.players, player];
     const teams = game.teams.map((t) =>
       t.id === toTeamId
-        ? { ...t, playerIds: t.playerIds.includes(player.id) ? t.playerIds : [...t.playerIds, player.id] }
+        ? { ...t, playerIds: t.playerIds.includes(player.id) ? t.playerIds : sortPlayerIdsByHcap([...t.playerIds, player.id], players, course, game.handicapAllowance) }
         : t
     );
     onSave({ ...game, players, teams });
@@ -705,11 +731,12 @@ function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame)
       if (!ok) return;
       for (const t of game.teams) saveGameScores(t.matchupId, []);
     }
-    // Keep existing team slots (id, name, matchupId, teeTime); just swap playerIds.
+    // Keep existing team slots (id, name, matchupId, teeTime); just swap playerIds
+    // (sorted low->high within each foursome).
     const numTeams = Math.max(game.teams.length, newGroups.length);
     const teams = Array.from({ length: numTeams }, (_, i) => {
       const existing = game.teams[i];
-      const playerIds = newGroups[i] ?? [];
+      const playerIds = sortIds(newGroups[i] ?? []);
       if (existing) return { ...existing, playerIds };
       return { id: crypto.randomUUID(), name: `Team ${i + 1}`, playerIds, matchupId: crypto.randomUUID() };
     });
@@ -718,10 +745,11 @@ function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame)
 
   function autoBalance() {
     const numTeams = Math.max(1, Math.ceil(game.players.length / 4));
-    const groups = balanceTeamsByHandicap(
+    const groups = balanceTeamsWithLocks(
       game.players,
       numTeams,
-      (p) => getPoolPlayingHandicap(p, course, game.handicapAllowance)
+      (p) => getPoolPlayingHandicap(p, course, game.handicapAllowance),
+      game.lockedGroups ?? []
     );
     applyReshuffle(groups);
   }
@@ -734,8 +762,19 @@ function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame)
     applyReshuffle(groups);
   }
 
+  function setLockedGroups(groups: string[][]) {
+    onSave({ ...game, lockedGroups: groups.length > 0 ? groups : undefined });
+  }
+
   return (
     <div className="space-y-3">
+      {game.players.length > 0 && (
+        <PairingLocks
+          players={game.players}
+          lockedGroups={game.lockedGroups ?? []}
+          setLockedGroupsAction={setLockedGroups}
+        />
+      )}
       {game.teams.length > 0 && (
         <div className="flex gap-2 flex-wrap">
           <button
@@ -750,18 +789,44 @@ function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame)
           >
             Auto-generate foursomes
           </button>
+          {game.teams.length > 1 && (
+            <button
+              onClick={sortTeamsByTeeTime}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 font-medium hover:bg-gray-100"
+            >
+              Order by tee time
+            </button>
+          )}
         </div>
       )}
-      {game.teams.map((team) => (
+      {game.teams.map((team, teamIdx) => (
         <div key={team.id} className="bg-white rounded-lg shadow p-4">
           <div className="mb-3">
-            <label className="block text-xs text-gray-500 mb-1">Team name</label>
-            <input
-              type="text"
-              value={team.name}
-              onChange={(e) => renameTeam(team.id, e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm font-semibold shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
+            <label className="block text-xs text-gray-500 mb-1">Team name · send-out order</label>
+            <div className="flex items-center gap-2">
+              {game.teams.length > 1 && (
+                <div className="flex flex-col leading-none">
+                  <button
+                    onClick={() => moveTeam(teamIdx, -1)}
+                    disabled={teamIdx === 0}
+                    className="text-gray-400 hover:text-gray-700 disabled:opacity-30 text-xs"
+                    title="Move team up"
+                  >▲</button>
+                  <button
+                    onClick={() => moveTeam(teamIdx, 1)}
+                    disabled={teamIdx === game.teams.length - 1}
+                    className="text-gray-400 hover:text-gray-700 disabled:opacity-30 text-xs"
+                    title="Move team down"
+                  >▼</button>
+                </div>
+              )}
+              <input
+                type="text"
+                value={team.name}
+                onChange={(e) => renameTeam(team.id, e.target.value)}
+                className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm font-semibold shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+              />
+            </div>
           </div>
 
           <div className="mb-3">
@@ -801,16 +866,19 @@ function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame)
                       ))}
                     </select>
                   )}
-                  <select
-                    value={team.id}
-                    onChange={(e) => movePlayer(pid, team.id, e.target.value)}
-                    className="text-xs rounded border border-gray-300 px-1 py-0.5 shadow-sm focus:border-green-500 focus:outline-none max-w-[92px]"
-                    title="Move to team"
-                  >
-                    {game.teams.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
+                  <label className="flex items-center gap-1 text-[10px] text-gray-500 flex-shrink-0">
+                    <span className="font-medium">Move</span>
+                    <select
+                      value={team.id}
+                      onChange={(e) => movePlayer(pid, team.id, e.target.value)}
+                      className="text-xs rounded border border-gray-300 px-1 py-0.5 shadow-sm focus:border-green-500 focus:outline-none max-w-[88px]"
+                      title="Move this player to another team"
+                    >
+                      {game.teams.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </label>
                   <button
                     onClick={() => removePlayer(pid)}
                     className="text-red-500 hover:text-red-700 text-sm px-1 flex-shrink-0"
