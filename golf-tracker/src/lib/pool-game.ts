@@ -512,6 +512,79 @@ export function balanceTeamsWithLocks(
   return balanceUnitsIntoTeams(units, nt, Date.now() + 800);
 }
 
+// --- Fair player swaps -----------------------------------------------------
+
+// The spread (max team total − min team total) of combined playing handicaps
+// across all teams — the same "even teams" metric the auto-balancer minimizes.
+// Empty teams are ignored so they don't peg the spread at the full max.
+export function teamHandicapSpread(
+  teams: PoolTeam[],
+  players: Player[],
+  course: CourseSelection | null,
+  allowance: number
+): number {
+  const byId = new Map(players.map((p) => [p.id, p]));
+  const totals = teams
+    .filter((t) => t.playerIds.length > 0)
+    .map((t) => t.playerIds.reduce((s, id) => {
+      const p = byId.get(id);
+      return p ? s + getPoolPlayingHandicap(p, course, allowance) : s;
+    }, 0));
+  if (totals.length === 0) return 0;
+  return Math.max(...totals) - Math.min(...totals);
+}
+
+export interface SwapCandidate {
+  playerId: string;        // the player on the OTHER team we'd swap in
+  teamId: string;          // that player's current team
+  teamName: string;
+  resultingSpread: number; // team-total spread AFTER this 1-for-1 swap
+  currentSpread: number;   // spread BEFORE any swap (same for every candidate)
+  delta: number;           // resultingSpread − currentSpread (negative = fairer)
+}
+
+// For a chosen player, rank every 1-for-1 swap partner on the OTHER teams by how
+// FAIR the teams would be afterward (resulting handicap spread, lowest first).
+// Fairness is measured on each player's playing handicap off THEIR OWN tee, so a
+// swap that moves players between tees is judged on real strokes. A 1-for-1 swap
+// never changes team sizes, so size stays valid automatically.
+export function rankSwapCandidates(
+  game: PoolGame,
+  playerId: string
+): SwapCandidate[] {
+  const { players, course, handicapAllowance: allowance, teams } = game;
+  const fromTeam = teams.find((t) => t.playerIds.includes(playerId));
+  if (!fromTeam) return [];
+
+  const currentSpread = teamHandicapSpread(teams, players, course, allowance);
+  const candidates: SwapCandidate[] = [];
+
+  for (const other of teams) {
+    if (other.id === fromTeam.id) continue;
+    for (const otherPid of other.playerIds) {
+      // Simulate the swap: playerId <-> otherPid between the two teams.
+      const simulated = teams.map((t) => {
+        if (t.id === fromTeam.id) return { ...t, playerIds: t.playerIds.map((id) => (id === playerId ? otherPid : id)) };
+        if (t.id === other.id) return { ...t, playerIds: t.playerIds.map((id) => (id === otherPid ? playerId : id)) };
+        return t;
+      });
+      const resultingSpread = teamHandicapSpread(simulated, players, course, allowance);
+      candidates.push({
+        playerId: otherPid,
+        teamId: other.id,
+        teamName: other.name,
+        resultingSpread,
+        currentSpread,
+        delta: resultingSpread - currentSpread,
+      });
+    }
+  }
+
+  // Fairest first (lowest resulting spread); stable tiebreak by team name.
+  candidates.sort((a, b) => (a.resultingSpread - b.resultingSpread) || a.teamName.localeCompare(b.teamName));
+  return candidates;
+}
+
 // Order a set of player IDs by playing handicap, LOW to HIGH (the organizer
 // wants each foursome listed best-to-worst instead of the snake-draft order).
 export function sortPlayerIdsByHcap(

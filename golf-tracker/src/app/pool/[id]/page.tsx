@@ -19,6 +19,8 @@ import {
   sortPlayerIdsByHcap,
   teeOptionsForPlayer,
   playerTeeGenderMismatch,
+  rankSwapCandidates,
+  teamHandicapSpread,
 } from '@/lib/pool-game';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
@@ -656,6 +658,22 @@ function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame)
     });
   }
 
+  // Swap two players between their two foursomes (1-for-1, sizes unchanged).
+  // Each destination stays sorted low->high; matchupIds are preserved.
+  function swapPlayers(playerA: string, playerB: string) {
+    const teamA = game.teams.find((t) => t.playerIds.includes(playerA));
+    const teamB = game.teams.find((t) => t.playerIds.includes(playerB));
+    if (!teamA || !teamB || teamA.id === teamB.id) return;
+    onSave({
+      ...game,
+      teams: game.teams.map((t) => {
+        if (t.id === teamA.id) return { ...t, playerIds: sortIds(t.playerIds.map((id) => (id === playerA ? playerB : id))) };
+        if (t.id === teamB.id) return { ...t, playerIds: sortIds(t.playerIds.map((id) => (id === playerB ? playerA : id))) };
+        return t;
+      }),
+    });
+  }
+
   // Reorder foursomes (the order they're sent out in), preserving matchupIds.
   function moveTeam(index: number, dir: -1 | 1) {
     const j = index + dir;
@@ -805,6 +823,9 @@ function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame)
             </button>
           )}
         </div>
+      )}
+      {game.teams.length > 1 && (
+        <SwapPanel game={game} onSwap={swapPlayers} />
       )}
       {game.teams.map((team, teamIdx) => (
         <div key={team.id} className="bg-white rounded-lg shadow p-4">
@@ -1078,6 +1099,148 @@ function AddPlayerPanel({
         </div>
         {ghinError && <p className="text-xs text-red-600 mt-1">{ghinError}</p>}
       </div>
+    </div>
+  );
+}
+
+// Guided player swap: pick one player, see the fairest 1-for-1 partners on the
+// other teams (ranked by how even the teams stay), preview both affected teams
+// as they'd look after the swap, then apply. Fairness uses each player's playing
+// handicap off THEIR OWN tee. Lets the organizer make a personality-driven swap
+// while seeing its exact effect on game fairness before committing.
+function SwapPanel({ game, onSwap }: { game: PoolGame; onSwap: (a: string, b: string) => void }) {
+  const [selected, setSelected] = useState('');
+  const [partner, setPartner] = useState('');
+
+  const nameOf = (id: string) => game.players.find((p) => p.id === id)?.name ?? '?';
+  const teamOf = (id: string) => game.teams.find((t) => t.playerIds.includes(id));
+  const strokesOf = (id: string) => {
+    const p = game.players.find((x) => x.id === id);
+    return p ? Math.round(getPoolPlayingHandicap(p, game.course, game.handicapAllowance)) : 0;
+  };
+
+  const candidates = useMemo(
+    () => (selected ? rankSwapCandidates(game, selected) : []),
+    [game, selected]
+  );
+  const currentSpread = useMemo(
+    () => teamHandicapSpread(game.teams, game.players, game.course, game.handicapAllowance),
+    [game]
+  );
+
+  // Reset a stale partner if the selected player changed.
+  const partnerValid = candidates.some((c) => c.playerId === partner);
+  const activePartner = partnerValid ? partner : '';
+  const chosen = candidates.find((c) => c.playerId === activePartner) ?? null;
+
+  const fromTeam = selected ? teamOf(selected) : undefined;
+  const toTeam = chosen ? game.teams.find((t) => t.id === chosen.teamId) : undefined;
+
+  // Preview player-id lists for the two affected teams after the swap.
+  function previewIds(team: typeof fromTeam, outId: string, inId: string): string[] {
+    if (!team) return [];
+    return team.playerIds.map((id) => (id === outId ? inId : id));
+  }
+
+  function fairnessTag(delta: number) {
+    if (delta < -0.5) return { text: 'fairer', cls: 'text-green-700' };
+    if (delta > 0.5) return { text: 'less fair', cls: 'text-amber-600' };
+    return { text: 'about the same', cls: 'text-gray-500' };
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      <p className="text-sm font-semibold text-gray-800">Swap two players</p>
+      <p className="text-xs text-gray-500 mb-2">
+        Pick a player, then choose someone to swap with — the fairest matches (teams stay most even) are listed first.
+        Current team spread: <span className="font-medium text-gray-700">{Math.round(currentSpread)}</span> strokes.
+      </p>
+
+      <div className="mb-2">
+        <label className="block text-xs text-gray-500 mb-1">Player to move</label>
+        <select
+          value={selected}
+          onChange={(e) => { setSelected(e.target.value); setPartner(''); }}
+          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-green-500 focus:outline-none"
+        >
+          <option value="">Choose a player…</option>
+          {game.teams.map((t) => (
+            <optgroup key={t.id} label={t.name}>
+              {t.playerIds.map((pid) => (
+                <option key={pid} value={pid}>{nameOf(pid)} ({strokesOf(pid)})</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+
+      {selected && (
+        <div className="mb-2">
+          <label className="block text-xs text-gray-500 mb-1">Swap with</label>
+          {candidates.length === 0 ? (
+            <p className="text-xs text-gray-400">No one on another team to swap with.</p>
+          ) : (
+            <div className="max-h-52 overflow-y-auto rounded-md border border-gray-100 divide-y divide-gray-100">
+              {candidates.map((c) => {
+                const tag = fairnessTag(c.delta);
+                const isSel = c.playerId === activePartner;
+                return (
+                  <button
+                    key={c.playerId}
+                    onClick={() => setPartner(c.playerId)}
+                    className={`w-full flex items-center gap-2 px-2 py-1.5 text-left text-sm ${isSel ? 'bg-green-50' : 'hover:bg-gray-50'}`}
+                  >
+                    <span className="flex-1 truncate">
+                      <span className="font-medium text-gray-900">{nameOf(c.playerId)}</span>
+                      <span className="text-gray-500"> ({strokesOf(c.playerId)}) · {c.teamName}</span>
+                    </span>
+                    <span className={`text-xs flex-shrink-0 ${tag.cls}`}>
+                      {tag.text} · spread {Math.round(c.resultingSpread)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {chosen && fromTeam && toTeam && (
+        <div className="mt-2 rounded-md border border-gray-200 bg-gray-50 p-2">
+          <p className="text-xs font-semibold text-gray-700 mb-1.5">
+            After swap — spread {Math.round(currentSpread)} → <span className={fairnessTag(chosen.delta).cls}>{Math.round(chosen.resultingSpread)}</span>
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { team: fromTeam, ids: previewIds(fromTeam, selected, chosen.playerId), inId: chosen.playerId },
+              { team: toTeam, ids: previewIds(toTeam, chosen.playerId, selected), inId: selected },
+            ].map(({ team, ids, inId }) => {
+              const total = ids.reduce((s, id) => s + strokesOf(id), 0);
+              return (
+                <div key={team!.id} className="rounded border border-gray-200 bg-white p-2">
+                  <p className="text-xs font-semibold text-gray-800 truncate">{team!.name}
+                    <span className="ml-1 font-normal text-gray-400">Σ{total}</span>
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {sortPlayerIdsByHcap(ids, game.players, game.course, game.handicapAllowance).map((id) => (
+                      <li key={id} className={`text-xs flex justify-between gap-1 ${id === inId ? 'text-green-700 font-semibold' : 'text-gray-700'}`}>
+                        <span className="truncate">{id === inId ? '+ ' : ''}{nameOf(id)}</span>
+                        <span className="tabular-nums text-gray-400">{strokesOf(id)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+          <button
+            onClick={() => { onSwap(selected, chosen.playerId); setSelected(''); setPartner(''); }}
+            className="mt-2 w-full rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800"
+          >
+            Apply swap
+          </button>
+        </div>
+      )}
     </div>
   );
 }
