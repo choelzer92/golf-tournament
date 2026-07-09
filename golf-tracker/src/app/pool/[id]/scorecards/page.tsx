@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { PoolGame, PoolTeamDetail } from '@/lib/pool-game';
 import type { TeeSetOption } from '@/lib/game-state';
-import { loadPoolGame, fetchPoolGame, computePoolPlayerDetails } from '@/lib/pool-game';
+import { loadPoolGame, fetchPoolGame, computePoolPlayerDetails, distinctRankingsForPlayers } from '@/lib/pool-game';
 
 // Fully DRAWN scorecard — a real HTML grid where every value (par, stroke index,
 // stroke dots, blank score boxes) lives inside a real table cell, so nothing can
@@ -101,15 +101,41 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
   const poolTeam = game.teams.find((t) => t.id === team.teamId);
   const tees = groupTees(game, team.players.map((p) => p.playerId));
 
+  // Short tee label — strip a trailing "(W)" so men's/women's versions of the
+  // same tee share one label (their yardages are identical).
+  const shortName = (name: string) => name.replace(/\s*\(w\)\s*$/i, '').trim();
+
+  // Yardage rows: dedupe by the actual yardage sequence. A men's tee and its
+  // women's counterpart (e.g. "3 Stars" / "3 Stars (W)") have IDENTICAL yardages,
+  // so they collapse into one row (labeled "3 Stars"); genuinely different tee
+  // lengths still get their own row.
+  const yardageGroups: { tee: TeeSetOption; names: string[] }[] = [];
+  {
+    const byKey = new Map<string, number>();
+    for (const t of tees) {
+      const key = [...t.holes].sort((a, b) => a.number - b.number).map((h) => h.yardage).join(',');
+      const idx = byKey.get(key);
+      if (idx != null) {
+        const base = shortName(t.name);
+        if (!yardageGroups[idx].names.includes(base)) yardageGroups[idx].names.push(base);
+      } else {
+        byKey.set(key, yardageGroups.length);
+        yardageGroups.push({ tee: t, names: [shortName(t.name)] });
+      }
+    }
+  }
+
+  // Handicap rankings differ by gender even when yardage doesn't, so DEDUPE them
+  // separately to distinct rankings (labeled "Men"/"Women" when clean). Spring
+  // Creek → one "Men" ranking + one "Women".
+  const rankings = distinctRankingsForPlayers(game, team.players.map((p) => p.playerId));
+
   // Par comes off any tee (par is identical across tees on a course).
   const parByNum = new Map((tees[0]?.holes ?? []).map((h) => [h.number, h.par]));
   const par = (n: number) => parByNum.get(n) ?? null;
   const sum = (nums: number[], f: (n: number) => number | null) =>
     nums.reduce((s, n) => s + (f(n) ?? 0), 0);
 
-  // Short tee label for the yardage/handicap row headers and the player pills —
-  // strips a trailing "(W)" the wizard appended so the row reads cleanly.
-  const shortTee = (name: string) => name.replace(/\s*\(w\)\s*$/i, '').trim();
   const teeNameOf = (playerId: string) =>
     game.course?.teeSets.find((t) => t.id === game.players.find((p) => p.id === playerId)?.teeSetId)?.name ?? null;
 
@@ -120,8 +146,6 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
   const holeCell = 'w-[3.9%] text-center border border-gray-400';
   const sumCell = 'w-[4.5%] text-center border border-gray-400 bg-gray-100 font-semibold';
   const nameCell = 'w-[15%] border border-gray-400 px-1';
-
-  const teeLabel = (t: TeeSetOption) => `${shortTee(t.name)}${t.gender === 'F' ? ' (W)' : ''}`;
 
   return (
     <div className="bg-white shadow print:shadow-none rounded-lg print:rounded-none overflow-hidden border border-gray-400">
@@ -158,22 +182,35 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
             <td className={`${sumCell} py-0.5`}>{sum(BACK, par) || ''}</td>
             <td className={`${sumCell} py-0.5`}>{sum([...FRONT, ...BACK], par) || ''}</td>
           </tr>
-          {/* Yardage + Handicap rows for EACH distinct tee/gender in the group */}
-          {tees.map((t) => {
+          {/* A yardage row per distinct tee length (men's + women's versions of a
+              tee share yardage, so they collapse into one labeled row). */}
+          {yardageGroups.map(({ tee: t, names }) => {
             const byNum = new Map(t.holes.map((h) => [h.number, h]));
             const yds = (n: number) => byNum.get(n)?.yardage ?? null;
-            const si = (n: number) => byNum.get(n)?.handicap ?? null;
             return (
-              <FragmentTeeRows
-                key={t.id}
-                label={teeLabel(t)}
-                yds={yds}
-                si={si}
-                sum={sum}
-                holeCell={holeCell}
-                sumCell={sumCell}
-                nameCell={nameCell}
-              />
+              <tr key={t.id} className="text-gray-600">
+                <td className={`${nameCell} py-0.5 text-[9px] font-semibold`}>{names.join(' / ')} · yds</td>
+                {FRONT.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{yds(n) ?? ''}</td>)}
+                <td className={`${sumCell} py-0.5`}>{sum(FRONT, yds) || ''}</td>
+                {BACK.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{yds(n) ?? ''}</td>)}
+                <td className={`${sumCell} py-0.5`}>{sum(BACK, yds) || ''}</td>
+                <td className={`${sumCell} py-0.5`}>{sum([...FRONT, ...BACK], yds) || ''}</td>
+              </tr>
+            );
+          })}
+          {/* Handicap (stroke-index) rows — deduped to distinct rankings, so
+              Spring Creek shows just "Men" and "Women" rather than one per tee. */}
+          {rankings.map((r) => {
+            const si = (n: number) => r.strokeIndexByHole[n] ?? null;
+            return (
+              <tr key={r.label} className="text-gray-500">
+                <td className={`${nameCell} py-0.5 text-[9px] font-medium`}>{r.label} · hcp</td>
+                {FRONT.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{si(n) ?? ''}</td>)}
+                <td className={`${sumCell} py-0.5`} />
+                {BACK.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{si(n) ?? ''}</td>)}
+                <td className={`${sumCell} py-0.5`} />
+                <td className={`${sumCell} py-0.5`} />
+              </tr>
             );
           })}
           {/* One blank scoring row per player, with stroke dots on stroke holes */}
@@ -185,7 +222,7 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
                 <td className={`${nameCell} py-0.5 align-middle`}>
                   <div className="font-semibold text-gray-900 text-[10px] leading-tight truncate">{pl.playerName}</div>
                   {tn && (
-                    <div className="text-[8px] text-gray-500 font-medium leading-tight truncate">{shortTee(tn)}{game.players.find((p) => p.id === pl.playerId)?.gender === 'F' ? ' (W)' : ''}</div>
+                    <div className="text-[8px] text-gray-500 font-medium leading-tight truncate">{shortName(tn)}{game.players.find((p) => p.id === pl.playerId)?.gender === 'F' ? ' (W)' : ''}</div>
                   )}
                 </td>
                 {FRONT.map((n) => <ScoreBox key={n} className={holeCell} strokes={strokesOn(n)} />)}
@@ -203,39 +240,6 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
         • = a stroke on that hole (off each player&apos;s own tee). Best 1 net + 1 gross per foursome.
       </div>
     </div>
-  );
-}
-
-// A yardage row + a handicap (stroke-index) row for one tee. Rendered per
-// distinct tee so a mixed men's/women's group sees both sets of numbers.
-function FragmentTeeRows({ label, yds, si, sum, holeCell, sumCell, nameCell }: {
-  label: string;
-  yds: (n: number) => number | null;
-  si: (n: number) => number | null;
-  sum: (nums: number[], f: (n: number) => number | null) => number;
-  holeCell: string;
-  sumCell: string;
-  nameCell: string;
-}) {
-  return (
-    <>
-      <tr className="text-gray-600">
-        <td className={`${nameCell} py-0.5 text-[9px] font-semibold`}>{label} · yds</td>
-        {FRONT.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{yds(n) ?? ''}</td>)}
-        <td className={`${sumCell} py-0.5`}>{sum(FRONT, yds) || ''}</td>
-        {BACK.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{yds(n) ?? ''}</td>)}
-        <td className={`${sumCell} py-0.5`}>{sum(BACK, yds) || ''}</td>
-        <td className={`${sumCell} py-0.5`}>{sum([...FRONT, ...BACK], yds) || ''}</td>
-      </tr>
-      <tr className="text-gray-500">
-        <td className={`${nameCell} py-0.5 text-[9px] font-medium`}>{label} · hcp</td>
-        {FRONT.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{si(n) ?? ''}</td>)}
-        <td className={`${sumCell} py-0.5`} />
-        {BACK.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{si(n) ?? ''}</td>)}
-        <td className={`${sumCell} py-0.5`} />
-        <td className={`${sumCell} py-0.5`} />
-      </tr>
-    </>
   );
 }
 
