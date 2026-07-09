@@ -19,6 +19,7 @@ import {
 } from '@/lib/pool-game';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
+import { getCreatorGhin } from '@/lib/pool-identity';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
 import {
   type RosterPlayer,
@@ -852,7 +853,9 @@ function AddPlayerPanel({
   const [ghinError, setGhinError] = useState('');
 
   useEffect(() => {
-    hydrateRoster().then(() => setRosterResults(searchRoster('')));
+    // Scope the roster to this organizer (owner sees all; others see the shared
+    // base roster plus their own saved players).
+    hydrateRoster({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' }).then(() => setRosterResults(searchRoster('')));
   }, []);
 
   // Keep the target team valid if teams change under us.

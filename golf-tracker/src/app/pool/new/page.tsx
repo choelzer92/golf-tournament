@@ -8,6 +8,7 @@ import { parseGhinIndex } from '@/lib/game-state';
 import { PoolShareButton } from '@/components/pool-share';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
 import { saveGhinIdentity, getCreatorGhin } from '@/lib/pool-identity';
+import { getAccessLevel } from '@/lib/invite-gate';
 import {
   type PoolGame,
   type PoolTeam,
@@ -775,7 +776,9 @@ function FieldStep({
   const retryRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    hydrateRoster().then(async () => {
+    // Scope the roster to this organizer (owner sees all; others see the shared
+    // base roster plus their own saved players).
+    hydrateRoster({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' }).then(async () => {
       setRosterResults(searchRoster(''));
       // Auto-refresh from GHIN if the roster's handicaps are stale (>24h) or
       // never refreshed — so new games start current without hammering GHIN

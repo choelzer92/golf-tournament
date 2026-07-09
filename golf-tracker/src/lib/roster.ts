@@ -11,6 +11,7 @@ export interface RosterPlayer {
   gender: 'M' | 'F' | null;
   defaultTeeName: string | null;  // remembered tee (by name) from last game
   hcapUpdatedAt?: string | null;  // ISO time the index was last pulled from GHIN
+  ownerGhin?: number | null;      // organizer who owns this entry; null = shared "base" roster
 }
 
 interface RosterRow {
@@ -21,9 +22,29 @@ interface RosterRow {
   gender: string | null;
   default_tee_name: string | null;
   hcap_updated_at: string | null;
+  owner_ghin?: number | null;
 }
 
 const rosterCache = new Map<string, RosterPlayer>();
+
+// Per-organizer visibility. The cache holds EVERY player (so GHIN uniqueness +
+// dedupe keep working across organizers), but the roster is DISPLAYED filtered
+// to what the current viewer may see: the shared base roster (ownerGhin null)
+// plus their own scoped players. The app owner sees everyone's. Call
+// setRosterViewer (or pass opts to hydrateRoster) once identity is known.
+let viewerGhin: number | null = null;
+let viewerIsOwner = false;
+
+export function setRosterViewer(ghin: number | null, isOwner: boolean): void {
+  viewerGhin = ghin;
+  viewerIsOwner = isOwner;
+}
+
+function isVisibleToViewer(p: RosterPlayer): boolean {
+  if (viewerIsOwner) return true;          // owner (admin) sees every roster entry
+  if (p.ownerGhin == null) return true;    // shared base roster — visible to all
+  return p.ownerGhin === viewerGhin;       // the viewer's own scoped players
+}
 
 function rowToPlayer(row: RosterRow): RosterPlayer {
   return {
@@ -34,12 +55,17 @@ function rowToPlayer(row: RosterRow): RosterPlayer {
     gender: row.gender === 'F' ? 'F' : row.gender === 'M' ? 'M' : null,
     defaultTeeName: row.default_tee_name ?? null,
     hcapUpdatedAt: row.hcap_updated_at ?? null,
+    ownerGhin: row.owner_ghin ?? null,
   };
 }
 
-// Load the whole roster into the cache (it's small — every player who has ever played).
-export async function hydrateRoster(): Promise<RosterPlayer[]> {
-  const { data } = await supabase.from('players').select('id, ghin_number, name, handicap_index, gender, default_tee_name, hcap_updated_at');
+// Load the whole roster into the cache (it's small — every player who has ever
+// played). Pass the current viewer so the displayed roster is scoped to them.
+export async function hydrateRoster(opts?: { viewerGhin?: number | null; isOwner?: boolean }): Promise<RosterPlayer[]> {
+  if (opts) setRosterViewer(opts.viewerGhin ?? null, !!opts.isOwner);
+  // select('*') is resilient to the owner_ghin column not existing yet (before
+  // the scoping migration is applied): unknown columns simply aren't returned.
+  const { data } = await supabase.from('players').select('*');
   if (data) {
     rosterCache.clear();
     for (const row of data as RosterRow[]) {
@@ -49,8 +75,9 @@ export async function hydrateRoster(): Promise<RosterPlayer[]> {
   return getRoster();
 }
 
+// The roster the current viewer may see (base + their own; owner sees all).
 export function getRoster(): RosterPlayer[] {
-  return Array.from(rosterCache.values()).sort((a, b) => a.name.localeCompare(b.name));
+  return Array.from(rosterCache.values()).filter(isVisibleToViewer).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // Instant client-side name filter over the cached roster.
@@ -75,10 +102,18 @@ export async function upsertRosterPlayer(player: RosterPlayer): Promise<RosterPl
   // (e.g. a tee edit shouldn't wipe the handicap-refresh time, and vice versa).
   const defaultTeeName = player.defaultTeeName ?? existing?.defaultTeeName ?? null;
   const hcapUpdatedAt = player.hcapUpdatedAt ?? existing?.hcapUpdatedAt ?? null;
-  const merged: RosterPlayer = { ...player, id: existing?.id || player.id, defaultTeeName, hcapUpdatedAt };
+  // Ownership: preserve an existing entry's owner (an update must never reassign
+  // it); for a brand-new entry, the app owner's adds go to the shared BASE roster
+  // (null, visible to all) while a scoped organizer's adds are tagged to them.
+  const ownerGhin: number | null = existing
+    ? existing.ownerGhin ?? null
+    : player.ownerGhin !== undefined
+      ? player.ownerGhin
+      : (viewerIsOwner ? null : viewerGhin);
+  const merged: RosterPlayer = { ...player, id: existing?.id || player.id, defaultTeeName, hcapUpdatedAt, ownerGhin };
   rosterCache.set(merged.id, merged);
 
-  supabase.from('players').upsert({
+  const row = {
     id: merged.id,
     ghin_number: merged.ghinNumber,
     name: merged.name,
@@ -86,8 +121,19 @@ export async function upsertRosterPlayer(player: RosterPlayer): Promise<RosterPl
     gender: merged.gender,
     default_tee_name: merged.defaultTeeName,
     hcap_updated_at: merged.hcapUpdatedAt,
+    owner_ghin: merged.ownerGhin,
     updated_at: new Date().toISOString(),
-  }).then();
+  };
+  // Resilient write: if the owner_ghin column isn't present yet (scoping
+  // migration not applied), retry without it so the save still persists —
+  // scoping simply activates once the column exists. Decouples deploy ordering.
+  (async () => {
+    const { error } = await supabase.from('players').upsert(row);
+    if (error && /owner_ghin/i.test(error.message)) {
+      const { owner_ghin: _omit, ...rest } = row;
+      await supabase.from('players').upsert(rest);
+    }
+  })();
 
   return merged;
 }
@@ -120,11 +166,12 @@ export async function refreshRosterHandicaps(token: string): Promise<number> {
   return changed;
 }
 
-// The oldest "last refreshed" time among roster players with a GHIN number
-// (null if none have ever been refreshed). Used to decide staleness (>24h).
+// The oldest "last refreshed" time among the VISIBLE roster's players with a
+// GHIN number (null if none have ever been refreshed). Used to decide staleness
+// (>24h). Scoped to what the viewer sees so it matches refreshRosterHandicaps.
 export function getOldestHcapRefresh(): string | null {
   let oldest: string | null = null;
-  for (const p of rosterCache.values()) {
+  for (const p of getRoster()) {
     if (p.ghinNumber == null) continue;
     if (!p.hcapUpdatedAt) return null; // an unrefreshed player => treat as stale
     if (oldest === null || p.hcapUpdatedAt < oldest) oldest = p.hcapUpdatedAt;
