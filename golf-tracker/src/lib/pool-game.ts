@@ -356,40 +356,53 @@ export function distinctRankingsForPlayers(game: PoolGame, playerIds: string[]):
   });
 }
 
-// Balance players into `numTeams` groups with the most-even combined handicap.
-// Greedy LPT seed -> 2-swap local improvement -> exact branch-and-bound (seeded
-// so any early exit still returns >= as good; symmetry-pruned; 800ms budget).
-// Returns player IDs grouped per team. `hcapOf` supplies each player's handicap.
-export function balanceTeamsByHandicap(
-  players: Player[],
-  numTeams: number,
-  hcapOf: (p: Player) => number
-): string[][] {
+// A balancing "unit": one or more players that must share a team (a lock is a
+// multi-player unit; a free player is a size-1 unit). `h` is the unit's combined
+// handicap, `size` how many team seats it consumes.
+interface BalanceUnit { ids: string[]; h: number; size: number }
+
+// Core balancer: distribute UNITS across `numTeams` so combined team handicaps
+// are as even as possible, respecting each team's seat capacity and keeping each
+// unit's players together. Greedy LPT seed -> 2-swap local improvement -> exact
+// branch-and-bound (seeded so any early exit is still >= as good; symmetry-
+// pruned; 800ms budget). Returns player-id groups per team. Both the plain and
+// the locked balancers run through here, so locking a pair that was already
+// together costs nothing — the exact search finds the same optimum.
+function balanceUnitsIntoTeams(units: BalanceUnit[], numTeams: number, deadline: number): string[][] {
   const nt = Math.max(1, numTeams);
-  const base = Math.floor(players.length / nt);
-  const extra = players.length % nt;
+  const totalSeats = units.reduce((s, u) => s + u.size, 0);
+  const base = Math.floor(totalSeats / nt);
+  const extra = totalSeats % nt;
   const caps = Array.from({ length: nt }, (_, i) => base + (i < extra ? 1 : 0));
 
-  const sorted = [...players].sort((a, b) => hcapOf(b) - hcapOf(a)); // high -> low
-  const h = sorted.map((p) => hcapOf(p));
-  const n = h.length;
+  // Heaviest unit first (LPT). Ties broken by larger size first so bulky locks
+  // are placed while teams still have room.
+  const sorted = [...units].sort((a, b) => (b.h - a.h) || (b.size - a.size));
+  const h = sorted.map((u) => u.h);
+  const sz = sorted.map((u) => u.size);
+  const n = sorted.length;
   const total = h.reduce((s, v) => s + v, 0);
   const spreadOf = (sums: number[]) => Math.max(...sums) - Math.min(...sums);
 
-  // 1) Greedy LPT: each player onto the least-loaded team with room.
+  // 1) Greedy LPT: each unit onto the least-loaded team that still has seats.
   const buckets: number[][] = Array.from({ length: nt }, () => []);
   const sums = new Array(nt).fill(0);
+  const seats = new Array(nt).fill(0);
   for (let idx = 0; idx < n; idx++) {
     let best = -1;
     for (let t = 0; t < nt; t++) {
-      if (buckets[t].length >= caps[t]) continue;
+      if (seats[t] + sz[idx] > caps[t]) continue;
       if (best === -1 || sums[t] < sums[best]) best = t;
+    }
+    if (best === -1) { // no exact-fit team (uneven lock sizes) — least-loaded overall
+      for (let t = 0; t < nt; t++) if (best === -1 || sums[t] < sums[best]) best = t;
     }
     buckets[best].push(idx);
     sums[best] += h[idx];
+    seats[best] += sz[idx];
   }
 
-  // 2) 2-swap local improvement.
+  // 2) 2-swap local improvement — only swaps that keep both teams within seats.
   let improved = true;
   let guard = 0;
   while (improved && guard++ < 300) {
@@ -398,16 +411,20 @@ export function balanceTeamsByHandicap(
       for (let b = a + 1; b < nt && !improved; b++) {
         for (let i = 0; i < buckets[a].length && !improved; i++) {
           for (let j = 0; j < buckets[b].length; j++) {
+            const ua = buckets[a][i], ub = buckets[b][j];
+            if (seats[a] - sz[ua] + sz[ub] > caps[a]) continue;
+            if (seats[b] - sz[ub] + sz[ua] > caps[b]) continue;
             const before = spreadOf(sums);
-            sums[a] += h[buckets[b][j]] - h[buckets[a][i]];
-            sums[b] += h[buckets[a][i]] - h[buckets[b][j]];
+            sums[a] += h[ub] - h[ua];
+            sums[b] += h[ua] - h[ub];
             if (spreadOf(sums) < before - 1e-9) {
-              const tmp = buckets[a][i]; buckets[a][i] = buckets[b][j]; buckets[b][j] = tmp;
+              buckets[a][i] = ub; buckets[b][j] = ua;
+              seats[a] += sz[ub] - sz[ua]; seats[b] += sz[ua] - sz[ub];
               improved = true;
               break;
             }
-            sums[a] -= h[buckets[b][j]] - h[buckets[a][i]];
-            sums[b] -= h[buckets[a][i]] - h[buckets[b][j]];
+            sums[a] -= h[ub] - h[ua];
+            sums[b] -= h[ua] - h[ub];
           }
         }
       }
@@ -418,9 +435,8 @@ export function balanceTeamsByHandicap(
   let bestSpread = spreadOf(sums);
   let bestAssign = buckets.map((b) => [...b]);
   const avg = total / nt;
-  const deadline = Date.now() + 800;
   const curSums = new Array(nt).fill(0);
-  const curCnt = new Array(nt).fill(0);
+  const curSeats = new Array(nt).fill(0);
   const curTeams: number[][] = Array.from({ length: nt }, () => []);
   let bailed = false;
 
@@ -436,31 +452,38 @@ export function balanceTeamsByHandicap(
     const seen = new Set<string>();
     const order = [...Array(nt).keys()].sort((x, y) => curSums[x] - curSums[y]);
     for (const t of order) {
-      if (curCnt[t] >= caps[t]) continue;
-      const key = `${curSums[t]}:${curCnt[t]}`;
-      if (seen.has(key)) continue;
+      if (curSeats[t] + sz[i] > caps[t]) continue;
+      const key = `${curSums[t]}:${curSeats[t]}`;
+      if (seen.has(key)) continue; // symmetry prune: identical (load, seats) teams
       seen.add(key);
-      curSums[t] += h[i]; curCnt[t] += 1; curTeams[t].push(i);
+      curSums[t] += h[i]; curSeats[t] += sz[i]; curTeams[t].push(i);
       rec(i + 1);
-      curTeams[t].pop(); curSums[t] -= h[i]; curCnt[t] -= 1;
+      curTeams[t].pop(); curSums[t] -= h[i]; curSeats[t] -= sz[i];
     }
   }
   rec(0);
 
-  return bestAssign.map((idxs) => idxs.map((idx) => sorted[idx].id));
+  return bestAssign.map((idxs) => idxs.flatMap((idx) => sorted[idx].ids));
+}
+
+// Balance players into `numTeams` groups with the most-even combined handicap.
+// Returns player IDs grouped per team. `hcapOf` supplies each player's handicap.
+export function balanceTeamsByHandicap(
+  players: Player[],
+  numTeams: number,
+  hcapOf: (p: Player) => number
+): string[][] {
+  const units: BalanceUnit[] = players.map((p) => ({ ids: [p.id], h: hcapOf(p), size: 1 }));
+  return balanceUnitsIntoTeams(units, numTeams, Date.now() + 800);
 }
 
 // Balance into `numTeams` even-handicap groups while honoring PAIRING LOCKS:
 // every set of player IDs in `locks` must land on the same team. Players not in
-// any lock are free. With no locks this defers to balanceTeamsByHandicap (the
-// exact solver) so the common case is unchanged.
-//
-// Approach: treat each lock as a single super-player whose handicap is the sum
-// of its members and whose size is its member count; free players are size-1
-// units. Greedily place units heaviest-first onto the least-loaded team that
-// still has room (respecting each team's capacity), then run unit-level 2-swaps
-// that preserve capacity. Locked members thus always share a team, and the rest
-// balances around them.
+// any lock are free. Runs the SAME exact solver as balanceTeamsByHandicap — a
+// lock is just an indivisible multi-seat unit — so locking a pair that would
+// already have been together produces the same optimal balance (no needless
+// reshuffle), and locks that do cost balance are still solved optimally within
+// that constraint.
 export function balanceTeamsWithLocks(
   players: Player[],
   numTeams: number,
@@ -470,11 +493,11 @@ export function balanceTeamsWithLocks(
   const nt = Math.max(1, numTeams);
   const byId = new Map(players.map((p) => [p.id, p]));
 
-  // Build units. A lock with >=2 present members is one unit; everyone else is
-  // a singleton. Guard against a player id appearing in multiple locks (first
-  // wins) or a lock naming an absent player.
+  // Build units. A lock with >=2 present members is one indivisible unit;
+  // everyone else is a size-1 unit. Guard against a player id appearing in
+  // multiple locks (first wins) or a lock naming an absent player.
   const claimed = new Set<string>();
-  const units: { ids: string[]; h: number; size: number }[] = [];
+  const units: BalanceUnit[] = [];
   for (const group of locks) {
     const ids = group.filter((id) => byId.has(id) && !claimed.has(id));
     if (ids.length < 2) continue; // a 1-member "lock" is just a free player
@@ -486,59 +509,7 @@ export function balanceTeamsWithLocks(
     units.push({ ids: [p.id], h: hcapOf(p), size: 1 });
   }
 
-  // If nothing is actually locked, use the exact balancer.
-  if (units.every((u) => u.size === 1)) {
-    return balanceTeamsByHandicap(players, nt, hcapOf);
-  }
-
-  const base = Math.floor(players.length / nt);
-  const extra = players.length % nt;
-  const caps = Array.from({ length: nt }, (_, i) => base + (i < extra ? 1 : 0));
-
-  // Greedy: heaviest unit first onto the least-loaded team that can still fit it.
-  const order = [...units].sort((a, b) => b.h - a.h);
-  const teams: { units: typeof units; sum: number; count: number }[] =
-    Array.from({ length: nt }, () => ({ units: [], sum: 0, count: 0 }));
-  for (const u of order) {
-    let best = -1;
-    for (let t = 0; t < nt; t++) {
-      if (teams[t].count + u.size > caps[t]) continue;
-      if (best === -1 || teams[t].sum < teams[best].sum) best = t;
-    }
-    if (best === -1) { // no team has room (uneven lock sizes) — least-loaded overall
-      for (let t = 0; t < nt; t++) if (best === -1 || teams[t].sum < teams[best].sum) best = t;
-    }
-    teams[best].units.push(u); teams[best].sum += u.h; teams[best].count += u.size;
-  }
-
-  // Unit-level 2-swaps that keep every team within capacity and reduce spread.
-  const spread = () => Math.max(...teams.map((t) => t.sum)) - Math.min(...teams.map((t) => t.sum));
-  let improved = true, guard = 0;
-  while (improved && guard++ < 400) {
-    improved = false;
-    for (let a = 0; a < nt && !improved; a++) {
-      for (let b = a + 1; b < nt && !improved; b++) {
-        for (let i = 0; i < teams[a].units.length && !improved; i++) {
-          for (let j = 0; j < teams[b].units.length; j++) {
-            const ua = teams[a].units[i], ub = teams[b].units[j];
-            if (teams[a].count - ua.size + ub.size > caps[a]) continue;
-            if (teams[b].count - ub.size + ua.size > caps[b]) continue;
-            const before = spread();
-            teams[a].sum += ub.h - ua.h; teams[b].sum += ua.h - ub.h;
-            teams[a].count += ub.size - ua.size; teams[b].count += ua.size - ub.size;
-            if (spread() < before - 1e-9) {
-              teams[a].units[i] = ub; teams[b].units[j] = ua;
-              improved = true; break;
-            }
-            teams[a].sum -= ub.h - ua.h; teams[b].sum -= ua.h - ub.h;
-            teams[a].count -= ub.size - ua.size; teams[b].count -= ua.size - ub.size;
-          }
-        }
-      }
-    }
-  }
-
-  return teams.map((t) => t.units.flatMap((u) => u.ids));
+  return balanceUnitsIntoTeams(units, nt, Date.now() + 800);
 }
 
 // Order a set of player IDs by playing handicap, LOW to HIGH (the organizer
