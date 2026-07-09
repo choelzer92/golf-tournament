@@ -161,7 +161,13 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
         </div>
       </div>
 
-      <table className="w-full table-fixed border-collapse text-[10px] leading-none">
+      {/* An 18-hole card is inherently wide. On a narrow phone it would squeeze
+          the columns until yardages wrap and the grid looks jumbled, so give it a
+          real minimum width and let the screen scroll sideways — legible, and it
+          matches the printout. On print, drop the min-width so it lays out to the
+          full page (where every column has ample room). */}
+      <div className="overflow-x-auto print:overflow-visible">
+      <table className="w-full min-w-[44rem] print:min-w-0 table-fixed border-collapse text-[10px] leading-none">
         <thead>
           {/* Faint-gray header (not black) so it's cheap to print repeatedly. */}
           <tr className="bg-gray-100 text-gray-900">
@@ -236,6 +242,7 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
           })}
         </tbody>
       </table>
+      </div>
 
       <div className="px-3 py-1 text-[8px] text-gray-500 border-t border-gray-300">
         • = a stroke on that hole (off each player&apos;s own tee). Best 1 net + 1 gross per foursome.
