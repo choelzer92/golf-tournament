@@ -163,13 +163,14 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
 
       <table className="w-full table-fixed border-collapse text-[10px] leading-none">
         <thead>
-          <tr className="bg-gray-800 text-white">
-            <th className={`${nameCell} text-left py-1 font-semibold border-gray-800`}>Hole</th>
-            {FRONT.map((n) => <th key={n} className={`${holeCell} py-1 font-semibold border-gray-700`}>{n}</th>)}
-            <th className={`${sumCell} py-1 !bg-gray-900 !text-white border-gray-900`}>OUT</th>
-            {BACK.map((n) => <th key={n} className={`${holeCell} py-1 font-semibold border-gray-700`}>{n}</th>)}
-            <th className={`${sumCell} py-1 !bg-gray-900 !text-white border-gray-900`}>IN</th>
-            <th className={`${sumCell} py-1 !bg-gray-900 !text-white border-gray-900`}>TOT</th>
+          {/* Faint-gray header (not black) so it's cheap to print repeatedly. */}
+          <tr className="bg-gray-100 text-gray-900">
+            <th className={`${nameCell} text-left py-1 font-semibold`}>Hole</th>
+            {FRONT.map((n) => <th key={n} className={`${holeCell} py-1 font-semibold`}>{n}</th>)}
+            <th className={`${sumCell} py-1 !bg-gray-200`}>OUT</th>
+            {BACK.map((n) => <th key={n} className={`${holeCell} py-1 font-semibold`}>{n}</th>)}
+            <th className={`${sumCell} py-1 !bg-gray-200`}>IN</th>
+            <th className={`${sumCell} py-1 !bg-gray-200`}>TOT</th>
           </tr>
         </thead>
         <tbody className="text-gray-800">
