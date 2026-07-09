@@ -1,15 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { PoolGame } from '@/lib/pool-game';
-import { loadPoolGame, fetchPoolGame, getPoolPlayingHandicap, sortPlayerIdsByHcap } from '@/lib/pool-game';
+import { loadPoolGame, fetchPoolGame, computePoolPlayerDetails } from '@/lib/pool-game';
 
 // A clean teams sheet the organizer can screenshot or print and send out —
 // replacing the spreadsheet he used to make by hand. Foursomes in their set
-// send-out order, each with its tee time and players listed low→high with their
-// course handicap and tee. Deliberately plain (no heavy color) so it looks good
-// as a phone screenshot and prints cheaply.
+// send-out order, each with its tee time and players listed low→high with the
+// STROKES they get for this game (allowance + off-the-low applied — the low man
+// shows 0). Deliberately plain so it looks good as a phone screenshot.
 
 export default function PoolTeamsPage() {
   const router = useRouter();
@@ -25,6 +25,20 @@ export default function PoolTeamsPage() {
       else if (!cached) router.push('/dashboard');
     });
   }, [id, router]);
+
+  // Strokes RECEIVED this game per player (not raw course handicap): sum each
+  // player's per-hole strokes from the pool detail, which already applies the
+  // handicap allowance and off-the-low baseline — matching the hub + scorecard.
+  const strokesByPlayer = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!game) return map;
+    for (const team of computePoolPlayerDetails(game, new Map())) {
+      for (const pl of team.players) {
+        map.set(pl.playerId, pl.holes.reduce((s, h) => s + h.strokes, 0));
+      }
+    }
+    return map;
+  }, [game]);
 
   if (!game) return null;
 
@@ -68,7 +82,8 @@ export default function PoolTeamsPage() {
           // as the screen widens.
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 items-start">
             {game.teams.map((team) => {
-              const orderedIds = sortPlayerIdsByHcap(team.playerIds, game.players, course, game.handicapAllowance);
+              // Order by strokes received this game (low→high), matching what's shown.
+              const orderedIds = [...team.playerIds].sort((a, b) => (strokesByPlayer.get(a) ?? 0) - (strokesByPlayer.get(b) ?? 0));
               return (
                 <div key={team.id} className="rounded-lg border border-gray-300 bg-white overflow-hidden" style={{ breakInside: 'avoid' }}>
                   <div className="px-2 py-1 bg-gray-100 border-b border-gray-300">
@@ -79,17 +94,15 @@ export default function PoolTeamsPage() {
                     {orderedIds.map((pid) => {
                       const p = game.players.find((x) => x.id === pid);
                       if (!p) return null;
-                      const chcp = course ? Math.round(getPoolPlayingHandicap(p, course, game.handicapAllowance)) : null;
+                      const strokes = strokesByPlayer.get(pid) ?? 0;
                       const tn = teeNameOf(pid);
                       return (
                         <li key={pid} className="flex items-baseline gap-1 px-2 py-1">
                           <span className="flex-1 text-xs text-gray-900 truncate">{p.name}</span>
                           {tn && <span className="text-[9px] text-gray-400 flex-shrink-0">{tn}</span>}
-                          {chcp !== null && (
-                            <span className="flex-shrink-0 text-xs font-semibold text-gray-700 tabular-nums" title="Course handicap">
-                              {chcp}
-                            </span>
-                          )}
+                          <span className="flex-shrink-0 text-xs font-semibold text-gray-700 tabular-nums" title="Strokes received this game">
+                            {strokes}
+                          </span>
                         </li>
                       );
                     })}
@@ -102,7 +115,7 @@ export default function PoolTeamsPage() {
         )}
 
         <p className="mt-3 text-[10px] text-gray-400">
-          {game.players.length} players · {game.teams.length} foursome{game.teams.length === 1 ? '' : 's'} · number after each name = course handicap
+          {game.players.length} players · {game.teams.length} foursome{game.teams.length === 1 ? '' : 's'} · number after each name = strokes this game
         </p>
       </div>
     </div>
