@@ -226,13 +226,19 @@ export default function PoolHubPage() {
       />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-        {/* Leaderboard + Scorecards CTAs */}
-        <div className="flex justify-center gap-3">
+        {/* Leaderboard + Teams + Scorecards CTAs */}
+        <div className="flex flex-wrap justify-center gap-3">
           <button
             onClick={() => router.push(`/pool/${id}/leaderboard`)}
             className="text-sm bg-green-700 hover:bg-green-600 text-white px-5 py-2.5 rounded-lg font-medium transition"
           >
             Leaderboard
+          </button>
+          <button
+            onClick={() => router.push(`/pool/${id}/teams`)}
+            className="text-sm bg-white border border-green-700 text-green-700 hover:bg-green-50 px-5 py-2.5 rounded-lg font-medium transition"
+          >
+            Teams
           </button>
           <button
             onClick={() => router.push(`/pool/${id}/scorecards`)}
