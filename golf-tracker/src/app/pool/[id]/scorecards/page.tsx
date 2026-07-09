@@ -3,73 +3,38 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { PoolGame, PoolTeamDetail } from '@/lib/pool-game';
-import { loadPoolGame, fetchPoolGame, computePoolPlayerDetails, fetchCourseScorecardAlignment, saveCourseScorecardAlignment } from '@/lib/pool-game';
+import type { TeeSetOption } from '@/lib/game-state';
+import { loadPoolGame, fetchPoolGame, computePoolPlayerDetails } from '@/lib/pool-game';
 
-// The real Spring Creek scorecard. We render the ORIGINAL vector PDF to a
-// high-res canvas (crisp at any print size) and overlay names + stroke dots on
-// top. Positions are % of the card so they scale and print consistently;
-// calibrated once per course and saved to localStorage.
-const CARD_PDF = '/spring-creek-scorecard.pdf';
-const CARD_ASPECT = 792 / 612; // PDF MediaBox (landscape US Letter)
-const RENDER_SCALE = 2.5;       // supersample for a sharp background
+// Fully DRAWN scorecard — a real HTML grid where every value (par, stroke index,
+// stroke dots, blank score boxes) lives inside a real table cell, so nothing can
+// misalign the way the old PDF-overlay approach did on iOS Safari. It's styled to
+// look like a real club card (green masthead, Hole / OUT / IN / TOTAL columns,
+// Yardage / Par / Handicap rows, blank player rows) and is built from the course's
+// own GHIN tee data, so it works at any course. Two cards per printed page.
 
-interface Calib {
-  front1X: number;  // % X, center of hole 1 column
-  frontStep: number; // % X per hole across the front nine
-  back1X: number;    // % X, center of hole 10 column
-  backStep: number;  // % X per hole across the back nine
-  nameX: number;     // % X where player names print
-  row1Y: number;     // % Y, center of the first player row
-  rowStep: number;   // % Y per player row
-}
+const FRONT = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+const BACK = [10, 11, 12, 13, 14, 15, 16, 17, 18];
 
-// Defaults measured from the scorecard PDF by pixel-detecting its grid lines
-// (hole-column and player-row boundaries), so cards align out of the box. The
-// Align panel can still fine-tune per course if a printer shifts things.
-const DEFAULT_CALIB: Calib = {
-  front1X: 16.0, frontStep: 3.5,
-  back1X: 54.23, backStep: 3.51,
-  nameX: 4.0, row1Y: 53.27, rowStep: 2.69,
-};
-
-function calibKey(courseId: number | undefined) {
-  return `poolcard_calib_${courseId ?? 'default'}`;
-}
-
-// Render the vector PDF to a PNG data URL ONCE, then share it across all cards.
-let cardImagePromise: Promise<string> | null = null;
-async function renderCardImage(): Promise<string> {
-  if (cardImagePromise) return cardImagePromise;
-  cardImagePromise = (async () => {
-    const pdfjs = await import('pdfjs-dist');
-    pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
-    const doc = await pdfjs.getDocument({ url: CARD_PDF }).promise;
-    const page = await doc.getPage(1);
-    const viewport = page.getViewport({ scale: RENDER_SCALE });
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    const ctx = canvas.getContext('2d')!;
-    await page.render({ canvas, canvasContext: ctx, viewport }).promise;
-    return canvas.toDataURL('image/png');
-  })();
-  return cardImagePromise;
-}
-
-// Background = the crisp PDF render (shared across every foursome card). It's an
-// IN-FLOW image (block, width:100%, height:auto) so it defines the card's real
-// height — the overlay then positions against that on every browser.
-function PdfBackground() {
-  const [src, setSrc] = useState<string | null>(null);
-  useEffect(() => {
-    let alive = true;
-    renderCardImage().then((s) => { if (alive) setSrc(s); }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
-  // Placeholder holds the card's shape (via aspect-ratio) until the image loads.
-  if (!src) return <div className="w-full bg-gray-50 animate-pulse" style={{ aspectRatio: String(CARD_ASPECT) }} />;
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="Spring Creek scorecard" className="block w-full h-auto" />;
+// The tee whose Par / Yardage / Handicap header rows the card prints. Prefer the
+// course default, else the tee most of the foursome is playing, else the first.
+// (Per-player stroke DOTS are still computed off each player's OWN tee, so a
+// mixed men's/women's group is handled correctly regardless of this choice.)
+function referenceTee(game: PoolGame, playerIds: string[]): TeeSetOption | null {
+  const tees = game.course?.teeSets ?? [];
+  if (tees.length === 0) return null;
+  const byId = new Map(tees.map((t) => [t.id, t]));
+  const counts = new Map<number, number>();
+  for (const pid of playerIds) {
+    const teeId = game.players.find((p) => p.id === pid)?.teeSetId;
+    if (teeId != null && byId.has(teeId)) counts.set(teeId, (counts.get(teeId) ?? 0) + 1);
+  }
+  const mostCommon = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  return (
+    (game.course?.selectedTeeId != null ? byId.get(game.course.selectedTeeId) : undefined) ??
+    (mostCommon != null ? byId.get(mostCommon) : undefined) ??
+    tees[0]
+  );
 }
 
 export default function PoolScorecardsPage() {
@@ -77,8 +42,6 @@ export default function PoolScorecardsPage() {
   const params = useParams();
   const id = params.id as string;
   const [game, setGame] = useState<PoolGame | null>(null);
-  const [calib, setCalib] = useState<Calib>(DEFAULT_CALIB);
-  const [showCalib, setShowCalib] = useState(false);
 
   useEffect(() => {
     const cached = loadPoolGame(id);
@@ -89,165 +52,173 @@ export default function PoolScorecardsPage() {
     });
   }, [id, router]);
 
-  // Load saved alignment by COURSE (set once per course, reused by every game
-  // there on any device). Falls back to a game-level or per-device value from
-  // older saves, else defaults.
-  useEffect(() => {
-    if (!game) return;
-    const courseId = game.course?.courseId;
-    let cancelled = false;
-    (async () => {
-      if (courseId != null) {
-        const byCourse = await fetchCourseScorecardAlignment(courseId);
-        if (!cancelled && byCourse) { setCalib({ ...DEFAULT_CALIB, ...byCourse }); return; }
-      }
-      if (cancelled) return;
-      if (game.scorecardCalib) { setCalib({ ...DEFAULT_CALIB, ...game.scorecardCalib }); return; }
-      try {
-        const saved = localStorage.getItem(calibKey(courseId));
-        if (saved) setCalib({ ...DEFAULT_CALIB, ...JSON.parse(saved) });
-      } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
-  }, [game]);
-
   const details = useMemo(() => (game ? computePoolPlayerDetails(game, new Map()) : []), [game]);
 
   if (!game) return null;
 
-  function saveCalib() {
-    // Save against the COURSE so it's reused by every game at this course, on
-    // every device. localStorage kept as a courtesy offline fallback.
-    const courseId = game!.course?.courseId;
-    if (courseId != null) saveCourseScorecardAlignment(courseId, { ...calib });
-    try { localStorage.setItem(calibKey(courseId), JSON.stringify(calib)); } catch { /* ignore */ }
-    setShowCalib(false);
-  }
-  function resetCalib() { setCalib(DEFAULT_CALIB); }
-
   return (
     <div className="min-h-full bg-gray-200">
-      {/* Landscape print + hide chrome on print */}
-      <style>{`@media print { @page { size: landscape; margin: 0; } body { background: white; } }`}</style>
+      {/* Portrait print; two cards stack per page (page-break handled per card). */}
+      <style>{`@media print { @page { size: portrait; margin: 0.35in; } body { background: white; } }`}</style>
 
       {/* Toolbar (hidden on print) */}
       <div className="print:hidden bg-green-800 text-white">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold">{game.name} — Scorecards</h1>
-            <p className="text-xs text-green-200">{game.teams.length} foursome{game.teams.length === 1 ? '' : 's'} · one card per page</p>
+            <p className="text-xs text-green-200">
+              {game.teams.length} foursome{game.teams.length === 1 ? '' : 's'} · 2 cards per page
+            </p>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => setShowCalib((s) => !s)} className="text-sm text-green-200 hover:text-white">
-              {showCalib ? 'Hide align' : 'Align'}
-            </button>
             <button onClick={() => window.print()} className="rounded-md bg-white text-green-800 px-4 py-1.5 text-sm font-semibold hover:bg-green-50">Print</button>
             <button onClick={() => router.push(`/pool/${id}`)} className="text-sm text-green-200 hover:text-white">Back</button>
           </div>
         </div>
-        {showCalib && <CalibPanel calib={calib} setCalib={setCalib} onSave={saveCalib} onReset={resetCalib} />}
       </div>
 
-      <div className="max-w-6xl mx-auto p-3 space-y-4 print:p-0 print:space-y-0 print:max-w-none">
-        {details.map((team, idx) => (
-          <div key={team.teamId} className={idx > 0 ? 'print:break-before-page' : ''}>
-            <ScorecardOverlay game={game} team={team} calib={calib} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ScorecardOverlay({ game, team, calib }: { game: PoolGame; team: PoolTeamDetail; calib: Calib }) {
-  const holeX = (n: number) => (n <= 9 ? calib.front1X + (n - 1) * calib.frontStep : calib.back1X + (n - 10) * calib.backStep);
-  const rowY = (i: number) => calib.row1Y + i * calib.rowStep;
-  const strokesOn = (holes: PoolTeamDetail['players'][number]['holes'], n: number) =>
-    holes.find((h) => h.holeNumber === n)?.strokes ?? 0;
-
-  const poolTeam = game.teams.find((t) => t.id === team.teamId);
-
-  return (
-    // The IMAGE defines the card's height (in-flow, width:100% height:auto), and
-    // the overlay is an absolute layer over it. This makes percentage top/left
-    // resolve against the image's REAL rendered height on every browser —
-    // iOS Safari mis-resolves % heights derived from `aspect-ratio`, which pushed
-    // the overlay "high". `container-type: inline-size` scales cqw text by width.
-    <div
-      className="relative w-full bg-white shadow print:shadow-none"
-      style={{ containerType: 'inline-size' }}
-    >
-      <PdfBackground />
-
-      {/* Group label (top area, over blank space near the logo) */}
-      <div className="absolute" style={{ left: '3%', top: '46.5%' }}>
-        <span className="font-bold text-gray-800" style={{ fontSize: '1.7cqw' }}>
-          {poolTeam?.name}{poolTeam?.teeTime ? ` · ${poolTeam.teeTime}` : ''}
-        </span>
-      </div>
-
-      {team.players.map((pl, i) => {
-        const y = rowY(i);
-        return (
-          <div key={pl.playerId}>
-            {/* Player name in the row's left cell */}
-            <div className="absolute -translate-y-1/2 whitespace-nowrap" style={{ left: `${calib.nameX}%`, top: `${y}%` }}>
-              <span className="font-semibold text-gray-900" style={{ fontSize: '1.25cqw' }}>{pl.playerName}</span>
+      <div className="max-w-4xl mx-auto p-3 space-y-4 print:p-0 print:space-y-0 print:max-w-none">
+        {details.length === 0 ? (
+          <p className="text-center text-gray-500 py-10 bg-white rounded-lg">No foursomes to print yet.</p>
+        ) : (
+          details.map((team, idx) => (
+            // Two cards per page: break before every 2nd card; keep each intact.
+            <div
+              key={team.teamId}
+              className={idx % 2 === 0 && idx > 0 ? 'print:break-before-page' : ''}
+              style={{ breakInside: 'avoid' }}
+            >
+              <DrawnScorecard game={game} team={team} />
             </div>
-            {/* Stroke dots — upper-right of each hole box */}
-            {Array.from({ length: 18 }, (_, k) => k + 1).map((n) => {
-              const s = strokesOn(pl.holes, n);
-              if (s <= 0) return null;
-              return (
-                <div
-                  key={n}
-                  className="absolute -translate-y-1/2 text-green-700"
-                  style={{
-                    left: `${holeX(n) + calib.frontStep * 0.32}%`, // nudge toward right of the box
-                    top: `${y - calib.rowStep * 0.34}%`,           // nudge toward top of the box
-                    lineHeight: 1,
-                  }}
-                >
-                  <span className="font-bold" style={{ fontSize: '1cqw' }}>{'•'.repeat(s)}</span>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
+          ))
+        )}
+      </div>
     </div>
   );
 }
 
-function CalibPanel({ calib, setCalib, onSave, onReset }: {
-  calib: Calib; setCalib: (c: Calib) => void; onSave: () => void; onReset: () => void;
-}) {
-  const fields: { key: keyof Calib; label: string; step: number }[] = [
-    { key: 'nameX', label: 'Name X', step: 0.2 },
-    { key: 'row1Y', label: 'Row 1 Y', step: 0.2 },
-    { key: 'rowStep', label: 'Row gap', step: 0.05 },
-    { key: 'front1X', label: 'Hole 1 X', step: 0.2 },
-    { key: 'frontStep', label: 'Front gap', step: 0.05 },
-    { key: 'back1X', label: 'Hole 10 X', step: 0.2 },
-    { key: 'backStep', label: 'Back gap', step: 0.05 },
-  ];
+function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }) {
+  const poolTeam = game.teams.find((t) => t.id === team.teamId);
+  const tee = referenceTee(game, team.players.map((p) => p.playerId));
+  const holeByNum = new Map((tee?.holes ?? []).map((h) => [h.number, h]));
+
+  const par = (n: number) => holeByNum.get(n)?.par ?? null;
+  const si = (n: number) => holeByNum.get(n)?.handicap ?? null;
+  const yds = (n: number) => holeByNum.get(n)?.yardage ?? null;
+  const sum = (nums: number[], f: (n: number) => number | null) =>
+    nums.reduce((s, n) => s + (f(n) ?? 0), 0);
+
+  const teeNameOf = (playerId: string) =>
+    game.course?.teeSets.find((t) => t.id === game.players.find((p) => p.id === playerId)?.teeSetId)?.name ?? null;
+
+  const dateStr = new Date(game.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+  // Column classes shared by header + body so everything lines up. OUT/IN/TOT are
+  // shaded like a real card; the name column is wider to fit name + tee.
+  const holeCell = 'w-[3.9%] text-center border border-gray-300';
+  const sumCell = 'w-[4.5%] text-center border border-gray-300 bg-gray-100 font-semibold';
+  const nameCell = 'w-[15%] border border-gray-300 px-1';
+
   return (
-    <div className="max-w-6xl mx-auto px-4 pb-3">
-      <p className="text-xs text-green-100 mb-2">Nudge until names sit in the blank rows and dots land in the hole boxes, then Save. (Saved per course.)</p>
-      <div className="flex flex-wrap gap-3 items-end">
-        {fields.map(({ key, label, step }) => (
-          <label key={key} className="text-[11px] text-green-100">
-            <span className="block mb-0.5">{label}</span>
-            <input
-              type="number" step={step} value={calib[key]}
-              onChange={(e) => setCalib({ ...calib, [key]: parseFloat(e.target.value) || 0 })}
-              className="w-20 rounded border border-green-600 bg-green-900 px-1.5 py-1 text-white text-xs"
-            />
-          </label>
-        ))}
-        <button onClick={onSave} className="rounded-md bg-white text-green-800 px-3 py-1.5 text-xs font-semibold">Save alignment</button>
-        <button onClick={onReset} className="text-xs text-green-200 underline">Reset</button>
+    <div className="bg-white shadow print:shadow-none rounded-lg print:rounded-none overflow-hidden border border-gray-300">
+      {/* Masthead — green like the club card */}
+      <div className="bg-green-800 text-white px-3 py-2 flex items-end justify-between">
+        <div>
+          <p className="text-base font-bold leading-tight">{game.course?.courseName ?? 'Scorecard'}</p>
+          <p className="text-[11px] text-green-200 leading-tight">
+            {game.name} · {dateStr}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm font-bold leading-tight">{poolTeam?.name}</p>
+          {poolTeam?.teeTime && <p className="text-[11px] text-green-200 leading-tight">Tee time {poolTeam.teeTime}</p>}
+        </div>
+      </div>
+
+      <table className="w-full table-fixed border-collapse text-[10px] leading-none">
+        <thead>
+          <tr className="bg-green-700 text-white">
+            <th className={`${nameCell} text-left py-1 font-semibold`}>Hole</th>
+            {FRONT.map((n) => <th key={n} className={`${holeCell} py-1 font-semibold`}>{n}</th>)}
+            <th className={`${sumCell} py-1 !text-white !bg-green-900`}>OUT</th>
+            {BACK.map((n) => <th key={n} className={`${holeCell} py-1 font-semibold`}>{n}</th>)}
+            <th className={`${sumCell} py-1 !text-white !bg-green-900`}>IN</th>
+            <th className={`${sumCell} py-1 !text-white !bg-green-900`}>TOT</th>
+          </tr>
+        </thead>
+        <tbody className="text-gray-800">
+          {/* Yardage (reference tee) */}
+          <tr className="text-gray-500">
+            <td className={`${nameCell} py-0.5 text-[9px] font-medium`}>{tee?.name ? `${tee.name} yds` : 'Yards'}</td>
+            {FRONT.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{yds(n) ?? ''}</td>)}
+            <td className={`${sumCell} py-0.5`}>{sum(FRONT, yds) || ''}</td>
+            {BACK.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{yds(n) ?? ''}</td>)}
+            <td className={`${sumCell} py-0.5`}>{sum(BACK, yds) || ''}</td>
+            <td className={`${sumCell} py-0.5`}>{sum([...FRONT, ...BACK], yds) || ''}</td>
+          </tr>
+          {/* Par */}
+          <tr className="bg-gray-50 font-semibold">
+            <td className={`${nameCell} py-0.5`}>Par</td>
+            {FRONT.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{par(n) ?? ''}</td>)}
+            <td className={`${sumCell} py-0.5`}>{sum(FRONT, par) || ''}</td>
+            {BACK.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{par(n) ?? ''}</td>)}
+            <td className={`${sumCell} py-0.5`}>{sum(BACK, par) || ''}</td>
+            <td className={`${sumCell} py-0.5`}>{sum([...FRONT, ...BACK], par) || ''}</td>
+          </tr>
+          {/* Handicap (stroke index) */}
+          <tr className="text-gray-500">
+            <td className={`${nameCell} py-0.5 text-[9px] font-medium`}>Handicap</td>
+            {FRONT.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{si(n) ?? ''}</td>)}
+            <td className={`${sumCell} py-0.5`} />
+            {BACK.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{si(n) ?? ''}</td>)}
+            <td className={`${sumCell} py-0.5`} />
+            <td className={`${sumCell} py-0.5`} />
+          </tr>
+          {/* One blank scoring row per player, with stroke dots on stroke holes */}
+          {team.players.map((pl) => {
+            const strokesOn = (n: number) => pl.holes.find((h) => h.holeNumber === n)?.strokes ?? 0;
+            const tn = teeNameOf(pl.playerId);
+            return (
+              <tr key={pl.playerId} className="h-9">
+                <td className={`${nameCell} py-0.5 align-middle`}>
+                  <div className="font-semibold text-gray-900 text-[10px] leading-tight truncate">{pl.playerName}</div>
+                  {tn && (
+                    <div className="mt-0.5 leading-none">
+                      <span className="inline-block rounded-sm bg-green-100 text-green-800 font-semibold px-1 py-[1px] text-[8px] whitespace-nowrap">
+                        {tn}
+                      </span>
+                    </div>
+                  )}
+                </td>
+                {FRONT.map((n) => <ScoreBox key={n} className={holeCell} strokes={strokesOn(n)} />)}
+                <td className={`${sumCell} bg-gray-50`} />
+                {BACK.map((n) => <ScoreBox key={n} className={holeCell} strokes={strokesOn(n)} />)}
+                <td className={`${sumCell} bg-gray-50`} />
+                <td className={`${sumCell} bg-gray-50`} />
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      <div className="px-3 py-1 text-[8px] text-gray-400 border-t border-gray-200">
+        • = a stroke on that hole (off each player&apos;s own tee). Best 1 net + 1 gross per foursome.
       </div>
     </div>
+  );
+}
+
+// A blank box to write a score, with stroke dots pinned to the upper-right. The
+// dots live INSIDE the real cell (relative/absolute), so they can never drift out
+// of the box the way the old percentage overlay did.
+function ScoreBox({ strokes, className }: { strokes: number; className: string }) {
+  return (
+    <td className={`${className} relative align-middle h-8`}>
+      {strokes > 0 && (
+        <span className="absolute top-[1px] right-[2px] leading-none text-green-700 font-bold text-[9px]">
+          {'•'.repeat(strokes)}
+        </span>
+      )}
+    </td>
   );
 }
