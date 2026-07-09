@@ -24,6 +24,7 @@ import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournamen
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import { PairingLocks } from '@/components/pairing-locks';
+import { TeeTimePicker } from '@/components/tee-time-picker';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
 import {
   type RosterPlayer,
@@ -837,13 +838,7 @@ function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame)
 
           <div className="mb-3">
             <label className="block text-xs text-gray-500 mb-1">Tee time</label>
-            <input
-              type="text"
-              value={team.teeTime || ''}
-              onChange={(e) => setTeeTime(team.id, e.target.value)}
-              placeholder="HH:MM"
-              className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
+            <TeeTimePicker value={team.teeTime || ''} onChangeAction={(v) => setTeeTime(team.id, v)} />
           </div>
 
           <ul className="space-y-1.5">

@@ -8,6 +8,7 @@ import { parseGhinIndex } from '@/lib/game-state';
 import { PoolShareButton } from '@/components/pool-share';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
 import { PairingLocks } from '@/components/pairing-locks';
+import { TeeTimePicker } from '@/components/tee-time-picker';
 import { saveGhinIdentity, getCreatorGhin } from '@/lib/pool-identity';
 import { getAccessLevel } from '@/lib/invite-gate';
 import {
@@ -1621,13 +1622,7 @@ function TeamsStep({
 
               <div className="mb-2">
                 <label className="block text-xs text-gray-500 mb-1">Tee time</label>
-                <input
-                  type="text"
-                  value={team.teeTime || ''}
-                  onChange={(e) => setTeeTime(team.id, e.target.value)}
-                  placeholder="HH:MM"
-                  className="w-24 rounded-md border border-gray-300 px-2 py-1 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
+                <TeeTimePicker value={team.teeTime || ''} onChangeAction={(v) => setTeeTime(team.id, v)} />
               </div>
 
               <p className="text-xs text-gray-500 mb-2">
