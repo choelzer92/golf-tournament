@@ -51,11 +51,11 @@ export default function PoolTeamsPage() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto p-4 print:p-0">
+      <div className="mx-auto p-3 print:p-0">
         {/* Sheet header */}
-        <div className="mb-4 border-b-2 border-gray-800 pb-2">
-          <h2 className="text-xl font-bold text-gray-900">{game.name}</h2>
-          <p className="text-sm text-gray-600">
+        <div className="mb-3 border-b-2 border-gray-800 pb-2">
+          <h2 className="text-lg font-bold text-gray-900">{game.name}</h2>
+          <p className="text-xs text-gray-600">
             {course?.courseName ?? ''}{course?.courseName ? ' · ' : ''}{dateStr}
           </p>
         </div>
@@ -63,14 +63,17 @@ export default function PoolTeamsPage() {
         {game.teams.length === 0 ? (
           <p className="text-center text-gray-500 py-10">No foursomes set yet.</p>
         ) : (
-          <div className="space-y-3">
+          // All foursomes side by side so one screenshot captures every team.
+          // 2-up on a phone (a 4-foursome pool becomes a tidy 2×2), more columns
+          // as the screen widens.
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 items-start">
             {game.teams.map((team) => {
               const orderedIds = sortPlayerIdsByHcap(team.playerIds, game.players, course, game.handicapAllowance);
               return (
                 <div key={team.id} className="rounded-lg border border-gray-300 bg-white overflow-hidden" style={{ breakInside: 'avoid' }}>
-                  <div className="flex items-baseline justify-between px-3 py-2 bg-gray-100 border-b border-gray-300">
-                    <p className="font-bold text-gray-900">{team.name}</p>
-                    {team.teeTime && <p className="text-sm font-semibold text-gray-700">{team.teeTime}</p>}
+                  <div className="px-2 py-1 bg-gray-100 border-b border-gray-300">
+                    <p className="font-bold text-gray-900 text-sm leading-tight truncate">{team.name}</p>
+                    {team.teeTime && <p className="text-xs font-semibold text-gray-600 leading-tight">{team.teeTime}</p>}
                   </div>
                   <ul className="divide-y divide-gray-100">
                     {orderedIds.map((pid) => {
@@ -79,18 +82,18 @@ export default function PoolTeamsPage() {
                       const chcp = course ? Math.round(getPoolPlayingHandicap(p, course, game.handicapAllowance)) : null;
                       const tn = teeNameOf(pid);
                       return (
-                        <li key={pid} className="flex items-center gap-2 px-3 py-1.5">
-                          <span className="flex-1 text-sm text-gray-900 truncate">{p.name}</span>
-                          {tn && <span className="text-xs text-gray-400 flex-shrink-0">{tn}</span>}
+                        <li key={pid} className="flex items-baseline gap-1 px-2 py-1">
+                          <span className="flex-1 text-xs text-gray-900 truncate">{p.name}</span>
+                          {tn && <span className="text-[9px] text-gray-400 flex-shrink-0">{tn}</span>}
                           {chcp !== null && (
-                            <span className="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums" title="Course handicap">
+                            <span className="flex-shrink-0 text-xs font-semibold text-gray-700 tabular-nums" title="Course handicap">
                               {chcp}
                             </span>
                           )}
                         </li>
                       );
                     })}
-                    {orderedIds.length === 0 && <li className="px-3 py-1.5 text-xs text-gray-400">No players.</li>}
+                    {orderedIds.length === 0 && <li className="px-2 py-1 text-[10px] text-gray-400">No players.</li>}
                   </ul>
                 </div>
               );
@@ -98,8 +101,8 @@ export default function PoolTeamsPage() {
           </div>
         )}
 
-        <p className="mt-4 text-xs text-gray-400">
-          {game.players.length} players · {game.teams.length} foursome{game.teams.length === 1 ? '' : 's'} · handicaps shown are course handicap
+        <p className="mt-3 text-[10px] text-gray-400">
+          {game.players.length} players · {game.teams.length} foursome{game.teams.length === 1 ? '' : 's'} · number after each name = course handicap
         </p>
       </div>
     </div>
