@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { saveGhinIdentity } from '@/lib/pool-identity';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,9 +31,9 @@ export default function LoginPage() {
       }
 
       sessionStorage.setItem('ghin_token', data.token);
-      if (data.golfer) {
-        sessionStorage.setItem('ghin_golfer', JSON.stringify(data.golfer));
-      }
+      // Persist identity to session AND local storage (survives tab close) so
+      // "My Pool Games" recognizes a returning organizer.
+      if (data.golfer) saveGhinIdentity(data.golfer);
 
       router.push('/dashboard');
     } catch {

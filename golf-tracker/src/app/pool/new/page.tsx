@@ -7,6 +7,7 @@ import type { Player, CourseSelection, TeeSetOption } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
 import { PoolShareButton } from '@/components/pool-share';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
+import { saveGhinIdentity, getCreatorGhin } from '@/lib/pool-identity';
 import {
   type PoolGame,
   type PoolTeam,
@@ -35,20 +36,6 @@ type Step = 'details' | 'course' | 'field' | 'tees' | 'teams' | 'create';
 
 function getToken() {
   return sessionStorage.getItem('ghin_token');
-}
-
-// The logged-in organizer's GHIN number (from the stored GHIN identity), used to
-// tag games they create so they build a personal history. null if not logged in.
-function getCreatorGhin(): number | null {
-  try {
-    const raw = sessionStorage.getItem('ghin_golfer');
-    if (!raw) return null;
-    const g = JSON.parse(raw);
-    const n = Number(g?.ghin ?? g?.ghin_number ?? g?.id);
-    return isNaN(n) ? null : n;
-  } catch {
-    return null;
-  }
 }
 
 // Pick a tee for a player, STRICTLY within their gender. This matters because a
@@ -548,8 +535,9 @@ function CourseStep({
       }
       sessionStorage.setItem('ghin_token', data.token);
       // Capture the organizer's GHIN identity so games they create are tied to
-      // them (their "My Pool Games" history).
-      if (data.golfer) sessionStorage.setItem('ghin_golfer', JSON.stringify(data.golfer));
+      // them (their "My Pool Games" history). Persisted to local storage too so
+      // it survives a tab close.
+      if (data.golfer) saveGhinIdentity(data.golfer);
       setNoToken(false);
     } catch {
       setAuthError('Connection error');

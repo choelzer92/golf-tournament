@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { saveGhinIdentity } from '@/lib/pool-identity';
 
 // Shown when a GHIN call fails because the 12-hour token expired. Lets the user
 // re-login in place (stores a fresh token + their GHIN identity), then fires
@@ -28,7 +29,9 @@ export function GhinLoginModal({ open, onDoneAction, onCloseAction }: {
       const data = await res.json();
       if (!res.ok || !data.token) { setErr(data.error || 'Login failed'); return; }
       sessionStorage.setItem('ghin_token', data.token);
-      if (data.golfer) sessionStorage.setItem('ghin_golfer', JSON.stringify(data.golfer));
+      // Persist identity to session AND local storage so a returning organizer
+      // keeps their "My Pool Games" history after the tab closes.
+      if (data.golfer) saveGhinIdentity(data.golfer);
       setUser('');
       setPass('');
       onDoneAction();
