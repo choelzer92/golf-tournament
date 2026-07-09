@@ -94,6 +94,17 @@ export function getRosterPlayerByGhin(ghinNumber: number): RosterPlayer | null {
   return null;
 }
 
+export function getRosterPlayerById(id: string): RosterPlayer | null {
+  return rosterCache.get(id) ?? null;
+}
+
+// Remove a player from the saved roster (roster-management only — does not touch
+// any game a player was already added to). Deletes from cache + Supabase.
+export async function deleteRosterPlayer(id: string): Promise<void> {
+  rosterCache.delete(id);
+  await supabase.from('players').delete().eq('id', id);
+}
+
 // Upsert a player into the roster. If a player with the same GHIN already exists,
 // reuse its id so the same person stays a single roster entry across games.
 export async function upsertRosterPlayer(player: RosterPlayer): Promise<RosterPlayer> {
