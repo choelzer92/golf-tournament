@@ -19,6 +19,7 @@ import {
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
   balanceTeamsByHandicap,
+  teeOptionsForPlayer,
 } from '@/lib/pool-game';
 import {
   type RosterPlayer,
@@ -1248,7 +1249,7 @@ function FieldStep({
                         onChange={(e) => changePlayerTee(player.id, Number(e.target.value))}
                         className="text-sm rounded-md border border-gray-300 px-2 py-1 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
                       >
-                        {course.teeSets.map((ts) => (
+                        {teeOptionsForPlayer(course, player).map((ts) => (
                           <option key={ts.id} value={ts.id}>
                             {ts.name} ({ts.totalYardage} yds)
                           </option>
@@ -1594,7 +1595,7 @@ function TeamsStep({
                             className="text-xs rounded border border-gray-300 px-1 py-0.5 shadow-sm focus:border-green-500 focus:outline-none max-w-[96px]"
                             title="Tee"
                           >
-                            {course.teeSets.map((ts) => (
+                            {teeOptionsForPlayer(course, p).map((ts) => (
                               <option key={ts.id} value={ts.id}>{ts.name}</option>
                             ))}
                           </select>

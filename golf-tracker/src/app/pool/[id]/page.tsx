@@ -16,6 +16,8 @@ import {
   getPar3Holes,
   distinctRankingsForPlayers,
   balanceTeamsByHandicap,
+  teeOptionsForPlayer,
+  playerTeeGenderMismatch,
 } from '@/lib/pool-game';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
@@ -778,20 +780,20 @@ function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame)
               const p = playerById.get(pid);
               if (!p) return null;
               const chcp = course ? Math.round(getPoolPlayingHandicap(p, course, game.handicapAllowance)) : null;
-              const g: 'M' | 'F' = p.gender === 'F' ? 'F' : 'M';
-              const genderTees = (course?.teeSets || []).filter((t) => (t.gender ?? 'M') === g);
-              const teeOptions: TeeSetOption[] = genderTees.length > 0 ? genderTees : (course?.teeSets || []);
+              const teeOptions: TeeSetOption[] = teeOptionsForPlayer(course, p);
+              const mismatch = playerTeeGenderMismatch(course, p);
               return (
                 <li key={pid} className="flex items-center gap-2 rounded bg-gray-50 px-2 py-1.5">
                   <span className="text-sm text-gray-900 truncate min-w-0 flex-1">
                     {p.name}
                     {chcp !== null && <span className="ml-1 text-xs text-gray-500">({chcp})</span>}
+                    {mismatch && <span className="ml-1 text-xs text-red-600 font-medium" title="This tee doesn't match the player's gender — fix it to correct their handicap">⚠ tee</span>}
                   </span>
                   {course && course.teeSets.length > 1 && (
                     <select
                       value={p.teeSetId ?? ''}
                       onChange={(e) => changePlayerTee(pid, Number(e.target.value))}
-                      className="text-xs rounded border border-gray-300 px-1 py-0.5 shadow-sm focus:border-green-500 focus:outline-none max-w-[92px]"
+                      className={`text-xs rounded border px-1 py-0.5 shadow-sm focus:outline-none max-w-[92px] ${mismatch ? 'border-red-400 focus:border-red-500' : 'border-gray-300 focus:border-green-500'}`}
                       title="Tee"
                     >
                       {teeOptions.map((ts) => (

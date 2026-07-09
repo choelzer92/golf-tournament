@@ -202,6 +202,35 @@ function getPlayerTee(player: Player, course: CourseSelection | null): TeeSetOpt
   return course.teeSets.find((t) => t.id === course.selectedTeeId) || course.teeSets[0] || null;
 }
 
+// Tee options to offer a player in a picker: the tees matching their gender,
+// PLUS whatever tee they're currently on even if it's the "wrong" gender. The
+// current-tee inclusion matters because an HTML <select> whose value isn't among
+// its <option>s silently renders the FIRST option — which made a male stuck on a
+// legacy women's tee LOOK like he was on "Championship" on one screen while the
+// scorecard showed his real (women's) tee. Including the current tee makes every
+// picker show the truth, and gender-filtering the rest stops new mis-assignments.
+export function teeOptionsForPlayer(course: CourseSelection | null, player: Player): TeeSetOption[] {
+  const tees = course?.teeSets ?? [];
+  if (tees.length === 0) return [];
+  const g: 'M' | 'F' = player.gender === 'F' ? 'F' : 'M';
+  const sameGender = tees.filter((t) => (t.gender ?? 'M') === g);
+  const base = sameGender.length > 0 ? sameGender : tees;
+  const current = tees.find((t) => t.id === player.teeSetId);
+  if (current && !base.some((t) => t.id === current.id)) return [current, ...base];
+  return base;
+}
+
+// True when a player is sitting on a tee that doesn't match their gender — a
+// legacy mis-assignment that silently corrupts their handicap (men's/women's
+// tees can share a name yet differ in rating and hole stroke-index). Surfaced
+// in the UI so the organizer can spot and correct it.
+export function playerTeeGenderMismatch(course: CourseSelection | null, player: Player): boolean {
+  const tee = course?.teeSets.find((t) => t.id === player.teeSetId);
+  if (!tee || !tee.gender) return false;
+  const g: 'M' | 'F' = player.gender === 'F' ? 'F' : 'M';
+  return tee.gender !== g;
+}
+
 // A player's stroke index (hole "handicap") for a hole, read from THEIR OWN tee.
 // Men's and women's tees often rank hole difficulty differently (e.g. Spring
 // Creek differs on 14 of 18 holes), so strokes must be allocated per that
