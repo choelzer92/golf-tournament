@@ -16,6 +16,16 @@ import { loadPoolGame, fetchPoolGame, computePoolPlayerDetails, distinctRankings
 const FRONT = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const BACK = [10, 11, 12, 13, 14, 15, 16, 17, 18];
 
+// Group the foursomes into pairs so each printed page holds exactly two cards.
+// Pairing at the data level (rather than a per-card page-break rule) is what makes
+// "2 per page" reliable in landscape: we force a page break AFTER each pair, so the
+// browser can never decide to fit only one.
+function chunkPairs<T>(items: T[]): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += 2) out.push(items.slice(i, i + 2));
+  return out;
+}
+
 // The distinct tees actually being played in this foursome, most-used first
 // (tie-break: longer yardage first). Men's and women's tees differ in BOTH
 // yardage and hole handicap, so the card prints a yardage row and a handicap
@@ -56,18 +66,38 @@ export default function PoolScorecardsPage() {
 
   if (!game) return null;
 
+  const pages = chunkPairs(details);
+
   return (
     <div className="min-h-full bg-gray-200">
-      {/* Portrait print; two cards stack per page (page-break handled per card). */}
-      <style>{`@media print { @page { size: portrait; margin: 0.35in; } body { background: white; } }`}</style>
+      {/*
+        Print LANDSCAPE with exactly two cards per page. The reliable recipe here
+        is: group the foursomes into PAIRS, force a page break AFTER each pair, and
+        keep each card intact (break-inside: avoid). We deliberately do NOT pin the
+        pair to a fixed height (e.g. 100vh) — in print that can measure slightly
+        taller than the printable area and shove the 2nd card onto its own page,
+        which is exactly the "only one per page" bug the user hit. Two compact
+        landscape cards fit a sheet on their own, so natural height is both correct
+        and safe. Legacy `page-break-*` aliases included for Safari.
+      */}
+      <style>{`
+        @media print {
+          @page { size: landscape; margin: 0.3in; }
+          body { background: white; }
+          .sc-page { break-after: page; page-break-after: always; break-inside: avoid; page-break-inside: avoid; }
+          .sc-page:last-child { break-after: auto; page-break-after: auto; }
+          .sc-slot { break-inside: avoid; page-break-inside: avoid; }
+          .sc-slot + .sc-slot { margin-top: 0.22in; }
+        }
+      `}</style>
 
       {/* Toolbar (hidden on print) */}
       <div className="print:hidden bg-green-800 text-white">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold">{game.name} — Scorecards</h1>
             <p className="text-xs text-green-200">
-              {game.teams.length} foursome{game.teams.length === 1 ? '' : 's'} · 2 cards per page
+              {game.teams.length} foursome{game.teams.length === 1 ? '' : 's'} · 2 cards per page (landscape)
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -77,18 +107,24 @@ export default function PoolScorecardsPage() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto p-3 space-y-4 print:p-0 print:space-y-0 print:max-w-none">
-        {details.length === 0 ? (
+      {/* On-screen tip so it's obvious the printout is set up for landscape. */}
+      <div className="print:hidden max-w-5xl mx-auto px-4 pt-3">
+        <p className="text-xs text-gray-500">
+          Set your print dialog to <span className="font-semibold text-gray-700">Landscape</span> — the page is laid out for two cards per sheet.
+        </p>
+      </div>
+
+      <div className="max-w-5xl mx-auto p-3 space-y-4 print:p-0 print:space-y-0 print:max-w-none">
+        {pages.length === 0 ? (
           <p className="text-center text-gray-500 py-10 bg-white rounded-lg">No foursomes to print yet.</p>
         ) : (
-          details.map((team, idx) => (
-            // Two cards per page: break before every 2nd card; keep each intact.
-            <div
-              key={team.teamId}
-              className={idx % 2 === 0 && idx > 0 ? 'print:break-before-page' : ''}
-              style={{ breakInside: 'avoid' }}
-            >
-              <DrawnScorecard game={game} team={team} />
+          pages.map((pair, pageIdx) => (
+            <div key={pageIdx} className="sc-page space-y-4 print:space-y-0">
+              {pair.map((team) => (
+                <div key={team.teamId} className="sc-slot">
+                  <DrawnScorecard game={game} team={team} />
+                </div>
+              ))}
             </div>
           ))
         )}

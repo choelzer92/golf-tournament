@@ -514,22 +514,31 @@ export function balanceTeamsWithLocks(
 
 // --- Fair player swaps -----------------------------------------------------
 
-// The spread (max team total − min team total) of combined playing handicaps
-// across all teams — the same "even teams" metric the auto-balancer minimizes.
-// Empty teams are ignored so they don't peg the spread at the full max.
+// The per-player STROKES-THIS-GAME map — the exact same off-the-low-adjusted
+// playing handicap the scorecards and foursome cards use. Under 'full' it's the
+// raw course handicap; under 'off-the-low' the field low is subtracted from
+// everyone. Exposed so the swap tool can display and compare on the SAME number
+// the organizer sees on the cards (raw course handicap looked wrong to him in an
+// off-the-low game). Swapping players between teams never changes the field low
+// (it's over the whole field), so this map is invariant under any swap and can be
+// computed once and reused for every simulated arrangement.
+export function poolStrokeMap(game: PoolGame): Map<string, number> {
+  return buildHcapMap(game);
+}
+
+// The spread (max team total − min team total) of combined STROKES-THIS-GAME
+// across all teams — the same "even teams" metric the auto-balancer minimizes,
+// now expressed in the strokes players actually receive. Takes a precomputed
+// stroke map (from poolStrokeMap) so it stays consistent with the cards and so
+// simulated swaps reuse one map. Empty teams are ignored so they don't peg the
+// spread at the full max.
 export function teamHandicapSpread(
   teams: PoolTeam[],
-  players: Player[],
-  course: CourseSelection | null,
-  allowance: number
+  hcapById: Map<string, number>
 ): number {
-  const byId = new Map(players.map((p) => [p.id, p]));
   const totals = teams
     .filter((t) => t.playerIds.length > 0)
-    .map((t) => t.playerIds.reduce((s, id) => {
-      const p = byId.get(id);
-      return p ? s + getPoolPlayingHandicap(p, course, allowance) : s;
-    }, 0));
+    .map((t) => t.playerIds.reduce((s, id) => s + (hcapById.get(id) ?? 0), 0));
   if (totals.length === 0) return 0;
   return Math.max(...totals) - Math.min(...totals);
 }
@@ -545,18 +554,22 @@ export interface SwapCandidate {
 
 // For a chosen player, rank every 1-for-1 swap partner on the OTHER teams by how
 // FAIR the teams would be afterward (resulting handicap spread, lowest first).
-// Fairness is measured on each player's playing handicap off THEIR OWN tee, so a
-// swap that moves players between tees is judged on real strokes. A 1-for-1 swap
-// never changes team sizes, so size stays valid automatically.
+// Fairness is measured on each player's STROKES THIS GAME (off-the-low-adjusted,
+// off THEIR OWN tee) — the same number shown on the cards — so a swap that moves
+// players between tees is judged on real strokes. A 1-for-1 swap never changes
+// team sizes, so size stays valid automatically.
 export function rankSwapCandidates(
   game: PoolGame,
   playerId: string
 ): SwapCandidate[] {
-  const { players, course, handicapAllowance: allowance, teams } = game;
+  const { teams } = game;
   const fromTeam = teams.find((t) => t.playerIds.includes(playerId));
   if (!fromTeam) return [];
 
-  const currentSpread = teamHandicapSpread(teams, players, course, allowance);
+  // One stroke map for the whole field; a swap can't change it (field low is
+  // over everyone), so reuse it for the base and every simulated arrangement.
+  const hcapById = poolStrokeMap(game);
+  const currentSpread = teamHandicapSpread(teams, hcapById);
   const candidates: SwapCandidate[] = [];
 
   for (const other of teams) {
@@ -568,7 +581,7 @@ export function rankSwapCandidates(
         if (t.id === other.id) return { ...t, playerIds: t.playerIds.map((id) => (id === otherPid ? playerId : id)) };
         return t;
       });
-      const resultingSpread = teamHandicapSpread(simulated, players, course, allowance);
+      const resultingSpread = teamHandicapSpread(simulated, hcapById);
       candidates.push({
         playerId: otherPid,
         teamId: other.id,

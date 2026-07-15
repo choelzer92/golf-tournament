@@ -21,6 +21,7 @@ import {
   playerTeeGenderMismatch,
   rankSwapCandidates,
   teamHandicapSpread,
+  poolStrokeMap,
 } from '@/lib/pool-game';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
@@ -618,9 +619,29 @@ function StrokeAllocation({ detail, game }: { detail: PoolTeamDetail; game: Pool
 // team keeps its matchupId and we never touch ctpWinners.
 // ---------------------------------------------------------------------------
 
-function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
+function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
   const course = game.course;
   const playerById = new Map(game.players.map((p) => [p.id, p]));
+  // Strokes THIS GAME (off-the-low-adjusted) — same number as the cards and the
+  // swap tool, so the handicap shown next to each name here is consistent.
+  const strokeMap = poolStrokeMap(game);
+
+  // Every team edit here saves instantly (there is no separate submit step). The
+  // organizer wasn't sure his changes stuck, so wrap the save so EVERY edit both
+  // persists and flashes a visible "Saved ✓" banner. All the helpers below call
+  // this `onSave`, so nothing can save without confirming it.
+  const [saveTick, setSaveTick] = useState(0);
+  const [showSaved, setShowSaved] = useState(false);
+  const onSave = (updated: PoolGame) => {
+    onSaveProp(updated);
+    setShowSaved(true);          // show immediately (event handler — safe)
+    setSaveTick((n) => n + 1);   // re-arm the auto-hide timer below
+  };
+  useEffect(() => {
+    if (saveTick === 0) return;  // don't flash on first mount
+    const t = setTimeout(() => setShowSaved(false), 1800);
+    return () => clearTimeout(t);
+  }, [saveTick]);
 
   // Fetch each foursome's scores into cache on entering edit mode, so the
   // re-balance "scores exist?" check (via loadGameScores) is accurate.
@@ -793,35 +814,53 @@ function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame)
 
   return (
     <div className="space-y-3">
+      {/* Floating confirmation so the organizer always sees that an edit stuck. */}
+      {showSaved && (
+        <div className="fixed inset-x-0 bottom-4 z-50 flex justify-center pointer-events-none print:hidden">
+          <div className="rounded-full bg-green-700 text-white px-4 py-2 text-sm font-semibold shadow-lg">
+            ✓ Saved
+          </div>
+        </div>
+      )}
+
+      {/* Plain-words note: there is no submit step, so he won't fear losing edits. */}
+      <p className="text-xs text-gray-600 bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
+        Changes save automatically as you make them — no submit button. Tap <span className="font-semibold">Done editing</span> at the top when you&apos;re finished.
+      </p>
+
       {game.players.length > 0 && (
         <PairingLocks
           players={game.players}
           lockedGroups={game.lockedGroups ?? []}
           setLockedGroupsAction={setLockedGroups}
+          onApplyAction={autoBalance}
         />
       )}
       {game.teams.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={autoBalance}
-            className="rounded-md border border-green-700 px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50"
-          >
-            Auto-balance by course HCP
-          </button>
-          <button
-            onClick={autoGenerate}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 font-medium hover:bg-gray-100"
-          >
-            Auto-generate foursomes
-          </button>
-          {game.teams.length > 1 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Build &amp; adjust teams</p>
+          <div className="flex gap-2 flex-wrap">
             <button
-              onClick={sortTeamsByTeeTime}
+              onClick={autoBalance}
+              className="rounded-md border border-green-700 px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50"
+            >
+              Auto-balance by course HCP
+            </button>
+            <button
+              onClick={autoGenerate}
               className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 font-medium hover:bg-gray-100"
             >
-              Order by tee time
+              Auto-generate foursomes
             </button>
-          )}
+            {game.teams.length > 1 && (
+              <button
+                onClick={sortTeamsByTeeTime}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 font-medium hover:bg-gray-100"
+              >
+                Order by tee time
+              </button>
+            )}
+          </div>
         </div>
       )}
       {game.teams.length > 1 && (
@@ -866,48 +905,59 @@ function EditFoursomes({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame)
             {team.playerIds.map((pid) => {
               const p = playerById.get(pid);
               if (!p) return null;
-              const chcp = course ? Math.round(getPoolPlayingHandicap(p, course, game.handicapAllowance)) : null;
+              const chcp = course ? Math.round(strokeMap.get(pid) ?? 0) : null;
               const teeOptions: TeeSetOption[] = teeOptionsForPlayer(course, p);
               const mismatch = playerTeeGenderMismatch(course, p);
               return (
-                <li key={pid} className="flex items-center gap-2 rounded bg-gray-50 px-2 py-1.5">
-                  <span className="text-sm text-gray-900 truncate min-w-0 flex-1">
-                    {p.name}
-                    {chcp !== null && <span className="ml-1 text-xs text-gray-500">({chcp})</span>}
-                    {mismatch && <span className="ml-1 text-xs text-red-600 font-medium" title="This tee doesn't match the player's gender — fix it to correct their handicap">⚠ tee</span>}
-                  </span>
-                  {course && course.teeSets.length > 1 && (
-                    <select
-                      value={p.teeSetId ?? ''}
-                      onChange={(e) => changePlayerTee(pid, Number(e.target.value))}
-                      className={`text-xs rounded border px-1 py-0.5 shadow-sm focus:outline-none max-w-[92px] ${mismatch ? 'border-red-400 focus:border-red-500' : 'border-gray-300 focus:border-green-500'}`}
-                      title="Tee"
+                <li key={pid} className="rounded bg-gray-50 px-2 py-2">
+                  {/* Line 1: who + their course handicap */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-900 truncate min-w-0 flex-1">
+                      {p.name}
+                      {chcp !== null && <span className="ml-1 text-xs font-normal text-gray-500" title="Strokes received in this game">({chcp})</span>}
+                      {mismatch && <span className="ml-1 text-xs text-red-600 font-medium" title="This tee doesn't match the player's gender — fix it to correct their handicap">⚠ tee</span>}
+                    </span>
+                    <button
+                      onClick={() => removePlayer(pid)}
+                      className="text-red-500 hover:text-red-700 text-lg leading-none px-1 flex-shrink-0"
+                      title="Remove player"
                     >
-                      {teeOptions.map((ts) => (
-                        <option key={ts.id} value={ts.id}>{ts.name}</option>
-                      ))}
-                    </select>
-                  )}
-                  <label className="flex items-center gap-1 text-[10px] text-gray-500 flex-shrink-0">
-                    <span className="font-medium">Move</span>
-                    <select
-                      value={team.id}
-                      onChange={(e) => movePlayer(pid, team.id, e.target.value)}
-                      className="text-xs rounded border border-gray-300 px-1 py-0.5 shadow-sm focus:border-green-500 focus:outline-none max-w-[88px]"
-                      title="Move this player to another team"
-                    >
-                      {game.teams.map((t) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <button
-                    onClick={() => removePlayer(pid)}
-                    className="text-red-500 hover:text-red-700 text-sm px-1 flex-shrink-0"
-                    title="Remove player"
-                  >
-                    &times;
-                  </button>
+                      &times;
+                    </button>
+                  </div>
+                  {/* Line 2: clearly-labeled controls with real tap targets */}
+                  <div className="mt-1.5 flex items-end gap-2 flex-wrap">
+                    {game.teams.length > 1 && (
+                      <label className="flex flex-col gap-0.5">
+                        <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Move to</span>
+                        <select
+                          value={team.id}
+                          onChange={(e) => movePlayer(pid, team.id, e.target.value)}
+                          className="text-sm rounded-md border border-gray-300 px-2 py-1 shadow-sm focus:border-green-500 focus:outline-none bg-white"
+                          title="Move this player to another team"
+                        >
+                          {game.teams.map((t) => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    {course && course.teeSets.length > 1 && (
+                      <label className="flex flex-col gap-0.5">
+                        <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Tee</span>
+                        <select
+                          value={p.teeSetId ?? ''}
+                          onChange={(e) => changePlayerTee(pid, Number(e.target.value))}
+                          className={`text-sm rounded-md border px-2 py-1 shadow-sm focus:outline-none bg-white ${mismatch ? 'border-red-400 focus:border-red-500' : 'border-gray-300 focus:border-green-500'}`}
+                          title="Tee"
+                        >
+                          {teeOptions.map((ts) => (
+                            <option key={ts.id} value={ts.id}>{ts.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </div>
                 </li>
               );
             })}
@@ -1114,18 +1164,20 @@ function SwapPanel({ game, onSwap }: { game: PoolGame; onSwap: (a: string, b: st
 
   const nameOf = (id: string) => game.players.find((p) => p.id === id)?.name ?? '?';
   const teamOf = (id: string) => game.teams.find((t) => t.playerIds.includes(id));
-  const strokesOf = (id: string) => {
-    const p = game.players.find((x) => x.id === id);
-    return p ? Math.round(getPoolPlayingHandicap(p, game.course, game.handicapAllowance)) : 0;
-  };
+
+  // Show STROKES THIS GAME (off-the-low-adjusted) — the exact number on the
+  // foursome cards — not the raw course handicap, so the swap tool's per-player
+  // values and spread match what the organizer sees everywhere else.
+  const strokeMap = useMemo(() => poolStrokeMap(game), [game]);
+  const strokesOf = (id: string) => Math.round(strokeMap.get(id) ?? 0);
 
   const candidates = useMemo(
     () => (selected ? rankSwapCandidates(game, selected) : []),
     [game, selected]
   );
   const currentSpread = useMemo(
-    () => teamHandicapSpread(game.teams, game.players, game.course, game.handicapAllowance),
-    [game]
+    () => teamHandicapSpread(game.teams, strokeMap),
+    [game, strokeMap]
   );
 
   // Reset a stale partner if the selected player changed.
@@ -1153,7 +1205,8 @@ function SwapPanel({ game, onSwap }: { game: PoolGame; onSwap: (a: string, b: st
       <p className="text-sm font-semibold text-gray-800">Swap two players</p>
       <p className="text-xs text-gray-500 mb-2">
         Pick a player, then choose someone to swap with — the fairest matches (teams stay most even) are listed first.
-        Current team spread: <span className="font-medium text-gray-700">{Math.round(currentSpread)}</span> strokes.
+        Numbers in parentheses are <span className="font-medium text-gray-700">strokes received this game</span>.
+        Current spread between teams: <span className="font-medium text-gray-700">{Math.round(currentSpread)}</span>.
       </p>
 
       <div className="mb-2">

@@ -1528,12 +1528,15 @@ function TeamsStep({
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Set Teams</h2>
 
-      {/* Pairing locks — keep chosen players on the same team through balancing */}
+      {/* Pairing locks — keep chosen players on the same team through balancing.
+          Applying the lock IS auto-balance, wired right into the box so it's one
+          obvious action. */}
       <div className="mb-4">
         <PairingLocks
           players={players}
           lockedGroups={lockedGroups}
           setLockedGroupsAction={setLockedGroups}
+          onApplyAction={autoBalance}
         />
       </div>
 
@@ -1636,43 +1639,51 @@ function TeamsStep({
                   if (!p) return null;
                   const hcap = course ? Math.round(hcapOf(p)) : null;
                   return (
-                    <li key={pid} className="flex items-center gap-2 rounded bg-gray-50 px-2 py-1">
-                      <span className="text-sm text-gray-900 truncate min-w-0 flex-1">{p.name}</span>
-                      {hcap !== null && (
-                        <span
-                          className="flex-shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums"
-                          title="Course handicap on this tee"
-                        >
-                          {hcap}
-                        </span>
-                      )}
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        {course && course.teeSets.length > 1 && (
-                          <select
-                            value={p.teeSetId ?? ''}
-                            onChange={(e) => changePlayerTee(pid, Number(e.target.value))}
-                            className="text-xs rounded border border-gray-300 px-1 py-0.5 shadow-sm focus:border-green-500 focus:outline-none max-w-[96px]"
-                            title="Tee"
+                    <li key={pid} className="rounded bg-gray-50 px-2 py-2">
+                      {/* Line 1: who + their course handicap */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900 truncate min-w-0 flex-1">{p.name}</span>
+                        {hcap !== null && (
+                          <span
+                            className="flex-shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums"
+                            title="Course handicap on this tee"
                           >
-                            {teeOptionsForPlayer(course, p).map((ts) => (
-                              <option key={ts.id} value={ts.id}>{ts.name}</option>
-                            ))}
-                          </select>
+                            {hcap}
+                          </span>
                         )}
-                        {/* Obvious labeled Move control */}
-                        <label className="flex items-center gap-1 text-[10px] text-gray-500">
-                          <span className="font-medium">Move</span>
-                          <select
-                            value={team.id}
-                            onChange={(e) => movePlayer(pid, team.id, e.target.value)}
-                            className="text-xs rounded border border-gray-300 px-1 py-0.5 shadow-sm focus:border-green-500 focus:outline-none"
-                            title="Move this player to another team"
-                          >
-                            {teams.map((t) => (
-                              <option key={t.id} value={t.id}>{t.name}</option>
-                            ))}
-                          </select>
-                        </label>
+                      </div>
+                      {/* Line 2: clearly-labeled controls with real tap targets */}
+                      <div className="mt-1.5 flex items-end gap-2 flex-wrap">
+                        {teams.length > 1 && (
+                          <label className="flex flex-col gap-0.5">
+                            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Move to</span>
+                            <select
+                              value={team.id}
+                              onChange={(e) => movePlayer(pid, team.id, e.target.value)}
+                              className="text-sm rounded-md border border-gray-300 px-2 py-1 shadow-sm focus:border-green-500 focus:outline-none bg-white"
+                              title="Move this player to another team"
+                            >
+                              {teams.map((t) => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+                        {course && course.teeSets.length > 1 && (
+                          <label className="flex flex-col gap-0.5">
+                            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Tee</span>
+                            <select
+                              value={p.teeSetId ?? ''}
+                              onChange={(e) => changePlayerTee(pid, Number(e.target.value))}
+                              className="text-sm rounded-md border border-gray-300 px-2 py-1 shadow-sm focus:border-green-500 focus:outline-none bg-white"
+                              title="Tee"
+                            >
+                              {teeOptionsForPlayer(course, p).map((ts) => (
+                                <option key={ts.id} value={ts.id}>{ts.name}</option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
                       </div>
                     </li>
                   );
