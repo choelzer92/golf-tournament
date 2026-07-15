@@ -96,7 +96,8 @@ export default function PoolScorecardsPage() {
             height: 7.5in;
             display: flex;
             flex-direction: column;
-            gap: 0.15in;
+            gap: 0.5in;              /* generous gutter between the two cards so
+                                        there's room to cut the page in half */
             box-sizing: border-box;
             break-after: page; page-break-after: always;
           }
