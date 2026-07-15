@@ -71,23 +71,50 @@ export default function PoolScorecardsPage() {
   return (
     <div className="min-h-full bg-gray-200">
       {/*
-        Print LANDSCAPE with exactly two cards per page. The reliable recipe here
-        is: group the foursomes into PAIRS, force a page break AFTER each pair, and
-        keep each card intact (break-inside: avoid). We deliberately do NOT pin the
-        pair to a fixed height (e.g. 100vh) — in print that can measure slightly
-        taller than the printable area and shove the 2nd card onto its own page,
-        which is exactly the "only one per page" bug the user hit. Two compact
-        landscape cards fit a sheet on their own, so natural height is both correct
-        and safe. Legacy `page-break-*` aliases included for Safari.
+        Print LANDSCAPE with exactly two cards per page, sized to FILL the sheet so
+        there's no dead space at the bottom. Recipe:
+        • Group foursomes into PAIRS; force a page break after each pair.
+        • Give each ".sc-page" an explicit height of 7.5in — safely inside BOTH
+          US Letter landscape (7.9in printable) and A4 landscape (7.67in) so it
+          can never spill onto a blank 3rd page, while still filling most of the
+          sheet (Letter leaves ~0.4in vs the ~1.3in of dead space before). We use a
+          fixed inch height, NOT 100vh — in print 100vh can measure taller than the
+          printable box and produce blank pages.
+        • The page is a flex column; its two ".sc-slot" halves split the height
+          (max-height caps a lone card on an odd last page to half a sheet).
+        • Each card fills its slot (print:h-full/flex), and the score TABLE grows
+          to fill (print:h-full) — browsers distribute the surplus height across
+          rows in proportion to their size, so the tall player rows soak up most of
+          it: bigger write-in boxes rather than empty space.
+        Legacy `page-break-*` aliases included for Safari.
       */}
       <style>{`
         @media print {
           @page { size: landscape; margin: 0.3in; }
           body { background: white; }
-          .sc-page { break-after: page; page-break-after: always; break-inside: avoid; page-break-inside: avoid; }
+          .sc-page {
+            height: 7.5in;
+            display: flex;
+            flex-direction: column;
+            gap: 0.15in;
+            box-sizing: border-box;
+            break-after: page; page-break-after: always;
+          }
           .sc-page:last-child { break-after: auto; page-break-after: auto; }
-          .sc-slot { break-inside: avoid; page-break-inside: avoid; }
-          .sc-slot + .sc-slot { margin-top: 0.22in; }
+          .sc-slot {
+            flex: 1 1 0;
+            min-height: 0;
+            max-height: 3.8in;
+            overflow: hidden;
+            break-inside: avoid; page-break-inside: avoid;
+          }
+          /* Steer the table's surplus height into the player rows (taller write-in
+             boxes) instead of ballooning the reference rows. When the table is
+             stretched to fill and every row has an explicit height, the surplus is
+             shared in proportion to those heights: info rows pinned to content
+             height absorb ~none; player rows soak up the rest. */
+          .sc-info-row { height: 0; }
+          .sc-player-row { height: 2.4rem; }
         }
       `}</style>
 
@@ -184,9 +211,9 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
   const nameCell = 'w-[15%] border border-gray-400 px-1';
 
   return (
-    <div className="bg-white shadow print:shadow-none rounded-lg print:rounded-none overflow-hidden border border-gray-400">
+    <div className="bg-white shadow print:shadow-none rounded-lg print:rounded-none overflow-hidden border border-gray-400 print:h-full print:flex print:flex-col">
       {/* Masthead — plain (print-friendly, no color fill) */}
-      <div className="px-3 py-2 flex items-end justify-between border-b-2 border-gray-800">
+      <div className="px-3 py-2 flex items-end justify-between border-b-2 border-gray-800 print:flex-shrink-0">
         <div>
           <p className="text-base font-bold leading-tight text-gray-900">{game.course?.courseName ?? 'Scorecard'}</p>
           <p className="text-[11px] text-gray-500 leading-tight">{game.name} · {dateStr}</p>
@@ -202,8 +229,8 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
           real minimum width and let the screen scroll sideways — legible, and it
           matches the printout. On print, drop the min-width so it lays out to the
           full page (where every column has ample room). */}
-      <div className="overflow-x-auto print:overflow-visible">
-      <table className="w-full min-w-[44rem] print:min-w-0 table-fixed border-collapse text-[10px] leading-none">
+      <div className="overflow-x-auto print:overflow-visible print:flex-1 print:min-h-0">
+      <table className="w-full min-w-[44rem] print:min-w-0 print:h-full table-fixed border-collapse text-[10px] leading-none">
         <thead>
           {/* Faint-gray header (not black) so it's cheap to print repeatedly. */}
           <tr className="bg-gray-100 text-gray-900">
@@ -217,7 +244,7 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
         </thead>
         <tbody className="text-gray-800">
           {/* Par (identical across tees) */}
-          <tr className="bg-gray-50 font-semibold">
+          <tr className="bg-gray-50 font-semibold sc-info-row">
             <td className={`${nameCell} py-0.5`}>Par</td>
             {FRONT.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{par(n) ?? ''}</td>)}
             <td className={`${sumCell} py-0.5`}>{sum(FRONT, par) || ''}</td>
@@ -231,7 +258,7 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
             const byNum = new Map(t.holes.map((h) => [h.number, h]));
             const yds = (n: number) => byNum.get(n)?.yardage ?? null;
             return (
-              <tr key={t.id} className="text-gray-600">
+              <tr key={t.id} className="text-gray-600 sc-info-row">
                 <td className={`${nameCell} py-0.5 text-[9px] font-semibold`}>{names.join(' / ')} · yds</td>
                 {FRONT.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{yds(n) ?? ''}</td>)}
                 <td className={`${sumCell} py-0.5`}>{sum(FRONT, yds) || ''}</td>
@@ -246,7 +273,7 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
           {rankings.map((r) => {
             const si = (n: number) => r.strokeIndexByHole[n] ?? null;
             return (
-              <tr key={r.label} className="text-gray-500">
+              <tr key={r.label} className="text-gray-500 sc-info-row">
                 <td className={`${nameCell} py-0.5 text-[9px] font-medium`}>{r.label} · hcp</td>
                 {FRONT.map((n) => <td key={n} className={`${holeCell} py-0.5`}>{si(n) ?? ''}</td>)}
                 <td className={`${sumCell} py-0.5`} />
@@ -261,7 +288,7 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
             const strokesOn = (n: number) => pl.holes.find((h) => h.holeNumber === n)?.strokes ?? 0;
             const tn = teeNameOf(pl.playerId);
             return (
-              <tr key={pl.playerId} className="h-9">
+              <tr key={pl.playerId} className="h-9 sc-player-row">
                 <td className={`${nameCell} py-0.5 align-middle`}>
                   <div className="font-semibold text-gray-900 text-[10px] leading-tight truncate">{pl.playerName}</div>
                   {tn && (
@@ -280,7 +307,7 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
       </table>
       </div>
 
-      <div className="px-3 py-1 text-[8px] text-gray-500 border-t border-gray-300">
+      <div className="px-3 py-1 text-[8px] text-gray-500 border-t border-gray-300 print:flex-shrink-0">
         • = a stroke on that hole (off each player&apos;s own tee). Best 1 net + 1 gross per foursome.
       </div>
     </div>
