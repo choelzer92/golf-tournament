@@ -8,6 +8,7 @@ import { parseGhinIndex } from '@/lib/game-state';
 import { PoolShareButton } from '@/components/pool-share';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
 import { PairingLocks } from '@/components/pairing-locks';
+import { CaptainsPanel } from '@/components/captains-panel';
 import { TeeTimePicker } from '@/components/tee-time-picker';
 import { saveGhinIdentity, getCreatorGhin } from '@/lib/pool-identity';
 import { getAccessLevel } from '@/lib/invite-gate';
@@ -20,8 +21,10 @@ import {
   getPoolPlayingHandicap,
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
-  balanceTeamsWithLocks,
+  balanceTeamsWithCaptains,
+  pickCaptains,
   sortPlayerIdsByHcap,
+  orderPlayerIdsWithCaptain,
   teeOptionsForPlayer,
 } from '@/lib/pool-game';
 import {
@@ -140,6 +143,9 @@ export default function NewPoolGamePage() {
   // Pairing locks — groups of player IDs the organizer wants kept on the same
   // team through auto-balance (e.g. "Corky + Larry Grist").
   const [lockedGroups, setLockedGroups] = useState<string[][]>([]);
+  // Captains — one player id per team slot, anchoring the balance. Auto-picked
+  // (lowest course handicaps) in the Teams step, reassignable there.
+  const [captainIds, setCaptainIds] = useState<string[]>([]);
 
   // Hydrate wizard draft on mount
   useEffect(() => {
@@ -302,6 +308,8 @@ export default function NewPoolGamePage() {
             setTeams={setTeams}
             lockedGroups={lockedGroups}
             setLockedGroups={setLockedGroups}
+            captainIds={captainIds}
+            setCaptainIds={setCaptainIds}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             onNext={() => setStep('create')}
             onBack={() => setStep('tees')}
@@ -1286,13 +1294,14 @@ function FieldStep({
   );
 }
 
-function makeTeam(index: number, playerIds: string[]): PoolTeam {
+function makeTeam(index: number, playerIds: string[], captainId?: string): PoolTeam {
   return {
     id: crypto.randomUUID(),
     name: `Team ${index + 1}`,
     playerIds,
     matchupId: crypto.randomUUID(),
     teeTime: '',
+    captainId,
   };
 }
 
@@ -1413,18 +1422,40 @@ function TeesStep({
 }
 
 function TeamsStep({
-  course, players, setPlayers, teams, setTeams, lockedGroups, setLockedGroups, handicapAllowance, onNext, onBack,
+  course, players, setPlayers, teams, setTeams, lockedGroups, setLockedGroups, captainIds, setCaptainIds, handicapAllowance, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
   teams: PoolTeam[]; setTeams: (t: PoolTeam[]) => void;
   lockedGroups: string[][]; setLockedGroups: (g: string[][]) => void;
+  captainIds: string[]; setCaptainIds: (ids: string[]) => void;
   handicapAllowance: number;
   onNext: () => void; onBack: () => void;
 }) {
   function hcapOf(p: Player): number {
     return course ? getPoolPlayingHandicap(p, course, handicapAllowance) : (p.handicapIndex ?? 0);
   }
+
+  const numTeams = Math.max(1, Math.ceil(players.length / 4));
+
+  // Auto-pick captains (lowest course handicaps, honoring locks) whenever the
+  // field or team count changes and no captains have been set yet. Prunes any
+  // captain who left the field. The organizer can still reassign any slot.
+  useEffect(() => {
+    const present = new Set(players.map((p) => p.id));
+    const kept = captainIds.filter((id) => id && present.has(id));
+    const needsAutopick = kept.length === 0 && players.length >= numTeams;
+    if (needsAutopick) {
+      const picks = pickCaptains(players, course, handicapAllowance, numTeams, lockedGroups);
+      setCaptainIds(Array.from({ length: numTeams }, (_, i) => picks[i] ?? ''));
+    } else if (kept.length !== captainIds.length || captainIds.length !== numTeams) {
+      // Trim/pad to numTeams and drop departed players, preserving existing picks.
+      const deduped: string[] = [];
+      for (const id of kept) if (!deduped.includes(id)) deduped.push(id);
+      setCaptainIds(Array.from({ length: numTeams }, (_, i) => deduped[i] ?? ''));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [players, numTeams]);
 
   function changePlayerTee(id: string, teeSetId: number) {
     setPlayers(players.map((p) => (p.id === id ? { ...p, teeSetId } : p)));
@@ -1442,29 +1473,70 @@ function TeamsStep({
     }
   }
 
-  // Auto-generate: sequential foursomes, each sorted low->high.
+  // The lowest course handicap on a team becomes its captain when we don't have
+  // an explicit pick for the slot (e.g. plain auto-generate).
+  function lowestHcapId(ids: string[]): string | undefined {
+    return sortPlayerIdsByHcap(ids, players, course, handicapAllowance)[0];
+  }
+
+  // Auto-generate: sequential foursomes, each sorted low->high, lowest = captain.
   function autoGenerate() {
     const groups: string[][] = [];
     for (let i = 0; i < players.length; i += 4) {
       groups.push(players.slice(i, i + 4).map((p) => p.id));
     }
-    setTeams(groups.map((ids, i) => makeTeam(i, sortPlayerIdsByHcap(ids, players, course, handicapAllowance))));
+    setTeams(groups.map((ids, i) => {
+      const sorted = sortPlayerIdsByHcap(ids, players, course, handicapAllowance);
+      return makeTeam(i, sorted, sorted[0]);
+    }));
   }
 
-  // Auto-balance honoring pairing locks; each team sorted low->high.
+  // Auto-balance AROUND CAPTAINS, honoring pairing locks. Each captain anchors a
+  // team slot; everyone else is balanced evenly around them. Team slot i keeps
+  // captainIds[i] as its captain; players within a team list captain-first.
   function autoBalance() {
-    const numTeams = Math.max(1, Math.ceil(players.length / 4));
-    const groups = balanceTeamsWithLocks(players, numTeams, hcapOf, lockedGroups);
-    setTeams(groups.map((ids, i) => makeTeam(i, sortPlayerIdsByHcap(ids, players, course, handicapAllowance))));
+    const captainByTeam = Array.from({ length: numTeams }, (_, i) => captainIds[i] || undefined);
+    const groups = balanceTeamsWithCaptains(players, numTeams, hcapOf, captainByTeam, lockedGroups);
+    setTeams(groups.map((ids, i) => {
+      const captainId = captainByTeam[i] && ids.includes(captainByTeam[i]!) ? captainByTeam[i] : lowestHcapId(ids);
+      const ordered = orderPlayerIdsWithCaptain(ids, captainId, players, course, handicapAllowance);
+      return makeTeam(i, ordered, captainId);
+    }));
   }
 
   function movePlayer(playerId: string, fromTeamId: string, toTeamId: string) {
     if (fromTeamId === toTeamId) return;
     setTeams(teams.map((t) => {
-      if (t.id === fromTeamId) return { ...t, playerIds: t.playerIds.filter((id) => id !== playerId) };
-      if (t.id === toTeamId) return { ...t, playerIds: sortPlayerIdsByHcap([...t.playerIds, playerId], players, course, handicapAllowance) };
+      if (t.id === fromTeamId) {
+        const remaining = t.playerIds.filter((id) => id !== playerId);
+        // If the captain left, the next-lowest handicap takes over the slot.
+        const captainId = t.captainId === playerId ? sortPlayerIdsByHcap(remaining, players, course, handicapAllowance)[0] : t.captainId;
+        return { ...t, playerIds: remaining, captainId };
+      }
+      if (t.id === toTeamId) {
+        return { ...t, playerIds: orderPlayerIdsWithCaptain([...t.playerIds, playerId], t.captainId, players, course, handicapAllowance) };
+      }
       return t;
     }));
+  }
+
+  // Make a player the captain of their team (moves them to the top of the list).
+  // Also mirrors the pick into the captainIds slot for that team so the Captains
+  // panel stays in sync.
+  function makeCaptain(teamId: string, playerId: string) {
+    const idx = teams.findIndex((t) => t.id === teamId);
+    setTeams(teams.map((t) => (
+      t.id === teamId
+        ? { ...t, captainId: playerId, playerIds: orderPlayerIdsWithCaptain(t.playerIds, playerId, players, course, handicapAllowance) }
+        : t
+    )));
+    if (idx >= 0) {
+      const next = [...captainIds];
+      // Drop this player from any other slot, then set this team's slot.
+      for (let i = 0; i < next.length; i++) if (next[i] === playerId) next[i] = '';
+      next[idx] = playerId;
+      setCaptainIds(next);
+    }
   }
 
   function renameTeam(teamId: string, newName: string) {
@@ -1528,9 +1600,24 @@ function TeamsStep({
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Set Teams</h2>
 
+      {/* Captains — the primary way to build teams. One captain per team (lowest
+          course handicaps by default), each anchoring an even balance around
+          them. The apply button lives in the panel. */}
+      <div className="mb-4">
+        <CaptainsPanel
+          players={players}
+          course={course}
+          handicapAllowance={handicapAllowance}
+          numTeams={numTeams}
+          captainIds={captainIds}
+          setCaptainIdsAction={setCaptainIds}
+          onApplyAction={autoBalance}
+        />
+      </div>
+
       {/* Pairing locks — keep chosen players on the same team through balancing.
-          Applying the lock IS auto-balance, wired right into the box so it's one
-          obvious action. */}
+          Applying the lock IS auto-balance (around captains), wired right into
+          the box so it's one obvious action. */}
       <div className="mb-4">
         <PairingLocks
           players={players}
@@ -1545,7 +1632,7 @@ function TeamsStep({
           onClick={autoBalance}
           className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800"
         >
-          Auto-balance by course HCP
+          Balance around captains
         </button>
         <button
           onClick={autoGenerate}
@@ -1638,10 +1725,14 @@ function TeamsStep({
                   const p = players.find((x) => x.id === pid);
                   if (!p) return null;
                   const hcap = course ? Math.round(hcapOf(p)) : null;
+                  const isCaptain = team.captainId === pid;
                   return (
-                    <li key={pid} className="rounded bg-gray-50 px-2 py-2">
+                    <li key={pid} className={`rounded px-2 py-2 ${isCaptain ? 'bg-green-50 ring-1 ring-green-200' : 'bg-gray-50'}`}>
                       {/* Line 1: who + their course handicap */}
                       <div className="flex items-center gap-2">
+                        {isCaptain && (
+                          <span className="flex-shrink-0 rounded-full bg-green-700 text-white text-[10px] font-bold px-1.5 py-0.5" title="Captain">C</span>
+                        )}
                         <span className="text-sm font-medium text-gray-900 truncate min-w-0 flex-1">{p.name}</span>
                         {hcap !== null && (
                           <span
@@ -1654,6 +1745,15 @@ function TeamsStep({
                       </div>
                       {/* Line 2: clearly-labeled controls with real tap targets */}
                       <div className="mt-1.5 flex items-end gap-2 flex-wrap">
+                        {!isCaptain && (
+                          <button
+                            onClick={() => makeCaptain(team.id, pid)}
+                            className="rounded-md border border-green-600 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50"
+                            title="Make this player the team captain"
+                          >
+                            Make captain
+                          </button>
+                        )}
                         {teams.length > 1 && (
                           <label className="flex flex-col gap-0.5">
                             <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Move to</span>

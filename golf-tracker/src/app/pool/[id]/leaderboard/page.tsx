@@ -304,9 +304,12 @@ export default function PoolLeaderboardPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {teamDetail.players.map((player) => (
+                        {teamDetail.players.map((player) => {
+                          const isCaptain = game.teams.find((t) => t.id === r.teamId)?.captainId === player.playerId;
+                          return (
                           <tr key={player.playerId}>
                             <td className="px-1 py-1 text-gray-300 font-medium whitespace-nowrap sticky left-0 bg-gray-800">
+                              {isCaptain && <span className="text-[9px] font-bold text-green-400 mr-0.5" title="Captain">(C)</span>}
                               {player.playerName.split(' ')[0]}
                               <span className="text-[10px] text-gray-500 ml-0.5">({Math.round(player.playingHcap)})</span>
                             </td>
@@ -332,7 +335,8 @@ export default function PoolLeaderboardPage() {
                               </td>
                             ))}
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

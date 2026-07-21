@@ -82,8 +82,12 @@ export default function PoolTeamsPage() {
           // as the screen widens.
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 items-start">
             {game.teams.map((team) => {
-              // Order by strokes received this game (low→high), matching what's shown.
-              const orderedIds = [...team.playerIds].sort((a, b) => (strokesByPlayer.get(a) ?? 0) - (strokesByPlayer.get(b) ?? 0));
+              // Captain first, then by strokes received this game (low→high).
+              const orderedIds = [...team.playerIds].sort((a, b) => {
+                if (a === team.captainId) return -1;
+                if (b === team.captainId) return 1;
+                return (strokesByPlayer.get(a) ?? 0) - (strokesByPlayer.get(b) ?? 0);
+              });
               return (
                 <div key={team.id} className="rounded-lg border border-gray-300 bg-white overflow-hidden" style={{ breakInside: 'avoid' }}>
                   <div className="px-2 py-1 bg-gray-100 border-b border-gray-300">
@@ -96,9 +100,13 @@ export default function PoolTeamsPage() {
                       if (!p) return null;
                       const strokes = strokesByPlayer.get(pid) ?? 0;
                       const tn = teeNameOf(pid);
+                      const isCaptain = pid === team.captainId;
                       return (
                         <li key={pid} className="flex items-baseline gap-1 px-2 py-1">
-                          <span className="flex-1 text-xs text-gray-900 truncate">{p.name}</span>
+                          <span className="flex-1 text-xs text-gray-900 truncate">
+                            {isCaptain && <span className="mr-0.5 font-bold text-green-700" title="Captain">(C)</span>}
+                            {p.name}
+                          </span>
                           {tn && <span className="text-[9px] text-gray-400 flex-shrink-0">{tn}</span>}
                           <span className="flex-shrink-0 text-xs font-semibold text-gray-700 tabular-nums" title="Strokes received this game">
                             {strokes}
@@ -115,7 +123,7 @@ export default function PoolTeamsPage() {
         )}
 
         <p className="mt-3 text-[10px] text-gray-400">
-          {game.players.length} players · {game.teams.length} foursome{game.teams.length === 1 ? '' : 's'} · number after each name = strokes this game
+          {game.players.length} players · {game.teams.length} foursome{game.teams.length === 1 ? '' : 's'} · (C) = captain · number after each name = strokes this game
         </p>
       </div>
     </div>

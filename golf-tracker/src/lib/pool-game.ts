@@ -15,6 +15,7 @@ export interface PoolTeam {
   playerIds: string[];
   teeTime?: string;   // "HH:MM" — earliest tee time holds CTP by default
   matchupId: string;  // key into game_scores for this foursome's scores
+  captainId?: string; // the team's captain (a saved role, shown across the app)
 }
 
 export interface PoolJunkValues {
@@ -356,6 +357,86 @@ export function distinctRankingsForPlayers(game: PoolGame, playerIds: string[]):
   });
 }
 
+// --- Captains --------------------------------------------------------------
+//
+// Each team gets a CAPTAIN: by default the lowest course handicaps in the field
+// (one per team), which then anchor an even balance around them. Captaincy is a
+// saved role (PoolTeam.captainId) shown across the app and freely reassignable.
+
+// A tee's difficulty, for breaking captain ties: higher Total course rating
+// first, then longer yardage. When two players share the same (rounded) course
+// handicap, the one off the harder/longer tee is the stronger player — a tougher
+// tee inflates course handicap, so matching the same number from a harder tee
+// means a lower index — and earns the captaincy.
+function teeDifficulty(tee: TeeSetOption | null): { rating: number; yardage: number } {
+  if (!tee) return { rating: 0, yardage: 0 };
+  const total = tee.ratings?.find((r) => r.type === 'Total');
+  return { rating: total?.courseRating ?? 0, yardage: tee.totalYardage ?? 0 };
+}
+
+export interface CaptainRankEntry {
+  playerId: string;
+  courseHandicap: number; // rounded, off their own tee (allowance applied) — the number shown elsewhere
+  eligible: boolean;      // has a handicap index; no-index players are never auto-picked as captain
+}
+
+// Rank the field for captaincy, BEST (lowest course handicap) first. Order:
+// eligible-before-ineligible, then lowest rounded course handicap, then harder
+// tee (rating, yardage), then the finer unrounded handicap, then name. Uses the
+// SAME allowance-adjusted course handicap shown on the build page so the picked
+// captains match the numbers the organizer sees.
+export function rankPlayersForCaptain(
+  players: Player[],
+  course: CourseSelection | null,
+  allowance: number
+): CaptainRankEntry[] {
+  const rows = players.map((p) => ({
+    playerId: p.id,
+    name: p.name,
+    precise: getPoolPlayingHandicap(p, course, allowance),
+    diff: teeDifficulty(getPlayerTee(p, course)),
+    eligible: p.handicapIndex != null,
+  }));
+  rows.sort((a, b) => {
+    if (a.eligible !== b.eligible) return a.eligible ? -1 : 1;
+    const ra = Math.round(a.precise), rb = Math.round(b.precise);
+    if (ra !== rb) return ra - rb;
+    if (a.diff.rating !== b.diff.rating) return b.diff.rating - a.diff.rating;
+    if (a.diff.yardage !== b.diff.yardage) return b.diff.yardage - a.diff.yardage;
+    if (a.precise !== b.precise) return a.precise - b.precise;
+    return a.name.localeCompare(b.name);
+  });
+  return rows.map((r) => ({ playerId: r.playerId, courseHandicap: Math.round(r.precise), eligible: r.eligible }));
+}
+
+// Auto-pick captains: the `numTeams` lowest course handicaps, one per team. No
+// two captains may come from the same pairing lock (locked players must anchor
+// different teams), and no-index players are skipped. Returns up to numTeams
+// player ids, best first.
+export function pickCaptains(
+  players: Player[],
+  course: CourseSelection | null,
+  allowance: number,
+  numTeams: number,
+  locks: string[][] = []
+): string[] {
+  const ranked = rankPlayersForCaptain(players, course, allowance).filter((r) => r.eligible);
+  const lockOf = new Map<string, number>();
+  locks.forEach((g, i) => g.forEach((id) => lockOf.set(id, i)));
+  const captains: string[] = [];
+  const usedLocks = new Set<number>();
+  for (const r of ranked) {
+    if (captains.length >= numTeams) break;
+    const li = lockOf.get(r.playerId);
+    if (li !== undefined) {
+      if (usedLocks.has(li)) continue; // a lock-mate already captains a team
+      usedLocks.add(li);
+    }
+    captains.push(r.playerId);
+  }
+  return captains;
+}
+
 // A balancing "unit": one or more players that must share a team (a lock is a
 // multi-player unit; a free player is a size-1 unit). `h` is the unit's combined
 // handicap, `size` how many team seats it consumes.
@@ -365,15 +446,33 @@ interface BalanceUnit { ids: string[]; h: number; size: number }
 // are as even as possible, respecting each team's seat capacity and keeping each
 // unit's players together. Greedy LPT seed -> 2-swap local improvement -> exact
 // branch-and-bound (seeded so any early exit is still >= as good; symmetry-
-// pruned; 800ms budget). Returns player-id groups per team. Both the plain and
-// the locked balancers run through here, so locking a pair that was already
-// together costs nothing — the exact search finds the same optimum.
-function balanceUnitsIntoTeams(units: BalanceUnit[], numTeams: number, deadline: number): string[][] {
+// pruned; 800ms budget). Returns player-id groups per team. The plain, the
+// locked, and the captain balancers all run through here, so locking a pair that
+// was already together costs nothing — the exact search finds the same optimum.
+//
+// `initialSums`/`initialSeats` pre-load each team with handicap load and seats
+// already committed to it (a seeded captain and any lock-mates riding along) —
+// those players are NOT among `units`; only the free units are distributed here,
+// and they fill the remaining seats around the fixed seeds.
+function balanceUnitsIntoTeams(
+  units: BalanceUnit[],
+  numTeams: number,
+  deadline: number,
+  initialSums?: number[],
+  initialSeats?: number[],
+): string[][] {
   const nt = Math.max(1, numTeams);
-  const totalSeats = units.reduce((s, u) => s + u.size, 0);
+  const seed = (arr?: number[]) => Array.from({ length: nt }, (_, i) => arr?.[i] ?? 0);
+  const initSums = seed(initialSums);
+  const initSeats = seed(initialSeats);
+
+  const seededSeats = initSeats.reduce((s, v) => s + v, 0);
+  const totalSeats = units.reduce((s, u) => s + u.size, 0) + seededSeats;
   const base = Math.floor(totalSeats / nt);
   const extra = totalSeats % nt;
-  const caps = Array.from({ length: nt }, (_, i) => base + (i < extra ? 1 : 0));
+  // Even target sizes, but never below what a team is already seeded with (an
+  // oversized captain lock could otherwise exceed its share and be infeasible).
+  const caps = Array.from({ length: nt }, (_, i) => Math.max(base + (i < extra ? 1 : 0), initSeats[i]));
 
   // Heaviest unit first (LPT). Ties broken by larger size first so bulky locks
   // are placed while teams still have room.
@@ -381,13 +480,15 @@ function balanceUnitsIntoTeams(units: BalanceUnit[], numTeams: number, deadline:
   const h = sorted.map((u) => u.h);
   const sz = sorted.map((u) => u.size);
   const n = sorted.length;
-  const total = h.reduce((s, v) => s + v, 0);
+  // Total includes seeded load so the B&B average bound reflects final team sums.
+  const total = h.reduce((s, v) => s + v, 0) + initSums.reduce((s, v) => s + v, 0);
   const spreadOf = (sums: number[]) => Math.max(...sums) - Math.min(...sums);
 
   // 1) Greedy LPT: each unit onto the least-loaded team that still has seats.
+  // Teams start pre-loaded with their seeded captain/lock load and seats.
   const buckets: number[][] = Array.from({ length: nt }, () => []);
-  const sums = new Array(nt).fill(0);
-  const seats = new Array(nt).fill(0);
+  const sums = [...initSums];
+  const seats = [...initSeats];
   for (let idx = 0; idx < n; idx++) {
     let best = -1;
     for (let t = 0; t < nt; t++) {
@@ -435,8 +536,8 @@ function balanceUnitsIntoTeams(units: BalanceUnit[], numTeams: number, deadline:
   let bestSpread = spreadOf(sums);
   let bestAssign = buckets.map((b) => [...b]);
   const avg = total / nt;
-  const curSums = new Array(nt).fill(0);
-  const curSeats = new Array(nt).fill(0);
+  const curSums = [...initSums];
+  const curSeats = [...initSeats];
   const curTeams: number[][] = Array.from({ length: nt }, () => []);
   let bailed = false;
 
@@ -510,6 +611,77 @@ export function balanceTeamsWithLocks(
   }
 
   return balanceUnitsIntoTeams(units, nt, Date.now() + 800);
+}
+
+// Balance into `numTeams` even-handicap groups AROUND FIXED CAPTAINS. Team slot
+// `i` is anchored by captain `captainByTeam[i]`; the field is then distributed to
+// make combined team handicaps as even as possible with those anchors held in
+// place. Any pairing-lock mates of a captain ride along onto that captain's team.
+// Remaining locks and players fill the open seats via the SAME optimal solver.
+//
+// Returns player-id groups per team slot (aligned to `captainByTeam`), each with
+// its captain FIRST. Slots with no captain are balanced normally. With every slot
+// captainless this degenerates exactly to balanceTeamsWithLocks.
+export function balanceTeamsWithCaptains(
+  players: Player[],
+  numTeams: number,
+  hcapOf: (p: Player) => number,
+  captainByTeam: (string | undefined)[],
+  locks: string[][] = []
+): string[][] {
+  const nt = Math.max(1, numTeams);
+  const byId = new Map(players.map((p) => [p.id, p]));
+  const lockByMember = new Map<string, string[]>();
+  for (const g of locks) {
+    const present = g.filter((id) => byId.has(id));
+    for (const id of present) lockByMember.set(id, present);
+  }
+
+  const claimed = new Set<string>();
+  const initSums = new Array(nt).fill(0);
+  const initSeats = new Array(nt).fill(0);
+  // Players seeded onto each slot (captain first, then any lock-mates riding along).
+  const seeded: string[][] = Array.from({ length: nt }, () => []);
+
+  for (let i = 0; i < nt; i++) {
+    const capId = captainByTeam[i];
+    if (!capId || !byId.has(capId) || claimed.has(capId)) continue;
+    // Captain + any not-yet-claimed lock-mates anchor this slot together.
+    const group = [capId, ...(lockByMember.get(capId) ?? []).filter((id) => id !== capId)]
+      .filter((id) => !claimed.has(id));
+    for (const id of group) {
+      claimed.add(id);
+      initSums[i] += hcapOf(byId.get(id)!);
+      initSeats[i] += 1;
+      seeded[i].push(id);
+    }
+  }
+
+  // Free units: remaining locks as indivisible multi-seat units, everyone else
+  // as size-1 units. (A lock whose members were all pulled onto captains' teams
+  // simply contributes nothing here.)
+  const units: BalanceUnit[] = [];
+  const usedLock = new Set<string[]>();
+  for (const p of players) {
+    if (claimed.has(p.id)) continue;
+    const lock = lockByMember.get(p.id);
+    if (lock && lock.length >= 2) {
+      if (usedLock.has(lock)) continue;
+      usedLock.add(lock);
+      const ids = lock.filter((id) => !claimed.has(id));
+      ids.forEach((id) => claimed.add(id));
+      if (ids.length >= 2) { units.push({ ids, h: ids.reduce((s, id) => s + hcapOf(byId.get(id)!), 0), size: ids.length }); continue; }
+      // Fell to a single free member — fall through as a size-1 unit.
+      if (ids.length === 1) { units.push({ ids, h: hcapOf(byId.get(ids[0])!), size: 1 }); continue; }
+      continue;
+    }
+    claimed.add(p.id);
+    units.push({ ids: [p.id], h: hcapOf(p), size: 1 });
+  }
+
+  const filled = balanceUnitsIntoTeams(units, nt, Date.now() + 800, initSums, initSeats);
+  // Prepend each slot's seeded captain (+ lock-mates) ahead of the free fills.
+  return filled.map((ids, i) => [...seeded[i], ...ids]);
 }
 
 // --- Fair player swaps -----------------------------------------------------
@@ -613,6 +785,21 @@ export function sortPlayerIdsByHcap(
     const hb = pb ? getPoolPlayingHandicap(pb, course, allowance) : 0;
     return ha - hb;
   });
+}
+
+// Display order for a foursome: the CAPTAIN first (so the (C) row leads), then
+// everyone else low->high. Used by every read-only team view so the captain is
+// always at the top regardless of their handicap.
+export function orderPlayerIdsWithCaptain(
+  playerIds: string[],
+  captainId: string | undefined,
+  players: Player[],
+  course: CourseSelection | null,
+  allowance: number
+): string[] {
+  const sorted = sortPlayerIdsByHcap(playerIds, players, course, allowance);
+  if (!captainId || !sorted.includes(captainId)) return sorted;
+  return [captainId, ...sorted.filter((id) => id !== captainId)];
 }
 
 // ---------------------------------------------------------------------------

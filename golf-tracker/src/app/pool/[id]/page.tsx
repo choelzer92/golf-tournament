@@ -15,8 +15,10 @@ import {
   getFieldLow,
   getPar3Holes,
   distinctRankingsForPlayers,
-  balanceTeamsWithLocks,
+  balanceTeamsWithCaptains,
+  pickCaptains,
   sortPlayerIdsByHcap,
+  orderPlayerIdsWithCaptain,
   teeOptionsForPlayer,
   playerTeeGenderMismatch,
   rankSwapCandidates,
@@ -27,6 +29,7 @@ import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournamen
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import { PairingLocks } from '@/components/pairing-locks';
+import { CaptainsPanel } from '@/components/captains-panel';
 import { TeeTimePicker } from '@/components/tee-time-picker';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
 import {
@@ -493,8 +496,12 @@ function FoursomeCard({
           // matching the expanded stroke box — not the raw course handicap.
           const pd = detail?.players.find((x) => x.playerId === p.id);
           const strokes = pd ? pd.holes.reduce((s, h) => s + h.strokes, 0) : null;
+          const isCaptain = team.captainId === p.id;
           return (
             <span key={p.id} className="text-sm text-gray-700">
+              {isCaptain && (
+                <span className="mr-1 rounded-full bg-green-700 text-white text-[9px] font-bold px-1 py-0.5 align-middle" title="Captain">C</span>
+              )}
               {p.name.split(' ')[0]}
               {strokes !== null && (
                 <span className="text-xs text-gray-400 ml-0.5" title="Strokes received in this game">
@@ -626,6 +633,17 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
   // swap tool, so the handicap shown next to each name here is consistent.
   const strokeMap = poolStrokeMap(game);
 
+  // Captain working state — one player id per existing team SLOT (aligned to
+  // game.teams by index, since applyReshuffle reuses those slots). Seeded from
+  // each team's saved captainId; if none are set, auto-pick the lowest handicaps.
+  const numTeams = Math.max(1, game.teams.length || Math.ceil(game.players.length / 4));
+  const [captainIds, setCaptainIds] = useState<string[]>(() => {
+    const fromTeams = game.teams.map((t) => t.captainId ?? '');
+    if (fromTeams.some(Boolean)) return fromTeams;
+    const picks = pickCaptains(game.players, course, game.handicapAllowance, numTeams, game.lockedGroups ?? []);
+    return Array.from({ length: numTeams }, (_, i) => picks[i] ?? '');
+  });
+
   // Every team edit here saves instantly (there is no separate submit step). The
   // organizer wasn't sure his changes stuck, so wrap the save so EVERY edit both
   // persists and flashes a visible "Saved ✓" banner. All the helpers below call
@@ -664,23 +682,31 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
   }
 
   const sortIds = (ids: string[]) => sortPlayerIdsByHcap(ids, game.players, course, game.handicapAllowance);
+  const orderIds = (ids: string[], captainId: string | undefined) => orderPlayerIdsWithCaptain(ids, captainId, game.players, course, game.handicapAllowance);
 
   // Move a player between foursomes — preserves each team's matchupId. The
-  // destination stays sorted low->high.
+  // destination stays captain-first, then low->high. If the captain is moved out,
+  // their old team's captaincy passes to its next-lowest handicap.
   function movePlayer(playerId: string, fromTeamId: string, toTeamId: string) {
     if (fromTeamId === toTeamId) return;
     onSave({
       ...game,
       teams: game.teams.map((t) => {
-        if (t.id === fromTeamId) return { ...t, playerIds: t.playerIds.filter((id) => id !== playerId) };
-        if (t.id === toTeamId) return { ...t, playerIds: sortIds([...t.playerIds, playerId]) };
+        if (t.id === fromTeamId) {
+          const remaining = t.playerIds.filter((id) => id !== playerId);
+          const captainId = t.captainId === playerId ? sortIds(remaining)[0] : t.captainId;
+          return { ...t, playerIds: remaining, captainId };
+        }
+        if (t.id === toTeamId) return { ...t, playerIds: orderIds([...t.playerIds, playerId], t.captainId) };
         return t;
       }),
     });
   }
 
   // Swap two players between their two foursomes (1-for-1, sizes unchanged).
-  // Each destination stays sorted low->high; matchupIds are preserved.
+  // Each destination stays captain-first then low->high; matchupIds are preserved.
+  // A swapped-away captain hands the role to the incoming player (the slot keeps a
+  // captain).
   function swapPlayers(playerA: string, playerB: string) {
     const teamA = game.teams.find((t) => t.playerIds.includes(playerA));
     const teamB = game.teams.find((t) => t.playerIds.includes(playerB));
@@ -688,11 +714,35 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
     onSave({
       ...game,
       teams: game.teams.map((t) => {
-        if (t.id === teamA.id) return { ...t, playerIds: sortIds(t.playerIds.map((id) => (id === playerA ? playerB : id))) };
-        if (t.id === teamB.id) return { ...t, playerIds: sortIds(t.playerIds.map((id) => (id === playerB ? playerA : id))) };
+        if (t.id === teamA.id) {
+          const captainId = t.captainId === playerA ? playerB : t.captainId;
+          return { ...t, captainId, playerIds: orderIds(t.playerIds.map((id) => (id === playerA ? playerB : id)), captainId) };
+        }
+        if (t.id === teamB.id) {
+          const captainId = t.captainId === playerB ? playerA : t.captainId;
+          return { ...t, captainId, playerIds: orderIds(t.playerIds.map((id) => (id === playerB ? playerA : id)), captainId) };
+        }
         return t;
       }),
     });
+  }
+
+  // Make a player the captain of their current team (top of the list). Mirrors
+  // the pick into the captainIds slot for that team so the panel stays in sync.
+  function makeCaptain(teamId: string, playerId: string) {
+    const idx = game.teams.findIndex((t) => t.id === teamId);
+    onSave({
+      ...game,
+      teams: game.teams.map((t) => (
+        t.id === teamId ? { ...t, captainId: playerId, playerIds: orderIds(t.playerIds, playerId) } : t
+      )),
+    });
+    if (idx >= 0) {
+      const next = [...captainIds];
+      for (let i = 0; i < next.length; i++) if (next[i] === playerId) next[i] = '';
+      next[idx] = playerId;
+      setCaptainIds(next);
+    }
   }
 
   // Reorder foursomes (the order they're sent out in), preserving matchupIds.
@@ -737,12 +787,17 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
   }
 
   // Remove a player from their team AND from game.players. Any score rows they
-  // had become orphaned (keyed by matchupId), which is acceptable.
+  // had become orphaned (keyed by matchupId), which is acceptable. If they were a
+  // captain, the role passes to their team's next-lowest handicap.
   function removePlayer(playerId: string) {
     onSave({
       ...game,
       players: game.players.filter((p) => p.id !== playerId),
-      teams: game.teams.map((t) => ({ ...t, playerIds: t.playerIds.filter((id) => id !== playerId) })),
+      teams: game.teams.map((t) => {
+        const playerIds = t.playerIds.filter((id) => id !== playerId);
+        const captainId = t.captainId === playerId ? sortIds(playerIds)[0] : t.captainId;
+        return { ...t, playerIds, captainId };
+      }),
     });
   }
 
@@ -760,10 +815,12 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
   }
 
   // Reassign the field into `newGroups` (arrays of player IDs), reusing the
-  // EXISTING team slots so each foursome keeps its matchupId. If any foursome
+  // EXISTING team slots so each foursome keeps its matchupId. `captainByTeam[i]`
+  // (when present and on the slot) becomes that slot's captain, else the slot's
+  // lowest handicap. Players within a slot list captain-first. If any foursome
   // already has scores, warn — and on confirm, clear all scores for the round
   // (the old cards no longer match the reshuffled players).
-  function applyReshuffle(newGroups: string[][]) {
+  function applyReshuffle(newGroups: string[][], captainByTeam: (string | undefined)[] = []) {
     const teamsWithScores = game.teams.filter((t) => {
       const s = loadGameScores(t.matchupId);
       return Array.isArray(s) && s.length > 0;
@@ -778,26 +835,34 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
       for (const t of game.teams) saveGameScores(t.matchupId, []);
     }
     // Keep existing team slots (id, name, matchupId, teeTime); just swap playerIds
-    // (sorted low->high within each foursome).
-    const numTeams = Math.max(game.teams.length, newGroups.length);
-    const teams = Array.from({ length: numTeams }, (_, i) => {
+    // (captain first, then low->high within each foursome).
+    const n = Math.max(game.teams.length, newGroups.length);
+    const teams = Array.from({ length: n }, (_, i) => {
       const existing = game.teams[i];
-      const playerIds = sortIds(newGroups[i] ?? []);
-      if (existing) return { ...existing, playerIds };
-      return { id: crypto.randomUUID(), name: `Team ${i + 1}`, playerIds, matchupId: crypto.randomUUID() };
+      const ids = newGroups[i] ?? [];
+      const captainId = captainByTeam[i] && ids.includes(captainByTeam[i]!) ? captainByTeam[i] : sortIds(ids)[0];
+      const playerIds = orderIds(ids, captainId);
+      if (existing) return { ...existing, playerIds, captainId };
+      return { id: crypto.randomUUID(), name: `Team ${i + 1}`, playerIds, matchupId: crypto.randomUUID(), captainId };
     });
+    // Mirror the resulting captains back into the working slots.
+    setCaptainIds(teams.map((t) => t.captainId ?? ''));
     onSave({ ...game, teams });
   }
 
+  // Balance AROUND CAPTAINS (captainIds, aligned to the team slots), honoring
+  // pairing locks. Each captain anchors their slot; the field balances evenly
+  // around them.
   function autoBalance() {
-    const numTeams = Math.max(1, Math.ceil(game.players.length / 4));
-    const groups = balanceTeamsWithLocks(
+    const captainByTeam = Array.from({ length: numTeams }, (_, i) => captainIds[i] || undefined);
+    const groups = balanceTeamsWithCaptains(
       game.players,
       numTeams,
       (p) => getPoolPlayingHandicap(p, course, game.handicapAllowance),
+      captainByTeam,
       game.lockedGroups ?? []
     );
-    applyReshuffle(groups);
+    applyReshuffle(groups, captainByTeam);
   }
 
   function autoGenerate() {
@@ -805,6 +870,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
     for (let i = 0; i < game.players.length; i += 4) {
       groups.push(game.players.slice(i, i + 4).map((p) => p.id));
     }
+    // Plain sequential foursomes — each slot's lowest handicap becomes captain.
     applyReshuffle(groups);
   }
 
@@ -829,6 +895,17 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
       </p>
 
       {game.players.length > 0 && (
+        <CaptainsPanel
+          players={game.players}
+          course={course}
+          handicapAllowance={game.handicapAllowance}
+          numTeams={numTeams}
+          captainIds={captainIds}
+          setCaptainIdsAction={setCaptainIds}
+          onApplyAction={autoBalance}
+        />
+      )}
+      {game.players.length > 0 && (
         <PairingLocks
           players={game.players}
           lockedGroups={game.lockedGroups ?? []}
@@ -844,7 +921,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
               onClick={autoBalance}
               className="rounded-md border border-green-700 px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50"
             >
-              Auto-balance by course HCP
+              Balance around captains
             </button>
             <button
               onClick={autoGenerate}
@@ -908,10 +985,14 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
               const chcp = course ? Math.round(strokeMap.get(pid) ?? 0) : null;
               const teeOptions: TeeSetOption[] = teeOptionsForPlayer(course, p);
               const mismatch = playerTeeGenderMismatch(course, p);
+              const isCaptain = team.captainId === pid;
               return (
-                <li key={pid} className="rounded bg-gray-50 px-2 py-2">
+                <li key={pid} className={`rounded px-2 py-2 ${isCaptain ? 'bg-green-50 ring-1 ring-green-200' : 'bg-gray-50'}`}>
                   {/* Line 1: who + their course handicap */}
                   <div className="flex items-center gap-2">
+                    {isCaptain && (
+                      <span className="flex-shrink-0 rounded-full bg-green-700 text-white text-[10px] font-bold px-1.5 py-0.5" title="Captain">C</span>
+                    )}
                     <span className="text-sm font-medium text-gray-900 truncate min-w-0 flex-1">
                       {p.name}
                       {chcp !== null && <span className="ml-1 text-xs font-normal text-gray-500" title="Strokes received in this game">({chcp})</span>}
@@ -927,6 +1008,15 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
                   </div>
                   {/* Line 2: clearly-labeled controls with real tap targets */}
                   <div className="mt-1.5 flex items-end gap-2 flex-wrap">
+                    {!isCaptain && (
+                      <button
+                        onClick={() => makeCaptain(team.id, pid)}
+                        className="rounded-md border border-green-600 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50"
+                        title="Make this player the team captain"
+                      >
+                        Make captain
+                      </button>
+                    )}
                     {game.teams.length > 1 && (
                       <label className="flex flex-col gap-0.5">
                         <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Move to</span>
