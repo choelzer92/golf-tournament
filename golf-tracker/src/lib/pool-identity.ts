@@ -44,7 +44,11 @@ function readGolfer(): Record<string, unknown> | null {
 export function getCreatorGhin(): number | null {
   const g = readGolfer();
   if (!g) return null;
-  const n = Number(g.ghin ?? g.ghin_number ?? g.id);
+  // Probe every field GHIN uses for the golfer's number across its endpoints:
+  // `golfer_id` (login/email response), `ghin`/`ghin_number` (golfer lookup),
+  // `id` (fallback). Missing `golfer_id` here is what let an email-login
+  // identity read as null even after a successful login.
+  const n = Number(g.ghin ?? g.ghin_number ?? g.golfer_id ?? g.id);
   return isNaN(n) ? null : n;
 }
 
