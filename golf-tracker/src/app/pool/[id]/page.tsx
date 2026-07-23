@@ -643,6 +643,9 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
     const picks = pickCaptains(game.players, course, game.handicapAllowance, numTeams, game.lockedGroups ?? []);
     return Array.from({ length: numTeams }, (_, i) => picks[i] ?? '');
   });
+  // Balance the non-captain players only (default on when unset). Persisted on
+  // the game so reopening setup remembers the organizer's choice.
+  const excludeCaptains = game.balanceExcludeCaptains ?? true;
 
   // Every team edit here saves instantly (there is no separate submit step). The
   // organizer wasn't sure his changes stuck, so wrap the save so EVERY edit both
@@ -860,7 +863,8 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
       numTeams,
       (p) => getPoolPlayingHandicap(p, course, game.handicapAllowance),
       captainByTeam,
-      game.lockedGroups ?? []
+      game.lockedGroups ?? [],
+      excludeCaptains
     );
     applyReshuffle(groups, captainByTeam);
   }
@@ -902,6 +906,8 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
           numTeams={numTeams}
           captainIds={captainIds}
           setCaptainIdsAction={setCaptainIds}
+          excludeCaptains={excludeCaptains}
+          setExcludeCaptainsAction={(v) => onSave({ ...game, balanceExcludeCaptains: v })}
           onApplyAction={autoBalance}
         />
       )}

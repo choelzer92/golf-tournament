@@ -14,6 +14,7 @@ import { getPoolPlayingHandicap, rankPlayersForCaptain } from '@/lib/pool-game';
 // on their own team and everyone else balanced evenly around them.
 export function CaptainsPanel({
   players, course, handicapAllowance, numTeams, captainIds, setCaptainIdsAction, onApplyAction,
+  excludeCaptains, setExcludeCaptainsAction,
 }: {
   players: Player[];
   course: CourseSelection | null;
@@ -23,6 +24,11 @@ export function CaptainsPanel({
   setCaptainIdsAction: (ids: string[]) => void;
   // When provided, shows the prominent "build balanced teams around captains" button.
   onApplyAction?: () => void;
+  // When provided, shows the "balance the other players only" toggle. On (default)
+  // evens the NON-captain players across teams and lets captain strokes ride as the
+  // edge; off evens each whole team (captain included).
+  excludeCaptains?: boolean;
+  setExcludeCaptainsAction?: (v: boolean) => void;
 }) {
   const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? '';
   const chcpOf = (id: string) => {
@@ -112,6 +118,38 @@ export function CaptainsPanel({
           );
         })}
       </div>
+
+      {setExcludeCaptainsAction && (
+        <div className="mt-3 rounded-md border border-green-200 bg-white px-2.5 py-2">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!!excludeCaptains}
+            onClick={() => setExcludeCaptainsAction(!excludeCaptains)}
+            className="flex w-full items-center justify-between gap-3 text-left"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-gray-900">Balance the other players only</span>
+              <span className="block text-xs text-gray-600">
+                {excludeCaptains
+                  ? 'On — the three non-captains on each team are evened out; captains’ own strokes ride as the edge (best for 1 net + 1 gross).'
+                  : 'Off — each whole team is evened out, captains included.'}
+              </span>
+            </span>
+            <span
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                excludeCaptains ? 'bg-green-700' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                  excludeCaptains ? 'translate-x-5' : 'translate-x-0.5'
+                }`}
+              />
+            </span>
+          </button>
+        </div>
+      )}
 
       {onApplyAction && (
         <button

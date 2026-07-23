@@ -45,6 +45,7 @@ export interface PoolGame {
   entryPerPlayer: number;                      // e.g. 25
   handicapAllowance: number;                   // percent, e.g. 100
   strokeMethod?: 'full' | 'off-the-low';       // default 'full'; off-the-low subtracts field-low handicap
+  balanceExcludeCaptains?: boolean;            // default true; balance the non-captain players to equal handicap (captains' own strokes ride as the edge)
   potSplit: PoolPotSplit;                      // default 0.25 each
   positionSplit: number[];                     // e.g. [100] winner-take-all
   junkValues: PoolJunkValues;                  // 1 / 2 / 3 / 1 / 1
@@ -271,11 +272,24 @@ function buildHcapMap(game: PoolGame): Map<string, number> {
   for (const player of game.players) {
     raw.set(player.id, getPoolPlayingHandicap(player, game.course, game.handicapAllowance));
   }
+  // 'full' stays unrounded here — getMoneyStrokesOnHole rounds it once, which is
+  // exactly round(courseHcap), matching GHIN. Off-the-low is the only path that
+  // subtracts, so it's the only one that needs care about round ORDER.
   if (game.strokeMethod !== 'off-the-low' || raw.size === 0) return raw;
 
-  const low = Math.min(...raw.values());
+  // Match GHIN/USGA: round each player's course handicap to a whole number FIRST
+  // — the integer shown here and typed into GHIN — THEN subtract the field's
+  // lowest rounded course handicap. Rounding BEFORE the subtraction (not once at
+  // the end) is what keeps our strokes-off-the-low identical to GHIN. Doing
+  // round(rawHcap − rawLow) instead handed a player ONE EXTRA stroke vs GHIN's
+  // round(rawHcap) − round(rawLow) whenever the low man's fractional handicap
+  // rounded up while the player's own rounded down (e.g. low 3.6→4, player
+  // 15.4→15: app gave 15.4−3.6=11.8→12, GHIN gives 15−4=11).
+  const rounded = new Map<string, number>();
+  for (const [id, h] of raw) rounded.set(id, Math.round(h));
+  const low = Math.min(...rounded.values());
   const adjusted = new Map<string, number>();
-  for (const [id, h] of raw) adjusted.set(id, h - low);
+  for (const [id, h] of rounded) adjusted.set(id, h - low);
   return adjusted;
 }
 
@@ -619,6 +633,14 @@ export function balanceTeamsWithLocks(
 // place. Any pairing-lock mates of a captain ride along onto that captain's team.
 // Remaining locks and players fill the open seats via the SAME optimal solver.
 //
+// `excludeCaptains` (the default for a 1-net/1-gross pool): seat each captain but
+// DON'T count their own handicap in the balance, so the NON-captain players are
+// what's evened out across teams. This deliberately lets the captains' own
+// strokes ride as the intended edge — teams with a weaker (stroke-getting)
+// captain aren't "corrected" by loading them with lower-handicap teammates, since
+// in 1-net/1-gross those captain strokes tend to even things out via gross play.
+// (A captain's lock-mates still count — they're part of "the other players".)
+//
 // Returns player-id groups per team slot (aligned to `captainByTeam`), each with
 // its captain FIRST. Slots with no captain are balanced normally. With every slot
 // captainless this degenerates exactly to balanceTeamsWithLocks.
@@ -627,7 +649,8 @@ export function balanceTeamsWithCaptains(
   numTeams: number,
   hcapOf: (p: Player) => number,
   captainByTeam: (string | undefined)[],
-  locks: string[][] = []
+  locks: string[][] = [],
+  excludeCaptains = false
 ): string[][] {
   const nt = Math.max(1, numTeams);
   const byId = new Map(players.map((p) => [p.id, p]));
@@ -651,7 +674,9 @@ export function balanceTeamsWithCaptains(
       .filter((id) => !claimed.has(id));
     for (const id of group) {
       claimed.add(id);
-      initSums[i] += hcapOf(byId.get(id)!);
+      // Under excludeCaptains the captain occupies a seat but their handicap is
+      // left OUT of the balance load, so only the non-captain seats are evened.
+      if (!(excludeCaptains && id === capId)) initSums[i] += hcapOf(byId.get(id)!);
       initSeats[i] += 1;
       seeded[i].push(id);
     }

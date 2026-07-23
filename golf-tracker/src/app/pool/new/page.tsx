@@ -146,6 +146,9 @@ export default function NewPoolGamePage() {
   // Captains — one player id per team slot, anchoring the balance. Auto-picked
   // (lowest course handicaps) in the Teams step, reassignable there.
   const [captainIds, setCaptainIds] = useState<string[]>([]);
+  // Balance the NON-captain players only (default on): evens the other three per
+  // team and lets captain strokes ride as the edge — best for 1 net + 1 gross.
+  const [balanceExcludeCaptains, setBalanceExcludeCaptains] = useState(true);
 
   // Hydrate wizard draft on mount
   useEffect(() => {
@@ -157,6 +160,7 @@ export default function NewPoolGamePage() {
         if (typeof data.entryPerPlayer === 'string') setEntryPerPlayer(data.entryPerPlayer);
         if (typeof data.handicapAllowance === 'string') setHandicapAllowance(data.handicapAllowance);
         if (data.strokeMethod === 'full' || data.strokeMethod === 'off-the-low') setStrokeMethod(data.strokeMethod);
+        if (typeof data.balanceExcludeCaptains === 'boolean') setBalanceExcludeCaptains(data.balanceExcludeCaptains);
         if (data.potDollars) { setPotDollars(data.potDollars); setPotEdited(!!data.potEdited); }
         if (typeof data.positionSplitText === 'string') setPositionSplitText(data.positionSplitText);
         if (data.junkValues) setJunkValues(data.junkValues);
@@ -174,10 +178,10 @@ export default function NewPoolGamePage() {
   useEffect(() => {
     if (!hydrated) return;
     sessionStorage.setItem(WIZARD_KEY, JSON.stringify({
-      name, entryPerPlayer, handicapAllowance, strokeMethod, potDollars, potEdited, positionSplitText,
+      name, entryPerPlayer, handicapAllowance, strokeMethod, balanceExcludeCaptains, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, course, players, teams, step,
     }));
-  }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, potDollars, potEdited, positionSplitText,
+  }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, balanceExcludeCaptains, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, course, players, teams, step]);
 
   function createPoolGame() {
@@ -198,6 +202,7 @@ export default function NewPoolGamePage() {
       entryPerPlayer: parseFloat(entryPerPlayer) || 0,
       handicapAllowance: parseFloat(handicapAllowance) || 100,
       strokeMethod,
+      balanceExcludeCaptains,
       potSplit: dollarsToPotSplit(effectiveDollars),
       positionSplit: parsePositionSplit(positionSplitText),
       junkValues,
@@ -310,6 +315,8 @@ export default function NewPoolGamePage() {
             setLockedGroups={setLockedGroups}
             captainIds={captainIds}
             setCaptainIds={setCaptainIds}
+            excludeCaptains={balanceExcludeCaptains}
+            setExcludeCaptains={setBalanceExcludeCaptains}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             onNext={() => setStep('create')}
             onBack={() => setStep('tees')}
@@ -1422,13 +1429,15 @@ function TeesStep({
 }
 
 function TeamsStep({
-  course, players, setPlayers, teams, setTeams, lockedGroups, setLockedGroups, captainIds, setCaptainIds, handicapAllowance, onNext, onBack,
+  course, players, setPlayers, teams, setTeams, lockedGroups, setLockedGroups, captainIds, setCaptainIds,
+  excludeCaptains, setExcludeCaptains, handicapAllowance, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
   teams: PoolTeam[]; setTeams: (t: PoolTeam[]) => void;
   lockedGroups: string[][]; setLockedGroups: (g: string[][]) => void;
   captainIds: string[]; setCaptainIds: (ids: string[]) => void;
+  excludeCaptains: boolean; setExcludeCaptains: (v: boolean) => void;
   handicapAllowance: number;
   onNext: () => void; onBack: () => void;
 }) {
@@ -1496,7 +1505,7 @@ function TeamsStep({
   // captainIds[i] as its captain; players within a team list captain-first.
   function autoBalance() {
     const captainByTeam = Array.from({ length: numTeams }, (_, i) => captainIds[i] || undefined);
-    const groups = balanceTeamsWithCaptains(players, numTeams, hcapOf, captainByTeam, lockedGroups);
+    const groups = balanceTeamsWithCaptains(players, numTeams, hcapOf, captainByTeam, lockedGroups, excludeCaptains);
     setTeams(groups.map((ids, i) => {
       const captainId = captainByTeam[i] && ids.includes(captainByTeam[i]!) ? captainByTeam[i] : lowestHcapId(ids);
       const ordered = orderPlayerIdsWithCaptain(ids, captainId, players, course, handicapAllowance);
@@ -1611,6 +1620,8 @@ function TeamsStep({
           numTeams={numTeams}
           captainIds={captainIds}
           setCaptainIdsAction={setCaptainIds}
+          excludeCaptains={excludeCaptains}
+          setExcludeCaptainsAction={setExcludeCaptains}
           onApplyAction={autoBalance}
         />
       </div>
