@@ -16,7 +16,10 @@ import {
   type PoolGame,
   type PoolTeam,
   type PoolJunkValues,
+  type PoolMoneyMode,
+  type PoolMatchConfig,
   DEFAULT_JUNK_VALUES,
+  DEFAULT_MATCH_CONFIG,
   savePoolGame,
   getPoolPlayingHandicap,
   poolSplitDollarsForTeams,
@@ -33,10 +36,18 @@ import {
   searchRoster,
   getRoster,
   getRosterPlayerByGhin,
+  getRosterPlayerById,
   upsertRosterPlayer,
   refreshRosterHandicaps,
   getOldestHcapRefresh,
 } from '@/lib/roster';
+import {
+  type RosterGroup,
+  type GroupDefaults,
+  hydrateGroups,
+  getGroups,
+  upsertGroup,
+} from '@/lib/roster-groups';
 
 const WIZARD_KEY = 'pool_wizard_draft';
 
@@ -131,6 +142,12 @@ export default function NewPoolGamePage() {
   const [positionSplitText, setPositionSplitText] = useState('100');
   const [junkValues, setJunkValues] = useState<PoolJunkValues>({ ...DEFAULT_JUNK_VALUES });
   const [ballSelection, setBallSelection] = useState<TwoBestBallsVariant>('1-net-1-gross');
+  // Money mode: 'pot' = classic buy-in pool (JY); 'match' = 2-foursome head-to-head.
+  const [moneyMode, setMoneyMode] = useState<PoolMoneyMode>('pot');
+  // Match-mode config (per-player $/leg + junk $/point). Stored as strings for the
+  // inputs; parsed at create time.
+  const [matchLegs, setMatchLegs] = useState({ front: '10', back: '10', overall: '10' });
+  const [matchJunkPerPoint, setMatchJunkPerPoint] = useState('5');
 
   // Course
   const [course, setCourse] = useState<CourseSelection | null>(null);
@@ -149,6 +166,9 @@ export default function NewPoolGamePage() {
   // Balance the NON-captain players only (default on): evens the other three per
   // team and lets captain strokes ride as the edge — best for 1 net + 1 gross.
   const [balanceExcludeCaptains, setBalanceExcludeCaptains] = useState(true);
+  // How the current teams were built (method + settings snapshot), recorded onto
+  // the game so the read-only hub can show "how these teams were built".
+  const [teamBuild, setTeamBuild] = useState<PoolGame['teamBuild']>(undefined);
 
   // Hydrate wizard draft on mount
   useEffect(() => {
@@ -165,6 +185,9 @@ export default function NewPoolGamePage() {
         if (typeof data.positionSplitText === 'string') setPositionSplitText(data.positionSplitText);
         if (data.junkValues) setJunkValues(data.junkValues);
         if (data.ballSelection) setBallSelection(data.ballSelection);
+        if (data.moneyMode === 'pot' || data.moneyMode === 'match') setMoneyMode(data.moneyMode);
+        if (data.matchLegs) setMatchLegs(data.matchLegs);
+        if (typeof data.matchJunkPerPoint === 'string') setMatchJunkPerPoint(data.matchJunkPerPoint);
         if (data.course) setCourse(data.course);
         // Intentionally NOT restoring players/teams/step: the day's field is a
         // fresh per-game selection (the roster is the durable store), so every
@@ -179,10 +202,60 @@ export default function NewPoolGamePage() {
     if (!hydrated) return;
     sessionStorage.setItem(WIZARD_KEY, JSON.stringify({
       name, entryPerPlayer, handicapAllowance, strokeMethod, balanceExcludeCaptains, potDollars, potEdited, positionSplitText,
-      junkValues, ballSelection, course, players, teams, step,
+      junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, course, players, teams, teamBuild, step,
     }));
   }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, balanceExcludeCaptains, potDollars, potEdited, positionSplitText,
-      junkValues, ballSelection, course, players, teams, step]);
+      junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, course, players, teams, teamBuild, step]);
+
+  // The current format settings, packaged as a group's defaults (for "save field
+  // as a group"). Only the format — the member list is saved separately.
+  function currentGroupDefaults(): GroupDefaults {
+    return {
+      moneyMode,
+      junkValues,
+      entryPerPlayer: parseFloat(entryPerPlayer) || 0,
+      positionSplitText,
+      matchConfig: buildMatchConfig(),
+      handicapAllowance: parseFloat(handicapAllowance) || 100,
+      strokeMethod,
+      ballSelection,
+    };
+  }
+
+  // Apply a group's saved format defaults to the wizard (used when loading a
+  // group). Missing fields are left untouched.
+  function applyGroupDefaults(d: GroupDefaults | null) {
+    if (!d) return;
+    if (d.moneyMode === 'pot' || d.moneyMode === 'match') setMoneyMode(d.moneyMode);
+    if (d.junkValues) setJunkValues(d.junkValues);
+    if (typeof d.entryPerPlayer === 'number') setEntryPerPlayer(String(d.entryPerPlayer));
+    if (typeof d.positionSplitText === 'string') setPositionSplitText(d.positionSplitText);
+    if (d.matchConfig) {
+      setMatchLegs({
+        front: String(d.matchConfig.legDollars.front),
+        back: String(d.matchConfig.legDollars.back),
+        overall: String(d.matchConfig.legDollars.overall),
+      });
+      setMatchJunkPerPoint(String(d.matchConfig.junkPerPoint));
+    }
+    if (typeof d.handicapAllowance === 'number') setHandicapAllowance(String(d.handicapAllowance));
+    if (d.strokeMethod === 'full' || d.strokeMethod === 'off-the-low') setStrokeMethod(d.strokeMethod);
+    if (d.ballSelection) setBallSelection(d.ballSelection);
+  }
+
+  // Parse the match-config inputs into a PoolMatchConfig (per-player $/leg + junk
+  // $/point), falling back to the defaults for any blank/invalid field.
+  function buildMatchConfig(): PoolMatchConfig {
+    const num = (s: string, d: number) => (s.trim() === '' || isNaN(parseFloat(s)) ? d : parseFloat(s));
+    return {
+      legDollars: {
+        front: num(matchLegs.front, DEFAULT_MATCH_CONFIG.legDollars.front),
+        back: num(matchLegs.back, DEFAULT_MATCH_CONFIG.legDollars.back),
+        overall: num(matchLegs.overall, DEFAULT_MATCH_CONFIG.legDollars.overall),
+      },
+      junkPerPoint: num(matchJunkPerPoint, DEFAULT_MATCH_CONFIG.junkPerPoint),
+    };
+  }
 
   function createPoolGame() {
     const id = crypto.randomUUID();
@@ -199,6 +272,9 @@ export default function NewPoolGamePage() {
       players,
       teams,
       ballSelection,
+      moneyMode,
+      // Only carry match config when the game IS a match, so pot games stay clean.
+      matchConfig: moneyMode === 'match' ? buildMatchConfig() : undefined,
       entryPerPlayer: parseFloat(entryPerPlayer) || 0,
       handicapAllowance: parseFloat(handicapAllowance) || 100,
       strokeMethod,
@@ -213,6 +289,7 @@ export default function NewPoolGamePage() {
       // Persist pairing locks onto the game so they can be reused/edited when the
       // organizer reopens it (locks live on the game, not just the wizard).
       lockedGroups: lockedGroups.length > 0 ? lockedGroups : undefined,
+      teamBuild,
     };
 
     // Remember each player's tee (by name) for next time — whatever they're
@@ -269,6 +346,12 @@ export default function NewPoolGamePage() {
             setJunkValues={setJunkValues}
             ballSelection={ballSelection}
             setBallSelection={setBallSelection}
+            moneyMode={moneyMode}
+            setMoneyMode={setMoneyMode}
+            matchLegs={matchLegs}
+            setMatchLegs={setMatchLegs}
+            matchJunkPerPoint={matchJunkPerPoint}
+            setMatchJunkPerPoint={setMatchJunkPerPoint}
             onNext={() => setStep('course')}
           />
         )}
@@ -288,6 +371,8 @@ export default function NewPoolGamePage() {
             players={players}
             setPlayers={setPlayers}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
+            getGroupDefaults={currentGroupDefaults}
+            applyGroupDefaults={applyGroupDefaults}
             onNext={() => setStep('tees')}
             onBack={() => setStep('course')}
           />
@@ -317,6 +402,8 @@ export default function NewPoolGamePage() {
             setCaptainIds={setCaptainIds}
             excludeCaptains={balanceExcludeCaptains}
             setExcludeCaptains={setBalanceExcludeCaptains}
+            teamBuild={teamBuild}
+            setTeamBuild={setTeamBuild}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             onNext={() => setStep('create')}
             onBack={() => setStep('tees')}
@@ -335,6 +422,8 @@ export default function NewPoolGamePage() {
             setPotDollars={setPotDollars}
             potEdited={potEdited}
             setPotEdited={setPotEdited}
+            moneyMode={moneyMode}
+            matchConfig={buildMatchConfig()}
             onCreate={createPoolGame}
             onBack={() => setStep('teams')}
           />
@@ -373,7 +462,9 @@ function DetailsStep({
   name, setName, entryPerPlayer, setEntryPerPlayer, handicapAllowance, setHandicapAllowance,
   strokeMethod, setStrokeMethod,
   positionSplitText, setPositionSplitText,
-  junkValues, setJunkValues, ballSelection, setBallSelection, onNext,
+  junkValues, setJunkValues, ballSelection, setBallSelection,
+  moneyMode, setMoneyMode, matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
+  onNext,
 }: {
   name: string; setName: (s: string) => void;
   entryPerPlayer: string; setEntryPerPlayer: (s: string) => void;
@@ -382,6 +473,10 @@ function DetailsStep({
   positionSplitText: string; setPositionSplitText: (s: string) => void;
   junkValues: PoolJunkValues; setJunkValues: (v: PoolJunkValues) => void;
   ballSelection: TwoBestBallsVariant; setBallSelection: (v: TwoBestBallsVariant) => void;
+  moneyMode: PoolMoneyMode; setMoneyMode: (v: PoolMoneyMode) => void;
+  matchLegs: { front: string; back: string; overall: string };
+  setMatchLegs: (v: { front: string; back: string; overall: string }) => void;
+  matchJunkPerPoint: string; setMatchJunkPerPoint: (s: string) => void;
   onNext: () => void;
 }) {
   const junkFields: { key: keyof PoolJunkValues; label: string }[] = [
@@ -416,7 +511,36 @@ function DetailsStep({
           />
         </div>
 
+        <div className="pt-2 border-t">
+          <label className="block text-sm font-medium text-gray-800 mb-1">Game Type</label>
+          <div className="flex gap-2">
+            {([
+              { v: 'pot', label: 'Pool (pot split)' },
+              { v: 'match', label: 'Head-to-head match' },
+            ] as const).map(({ v, label }) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setMoneyMode(v)}
+                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                  moneyMode === v
+                    ? 'border-green-600 bg-green-600 text-white'
+                    : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            {moneyMode === 'match'
+              ? 'Two foursomes head-to-head. Each leg pays a fixed amount per player; junk pays a set amount per point of margin. No buy-in.'
+              : 'Everyone buys in to one pot, split into front / back / overall / junk and paid out by finishing place.'}
+          </p>
+        </div>
+
         <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+          {moneyMode === 'pot' && (
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1">Entry ($ / player)</label>
             <input
@@ -427,6 +551,7 @@ function DetailsStep({
               className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
             />
           </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1">Handicap Allowance (%)</label>
             <input
@@ -467,10 +592,13 @@ function DetailsStep({
           </p>
         </div>
 
+        {moneyMode === 'pot' && (
         <div className="pt-2 border-t">
           <p className="text-xs text-gray-500">Pot split (front / back / overall / junk) is set on the final step — it fills in automatically from the number of teams.</p>
         </div>
+        )}
 
+        {moneyMode === 'pot' && (
         <div className="pt-2 border-t">
           <label className="block text-sm font-medium text-gray-800 mb-1">Position Split</label>
           <input
@@ -484,6 +612,45 @@ function DetailsStep({
             Percent of each sub-pot per finishing place. &quot;100&quot; = winner-take-all; &quot;70, 30&quot; = 1st/2nd.
           </p>
         </div>
+        )}
+
+        {moneyMode === 'match' && (
+        <div className="pt-2 border-t">
+          <p className="text-sm font-semibold text-gray-800 mb-2">Match Payouts ($ / player)</p>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { key: 'front' as const, label: 'Front 9' },
+              { key: 'back' as const, label: 'Back 9' },
+              { key: 'overall' as const, label: 'Overall' },
+            ]).map(({ key, label }) => (
+              <div key={key}>
+                <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={matchLegs[key]}
+                  onChange={(e) => setMatchLegs({ ...matchLegs, [key]: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="mt-3">
+            <label className="block text-xs text-gray-600 font-medium mb-1">Junk ($ / point of margin)</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={matchJunkPerPoint}
+              onChange={(e) => setMatchJunkPerPoint(e.target.value)}
+              className="w-40 rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Each player on the losing side pays this per junk point of difference. With ${matchJunkPerPoint || '5'}/point, a birdie is worth ${(parseFloat(matchJunkPerPoint) || 5) * (junkValues.birdie || 1)}, an eagle ${(parseFloat(matchJunkPerPoint) || 5) * (junkValues.eagle || 2)}.
+            </p>
+          </div>
+          <p className="text-xs text-amber-700 mt-2">Head-to-head is for exactly two foursomes. For three or more teams, use Pool (pot split).</p>
+        </div>
+        )}
 
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-2">Junk Values (points)</p>
@@ -769,11 +936,13 @@ function CourseStep({
 }
 
 function FieldStep({
-  course, players, setPlayers, handicapAllowance, onNext, onBack,
+  course, players, setPlayers, handicapAllowance, getGroupDefaults, applyGroupDefaults, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
   handicapAllowance: number;
+  getGroupDefaults: () => GroupDefaults;
+  applyGroupDefaults: (d: GroupDefaults | null) => void;
   onNext: () => void; onBack: () => void;
 }) {
   const [rosterQuery, setRosterQuery] = useState('');
@@ -802,11 +971,21 @@ function FieldStep({
   const [showLogin, setShowLogin] = useState(false);
   const retryRef = useRef<(() => void) | null>(null);
 
+  // Saved groups (organizer's "home base" rosters + format defaults).
+  const [groups, setGroups] = useState<RosterGroup[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState('');
+  const [saveGroupName, setSaveGroupName] = useState('');
+  const [groupNote, setGroupNote] = useState('');
+
   useEffect(() => {
     // Scope the roster to this organizer (owner sees all; others see the shared
     // base roster plus their own saved players).
     hydrateRoster({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' }).then(async () => {
       setRosterResults(searchRoster(''));
+      // Groups share the same viewer scope. Best-effort — fails soft to empty.
+      hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' })
+        .then(() => setGroups(getGroups()))
+        .catch(() => {});
       // Auto-refresh from GHIN if the roster's handicaps are stale (>24h) or
       // never refreshed — so new games start current without hammering GHIN
       // every time. Manual "Refresh handicaps" is always available too.
@@ -834,6 +1013,51 @@ function FieldStep({
   function refreshRoster(query: string) {
     setRosterQuery(query);
     setRosterResults(searchRoster(query));
+  }
+
+  // Load a group: REPLACE today's field with the group's members (looked up in
+  // the roster and given a tee), and apply the group's saved format defaults.
+  function loadGroup(groupId: string) {
+    const group = groups.find((g) => g.id === groupId);
+    if (!group) return;
+    const loaded: Player[] = [];
+    let missing = 0;
+    for (const pid of group.playerIds) {
+      const rp = getRosterPlayerById(pid);
+      if (!rp) { missing++; continue; }
+      loaded.push({
+        id: rp.id,
+        name: rp.name,
+        handicapIndex: rp.handicapIndex,
+        gender: rp.gender ?? undefined,
+        ghinNumber: rp.ghinNumber ?? undefined,
+        teeSetId: pickTeeForPlayer(course, rp.gender ?? undefined, rp.defaultTeeName),
+      });
+    }
+    setPlayers(loaded);
+    applyGroupDefaults(group.defaults);
+    setGroupNote(
+      `Loaded “${group.name}” — ${loaded.length} player${loaded.length === 1 ? '' : 's'}${missing > 0 ? ` (${missing} no longer on the roster)` : ''}.`
+    );
+  }
+
+  // Save the current field + format as a group (new, or overwrite one by the same
+  // name in this organizer's scope).
+  async function saveAsGroup() {
+    const name = saveGroupName.trim();
+    if (name.length === 0 || players.length === 0) return;
+    const existing = groups.find((g) => g.name.trim().toLowerCase() === name.toLowerCase());
+    const group: RosterGroup = {
+      id: existing?.id ?? crypto.randomUUID(),
+      name,
+      ownerGhin: existing?.ownerGhin ?? getCreatorGhin(),
+      playerIds: players.map((p) => p.id),
+      defaults: getGroupDefaults(),
+    };
+    await upsertGroup(group);
+    setGroups(getGroups());
+    setSaveGroupName('');
+    setGroupNote(`Saved “${name}” — ${players.length} player${players.length === 1 ? '' : 's'}.`);
   }
 
   const existingGhins = new Set(players.map((p) => p.ghinNumber).filter((g): g is number => g != null));
@@ -1061,6 +1285,52 @@ function FieldStep({
       />
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Build Field ({players.length})</h2>
+
+      {/* Groups — load a saved group (members + format) or save the current field */}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <p className="text-sm font-semibold text-gray-800 mb-2">Groups</p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex gap-2 flex-1">
+            <select
+              value={selectedGroupId}
+              onChange={(e) => setSelectedGroupId(e.target.value)}
+              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            >
+              <option value="">{groups.length ? 'Load a group…' : 'No groups saved yet'}</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name} ({g.playerIds.length})</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => selectedGroupId && loadGroup(selectedGroupId)}
+              disabled={!selectedGroupId}
+              className="rounded-md bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-50"
+            >
+              Load
+            </button>
+          </div>
+          <div className="flex gap-2 flex-1">
+            <input
+              type="text"
+              value={saveGroupName}
+              onChange={(e) => setSaveGroupName(e.target.value)}
+              placeholder="Save current field as…"
+              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            />
+            <button
+              type="button"
+              onClick={saveAsGroup}
+              disabled={saveGroupName.trim().length === 0 || players.length === 0}
+              className="rounded-md border border-green-700 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-50"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+        {groupNote && <p className="text-xs text-gray-500 mt-2">{groupNote}</p>}
+        <p className="text-xs text-gray-400 mt-1">Loading a group replaces today&apos;s field and applies its saved game settings.</p>
+      </div>
 
       {/* Saved roster — alphabetical checklist, tap to add/remove today's field */}
       <div className="bg-white rounded-lg shadow p-4 mb-4">
@@ -1430,7 +1700,7 @@ function TeesStep({
 
 function TeamsStep({
   course, players, setPlayers, teams, setTeams, lockedGroups, setLockedGroups, captainIds, setCaptainIds,
-  excludeCaptains, setExcludeCaptains, handicapAllowance, onNext, onBack,
+  excludeCaptains, setExcludeCaptains, teamBuild, setTeamBuild, handicapAllowance, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
@@ -1438,6 +1708,7 @@ function TeamsStep({
   lockedGroups: string[][]; setLockedGroups: (g: string[][]) => void;
   captainIds: string[]; setCaptainIds: (ids: string[]) => void;
   excludeCaptains: boolean; setExcludeCaptains: (v: boolean) => void;
+  teamBuild: PoolGame['teamBuild']; setTeamBuild: (b: PoolGame['teamBuild']) => void;
   handicapAllowance: number;
   onNext: () => void; onBack: () => void;
 }) {
@@ -1488,6 +1759,12 @@ function TeamsStep({
     return sortPlayerIdsByHcap(ids, players, course, handicapAllowance)[0];
   }
 
+  // Flag the current build as hand-adjusted after a move/make-captain, so the
+  // read-only summary reads "hand-adjusted after". Nothing built yet → 'manual'.
+  function markAdjusted() {
+    setTeamBuild({ ...(teamBuild ?? { method: 'manual' }), adjustedAfter: true });
+  }
+
   // Auto-generate: sequential foursomes, each sorted low->high, lowest = captain.
   function autoGenerate() {
     const groups: string[][] = [];
@@ -1498,6 +1775,7 @@ function TeamsStep({
       const sorted = sortPlayerIdsByHcap(ids, players, course, handicapAllowance);
       return makeTeam(i, sorted, sorted[0]);
     }));
+    setTeamBuild({ method: 'sequential', adjustedAfter: false });
   }
 
   // Auto-balance AROUND CAPTAINS, honoring pairing locks. Each captain anchors a
@@ -1511,6 +1789,15 @@ function TeamsStep({
       const ordered = orderPlayerIdsWithCaptain(ids, captainId, players, course, handicapAllowance);
       return makeTeam(i, ordered, captainId);
     }));
+    // Snapshot the settings used, so the read-only summary reflects the actual
+    // build rather than the live toggle later.
+    setTeamBuild({
+      method: 'balanced',
+      excludeCaptains,
+      hadCaptains: captainByTeam.some(Boolean),
+      hadLocks: lockedGroups.some((g) => g.length >= 2),
+      adjustedAfter: false,
+    });
   }
 
   function movePlayer(playerId: string, fromTeamId: string, toTeamId: string) {
@@ -1527,6 +1814,7 @@ function TeamsStep({
       }
       return t;
     }));
+    markAdjusted();
   }
 
   // Make a player the captain of their team (moves them to the top of the list).
@@ -1546,6 +1834,7 @@ function TeamsStep({
       next[idx] = playerId;
       setCaptainIds(next);
     }
+    markAdjusted();
   }
 
   function renameTeam(teamId: string, newName: string) {
@@ -1820,7 +2109,8 @@ function TeamsStep({
 }
 
 function CreateStep({
-  name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited, onCreate, onBack,
+  name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited,
+  moneyMode, matchConfig, onCreate, onBack,
 }: {
   name: string;
   entryPerPlayer: number;
@@ -1832,8 +2122,11 @@ function CreateStep({
   setPotDollars: (d: PotDollars | null) => void;
   potEdited: boolean;
   setPotEdited: (b: boolean) => void;
+  moneyMode: PoolMoneyMode;
+  matchConfig: PoolMatchConfig;
   onCreate: () => void; onBack: () => void;
 }) {
+  const isMatch = moneyMode === 'match';
   const playerById = new Map(players.map((p) => [p.id, p]));
   const pot = players.length * entryPerPlayer;
   const teeNameOf = (p: Player) => course?.teeSets.find((t) => t.id === p.teeSetId)?.name ?? null;
@@ -1882,11 +2175,12 @@ function CreateStep({
             <p className="text-lg font-bold text-gray-900">{teams.length}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500">Total Pot</p>
-            <p className="text-lg font-bold text-green-700">${pot}</p>
+            <p className="text-xs text-gray-500">{isMatch ? 'Type' : 'Total Pot'}</p>
+            <p className="text-lg font-bold text-green-700">{isMatch ? 'Match' : `$${pot}`}</p>
           </div>
         </div>
 
+        {!isMatch && (
         <div className="pt-2 border-t">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-semibold text-gray-800">Pot Split ($ per pot)</p>
@@ -1917,6 +2211,24 @@ function CreateStep({
             Split total: ${splitTotal} vs pot ${pot}{balanced ? ' ✓' : ' — should match the pot'}
           </p>
         </div>
+        )}
+
+        {isMatch && (
+        <div className="pt-2 border-t">
+          <p className="text-sm font-semibold text-gray-800 mb-2">Match Payouts ($ / player)</p>
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <div><p className="text-xs text-gray-500">Front 9</p><p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.front}</p></div>
+            <div><p className="text-xs text-gray-500">Back 9</p><p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.back}</p></div>
+            <div><p className="text-xs text-gray-500">Overall</p><p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.overall}</p></div>
+            <div><p className="text-xs text-gray-500">Junk / pt</p><p className="text-sm font-bold text-gray-900">${matchConfig.junkPerPoint}</p></div>
+          </div>
+          {teams.length !== 2 && (
+            <p className="text-xs text-amber-700 mt-2">
+              Head-to-head needs exactly two foursomes — you have {teams.length}. Go back and make two teams, or switch to Pool (pot split).
+            </p>
+          )}
+        </div>
+        )}
 
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-2">Foursomes</p>

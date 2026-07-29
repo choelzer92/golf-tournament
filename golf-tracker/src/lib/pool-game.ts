@@ -26,6 +26,20 @@ export interface PoolJunkValues {
   ctp: number;
 }
 
+// A record of HOW the current teams were built, so the read-only view can show
+// the organizer exactly what produced these foursomes. Captured at build time —
+// crucially, `excludeCaptains` is the value that was in effect WHEN teams were
+// built, not whatever the toggle reads now (reading the live toggle is exactly
+// what made teams look like they "changed under the same parameters"). Older
+// games predate this field and render an honest "unknown" fallback.
+export interface PoolTeamBuild {
+  method: 'balanced' | 'sequential' | 'manual';  // balanced = around-captains; sequential = plain foursomes; manual = built by hand
+  excludeCaptains?: boolean;   // for 'balanced': whether captains were left out of the balance (snapshot at build time)
+  hadCaptains?: boolean;       // for 'balanced': at least one captain slot was set
+  hadLocks?: boolean;          // pairing locks were in effect at build time
+  adjustedAfter?: boolean;     // a player was moved/swapped, or a captain changed, after the build
+}
+
 // Fractions of the total pot allocated to each sub-pot (should sum to 1).
 export interface PoolPotSplit {
   front: number;
@@ -33,6 +47,29 @@ export interface PoolPotSplit {
   overall: number;
   junk: number;
 }
+
+// How a pool game settles money.
+//   'pot'   — the classic buy-in pool: everyone antes, the pot is split into
+//             front/back/overall/junk sub-pots and paid out by finishing place
+//             (JY's game). Scales to any number of teams.
+//   'match' — a head-to-head match between EXACTLY TWO foursomes. Each leg
+//             (front/back/overall) is worth a FIXED dollar amount PER PLAYER,
+//             won head-to-head; junk is a differential — $junkPerPoint × the
+//             difference in junk points, owed by each player on the losing side.
+//             No pot, no buy-in; losers pay winners directly.
+export type PoolMoneyMode = 'pot' | 'match';
+
+// Match-mode money config. legDollars are PER PLAYER per leg; junkPerPoint is the
+// dollars PER PLAYER for each junk point of margin between the two teams.
+export interface PoolMatchConfig {
+  legDollars: { front: number; back: number; overall: number };
+  junkPerPoint: number;
+}
+
+export const DEFAULT_MATCH_CONFIG: PoolMatchConfig = {
+  legDollars: { front: 10, back: 10, overall: 10 },
+  junkPerPoint: 5,
+};
 
 export interface PoolGame {
   id: string;
@@ -42,7 +79,9 @@ export interface PoolGame {
   players: Player[];
   teams: PoolTeam[];
   ballSelection: TwoBestBallsVariant;         // default '1-net-1-gross'
-  entryPerPlayer: number;                      // e.g. 25
+  moneyMode?: PoolMoneyMode;                    // default 'pot' (JY's classic buy-in pool); 'match' = 2-foursome head-to-head
+  matchConfig?: PoolMatchConfig;                // used only when moneyMode is 'match'
+  entryPerPlayer: number;                      // e.g. 25 (pot mode only)
   handicapAllowance: number;                   // percent, e.g. 100
   strokeMethod?: 'full' | 'off-the-low';       // default 'full'; off-the-low subtracts field-low handicap
   balanceExcludeCaptains?: boolean;            // default true; balance the non-captain players to equal handicap (captains' own strokes ride as the edge)
@@ -54,6 +93,7 @@ export interface PoolGame {
   handicapsRefreshedAt?: string;               // ISO time this game's handicaps were last pulled from GHIN
   createdByGhin?: number;                       // GHIN number of the organizer who created it (for their history)
   lockedGroups?: string[][];                    // player-id groups kept on the same team through auto-balance
+  teamBuild?: PoolTeamBuild;                     // how the current teams were built (for the read-only "how these were built" summary)
 }
 
 export const DEFAULT_JUNK_VALUES: PoolJunkValues = {
@@ -827,6 +867,75 @@ export function orderPlayerIdsWithCaptain(
   return [captainId, ...sorted.filter((id) => id !== captainId)];
 }
 
+// --- "How these teams were built" summary ----------------------------------
+
+export interface TeamBuildSummary {
+  known: boolean;        // false for older games saved before we recorded how teams were built
+  headline: string;      // one-line description of the build method
+  detail: string | null; // the balance mode explained in plain words (balanced builds only)
+  captains: string[];    // captain first names, in team order (empty if none)
+  locks: string[][];     // pairing-lock groups as first names
+  adjusted: boolean;     // a player was moved/swapped (or a captain changed) after the build
+}
+
+// Describe, in plain words, how the CURRENT teams came to be — the build method,
+// the balance mode that was in effect AT BUILD TIME (not the live toggle),
+// captains, pairing locks, and whether they were hand-adjusted afterward. Powers
+// the read-only "How these teams were built" panel so an organizer can always see
+// what produced these foursomes (and isn't surprised when a rebuild under a
+// changed toggle lands differently). Games saved before this was tracked return
+// `known: false` and just report captains/locks that are still on the game.
+export function summarizeTeamBuild(game: PoolGame): TeamBuildSummary {
+  const firstName = (id: string) => (game.players.find((p) => p.id === id)?.name ?? '?').split(' ')[0];
+
+  // Captains that are actually seated on a team, in team order.
+  const captains = game.teams
+    .map((t) => t.captainId)
+    .filter((id): id is string => !!id && game.players.some((p) => p.id === id))
+    .map(firstName);
+
+  // Locks with >=2 members still present in the field.
+  const locks = (game.lockedGroups ?? [])
+    .map((g) => g.filter((id) => game.players.some((p) => p.id === id)))
+    .filter((g) => g.length >= 2)
+    .map((g) => g.map(firstName));
+
+  const tb = game.teamBuild;
+  if (!tb) {
+    // Older game — we didn't record the method. Report what's still knowable.
+    return {
+      known: false,
+      headline: captains.length > 0 ? 'Teams with captains' : 'Teams set up manually',
+      detail: null,
+      captains,
+      locks,
+      adjusted: false,
+    };
+  }
+
+  let headline: string;
+  let detail: string | null = null;
+  if (tb.method === 'balanced') {
+    headline = tb.hadCaptains ? 'Balanced around captains' : 'Balanced by handicap';
+    detail = tb.excludeCaptains
+      ? 'Evened out the non-captain players; each captain’s own strokes ride as the edge.'
+      : 'Evened out each whole team, captains included.';
+  } else if (tb.method === 'sequential') {
+    headline = 'Auto-generated foursomes (in list order)';
+  } else {
+    headline = 'Built by hand';
+  }
+
+  return {
+    known: true,
+    headline,
+    detail,
+    captains,
+    locks,
+    adjusted: !!tb.adjustedAfter,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Pot distribution — winner-take-all by default, ties split the pooled amount
 // evenly. Distributes GROSS dollars (each team already paid entry into the pot).
@@ -1004,12 +1113,94 @@ function computeJunk(
   });
 }
 
+// The winner/loser of a single leg in a HEAD-TO-HEAD match. Ranks the two
+// foursomes by toPar (lower is better) — toPar normalizes for differing thru
+// counts, so this reads correctly live and mirrors how pot mode ranks. Returns
+// nulls for a push (equal toPar) or when fewer than two teams have any score.
+function matchLegOutcome(leg: PoolLeg): { winnerId: string | null; loserId: string | null } {
+  const played = leg.standings.filter((s) => s.thru > 0);
+  if (played.length < 2) return { winnerId: null, loserId: null };
+  const sorted = [...played].sort((a, b) => a.toPar - b.toPar);
+  if (sorted[0].toPar === sorted[1].toPar) return { winnerId: null, loserId: null }; // push
+  return { winnerId: sorted[0].teamId, loserId: sorted[1].teamId };
+}
+
+// Head-to-head settlement for a TWO-TEAM match. Each leg pays a fixed dollar
+// amount PER PLAYER (winner's players +$leg, loser's −$leg, push $0); junk pays
+// $junkPerPoint PER PLAYER for each junk point of margin, to the team with more
+// points. Every player on a side settles the same amount, so the leg/junk fields
+// here are PER PLAYER; `net` is the team aggregate (perPerson × player count).
+// Only meaningful for exactly two teams — with any other count, everyone settles
+// $0 and the UI steers the organizer to pot mode.
+function computeMatchPayouts(
+  game: PoolGame,
+  front: PoolLeg,
+  back: PoolLeg,
+  overall: PoolLeg,
+  junkDetails: PoolTeamJunk[]
+): PoolTeamPayout[] {
+  const cfg = game.matchConfig ?? DEFAULT_MATCH_CONFIG;
+  // Per-player signed leg amounts, accumulated per team.
+  const legAmt: Record<string, { front: number; back: number; overall: number; junk: number }> = {};
+  for (const t of game.teams) legAmt[t.id] = { front: 0, back: 0, overall: 0, junk: 0 };
+
+  const twoTeams = game.teams.length === 2;
+
+  if (twoTeams) {
+    const settleLeg = (leg: PoolLeg, dollars: number, key: 'front' | 'back' | 'overall') => {
+      const { winnerId, loserId } = matchLegOutcome(leg);
+      if (winnerId && loserId) {
+        legAmt[winnerId][key] += dollars;
+        legAmt[loserId][key] -= dollars;
+      }
+    };
+    settleLeg(front, cfg.legDollars.front, 'front');
+    settleLeg(back, cfg.legDollars.back, 'back');
+    settleLeg(overall, cfg.legDollars.overall, 'overall');
+
+    // Junk differential: more points wins $junkPerPoint × margin per player.
+    const [ja, jb] = game.teams.map((t) => junkDetails.find((j) => j.teamId === t.id));
+    if (ja && jb && ja.total !== jb.total) {
+      const margin = Math.abs(ja.total - jb.total);
+      const amt = margin * cfg.junkPerPoint;
+      const winner = ja.total > jb.total ? ja.teamId : jb.teamId;
+      const loser = ja.total > jb.total ? jb.teamId : ja.teamId;
+      legAmt[winner].junk += amt;
+      legAmt[loser].junk -= amt;
+    }
+  }
+
+  return game.teams.map((team) => {
+    const a = legAmt[team.id];
+    const perPersonNet = a.front + a.back + a.overall + a.junk;
+    const playerCount = team.playerIds.length || 1;
+    const net = perPersonNet * playerCount;
+    return {
+      teamId: team.id,
+      teamName: team.name,
+      playerCount,
+      front: a.front,
+      back: a.back,
+      overall: a.overall,
+      junk: a.junk,
+      grossTotal: net,
+      entryPaid: 0,
+      net,
+      perPersonNet,
+    };
+  });
+}
+
 export function computePoolResult(
   game: PoolGame,
   scoresByMatchup: Map<string, GameScore[]>
 ): PoolResult {
   const holes = getHoleData(game.course);
-  const pot = game.players.length * game.entryPerPlayer;
+  const isMatch = game.moneyMode === 'match';
+  // Match mode has no buy-in pot; legs pay a fixed per-player amount and junk is
+  // a differential (both settled in computeMatchPayouts). Pot mode keeps the
+  // classic buy-in pot split into sub-pots.
+  const pot = isMatch ? 0 : game.players.length * game.entryPerPlayer;
 
   if (holes.length === 0) {
     return { pot, legs: [], junkDetails: [], payouts: [], holeScores: [], thruHole: 0 };
@@ -1082,31 +1273,34 @@ export function computePoolResult(
 
   const legs: PoolLeg[] = [front, back, overall, junkLeg];
 
-  // Aggregate per-team payouts.
+  // Aggregate per-team payouts. Match mode settles head-to-head (fixed $/leg +
+  // junk differential); pot mode splits the buy-in pot by finishing place.
   const payoutFor = (leg: PoolLeg, teamId: string) => leg.standings.find((s) => s.teamId === teamId)?.payout ?? 0;
-  const payouts: PoolTeamPayout[] = game.teams.map((team) => {
-    const f = payoutFor(front, team.id);
-    const b = payoutFor(back, team.id);
-    const o = payoutFor(overall, team.id);
-    const j = payoutFor(junkLeg, team.id);
-    const grossTotal = f + b + o + j;
-    const playerCount = team.playerIds.length || 1;
-    const entryPaid = playerCount * game.entryPerPlayer;
-    const net = grossTotal - entryPaid;
-    return {
-      teamId: team.id,
-      teamName: team.name,
-      playerCount,
-      front: f,
-      back: b,
-      overall: o,
-      junk: j,
-      grossTotal,
-      entryPaid,
-      net,
-      perPersonNet: net / playerCount,
-    };
-  });
+  const payouts: PoolTeamPayout[] = isMatch
+    ? computeMatchPayouts(game, front, back, overall, junkDetails)
+    : game.teams.map((team) => {
+        const f = payoutFor(front, team.id);
+        const b = payoutFor(back, team.id);
+        const o = payoutFor(overall, team.id);
+        const j = payoutFor(junkLeg, team.id);
+        const grossTotal = f + b + o + j;
+        const playerCount = team.playerIds.length || 1;
+        const entryPaid = playerCount * game.entryPerPlayer;
+        const net = grossTotal - entryPaid;
+        return {
+          teamId: team.id,
+          teamName: team.name,
+          playerCount,
+          front: f,
+          back: b,
+          overall: o,
+          junk: j,
+          grossTotal,
+          entryPaid,
+          net,
+          perPersonNet: net / playerCount,
+        };
+      });
   payouts.sort((a, b) => b.net - a.net);
 
   return { pot, legs, junkDetails, payouts, holeScores, thruHole };

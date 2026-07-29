@@ -11,6 +11,7 @@ import {
   subscribeToPoolGame,
   computePoolResult,
   computePoolPlayerDetails,
+  DEFAULT_MATCH_CONFIG,
 } from '@/lib/pool-game';
 
 const LEG_LABELS: Record<PoolLegKey, string> = {
@@ -98,6 +99,8 @@ export default function PoolLeaderboardPage() {
 
   // Junk breakdown ranked by total desc
   const rankedJunk = [...result.junkDetails].sort((a, b) => b.total - a.total);
+
+  const isMatch = game.moneyMode === 'match';
 
   return (
     <div className="min-h-full bg-gray-900">
@@ -194,7 +197,10 @@ export default function PoolLeaderboardPage() {
           </div>
         </div>
 
-        {/* 4-pot payout board */}
+        {/* Payout board — pot sub-pots, or head-to-head legs in match mode */}
+        {isMatch ? (
+          <MatchLegBoard game={game} result={result} />
+        ) : (
         <div className="bg-gray-800 rounded-xl overflow-hidden">
           <div className="px-4 py-2 border-b border-gray-700">
             <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Pots</p>
@@ -225,6 +231,7 @@ export default function PoolLeaderboardPage() {
             })}
           </div>
         </div>
+        )}
 
         {/* Per-team junk breakdown */}
         <div className="bg-gray-800 rounded-xl overflow-hidden">
@@ -350,7 +357,9 @@ export default function PoolLeaderboardPage() {
         <div className="bg-gray-800 rounded-xl px-4 py-3">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Per Person</p>
-            <p className="text-[10px] text-gray-500">${Math.round(result.pot)} pot</p>
+            {isMatch
+              ? <p className="text-[10px] text-gray-500">net win / loss</p>
+              : <p className="text-[10px] text-gray-500">${Math.round(result.pot)} pot</p>}
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             {result.payouts.flatMap((p) => {
@@ -368,6 +377,101 @@ export default function PoolLeaderboardPage() {
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+// Head-to-head leg board (match mode): per leg, the two foursomes' to-par with
+// the winner and the fixed $/player they take; then the junk differential. A
+// tied leg (or tied junk) is a push and pays nobody.
+function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult }) {
+  const cfg = game.matchConfig ?? DEFAULT_MATCH_CONFIG;
+  const twoTeams = game.teams.length === 2;
+  const teamName = (id: string) => game.teams.find((t) => t.id === id)?.name ?? '?';
+
+  const scoreLegs: { key: PoolLegKey; label: string; dollars: number }[] = [
+    { key: 'front', label: 'Front 9', dollars: cfg.legDollars.front },
+    { key: 'back', label: 'Back 9', dollars: cfg.legDollars.back },
+    { key: 'overall', label: 'Overall 18', dollars: cfg.legDollars.overall },
+  ];
+
+  // Winner of a leg by lowest toPar among teams that have played; null = push/none.
+  function legWinner(leg: PoolLegKey): { winnerId: string | null; a?: PoolResult['legs'][number]['standings'][number]; b?: PoolResult['legs'][number]['standings'][number] } {
+    const l = result.legs.find((x) => x.leg === leg);
+    if (!l) return { winnerId: null };
+    const played = l.standings.filter((s) => s.thru > 0);
+    const [a, b] = l.standings;
+    if (played.length < 2) return { winnerId: null, a, b };
+    const sorted = [...played].sort((x, y) => x.toPar - y.toPar);
+    if (sorted[0].toPar === sorted[1].toPar) return { winnerId: null, a, b };
+    return { winnerId: sorted[0].teamId, a, b };
+  }
+
+  // Junk differential
+  const jd = [...result.junkDetails];
+  const junkWinner = jd.length === 2 && jd[0].total !== jd[1].total
+    ? (jd[0].total > jd[1].total ? jd[0] : jd[1])
+    : null;
+  const junkMargin = jd.length === 2 ? Math.abs(jd[0].total - jd[1].total) : 0;
+
+  if (!twoTeams) {
+    return (
+      <div className="bg-gray-800 rounded-xl px-4 py-3">
+        <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider mb-1">Match</p>
+        <p className="text-sm text-amber-400">Head-to-head needs exactly two foursomes — this game has {game.teams.length}.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gray-800 rounded-xl overflow-hidden">
+      <div className="px-4 py-2 border-b border-gray-700">
+        <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Match (per player)</p>
+      </div>
+      <div className="divide-y divide-gray-700/30">
+        {scoreLegs.map(({ key, label, dollars }) => {
+          const { winnerId, a, b } = legWinner(key);
+          return (
+            <div key={key} className="px-4 py-2.5 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-200">{label}</p>
+                <p className="text-[10px] text-gray-500">
+                  {a && b ? `${teamName(a.teamId)} ${a.thru ? a.toPar : '–'} vs ${teamName(b.teamId)} ${b.thru ? b.toPar : '–'} (to par)` : '—'}
+                </p>
+              </div>
+              <div className="text-right text-sm">
+                {winnerId ? (
+                  <>
+                    <span className="text-white font-medium">{teamName(winnerId)}</span>
+                    <span className="text-green-400 font-medium ml-2">+${dollars}</span>
+                  </>
+                ) : (
+                  <span className="text-xs text-gray-500">Push</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        <div className="px-4 py-2.5 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-200">Junk</p>
+            <p className="text-[10px] text-gray-500">
+              {jd.length === 2 ? `${teamName(jd[0].teamId)} ${jd[0].total} vs ${teamName(jd[1].teamId)} ${jd[1].total} pts` : '—'}
+            </p>
+          </div>
+          <div className="text-right text-sm">
+            {junkWinner ? (
+              <>
+                <span className="text-white font-medium">{junkWinner.teamName}</span>
+                <span className="text-green-400 font-medium ml-2">+${junkMargin * cfg.junkPerPoint}</span>
+                <span className="text-[10px] text-gray-500 ml-1">({junkMargin} × ${cfg.junkPerPoint})</span>
+              </>
+            ) : (
+              <span className="text-xs text-gray-500">Push</span>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

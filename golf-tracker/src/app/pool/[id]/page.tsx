@@ -24,6 +24,8 @@ import {
   rankSwapCandidates,
   teamHandicapSpread,
   poolStrokeMap,
+  summarizeTeamBuild,
+  DEFAULT_MATCH_CONFIG,
 } from '@/lib/pool-game';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
@@ -272,6 +274,7 @@ export default function PoolHubPage() {
             <EditFoursomes game={game} onSave={persist} />
           ) : (
             <div className="space-y-3">
+              {game.teams.length > 0 && <TeamBuildSummaryCard game={game} />}
               {game.teams.map((team) => (
                 <FoursomeCard
                   key={team.id}
@@ -387,6 +390,60 @@ function FieldLowBanner({ game }: { game: PoolGame }) {
   );
 }
 
+// Plain-language "How these teams were built" panel. Shows the build method, the
+// balance mode that was in effect AT BUILD TIME, captains, pairing locks, and a
+// hand-adjusted flag — so the organizer always sees what produced these
+// foursomes and isn't surprised when a rebuild under a changed setting differs.
+function TeamBuildSummaryCard({ game }: { game: PoolGame }) {
+  const s = summarizeTeamBuild(game);
+  const list = (names: string[]) => names.join(' + ');
+
+  return (
+    <details className="group rounded-lg border border-gray-200 bg-white overflow-hidden">
+      <summary className="flex items-center justify-between gap-2 cursor-pointer px-4 py-2.5 list-none">
+        <span className="min-w-0">
+          <span className="block text-[11px] uppercase tracking-wide text-gray-400 font-medium">How these teams were built</span>
+          <span className="block text-sm font-semibold text-gray-800 truncate">
+            {s.headline}
+            {s.adjusted && <span className="ml-1.5 font-normal text-amber-700">· hand-adjusted after</span>}
+          </span>
+        </span>
+        <span className="flex-shrink-0 text-gray-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+
+      <div className="border-t border-gray-100 px-4 py-3 space-y-2 text-sm text-gray-600">
+        {s.detail && <p>{s.detail}</p>}
+
+        {s.captains.length > 0 && (
+          <p>
+            <span className="font-medium text-gray-700">Captains:</span>{' '}
+            {list(s.captains)}
+          </p>
+        )}
+
+        {s.locks.length > 0 && (
+          <p>
+            <span className="font-medium text-gray-700">Kept together:</span>{' '}
+            {s.locks.map((g) => list(g)).join(', ')}
+          </p>
+        )}
+
+        {s.adjusted && (
+          <p className="text-amber-700">
+            One or more players were moved, swapped, or made captain by hand after the teams were built.
+          </p>
+        )}
+
+        {!s.known && (
+          <p className="text-xs text-gray-400">
+            This game was created before we started recording the build method. Rebuild the teams in Edit mode to record it.
+          </p>
+        )}
+      </div>
+    </details>
+  );
+}
+
 function SharePanel({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -435,6 +492,40 @@ function SharePanel({ onClose }: { onClose: () => void }) {
 }
 
 function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
+  if (game.moneyMode === 'match') {
+    const cfg = game.matchConfig ?? DEFAULT_MATCH_CONFIG;
+    const rows = [
+      { label: 'Front 9', amount: cfg.legDollars.front },
+      { label: 'Back 9', amount: cfg.legDollars.back },
+      { label: 'Overall 18', amount: cfg.legDollars.overall },
+      { label: 'Junk / pt', amount: cfg.junkPerPoint },
+    ];
+    const twoTeams = game.teams.length === 2;
+    return (
+      <section>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="px-4 py-3 bg-gray-100 border-b flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">Head-to-Head Match</h2>
+            <span className="text-sm text-gray-600">$ / player</span>
+          </div>
+          <div className="grid grid-cols-4 divide-x divide-gray-100">
+            {rows.map((r) => (
+              <div key={r.label} className="px-2 py-3 text-center">
+                <p className="text-xs font-medium text-gray-500 uppercase">{r.label}</p>
+                <p className="text-lg font-bold text-green-700">${r.amount}</p>
+              </div>
+            ))}
+          </div>
+          <div className="px-4 py-2 text-xs text-gray-400 border-t">
+            {twoTeams
+              ? <>Each leg is head-to-head · loser pays the junk difference · {game.handicapAllowance}% handicap</>
+              : <span className="text-amber-600">Head-to-head needs exactly two foursomes — this game has {game.teams.length}. Payouts show $0 until it&apos;s two teams.</span>}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   const rows: { label: string; amount: number }[] = [
     { label: 'Front 9', amount: pot * game.potSplit.front },
     { label: 'Back 9', amount: pot * game.potSplit.back },
@@ -687,6 +778,13 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
   const sortIds = (ids: string[]) => sortPlayerIdsByHcap(ids, game.players, course, game.handicapAllowance);
   const orderIds = (ids: string[], captainId: string | undefined) => orderPlayerIdsWithCaptain(ids, captainId, game.players, course, game.handicapAllowance);
 
+  // A hand edit (move/swap/make-captain) flags the current build as adjusted so
+  // the read-only summary can say "hand-adjusted after". Older games with no
+  // recorded build become method: 'manual'.
+  function markAdjusted(): PoolGame['teamBuild'] {
+    return { ...(game.teamBuild ?? { method: 'manual' }), adjustedAfter: true };
+  }
+
   // Move a player between foursomes — preserves each team's matchupId. The
   // destination stays captain-first, then low->high. If the captain is moved out,
   // their old team's captaincy passes to its next-lowest handicap.
@@ -694,6 +792,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
     if (fromTeamId === toTeamId) return;
     onSave({
       ...game,
+      teamBuild: markAdjusted(),
       teams: game.teams.map((t) => {
         if (t.id === fromTeamId) {
           const remaining = t.playerIds.filter((id) => id !== playerId);
@@ -716,6 +815,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
     if (!teamA || !teamB || teamA.id === teamB.id) return;
     onSave({
       ...game,
+      teamBuild: markAdjusted(),
       teams: game.teams.map((t) => {
         if (t.id === teamA.id) {
           const captainId = t.captainId === playerA ? playerB : t.captainId;
@@ -736,6 +836,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
     const idx = game.teams.findIndex((t) => t.id === teamId);
     onSave({
       ...game,
+      teamBuild: markAdjusted(),
       teams: game.teams.map((t) => (
         t.id === teamId ? { ...t, captainId: playerId, playerIds: orderIds(t.playerIds, playerId) } : t
       )),
@@ -823,7 +924,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
   // lowest handicap. Players within a slot list captain-first. If any foursome
   // already has scores, warn — and on confirm, clear all scores for the round
   // (the old cards no longer match the reshuffled players).
-  function applyReshuffle(newGroups: string[][], captainByTeam: (string | undefined)[] = []) {
+  function applyReshuffle(newGroups: string[][], captainByTeam: (string | undefined)[] = [], teamBuild?: PoolGame['teamBuild']) {
     const teamsWithScores = game.teams.filter((t) => {
       const s = loadGameScores(t.matchupId);
       return Array.isArray(s) && s.length > 0;
@@ -850,7 +951,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
     });
     // Mirror the resulting captains back into the working slots.
     setCaptainIds(teams.map((t) => t.captainId ?? ''));
-    onSave({ ...game, teams });
+    onSave({ ...game, teams, teamBuild: teamBuild ?? game.teamBuild });
   }
 
   // Balance AROUND CAPTAINS (captainIds, aligned to the team slots), honoring
@@ -866,7 +967,15 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
       game.lockedGroups ?? [],
       excludeCaptains
     );
-    applyReshuffle(groups, captainByTeam);
+    // Snapshot the settings that produced this build so the read-only summary
+    // reflects what was actually used, not the live toggle later on.
+    applyReshuffle(groups, captainByTeam, {
+      method: 'balanced',
+      excludeCaptains,
+      hadCaptains: captainByTeam.some(Boolean),
+      hadLocks: (game.lockedGroups ?? []).some((g) => g.length >= 2),
+      adjustedAfter: false,
+    });
   }
 
   function autoGenerate() {
@@ -875,7 +984,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
       groups.push(game.players.slice(i, i + 4).map((p) => p.id));
     }
     // Plain sequential foursomes — each slot's lowest handicap becomes captain.
-    applyReshuffle(groups);
+    applyReshuffle(groups, [], { method: 'sequential', adjustedAfter: false });
   }
 
   function setLockedGroups(groups: string[][]) {
@@ -1409,7 +1518,7 @@ function CtpEditor({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => 
   return (
     <section>
       <h2 className="text-lg font-semibold text-gray-900 mb-1">Closest to the Pin</h2>
-      <p className="text-xs text-gray-400 mb-3">Set the CTP winner on each par 3. Contributes to the junk pot.</p>
+      <p className="text-xs text-gray-400 mb-3">Set the CTP winner on each par 3. Counts toward that team&apos;s junk total.</p>
       <div className="space-y-3">
         {par3Holes.map((hole) => {
           const currentId = game.ctpWinners?.[hole] ?? null;
