@@ -1053,16 +1053,27 @@ function FieldStep({
   }
 
   // Save the current field + format as a group (new, or overwrite one by the same
-  // name in this organizer's scope).
+  // name in this organizer's scope). Store each player's CANONICAL ROSTER id, not
+  // the field id: a GHIN-added field player gets a fresh UUID, but the roster
+  // dedupes by GHIN and keeps its own id — so we resolve by GHIN here, else fall
+  // back to the field id (matches for manual/no-GHIN adds). Without this, loading
+  // the group would miss every GHIN-added player (only their random field id was
+  // stored, which no roster row has).
   async function saveAsGroup() {
     const name = saveGroupName.trim();
     if (name.length === 0 || players.length === 0) return;
     const existing = groups.find((g) => g.name.trim().toLowerCase() === name.toLowerCase());
+    const rosterIds: string[] = [];
+    for (const p of players) {
+      const canonical = p.ghinNumber != null ? getRosterPlayerByGhin(p.ghinNumber)?.id : getRosterPlayerById(p.id)?.id;
+      const id = canonical ?? p.id;
+      if (!rosterIds.includes(id)) rosterIds.push(id); // dedupe (e.g. same person added twice)
+    }
     const group: RosterGroup = {
       id: existing?.id ?? crypto.randomUUID(),
       name,
       ownerGhin: existing?.ownerGhin ?? getCreatorGhin(),
-      playerIds: players.map((p) => p.id),
+      playerIds: rosterIds,
       defaults: getGroupDefaults(),
     };
     await upsertGroup(group);

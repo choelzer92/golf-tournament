@@ -193,7 +193,7 @@ export default function PoolLeaderboardPage() {
             </table>
           </div>
           <div className="px-3 py-2 text-[10px] text-gray-500 border-t border-gray-700">
-            Team score = best net + best gross per hole · lowest total wins
+            Team score = {ballSelectionCaption(game.ballSelection)} per hole · lowest total wins
           </div>
         </div>
 
@@ -474,6 +474,17 @@ function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult })
       </div>
     </div>
   );
+}
+
+// Plain-words per-hole team-score caption, matching the game's ball selection
+// (was hardcoded to "best net + best gross").
+function ballSelectionCaption(variant: PoolGame['ballSelection'] | undefined): string {
+  switch (variant) {
+    case '2-best-net': return 'best 2 net';
+    case '2-best-gross': return 'best 2 gross';
+    case '1-net-1-gross':
+    default: return 'best net + best gross';
+  }
 }
 
 function lowScoreOnHole(teamScores: Record<string, number | null>): number | null {

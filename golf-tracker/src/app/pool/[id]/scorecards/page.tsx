@@ -3,8 +3,20 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { PoolGame, PoolTeamDetail } from '@/lib/pool-game';
+import type { TwoBestBallsVariant } from '@/lib/formats';
 import type { TeeSetOption } from '@/lib/game-state';
 import { loadPoolGame, fetchPoolGame, computePoolPlayerDetails, distinctRankingsForPlayers } from '@/lib/pool-game';
+
+// Plain-words label for the team's per-hole ball selection, shown on the card so
+// it matches the game's actual scoring (was hardcoded to "1 net + 1 gross").
+function ballSelectionLabel(variant: TwoBestBallsVariant | undefined): string {
+  switch (variant) {
+    case '2-best-net': return 'Best 2 net';
+    case '2-best-gross': return 'Best 2 gross';
+    case '1-net-1-gross':
+    default: return 'Best 1 net + 1 gross';
+  }
+}
 
 // Fully DRAWN scorecard — a real HTML grid where every value (par, stroke index,
 // stroke dots, blank score boxes) lives inside a real table cell, so nothing can
@@ -309,7 +321,7 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
       </div>
 
       <div className="px-3 py-1 text-[8px] text-gray-500 border-t border-gray-300 print:flex-shrink-0">
-        • = a stroke on that hole (off each player&apos;s own tee). Best 1 net + 1 gross per foursome.
+        • = a stroke on that hole (off each player&apos;s own tee). {ballSelectionLabel(game.ballSelection)} per foursome.
       </div>
     </div>
   );
