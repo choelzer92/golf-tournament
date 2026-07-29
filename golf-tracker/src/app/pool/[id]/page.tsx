@@ -16,6 +16,7 @@ import {
   getPar3Holes,
   distinctRankingsForPlayers,
   balanceTeamsWithCaptains,
+  balanceTeamsWithLocks,
   pickCaptains,
   sortPlayerIdsByHcap,
   orderPlayerIdsWithCaptain,
@@ -728,8 +729,11 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
   // game.teams by index, since applyReshuffle reuses those slots). Seeded from
   // each team's saved captainId; if none are set, auto-pick the lowest handicaps.
   const numTeams = Math.max(1, game.teams.length || Math.ceil(game.players.length / 4));
+  // Whether this game uses captains at all (default true for older/pot games).
+  const useCaptains = game.useCaptains ?? true;
   const [captainIds, setCaptainIds] = useState<string[]>(() => {
     const fromTeams = game.teams.map((t) => t.captainId ?? '');
+    if (!useCaptains) return Array.from({ length: numTeams }, () => '');
     if (fromTeams.some(Boolean)) return fromTeams;
     const picks = pickCaptains(game.players, course, game.handicapAllowance, numTeams, game.lockedGroups ?? []);
     return Array.from({ length: numTeams }, (_, i) => picks[i] ?? '');
@@ -944,8 +948,11 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
     const teams = Array.from({ length: n }, (_, i) => {
       const existing = game.teams[i];
       const ids = newGroups[i] ?? [];
-      const captainId = captainByTeam[i] && ids.includes(captainByTeam[i]!) ? captainByTeam[i] : sortIds(ids)[0];
-      const playerIds = orderIds(ids, captainId);
+      // With captains off, teams carry no captain role — just sort low->high.
+      const captainId = !useCaptains
+        ? undefined
+        : (captainByTeam[i] && ids.includes(captainByTeam[i]!) ? captainByTeam[i] : sortIds(ids)[0]);
+      const playerIds = useCaptains ? orderIds(ids, captainId) : sortIds(ids);
       if (existing) return { ...existing, playerIds, captainId };
       return { id: crypto.randomUUID(), name: `Team ${i + 1}`, playerIds, matchupId: crypto.randomUUID(), captainId };
     });
@@ -958,6 +965,22 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
   // pairing locks. Each captain anchors their slot; the field balances evenly
   // around them.
   function autoBalance() {
+    if (!useCaptains) {
+      const groups = balanceTeamsWithLocks(
+        game.players,
+        numTeams,
+        (p) => getPoolPlayingHandicap(p, course, game.handicapAllowance),
+        game.lockedGroups ?? []
+      );
+      applyReshuffle(groups, [], {
+        method: 'balanced',
+        excludeCaptains: false,
+        hadCaptains: false,
+        hadLocks: (game.lockedGroups ?? []).some((g) => g.length >= 2),
+        adjustedAfter: false,
+      });
+      return;
+    }
     const captainByTeam = Array.from({ length: numTeams }, (_, i) => captainIds[i] || undefined);
     const groups = balanceTeamsWithCaptains(
       game.players,
@@ -1007,7 +1030,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
         Changes save automatically as you make them — no submit button. Tap <span className="font-semibold">Done editing</span> at the top when you&apos;re finished.
       </p>
 
-      {game.players.length > 0 && (
+      {useCaptains && game.players.length > 0 && (
         <CaptainsPanel
           players={game.players}
           course={course}
@@ -1036,7 +1059,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
               onClick={autoBalance}
               className="rounded-md border border-green-700 px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50"
             >
-              Balance around captains
+              {useCaptains ? 'Balance around captains' : 'Balance teams by handicap'}
             </button>
             <button
               onClick={autoGenerate}
@@ -1123,7 +1146,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
                   </div>
                   {/* Line 2: clearly-labeled controls with real tap targets */}
                   <div className="mt-1.5 flex items-end gap-2 flex-wrap">
-                    {!isCaptain && (
+                    {useCaptains && !isCaptain && (
                       <button
                         onClick={() => makeCaptain(team.id, pid)}
                         className="rounded-md border border-green-600 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50"

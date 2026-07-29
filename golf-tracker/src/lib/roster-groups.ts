@@ -15,6 +15,7 @@ export interface GroupDefaults {
   handicapAllowance?: number;
   strokeMethod?: 'full' | 'off-the-low';
   ballSelection?: TwoBestBallsVariant;
+  useCaptains?: boolean;
 }
 
 export interface RosterGroup {

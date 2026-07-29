@@ -85,6 +85,7 @@ export interface PoolGame {
   handicapAllowance: number;                   // percent, e.g. 100
   strokeMethod?: 'full' | 'off-the-low';       // default 'full'; off-the-low subtracts field-low handicap
   balanceExcludeCaptains?: boolean;            // default true; balance the non-captain players to equal handicap (captains' own strokes ride as the edge)
+  useCaptains?: boolean;                        // default true; when false, teams have no captain role (plain balance by handicap)
   potSplit: PoolPotSplit;                      // default 0.25 each
   positionSplit: number[];                     // e.g. [100] winner-take-all
   junkValues: PoolJunkValues;                  // 1 / 2 / 3 / 1 / 1

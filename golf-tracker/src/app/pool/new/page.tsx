@@ -25,6 +25,7 @@ import {
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
   balanceTeamsWithCaptains,
+  balanceTeamsWithLocks,
   pickCaptains,
   sortPlayerIdsByHcap,
   orderPlayerIdsWithCaptain,
@@ -166,6 +167,10 @@ export default function NewPoolGamePage() {
   // Balance the NON-captain players only (default on): evens the other three per
   // team and lets captain strokes ride as the edge — best for 1 net + 1 gross.
   const [balanceExcludeCaptains, setBalanceExcludeCaptains] = useState(true);
+  // Whether teams are built around captains at all (default on, so JY's pot game
+  // and every existing flow is unchanged). Off = plain balance by handicap with
+  // no captain role — for games that don't want captains.
+  const [useCaptains, setUseCaptains] = useState(true);
   // How the current teams were built (method + settings snapshot), recorded onto
   // the game so the read-only hub can show "how these teams were built".
   const [teamBuild, setTeamBuild] = useState<PoolGame['teamBuild']>(undefined);
@@ -181,6 +186,7 @@ export default function NewPoolGamePage() {
         if (typeof data.handicapAllowance === 'string') setHandicapAllowance(data.handicapAllowance);
         if (data.strokeMethod === 'full' || data.strokeMethod === 'off-the-low') setStrokeMethod(data.strokeMethod);
         if (typeof data.balanceExcludeCaptains === 'boolean') setBalanceExcludeCaptains(data.balanceExcludeCaptains);
+        if (typeof data.useCaptains === 'boolean') setUseCaptains(data.useCaptains);
         if (data.potDollars) { setPotDollars(data.potDollars); setPotEdited(!!data.potEdited); }
         if (typeof data.positionSplitText === 'string') setPositionSplitText(data.positionSplitText);
         if (data.junkValues) setJunkValues(data.junkValues);
@@ -201,10 +207,10 @@ export default function NewPoolGamePage() {
   useEffect(() => {
     if (!hydrated) return;
     sessionStorage.setItem(WIZARD_KEY, JSON.stringify({
-      name, entryPerPlayer, handicapAllowance, strokeMethod, balanceExcludeCaptains, potDollars, potEdited, positionSplitText,
+      name, entryPerPlayer, handicapAllowance, strokeMethod, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, course, players, teams, teamBuild, step,
     }));
-  }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, balanceExcludeCaptains, potDollars, potEdited, positionSplitText,
+  }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, course, players, teams, teamBuild, step]);
 
   // The current format settings, packaged as a group's defaults (for "save field
@@ -219,6 +225,7 @@ export default function NewPoolGamePage() {
       handicapAllowance: parseFloat(handicapAllowance) || 100,
       strokeMethod,
       ballSelection,
+      useCaptains,
     };
   }
 
@@ -241,6 +248,7 @@ export default function NewPoolGamePage() {
     if (typeof d.handicapAllowance === 'number') setHandicapAllowance(String(d.handicapAllowance));
     if (d.strokeMethod === 'full' || d.strokeMethod === 'off-the-low') setStrokeMethod(d.strokeMethod);
     if (d.ballSelection) setBallSelection(d.ballSelection);
+    if (typeof d.useCaptains === 'boolean') setUseCaptains(d.useCaptains);
   }
 
   // Parse the match-config inputs into a PoolMatchConfig (per-player $/leg + junk
@@ -279,6 +287,7 @@ export default function NewPoolGamePage() {
       handicapAllowance: parseFloat(handicapAllowance) || 100,
       strokeMethod,
       balanceExcludeCaptains,
+      useCaptains,
       potSplit: dollarsToPotSplit(effectiveDollars),
       positionSplit: parsePositionSplit(positionSplitText),
       junkValues,
@@ -402,6 +411,8 @@ export default function NewPoolGamePage() {
             setCaptainIds={setCaptainIds}
             excludeCaptains={balanceExcludeCaptains}
             setExcludeCaptains={setBalanceExcludeCaptains}
+            useCaptains={useCaptains}
+            setUseCaptains={setUseCaptains}
             teamBuild={teamBuild}
             setTeamBuild={setTeamBuild}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
@@ -1700,7 +1711,7 @@ function TeesStep({
 
 function TeamsStep({
   course, players, setPlayers, teams, setTeams, lockedGroups, setLockedGroups, captainIds, setCaptainIds,
-  excludeCaptains, setExcludeCaptains, teamBuild, setTeamBuild, handicapAllowance, onNext, onBack,
+  excludeCaptains, setExcludeCaptains, useCaptains, setUseCaptains, teamBuild, setTeamBuild, handicapAllowance, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
@@ -1708,6 +1719,7 @@ function TeamsStep({
   lockedGroups: string[][]; setLockedGroups: (g: string[][]) => void;
   captainIds: string[]; setCaptainIds: (ids: string[]) => void;
   excludeCaptains: boolean; setExcludeCaptains: (v: boolean) => void;
+  useCaptains: boolean; setUseCaptains: (v: boolean) => void;
   teamBuild: PoolGame['teamBuild']; setTeamBuild: (b: PoolGame['teamBuild']) => void;
   handicapAllowance: number;
   onNext: () => void; onBack: () => void;
@@ -1722,6 +1734,7 @@ function TeamsStep({
   // field or team count changes and no captains have been set yet. Prunes any
   // captain who left the field. The organizer can still reassign any slot.
   useEffect(() => {
+    if (!useCaptains) return; // no captains this game — skip auto-pick entirely
     const present = new Set(players.map((p) => p.id));
     const kept = captainIds.filter((id) => id && present.has(id));
     const needsAutopick = kept.length === 0 && players.length >= numTeams;
@@ -1773,15 +1786,31 @@ function TeamsStep({
     }
     setTeams(groups.map((ids, i) => {
       const sorted = sortPlayerIdsByHcap(ids, players, course, handicapAllowance);
-      return makeTeam(i, sorted, sorted[0]);
+      return makeTeam(i, sorted, useCaptains ? sorted[0] : undefined);
     }));
     setTeamBuild({ method: 'sequential', adjustedAfter: false });
   }
 
-  // Auto-balance AROUND CAPTAINS, honoring pairing locks. Each captain anchors a
-  // team slot; everyone else is balanced evenly around them. Team slot i keeps
-  // captainIds[i] as its captain; players within a team list captain-first.
+  // Auto-balance the field into even-handicap teams, honoring pairing locks.
+  // With captains ON: each captain anchors a slot and the rest balance around
+  // them (captain-first ordering). With captains OFF: plain even balance, no
+  // captain role at all — each team just listed low->high.
   function autoBalance() {
+    if (!useCaptains) {
+      const groups = balanceTeamsWithLocks(players, numTeams, hcapOf, lockedGroups);
+      setTeams(groups.map((ids, i) => {
+        const ordered = sortPlayerIdsByHcap(ids, players, course, handicapAllowance);
+        return makeTeam(i, ordered); // no captainId
+      }));
+      setTeamBuild({
+        method: 'balanced',
+        excludeCaptains: false,
+        hadCaptains: false,
+        hadLocks: lockedGroups.some((g) => g.length >= 2),
+        adjustedAfter: false,
+      });
+      return;
+    }
     const captainByTeam = Array.from({ length: numTeams }, (_, i) => captainIds[i] || undefined);
     const groups = balanceTeamsWithCaptains(players, numTeams, hcapOf, captainByTeam, lockedGroups, excludeCaptains);
     setTeams(groups.map((ids, i) => {
@@ -1898,9 +1927,39 @@ function TeamsStep({
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Set Teams</h2>
 
+      {/* Team-building style: captains (default) vs plain balance by handicap. */}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <p className="text-sm font-semibold text-gray-800 mb-2">Team Building</p>
+        <div className="flex gap-2">
+          {([
+            { v: true, label: 'Use captains' },
+            { v: false, label: 'No captains' },
+          ] as const).map(({ v, label }) => (
+            <button
+              key={String(v)}
+              type="button"
+              onClick={() => setUseCaptains(v)}
+              className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                useCaptains === v
+                  ? 'border-green-600 bg-green-600 text-white'
+                  : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          {useCaptains
+            ? 'Each team gets a captain (lowest handicaps by default); the rest balance around them.'
+            : 'Teams are balanced by handicap with no captain role.'}
+        </p>
+      </div>
+
       {/* Captains — the primary way to build teams. One captain per team (lowest
           course handicaps by default), each anchoring an even balance around
           them. The apply button lives in the panel. */}
+      {useCaptains && (
       <div className="mb-4">
         <CaptainsPanel
           players={players}
@@ -1914,6 +1973,7 @@ function TeamsStep({
           onApplyAction={autoBalance}
         />
       </div>
+      )}
 
       {/* Pairing locks — keep chosen players on the same team through balancing.
           Applying the lock IS auto-balance (around captains), wired right into
@@ -1932,7 +1992,7 @@ function TeamsStep({
           onClick={autoBalance}
           className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800"
         >
-          Balance around captains
+          {useCaptains ? 'Balance around captains' : 'Balance teams by handicap'}
         </button>
         <button
           onClick={autoGenerate}
@@ -2045,7 +2105,7 @@ function TeamsStep({
                       </div>
                       {/* Line 2: clearly-labeled controls with real tap targets */}
                       <div className="mt-1.5 flex items-end gap-2 flex-wrap">
-                        {!isCaptain && (
+                        {useCaptains && !isCaptain && (
                           <button
                             onClick={() => makeCaptain(team.id, pid)}
                             className="rounded-md border border-green-600 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50"
