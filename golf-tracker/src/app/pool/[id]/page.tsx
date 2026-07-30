@@ -177,7 +177,7 @@ export default function PoolHubPage() {
     let offTheLowBaseline: number | undefined;
     if (strokeMethod === 'off-the-low' && game!.players.length > 0) {
       offTheLowBaseline = Math.min(
-        ...game!.players.map((p) => getPoolPlayingHandicap(p, game!.course, game!.handicapAllowance))
+        ...game!.players.map((p) => getPoolPlayingHandicap(p, game!.course, game!.handicapAllowance, game!.handicapBasis))
       );
     }
 
@@ -189,7 +189,7 @@ export default function PoolHubPage() {
       handicapAllowance: game!.handicapAllowance,
       holesPlaying: '18',
       strokeMethod,
-      handicapBasis: 'course',
+      handicapBasis: game!.handicapBasis ?? 'course',
       formatSettings: { ballSelection: game!.ballSelection },
       matchupId: team.matchupId,
       offTheLowBaseline,
@@ -586,6 +586,19 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
           </div>
         </div>
 
+        <div>
+          <label className="block text-sm font-medium text-gray-800 mb-1">Handicap basis</label>
+          <select className={inputCls} value={game.handicapBasis ?? 'course'} onChange={(e) => onSave({ ...game, handicapBasis: e.target.value as 'course' | 'index' })}>
+            <option value="course">Course handicap (off the tee)</option>
+            <option value="index">Player handicap index</option>
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            {(game.handicapBasis ?? 'course') === 'index'
+              ? 'Strokes come straight from each player’s handicap index × allowance (no slope/rating conversion).'
+              : 'Strokes use each player’s course handicap off their tee (slope/rating adjusted).'}
+          </p>
+        </div>
+
         {isMatch ? (
           <div className="border-t pt-3">
             <p className="text-sm font-semibold text-gray-800 mb-2">Match payouts ($ / player)</p>
@@ -929,7 +942,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
     const fromTeams = game.teams.map((t) => t.captainId ?? '');
     if (!useCaptains) return Array.from({ length: numTeams }, () => '');
     if (fromTeams.some(Boolean)) return fromTeams;
-    const picks = pickCaptains(game.players, course, game.handicapAllowance, numTeams, game.lockedGroups ?? []);
+    const picks = pickCaptains(game.players, course, game.handicapAllowance, numTeams, game.lockedGroups ?? [], game.handicapBasis);
     return Array.from({ length: numTeams }, (_, i) => picks[i] ?? '');
   });
   // Balance the non-captain players only (default on when unset). Persisted on
@@ -973,8 +986,8 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
     });
   }
 
-  const sortIds = (ids: string[]) => sortPlayerIdsByHcap(ids, game.players, course, game.handicapAllowance);
-  const orderIds = (ids: string[], captainId: string | undefined) => orderPlayerIdsWithCaptain(ids, captainId, game.players, course, game.handicapAllowance);
+  const sortIds = (ids: string[]) => sortPlayerIdsByHcap(ids, game.players, course, game.handicapAllowance, game.handicapBasis);
+  const orderIds = (ids: string[], captainId: string | undefined) => orderPlayerIdsWithCaptain(ids, captainId, game.players, course, game.handicapAllowance, game.handicapBasis);
 
   // A hand edit (move/swap/make-captain) flags the current build as adjusted so
   // the read-only summary can say "hand-adjusted after". Older games with no
@@ -1188,7 +1201,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
       const groups = balanceTeamsWithLocks(
         game.players,
         numTeams,
-        (p) => getPoolPlayingHandicap(p, course, game.handicapAllowance),
+        (p) => getPoolPlayingHandicap(p, course, game.handicapAllowance, game.handicapBasis),
         game.lockedGroups ?? []
       );
       applyReshuffle(groups, [], {
@@ -1279,6 +1292,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
           players={game.players}
           course={course}
           handicapAllowance={game.handicapAllowance}
+          handicapBasis={game.handicapBasis}
           numTeams={numTeams}
           captainIds={captainIds}
           setCaptainIdsAction={setCaptainIds}

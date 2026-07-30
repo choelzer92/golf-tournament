@@ -14,6 +14,7 @@ export interface GroupDefaults {
   matchConfig?: PoolMatchConfig;
   handicapAllowance?: number;
   strokeMethod?: 'full' | 'off-the-low';
+  handicapBasis?: 'course' | 'index';
   ballSelection?: TwoBestBallsVariant;
   useCaptains?: boolean;
 }

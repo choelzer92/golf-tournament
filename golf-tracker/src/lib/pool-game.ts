@@ -83,6 +83,7 @@ export interface PoolGame {
   matchConfig?: PoolMatchConfig;                // used only when moneyMode is 'match'
   entryPerPlayer: number;                      // e.g. 25 (pot mode only)
   handicapAllowance: number;                   // percent, e.g. 100
+  handicapBasis?: 'course' | 'index';          // default 'course'; 'index' plays off raw handicap index (× allowance), skipping the slope/rating course-handicap calc
   strokeMethod?: 'full' | 'off-the-low';       // default 'full'; off-the-low subtracts field-low handicap
   balanceExcludeCaptains?: boolean;            // default true; balance the non-captain players to equal handicap (captains' own strokes ride as the edge)
   useCaptains?: boolean;                        // default true; when false, teams have no captain role (plain balance by handicap)
@@ -287,9 +288,19 @@ function playerHoleStrokeIndex(player: Player, course: CourseSelection | null, h
   return h ? h.handicap : fallbackIndex;
 }
 
-// Full course handicap x allowance, off the player's own tee (par/rating/slope).
-export function getPoolPlayingHandicap(player: Player, course: CourseSelection | null, allowance: number): number {
+// A player's playing handicap × allowance. Default basis 'course' uses the full
+// course-handicap calc off the player's own tee (par/rating/slope). Basis
+// 'index' plays straight off the raw handicap INDEX × allowance — skipping the
+// slope/rating conversion — which is what an organizer means by "play by player
+// handicap, not course handicap". Mirrors live-scoring.ts's handicapBasis.
+export function getPoolPlayingHandicap(
+  player: Player,
+  course: CourseSelection | null,
+  allowance: number,
+  basis: 'course' | 'index' = 'course'
+): number {
   if (!player.handicapIndex) return 0;
+  if (basis === 'index') return player.handicapIndex * (allowance / 100);
   const tee = getPlayerTee(player, course);
   if (!tee) return player.handicapIndex * (allowance / 100);
   const totalRating = tee.ratings?.find((r) => r.type === 'Total');
@@ -312,7 +323,7 @@ export function getPar3Holes(course: CourseSelection | null): number[] {
 function buildHcapMap(game: PoolGame): Map<string, number> {
   const raw = new Map<string, number>();
   for (const player of game.players) {
-    raw.set(player.id, getPoolPlayingHandicap(player, game.course, game.handicapAllowance));
+    raw.set(player.id, getPoolPlayingHandicap(player, game.course, game.handicapAllowance, game.handicapBasis));
   }
   // 'full' stays unrounded here — getMoneyStrokesOnHole rounds it once, which is
   // exactly round(courseHcap), matching GHIN. Off-the-low is the only path that
@@ -349,7 +360,7 @@ export function getFieldLow(game: PoolGame): FieldLowInfo | null {
   let lowId = game.players[0].id;
   let lowH = Infinity;
   for (const p of game.players) {
-    const h = getPoolPlayingHandicap(p, game.course, game.handicapAllowance);
+    const h = getPoolPlayingHandicap(p, game.course, game.handicapAllowance, game.handicapBasis);
     if (h < lowH) { lowH = h; lowId = p.id; }
   }
   const player = game.players.find((p) => p.id === lowId);
@@ -444,12 +455,13 @@ export interface CaptainRankEntry {
 export function rankPlayersForCaptain(
   players: Player[],
   course: CourseSelection | null,
-  allowance: number
+  allowance: number,
+  basis: 'course' | 'index' = 'course'
 ): CaptainRankEntry[] {
   const rows = players.map((p) => ({
     playerId: p.id,
     name: p.name,
-    precise: getPoolPlayingHandicap(p, course, allowance),
+    precise: getPoolPlayingHandicap(p, course, allowance, basis),
     diff: teeDifficulty(getPlayerTee(p, course)),
     eligible: p.handicapIndex != null,
   }));
@@ -474,9 +486,10 @@ export function pickCaptains(
   course: CourseSelection | null,
   allowance: number,
   numTeams: number,
-  locks: string[][] = []
+  locks: string[][] = [],
+  basis: 'course' | 'index' = 'course'
 ): string[] {
-  const ranked = rankPlayersForCaptain(players, course, allowance).filter((r) => r.eligible);
+  const ranked = rankPlayersForCaptain(players, course, allowance, basis).filter((r) => r.eligible);
   const lockOf = new Map<string, number>();
   locks.forEach((g, i) => g.forEach((id) => lockOf.set(id, i)));
   const captains: string[] = [];
@@ -843,13 +856,14 @@ export function sortPlayerIdsByHcap(
   playerIds: string[],
   players: Player[],
   course: CourseSelection | null,
-  allowance: number
+  allowance: number,
+  basis: 'course' | 'index' = 'course'
 ): string[] {
   const byId = new Map(players.map((p) => [p.id, p]));
   return [...playerIds].sort((a, b) => {
     const pa = byId.get(a), pb = byId.get(b);
-    const ha = pa ? getPoolPlayingHandicap(pa, course, allowance) : 0;
-    const hb = pb ? getPoolPlayingHandicap(pb, course, allowance) : 0;
+    const ha = pa ? getPoolPlayingHandicap(pa, course, allowance, basis) : 0;
+    const hb = pb ? getPoolPlayingHandicap(pb, course, allowance, basis) : 0;
     return ha - hb;
   });
 }
@@ -862,9 +876,10 @@ export function orderPlayerIdsWithCaptain(
   captainId: string | undefined,
   players: Player[],
   course: CourseSelection | null,
-  allowance: number
+  allowance: number,
+  basis: 'course' | 'index' = 'course'
 ): string[] {
-  const sorted = sortPlayerIdsByHcap(playerIds, players, course, allowance);
+  const sorted = sortPlayerIdsByHcap(playerIds, players, course, allowance, basis);
   if (!captainId || !sorted.includes(captainId)) return sorted;
   return [captainId, ...sorted.filter((id) => id !== captainId)];
 }

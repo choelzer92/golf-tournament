@@ -14,7 +14,7 @@ import { getPoolPlayingHandicap, rankPlayersForCaptain } from '@/lib/pool-game';
 // on their own team and everyone else balanced evenly around them.
 export function CaptainsPanel({
   players, course, handicapAllowance, numTeams, captainIds, setCaptainIdsAction, onApplyAction,
-  excludeCaptains, setExcludeCaptainsAction,
+  excludeCaptains, setExcludeCaptainsAction, handicapBasis = 'course',
 }: {
   players: Player[];
   course: CourseSelection | null;
@@ -29,15 +29,16 @@ export function CaptainsPanel({
   // edge; off evens each whole team (captain included).
   excludeCaptains?: boolean;
   setExcludeCaptainsAction?: (v: boolean) => void;
+  handicapBasis?: 'course' | 'index';
 }) {
   const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? '';
   const chcpOf = (id: string) => {
     const p = players.find((x) => x.id === id);
-    return p && course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance)) : null;
+    return p && course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis)) : null;
   };
 
   // Field ordered best-first, for the "auto-pick" hint and dropdown ordering.
-  const ranked = rankPlayersForCaptain(players, course, handicapAllowance);
+  const ranked = rankPlayersForCaptain(players, course, handicapAllowance, handicapBasis);
   const orderedPlayers = ranked
     .map((r) => players.find((p) => p.id === r.playerId))
     .filter((p): p is Player => !!p);

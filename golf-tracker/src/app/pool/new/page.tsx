@@ -136,6 +136,8 @@ export default function NewPoolGamePage() {
   const [entryPerPlayer, setEntryPerPlayer] = useState('25');
   const [handicapAllowance, setHandicapAllowance] = useState('100');
   const [strokeMethod, setStrokeMethod] = useState<'full' | 'off-the-low'>('off-the-low');
+  // Handicap basis: 'course' (off the tee, default) or 'index' (raw handicap index).
+  const [handicapBasis, setHandicapBasis] = useState<'course' | 'index'>('course');
   // Pot legs in dollars; null until the Review step auto-fills from team count.
   // `potEdited` guards the auto-fill from clobbering a manual override.
   const [potDollars, setPotDollars] = useState<PotDollars | null>(null);
@@ -185,6 +187,7 @@ export default function NewPoolGamePage() {
         if (typeof data.entryPerPlayer === 'string') setEntryPerPlayer(data.entryPerPlayer);
         if (typeof data.handicapAllowance === 'string') setHandicapAllowance(data.handicapAllowance);
         if (data.strokeMethod === 'full' || data.strokeMethod === 'off-the-low') setStrokeMethod(data.strokeMethod);
+        if (data.handicapBasis === 'course' || data.handicapBasis === 'index') setHandicapBasis(data.handicapBasis);
         if (typeof data.balanceExcludeCaptains === 'boolean') setBalanceExcludeCaptains(data.balanceExcludeCaptains);
         if (typeof data.useCaptains === 'boolean') setUseCaptains(data.useCaptains);
         if (data.potDollars) { setPotDollars(data.potDollars); setPotEdited(!!data.potEdited); }
@@ -207,10 +210,10 @@ export default function NewPoolGamePage() {
   useEffect(() => {
     if (!hydrated) return;
     sessionStorage.setItem(WIZARD_KEY, JSON.stringify({
-      name, entryPerPlayer, handicapAllowance, strokeMethod, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
+      name, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, course, players, teams, teamBuild, step,
     }));
-  }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
+  }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, course, players, teams, teamBuild, step]);
 
   // The current format settings, packaged as a group's defaults (for "save field
@@ -224,6 +227,7 @@ export default function NewPoolGamePage() {
       matchConfig: buildMatchConfig(),
       handicapAllowance: parseFloat(handicapAllowance) || 100,
       strokeMethod,
+      handicapBasis,
       ballSelection,
       useCaptains,
     };
@@ -247,6 +251,7 @@ export default function NewPoolGamePage() {
     }
     if (typeof d.handicapAllowance === 'number') setHandicapAllowance(String(d.handicapAllowance));
     if (d.strokeMethod === 'full' || d.strokeMethod === 'off-the-low') setStrokeMethod(d.strokeMethod);
+    if (d.handicapBasis === 'course' || d.handicapBasis === 'index') setHandicapBasis(d.handicapBasis);
     if (d.ballSelection) setBallSelection(d.ballSelection);
     if (typeof d.useCaptains === 'boolean') setUseCaptains(d.useCaptains);
   }
@@ -286,6 +291,7 @@ export default function NewPoolGamePage() {
       entryPerPlayer: parseFloat(entryPerPlayer) || 0,
       handicapAllowance: parseFloat(handicapAllowance) || 100,
       strokeMethod,
+      handicapBasis,
       balanceExcludeCaptains,
       useCaptains,
       potSplit: dollarsToPotSplit(effectiveDollars),
@@ -349,6 +355,8 @@ export default function NewPoolGamePage() {
             setHandicapAllowance={setHandicapAllowance}
             strokeMethod={strokeMethod}
             setStrokeMethod={setStrokeMethod}
+            handicapBasis={handicapBasis}
+            setHandicapBasis={setHandicapBasis}
             positionSplitText={positionSplitText}
             setPositionSplitText={setPositionSplitText}
             junkValues={junkValues}
@@ -380,6 +388,7 @@ export default function NewPoolGamePage() {
             players={players}
             setPlayers={setPlayers}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
+            handicapBasis={handicapBasis}
             getGroupDefaults={currentGroupDefaults}
             applyGroupDefaults={applyGroupDefaults}
             onNext={() => setStep('tees')}
@@ -393,6 +402,7 @@ export default function NewPoolGamePage() {
             players={players}
             setPlayers={setPlayers}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
+            handicapBasis={handicapBasis}
             onNext={() => setStep('teams')}
             onBack={() => setStep('field')}
           />
@@ -416,6 +426,7 @@ export default function NewPoolGamePage() {
             teamBuild={teamBuild}
             setTeamBuild={setTeamBuild}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
+            handicapBasis={handicapBasis}
             onNext={() => setStep('create')}
             onBack={() => setStep('tees')}
           />
@@ -435,6 +446,7 @@ export default function NewPoolGamePage() {
             setPotEdited={setPotEdited}
             moneyMode={moneyMode}
             matchConfig={buildMatchConfig()}
+            handicapBasis={handicapBasis}
             onCreate={createPoolGame}
             onBack={() => setStep('teams')}
           />
@@ -472,6 +484,7 @@ function StepIndicator({ current, course }: { current: Step; course: CourseSelec
 function DetailsStep({
   name, setName, entryPerPlayer, setEntryPerPlayer, handicapAllowance, setHandicapAllowance,
   strokeMethod, setStrokeMethod,
+  handicapBasis, setHandicapBasis,
   positionSplitText, setPositionSplitText,
   junkValues, setJunkValues, ballSelection, setBallSelection,
   moneyMode, setMoneyMode, matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
@@ -481,6 +494,7 @@ function DetailsStep({
   entryPerPlayer: string; setEntryPerPlayer: (s: string) => void;
   handicapAllowance: string; setHandicapAllowance: (s: string) => void;
   strokeMethod: 'full' | 'off-the-low'; setStrokeMethod: (v: 'full' | 'off-the-low') => void;
+  handicapBasis: 'course' | 'index'; setHandicapBasis: (v: 'course' | 'index') => void;
   positionSplitText: string; setPositionSplitText: (s: string) => void;
   junkValues: PoolJunkValues; setJunkValues: (v: PoolJunkValues) => void;
   ballSelection: TwoBestBallsVariant; setBallSelection: (v: TwoBestBallsVariant) => void;
@@ -600,6 +614,34 @@ function DetailsStep({
             {strokeMethod === 'off-the-low'
               ? 'Lowest-handicap player in the field plays to scratch; everyone else plays the difference.'
               : 'Every player uses their full course handicap × allowance.'}
+          </p>
+        </div>
+
+        <div className="pt-2 border-t">
+          <label className="block text-sm font-medium text-gray-800 mb-1">Handicap Basis</label>
+          <div className="flex gap-2">
+            {([
+              { v: 'course', label: 'Course handicap' },
+              { v: 'index', label: 'Player index' },
+            ] as const).map(({ v, label }) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setHandicapBasis(v)}
+                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                  handicapBasis === v
+                    ? 'border-green-600 bg-green-600 text-white'
+                    : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            {handicapBasis === 'index'
+              ? 'Play off each player’s raw handicap index × allowance (no slope/rating conversion).'
+              : 'Play off each player’s course handicap from their tee (slope/rating adjusted).'}
           </p>
         </div>
 
@@ -947,11 +989,12 @@ function CourseStep({
 }
 
 function FieldStep({
-  course, players, setPlayers, handicapAllowance, getGroupDefaults, applyGroupDefaults, onNext, onBack,
+  course, players, setPlayers, handicapAllowance, handicapBasis, getGroupDefaults, applyGroupDefaults, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
   handicapAllowance: number;
+  handicapBasis: 'course' | 'index';
   getGroupDefaults: () => GroupDefaults;
   applyGroupDefaults: (d: GroupDefaults | null) => void;
   onNext: () => void; onBack: () => void;
@@ -1538,7 +1581,7 @@ function FieldStep({
         <div className="bg-white rounded-lg shadow overflow-hidden mb-4">
           <ul className="divide-y divide-gray-200">
             {players.map((player) => {
-              const courseHcap = course ? Math.round(getPoolPlayingHandicap(player, course, handicapAllowance)) : null;
+              const courseHcap = course ? Math.round(getPoolPlayingHandicap(player, course, handicapAllowance, handicapBasis)) : null;
               return (
                 <li key={player.id} className="px-4 py-3">
                   <div className="flex items-center justify-between">
@@ -1608,11 +1651,12 @@ function makeTeam(index: number, playerIds: string[], captainId?: string): PoolT
 // tap a player to move them to a different (same-gender) tee. Purely for setting/
 // reviewing tees before forming teams — tees remain editable in the Teams step too.
 function TeesStep({
-  course, players, setPlayers, handicapAllowance, onNext, onBack,
+  course, players, setPlayers, handicapAllowance, handicapBasis, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
   handicapAllowance: number;
+  handicapBasis: 'course' | 'index';
   onNext: () => void; onBack: () => void;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1661,7 +1705,7 @@ function TeesStep({
               </div>
               <ul className="space-y-1">
                 {members.map((p) => {
-                  const hcap = course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance)) : null;
+                  const hcap = course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis)) : null;
                   const g: 'M' | 'F' = p.gender === 'F' ? 'F' : 'M';
                   const genderTees = course.teeSets.filter((t) => (t.gender ?? 'M') === g);
                   const teeOptions = genderTees.length > 0 ? genderTees : course.teeSets;
@@ -1722,7 +1766,7 @@ function TeesStep({
 
 function TeamsStep({
   course, players, setPlayers, teams, setTeams, lockedGroups, setLockedGroups, captainIds, setCaptainIds,
-  excludeCaptains, setExcludeCaptains, useCaptains, setUseCaptains, teamBuild, setTeamBuild, handicapAllowance, onNext, onBack,
+  excludeCaptains, setExcludeCaptains, useCaptains, setUseCaptains, teamBuild, setTeamBuild, handicapAllowance, handicapBasis, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
@@ -1733,10 +1777,11 @@ function TeamsStep({
   useCaptains: boolean; setUseCaptains: (v: boolean) => void;
   teamBuild: PoolGame['teamBuild']; setTeamBuild: (b: PoolGame['teamBuild']) => void;
   handicapAllowance: number;
+  handicapBasis: 'course' | 'index';
   onNext: () => void; onBack: () => void;
 }) {
   function hcapOf(p: Player): number {
-    return course ? getPoolPlayingHandicap(p, course, handicapAllowance) : (p.handicapIndex ?? 0);
+    return course ? getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis) : (p.handicapIndex ?? 0);
   }
 
   const numTeams = Math.max(1, Math.ceil(players.length / 4));
@@ -1750,7 +1795,7 @@ function TeamsStep({
     const kept = captainIds.filter((id) => id && present.has(id));
     const needsAutopick = kept.length === 0 && players.length >= numTeams;
     if (needsAutopick) {
-      const picks = pickCaptains(players, course, handicapAllowance, numTeams, lockedGroups);
+      const picks = pickCaptains(players, course, handicapAllowance, numTeams, lockedGroups, handicapBasis);
       setCaptainIds(Array.from({ length: numTeams }, (_, i) => picks[i] ?? ''));
     } else if (kept.length !== captainIds.length || captainIds.length !== numTeams) {
       // Trim/pad to numTeams and drop departed players, preserving existing picks.
@@ -1780,7 +1825,7 @@ function TeamsStep({
   // The lowest course handicap on a team becomes its captain when we don't have
   // an explicit pick for the slot (e.g. plain auto-generate).
   function lowestHcapId(ids: string[]): string | undefined {
-    return sortPlayerIdsByHcap(ids, players, course, handicapAllowance)[0];
+    return sortPlayerIdsByHcap(ids, players, course, handicapAllowance, handicapBasis)[0];
   }
 
   // Flag the current build as hand-adjusted after a move/make-captain, so the
@@ -1796,7 +1841,7 @@ function TeamsStep({
       groups.push(players.slice(i, i + 4).map((p) => p.id));
     }
     setTeams(groups.map((ids, i) => {
-      const sorted = sortPlayerIdsByHcap(ids, players, course, handicapAllowance);
+      const sorted = sortPlayerIdsByHcap(ids, players, course, handicapAllowance, handicapBasis);
       return makeTeam(i, sorted, useCaptains ? sorted[0] : undefined);
     }));
     setTeamBuild({ method: 'sequential', adjustedAfter: false });
@@ -1810,7 +1855,7 @@ function TeamsStep({
     if (!useCaptains) {
       const groups = balanceTeamsWithLocks(players, numTeams, hcapOf, lockedGroups);
       setTeams(groups.map((ids, i) => {
-        const ordered = sortPlayerIdsByHcap(ids, players, course, handicapAllowance);
+        const ordered = sortPlayerIdsByHcap(ids, players, course, handicapAllowance, handicapBasis);
         return makeTeam(i, ordered); // no captainId
       }));
       setTeamBuild({
@@ -1826,7 +1871,7 @@ function TeamsStep({
     const groups = balanceTeamsWithCaptains(players, numTeams, hcapOf, captainByTeam, lockedGroups, excludeCaptains);
     setTeams(groups.map((ids, i) => {
       const captainId = captainByTeam[i] && ids.includes(captainByTeam[i]!) ? captainByTeam[i] : lowestHcapId(ids);
-      const ordered = orderPlayerIdsWithCaptain(ids, captainId, players, course, handicapAllowance);
+      const ordered = orderPlayerIdsWithCaptain(ids, captainId, players, course, handicapAllowance, handicapBasis);
       return makeTeam(i, ordered, captainId);
     }));
     // Snapshot the settings used, so the read-only summary reflects the actual
@@ -1846,11 +1891,11 @@ function TeamsStep({
       if (t.id === fromTeamId) {
         const remaining = t.playerIds.filter((id) => id !== playerId);
         // If the captain left, the next-lowest handicap takes over the slot.
-        const captainId = t.captainId === playerId ? sortPlayerIdsByHcap(remaining, players, course, handicapAllowance)[0] : t.captainId;
+        const captainId = t.captainId === playerId ? sortPlayerIdsByHcap(remaining, players, course, handicapAllowance, handicapBasis)[0] : t.captainId;
         return { ...t, playerIds: remaining, captainId };
       }
       if (t.id === toTeamId) {
-        return { ...t, playerIds: orderPlayerIdsWithCaptain([...t.playerIds, playerId], t.captainId, players, course, handicapAllowance) };
+        return { ...t, playerIds: orderPlayerIdsWithCaptain([...t.playerIds, playerId], t.captainId, players, course, handicapAllowance, handicapBasis) };
       }
       return t;
     }));
@@ -1864,7 +1909,7 @@ function TeamsStep({
     const idx = teams.findIndex((t) => t.id === teamId);
     setTeams(teams.map((t) => (
       t.id === teamId
-        ? { ...t, captainId: playerId, playerIds: orderPlayerIdsWithCaptain(t.playerIds, playerId, players, course, handicapAllowance) }
+        ? { ...t, captainId: playerId, playerIds: orderPlayerIdsWithCaptain(t.playerIds, playerId, players, course, handicapAllowance, handicapBasis) }
         : t
     )));
     if (idx >= 0) {
@@ -1916,7 +1961,7 @@ function TeamsStep({
     const remaining = teams.filter((t) => t.id !== teamId);
     // Push orphaned players onto the first remaining team (if any).
     if (removed.playerIds.length > 0 && remaining.length > 0) {
-      remaining[0] = { ...remaining[0], playerIds: sortPlayerIdsByHcap([...remaining[0].playerIds, ...removed.playerIds], players, course, handicapAllowance) };
+      remaining[0] = { ...remaining[0], playerIds: sortPlayerIdsByHcap([...remaining[0].playerIds, ...removed.playerIds], players, course, handicapAllowance, handicapBasis) };
     }
     setTeams(remaining);
   }
@@ -1976,6 +2021,7 @@ function TeamsStep({
           players={players}
           course={course}
           handicapAllowance={handicapAllowance}
+          handicapBasis={handicapBasis}
           numTeams={numTeams}
           captainIds={captainIds}
           setCaptainIdsAction={setCaptainIds}
@@ -2181,7 +2227,7 @@ function TeamsStep({
 
 function CreateStep({
   name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited,
-  moneyMode, matchConfig, onCreate, onBack,
+  moneyMode, matchConfig, handicapBasis, onCreate, onBack,
 }: {
   name: string;
   entryPerPlayer: number;
@@ -2195,6 +2241,7 @@ function CreateStep({
   setPotEdited: (b: boolean) => void;
   moneyMode: PoolMoneyMode;
   matchConfig: PoolMatchConfig;
+  handicapBasis: 'course' | 'index';
   onCreate: () => void; onBack: () => void;
 }) {
   const isMatch = moneyMode === 'match';
@@ -2307,7 +2354,7 @@ function CreateStep({
             {teams.map((team) => {
               const combined = team.playerIds.reduce((s, pid) => {
                 const p = playerById.get(pid);
-                return p && course ? s + getPoolPlayingHandicap(p, course, handicapAllowance) : s;
+                return p && course ? s + getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis) : s;
               }, 0);
               return (
                 <div key={team.id} className="rounded-lg border border-gray-200 p-2">
@@ -2321,7 +2368,7 @@ function CreateStep({
                   {team.playerIds.map((pid) => {
                     const p = playerById.get(pid);
                     if (!p) return null;
-                    const chcp = course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance)) : null;
+                    const chcp = course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis)) : null;
                     const tee = teeNameOf(p);
                     return (
                       <div key={pid} className="flex items-center gap-2 text-sm text-gray-600 py-0.5">
