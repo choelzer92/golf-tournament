@@ -496,6 +496,43 @@ function SharePanel({ onClose }: { onClose: () => void }) {
   );
 }
 
+// A number input that lets you FULLY type (including clearing the box) without
+// the value snapping back to a default mid-edit. It keeps a local text draft
+// while focused and commits the parsed number on blur (or Enter). Committing an
+// empty/invalid entry falls back to `fallback`. Fixes the bug where binding a
+// numeric field straight to saved state + coercing on every keystroke made the
+// value un-editable (clearing it to retype instantly reset it).
+function NumberField({
+  value, onCommit, fallback, className, placeholder,
+}: {
+  value: number;
+  onCommit: (n: number) => void;
+  fallback: number;
+  className?: string;
+  placeholder?: string;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? String(value);
+  const commit = () => {
+    if (draft === null) return;
+    const parsed = draft.trim() === '' || isNaN(parseFloat(draft)) ? fallback : parseFloat(draft);
+    setDraft(null);
+    if (parsed !== value) onCommit(parsed);
+  };
+  return (
+    <input
+      type="number"
+      inputMode="decimal"
+      className={className}
+      placeholder={placeholder}
+      value={shown}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+    />
+  );
+}
+
 // Edit an EXISTING game's settings in place (no rebuild). Mirrors the wizard's
 // Details step, gated by money mode, and saves every change straight onto the
 // game so the leaderboard/scorecards recompute live. Team building, tees, and
@@ -504,7 +541,6 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
   const isMatch = (game.moneyMode ?? 'pot') === 'match';
   const junk = game.junkValues ?? DEFAULT_JUNK_VALUES;
   const matchCfg = game.matchConfig ?? DEFAULT_MATCH_CONFIG;
-  const numFmt = (s: string, d: number) => (s.trim() === '' || isNaN(parseFloat(s)) ? d : parseFloat(s));
 
   const ballOptions: { value: TwoBestBallsVariant; label: string }[] = [
     { value: '1-net-1-gross', label: '1 Net + 1 Gross (different players)' },
@@ -574,8 +610,8 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1">Handicap allowance (%)</label>
-            <input className={inputCls} type="number" inputMode="decimal" value={game.handicapAllowance}
-              onChange={(e) => onSave({ ...game, handicapAllowance: numFmt(e.target.value, 100) })} />
+            <NumberField className={inputCls} value={game.handicapAllowance} fallback={100}
+              onCommit={(n) => onSave({ ...game, handicapAllowance: n })} />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1">Handicap strokes</label>
@@ -606,15 +642,15 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
               {(['front', 'back', 'overall'] as const).map((key) => (
                 <div key={key}>
                   <label className="block text-xs text-gray-600 font-medium mb-1 capitalize">{key === 'overall' ? 'Overall' : key + ' 9'}</label>
-                  <input className={inputCls + ' text-center'} type="number" inputMode="decimal" value={matchCfg.legDollars[key]}
-                    onChange={(e) => onSave({ ...game, matchConfig: { ...matchCfg, legDollars: { ...matchCfg.legDollars, [key]: numFmt(e.target.value, 10) } } })} />
+                  <NumberField className={inputCls + ' text-center'} value={matchCfg.legDollars[key]} fallback={10}
+                    onCommit={(n) => onSave({ ...game, matchConfig: { ...matchCfg, legDollars: { ...matchCfg.legDollars, [key]: n } } })} />
                 </div>
               ))}
             </div>
             <div className="mt-2">
               <label className="block text-xs text-gray-600 font-medium mb-1">Junk ($ / point of margin)</label>
-              <input className={inputCls + ' text-center w-32'} type="number" inputMode="decimal" value={matchCfg.junkPerPoint}
-                onChange={(e) => onSave({ ...game, matchConfig: { ...matchCfg, junkPerPoint: numFmt(e.target.value, 5) } })} />
+              <NumberField className={inputCls + ' text-center w-32'} value={matchCfg.junkPerPoint} fallback={5}
+                onCommit={(n) => onSave({ ...game, matchConfig: { ...matchCfg, junkPerPoint: n } })} />
             </div>
           </div>
         ) : (
@@ -639,8 +675,8 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
             {junkFields.map(({ key, label }) => (
               <div key={key}>
                 <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
-                <input className={inputCls + ' text-center'} type="number" inputMode="numeric" value={junk[key]}
-                  onChange={(e) => onSave({ ...game, junkValues: { ...junk, [key]: Number(e.target.value) } })} />
+                <NumberField className={inputCls + ' text-center'} value={junk[key]} fallback={0}
+                  onCommit={(n) => onSave({ ...game, junkValues: { ...junk, [key]: n } })} />
               </div>
             ))}
           </div>
@@ -679,8 +715,8 @@ function PotSplitEditor({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame
   ];
   const inputCls = 'w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500';
 
-  function setLeg(key: keyof typeof legDollars, value: string) {
-    const next = { ...legDollars, [key]: parseFloat(value) || 0 };
+  function setLeg(key: keyof typeof legDollars, n: number) {
+    const next = { ...legDollars, [key]: n };
     onSave({ ...game, potSplit: dollarsToPotSplit(next) });
   }
 
@@ -690,7 +726,7 @@ function PotSplitEditor({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame
         {fields.map(({ key, label }) => (
           <div key={key}>
             <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
-            <input className={inputCls} type="number" inputMode="decimal" value={Math.round(legDollars[key])} onChange={(e) => setLeg(key, e.target.value)} />
+            <NumberField className={inputCls} value={Math.round(legDollars[key])} fallback={0} onCommit={(n) => setLeg(key, n)} />
           </div>
         ))}
       </div>
