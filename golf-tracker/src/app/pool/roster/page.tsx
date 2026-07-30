@@ -225,7 +225,7 @@ export default function RosterPage() {
 
       <header className="bg-green-800 text-white shadow">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">My Saved Players</h1>
+          <h1 className="text-xl font-bold">Saved Players &amp; Groups</h1>
           <button onClick={() => router.push('/pool')} className="text-sm text-green-200 hover:text-white">My Games</button>
         </div>
       </header>

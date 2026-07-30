@@ -82,7 +82,7 @@ export default function PoolGamesListPage() {
             onClick={() => router.push('/pool/roster')}
             className="w-full mb-6 rounded-lg border border-green-700 bg-white px-6 py-3 text-green-700 font-semibold hover:bg-green-50"
           >
-            My Saved Players
+            Saved Players &amp; Groups
           </button>
         )}
 
