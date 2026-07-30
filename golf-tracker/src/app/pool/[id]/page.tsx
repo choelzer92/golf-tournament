@@ -632,6 +632,21 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
             ))}
           </div>
         </div>
+
+        <div className="border-t pt-3">
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+              checked={!!game.hideHolesUntilAllFinish}
+              onChange={(e) => onSave({ ...game, hideHolesUntilAllFinish: e.target.checked })}
+            />
+            <span>
+              <span className="block text-sm font-medium text-gray-800">Hide holes until all groups finish</span>
+              <span className="block text-xs text-gray-500">The leaderboard reveals a hole only after every foursome has completed it — so a later group can&apos;t see the standings before they play. Scorecards are unaffected.</span>
+            </span>
+          </label>
+        </div>
       </div>
     </section>
   );

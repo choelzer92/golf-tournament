@@ -11,6 +11,7 @@ import {
   subscribeToPoolGame,
   computePoolResult,
   computePoolPlayerDetails,
+  filterConcealedScores,
   DEFAULT_MATCH_CONFIG,
 } from '@/lib/pool-game';
 
@@ -53,8 +54,10 @@ export default function PoolLeaderboardPage() {
         const cached = loadGameScores(mid);
         if (cached) allScores.set(mid, cached);
       }
-      setResult(computePoolResult(game!, allScores));
-      setTeamDetails(computePoolPlayerDetails(game!, allScores));
+      // Anti-sandbagging: when enabled, hide holes not yet finished by ALL groups.
+      const visible = filterConcealedScores(game!, allScores);
+      setResult(computePoolResult(game!, visible));
+      setTeamDetails(computePoolPlayerDetails(game!, visible));
     }
 
     Promise.all(ids.map((mid) => fetchGameScores(mid))).then(recompute);
@@ -123,6 +126,11 @@ export default function PoolLeaderboardPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-2 py-4 space-y-4">
+        {game.hideHolesUntilAllFinish && (
+          <div className="rounded-lg border border-yellow-700/50 bg-yellow-900/20 px-3 py-2 text-xs text-yellow-200">
+            Holes are hidden until <span className="font-semibold">every group</span> has finished them, so no team can see the standings before they play. Thru hole {result.thruHole}.
+          </div>
+        )}
         {/* Per-hole grid: every team's team score per hole (lowest is best) */}
         <div className="bg-gray-800 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">

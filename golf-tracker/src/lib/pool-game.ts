@@ -86,6 +86,7 @@ export interface PoolGame {
   strokeMethod?: 'full' | 'off-the-low';       // default 'full'; off-the-low subtracts field-low handicap
   balanceExcludeCaptains?: boolean;            // default true; balance the non-captain players to equal handicap (captains' own strokes ride as the edge)
   useCaptains?: boolean;                        // default true; when false, teams have no captain role (plain balance by handicap)
+  hideHolesUntilAllFinish?: boolean;            // default off; when on, the leaderboard reveals a hole only after EVERY foursome has completed it (anti-sandbagging)
   potSplit: PoolPotSplit;                      // default 0.25 each
   positionSplit: number[];                     // e.g. [100] winner-take-all
   junkValues: PoolJunkValues;                  // 1 / 2 / 3 / 1 / 1
@@ -1190,6 +1191,42 @@ function computeMatchPayouts(
       perPersonNet,
     };
   });
+}
+
+// Anti-sandbagging concealment: when game.hideHolesUntilAllFinish is on, a hole
+// is only revealed once EVERY foursome has completed it (all of that team's
+// players have posted a gross). Returns a NEW scores map with any score on a
+// not-yet-fully-complete hole removed, so the leaderboard grid, legs, junk, and
+// thru all naturally stop at the last hole both/all groups have finished. Score
+// ENTRY is untouched — each foursome still records their own holes normally;
+// this only gates the shared read-only view. Off (default) returns the map
+// unchanged. Note: this hides the standings, not the raw data — it deters the
+// easy peek at the leaderboard, not a determined look at another card.
+export function filterConcealedScores(
+  game: PoolGame,
+  scoresByMatchup: Map<string, GameScore[]>
+): Map<string, GameScore[]> {
+  if (!game.hideHolesUntilAllFinish) return scoresByMatchup;
+  const holes = getHoleData(game.course);
+  if (holes.length === 0 || game.teams.length === 0) return scoresByMatchup;
+
+  // A team has "completed" a hole when every one of its players has a gross on
+  // it. A hole is revealed only if all teams have completed it.
+  const teamCompletedHole = (team: PoolTeam, hole: number): boolean => {
+    const scores = scoresByMatchup.get(team.matchupId) || [];
+    if (team.playerIds.length === 0) return false;
+    return team.playerIds.every((pid) => scores.some((s) => s.playerId === pid && s.hole === hole));
+  };
+  const revealed = new Set<number>();
+  for (const h of holes) {
+    if (game.teams.every((t) => teamCompletedHole(t, h.number))) revealed.add(h.number);
+  }
+
+  const filtered = new Map<string, GameScore[]>();
+  for (const [matchupId, scores] of scoresByMatchup) {
+    filtered.set(matchupId, scores.filter((s) => revealed.has(s.hole)));
+  }
+  return filtered;
 }
 
 export function computePoolResult(
