@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { GameSetup, Player, CourseSelection, TeeSetOption } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
-import type { PoolGame, PoolTeam, PoolTeamDetail } from '@/lib/pool-game';
+import type { PoolGame, PoolTeam, PoolTeamDetail, PoolJunkValues, PoolMoneyMode } from '@/lib/pool-game';
+import type { TwoBestBallsVariant } from '@/lib/formats';
 import {
   loadPoolGame,
   fetchPoolGame,
@@ -27,6 +28,9 @@ import {
   poolStrokeMap,
   summarizeTeamBuild,
   DEFAULT_MATCH_CONFIG,
+  DEFAULT_JUNK_VALUES,
+  poolSplitDollarsForTeams,
+  dollarsToPotSplit,
 } from '@/lib/pool-game';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
@@ -265,8 +269,8 @@ export default function PoolHubPage() {
         {/* Field-low banner — explains how the low man sets everyone's strokes */}
         <FieldLowBanner game={game} />
 
-        {/* Money summary */}
-        <MoneySummary game={game} pot={pot} />
+        {/* Money summary — becomes an editor while in edit mode */}
+        {editing ? <GameSettingsEditor game={game} onSave={persist} /> : <MoneySummary game={game} pot={pot} />}
 
         {/* Foursome cards */}
         <section>
@@ -489,6 +493,181 @@ function SharePanel({ onClose }: { onClose: () => void }) {
         <p className="text-center text-[11px] text-gray-400 mt-1">Or scan to open on a phone</p>
       </div>
     </div>
+  );
+}
+
+// Edit an EXISTING game's settings in place (no rebuild). Mirrors the wizard's
+// Details step, gated by money mode, and saves every change straight onto the
+// game so the leaderboard/scorecards recompute live. Team building, tees, and
+// the field are edited elsewhere (EditFoursomes) — this is money + scoring only.
+function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
+  const isMatch = (game.moneyMode ?? 'pot') === 'match';
+  const junk = game.junkValues ?? DEFAULT_JUNK_VALUES;
+  const matchCfg = game.matchConfig ?? DEFAULT_MATCH_CONFIG;
+  const numFmt = (s: string, d: number) => (s.trim() === '' || isNaN(parseFloat(s)) ? d : parseFloat(s));
+
+  const ballOptions: { value: TwoBestBallsVariant; label: string }[] = [
+    { value: '1-net-1-gross', label: '1 Net + 1 Gross (different players)' },
+    { value: '2-best-net', label: '2 Best Net' },
+    { value: '2-best-gross', label: '2 Best Gross' },
+  ];
+  const junkFields: { key: keyof PoolJunkValues; label: string }[] = [
+    { key: 'birdie', label: 'Birdie' },
+    { key: 'eagle', label: 'Eagle' },
+    { key: 'albatross', label: 'Albatross' },
+    { key: 'groupHug', label: 'Group Hug' },
+    { key: 'ctp', label: 'CTP' },
+  ];
+
+  // Switching money mode: seed sensible defaults for the target mode's fields if
+  // they're missing, so the game is immediately valid either way.
+  function setMoneyMode(mode: PoolMoneyMode) {
+    if (mode === 'match') {
+      onSave({ ...game, moneyMode: 'match', matchConfig: game.matchConfig ?? { ...DEFAULT_MATCH_CONFIG } });
+    } else {
+      onSave({ ...game, moneyMode: 'pot' });
+    }
+  }
+
+  const inputCls = 'w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500';
+
+  return (
+    <section className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="px-4 py-3 bg-gray-100 border-b">
+        <h2 className="font-semibold text-gray-900">Game Settings</h2>
+        <p className="text-xs text-gray-500">Changes save immediately and update the leaderboard.</p>
+      </div>
+      <div className="p-4 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-800 mb-1">Game name</label>
+          <input className={inputCls} value={game.name} onChange={(e) => onSave({ ...game, name: e.target.value })} />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-800 mb-1">Game type</label>
+          <div className="flex gap-2">
+            {([{ v: 'pot', label: 'Pool (pot split)' }, { v: 'match', label: 'Head-to-head match' }] as const).map(({ v, label }) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setMoneyMode(v)}
+                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                  (game.moneyMode ?? 'pot') === v ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {isMatch && game.teams.length !== 2 && (
+            <p className="text-xs text-amber-700 mt-1">Head-to-head needs exactly two foursomes — this game has {game.teams.length}.</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-800 mb-1">Team ball selection</label>
+          <select className={inputCls} value={game.ballSelection} onChange={(e) => onSave({ ...game, ballSelection: e.target.value as TwoBestBallsVariant })}>
+            {ballOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-800 mb-1">Handicap allowance (%)</label>
+            <input className={inputCls} type="number" inputMode="decimal" value={game.handicapAllowance}
+              onChange={(e) => onSave({ ...game, handicapAllowance: numFmt(e.target.value, 100) })} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-800 mb-1">Handicap strokes</label>
+            <select className={inputCls} value={game.strokeMethod ?? 'full'} onChange={(e) => onSave({ ...game, strokeMethod: e.target.value as 'full' | 'off-the-low' })}>
+              <option value="full">Full handicap</option>
+              <option value="off-the-low">Off the low</option>
+            </select>
+          </div>
+        </div>
+
+        {isMatch ? (
+          <div className="border-t pt-3">
+            <p className="text-sm font-semibold text-gray-800 mb-2">Match payouts ($ / player)</p>
+            <div className="grid grid-cols-3 gap-2">
+              {(['front', 'back', 'overall'] as const).map((key) => (
+                <div key={key}>
+                  <label className="block text-xs text-gray-600 font-medium mb-1 capitalize">{key === 'overall' ? 'Overall' : key + ' 9'}</label>
+                  <input className={inputCls + ' text-center'} type="number" inputMode="decimal" value={matchCfg.legDollars[key]}
+                    onChange={(e) => onSave({ ...game, matchConfig: { ...matchCfg, legDollars: { ...matchCfg.legDollars, [key]: numFmt(e.target.value, 10) } } })} />
+                </div>
+              ))}
+            </div>
+            <div className="mt-2">
+              <label className="block text-xs text-gray-600 font-medium mb-1">Junk ($ / point of margin)</label>
+              <input className={inputCls + ' text-center w-32'} type="number" inputMode="decimal" value={matchCfg.junkPerPoint}
+                onChange={(e) => onSave({ ...game, matchConfig: { ...matchCfg, junkPerPoint: numFmt(e.target.value, 5) } })} />
+            </div>
+          </div>
+        ) : (
+          <div className="border-t pt-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold text-gray-800">Pot split ($ per pot)</p>
+              <button
+                type="button"
+                onClick={() => onSave({ ...game, potSplit: dollarsToPotSplit(poolSplitDollarsForTeams(game.teams.length)) })}
+                className="text-xs text-green-700 hover:text-green-900 font-medium"
+              >
+                Reset to standard
+              </button>
+            </div>
+            <PotSplitEditor game={game} onSave={onSave} />
+          </div>
+        )}
+
+        <div className="border-t pt-3">
+          <p className="text-sm font-semibold text-gray-800 mb-2">Junk values (points)</p>
+          <div className="grid grid-cols-5 gap-2">
+            {junkFields.map(({ key, label }) => (
+              <div key={key}>
+                <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
+                <input className={inputCls + ' text-center'} type="number" inputMode="numeric" value={junk[key]}
+                  onChange={(e) => onSave({ ...game, junkValues: { ...junk, [key]: Number(e.target.value) } })} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// Pot split editor — the four legs in DOLLARS, converted to the stored pot
+// fractions on every edit. Shows the buy-in pot for reference; dollars need not
+// sum exactly (fractions normalize), but a mismatch hint keeps it honest.
+function PotSplitEditor({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
+  const pot = game.players.length * game.entryPerPlayer;
+  const legDollars = { front: pot * game.potSplit.front, back: pot * game.potSplit.back, overall: pot * game.potSplit.overall, junk: pot * game.potSplit.junk };
+  const fields: { key: keyof typeof legDollars; label: string }[] = [
+    { key: 'front', label: 'Front 9' },
+    { key: 'back', label: 'Back 9' },
+    { key: 'overall', label: 'Overall' },
+    { key: 'junk', label: 'Junk' },
+  ];
+  const inputCls = 'w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500';
+
+  function setLeg(key: keyof typeof legDollars, value: string) {
+    const next = { ...legDollars, [key]: parseFloat(value) || 0 };
+    onSave({ ...game, potSplit: dollarsToPotSplit(next) });
+  }
+
+  return (
+    <>
+      <div className="grid grid-cols-4 gap-2">
+        {fields.map(({ key, label }) => (
+          <div key={key}>
+            <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
+            <input className={inputCls} type="number" inputMode="decimal" value={Math.round(legDollars[key])} onChange={(e) => setLeg(key, e.target.value)} />
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-gray-500 mt-1">Buy-in pot: {game.players.length} × ${game.entryPerPlayer} = ${Math.round(pot)}. Dollars are split into shares; they don&apos;t have to add up exactly.</p>
+    </>
   );
 }
 
@@ -1029,6 +1208,31 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
       <p className="text-xs text-gray-600 bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
         Changes save automatically as you make them — no submit button. Tap <span className="font-semibold">Done editing</span> at the top when you&apos;re finished.
       </p>
+
+      {/* Team-building style: captains vs plain balance. Mirrors the wizard so a
+          game can drop or add captains after creation. */}
+      {game.players.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-3">
+          <p className="text-sm font-semibold text-gray-800 mb-2">Team Building</p>
+          <div className="flex gap-2">
+            {([{ v: true, label: 'Use captains' }, { v: false, label: 'No captains' }] as const).map(({ v, label }) => (
+              <button
+                key={String(v)}
+                type="button"
+                onClick={() => onSave({ ...game, useCaptains: v })}
+                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                  useCaptains === v ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            {useCaptains ? 'Each team has a captain; the rest balance around them.' : 'Teams balanced by handicap, no captain role.'}
+          </p>
+        </div>
+      )}
 
       {useCaptains && game.players.length > 0 && (
         <CaptainsPanel
