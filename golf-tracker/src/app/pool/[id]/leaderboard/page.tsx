@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { GameScore } from '@/lib/game-state';
-import { loadGameScores, fetchGameScores, subscribeToScores, onVisibilityRefetch } from '@/lib/tournament-state';
+import { loadGameScores, fetchGameScores, subscribeToScores, onVisibilityRefetch, fetchScoreAudit, type ScoreAuditEntry } from '@/lib/tournament-state';
 import type { PoolGame, PoolResult, PoolTeamDetail, PoolLegKey } from '@/lib/pool-game';
 import {
   loadPoolGame,
@@ -384,7 +384,93 @@ export default function PoolLeaderboardPage() {
             ))}
           </div>
         </div>
+
+        {/* Score change history (audit) */}
+        <ScoreHistory game={game} />
       </main>
+    </div>
+  );
+}
+
+// Collapsible score-change audit: every entry/edit/clear across this game's
+// foursomes, newest first, with old->new and a timestamp. Fetched on expand.
+function ScoreHistory({ game }: { game: PoolGame }) {
+  const [open, setOpen] = useState(false);
+  const [entries, setEntries] = useState<ScoreAuditEntry[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const matchupIds = Array.from(new Set(game.teams.map((t) => t.matchupId)));
+  const teamByMatchup = new Map(game.teams.map((t) => [t.matchupId, t.name]));
+  const nameOf = (pid: string) => game.players.find((p) => p.id === pid)?.name ?? 'Unknown';
+
+  async function load() {
+    setLoading(true);
+    try {
+      setEntries(await fetchScoreAudit(matchupIds));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && entries === null) load();
+  }
+
+  const fmtTime = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  };
+  const fmtVal = (v: number | null) => (v === null ? '—' : String(v));
+  const changeKind = (e: ScoreAuditEntry) => (e.oldScore === null ? 'entered' : e.newScore === null ? 'cleared' : 'changed');
+
+  return (
+    <div className="bg-gray-800 rounded-xl overflow-hidden">
+      <button onClick={toggle} className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-750">
+        <span className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Score History</span>
+        <span className="text-gray-600 text-xs">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <div className="px-2 pb-3">
+          {loading ? (
+            <p className="text-xs text-gray-500 text-center py-3">Loading…</p>
+          ) : !entries || entries.length === 0 ? (
+            <p className="text-xs text-gray-500 text-center py-3">No score changes recorded yet.</p>
+          ) : (
+            <table className="text-xs w-full">
+              <thead>
+                <tr className="text-gray-500 border-b border-gray-700/50">
+                  <th className="text-left px-2 py-1 font-medium">When</th>
+                  <th className="text-left px-2 py-1 font-medium">Player</th>
+                  <th className="text-left px-2 py-1 font-medium">Group</th>
+                  <th className="text-center px-2 py-1 font-medium">Hole</th>
+                  <th className="text-center px-2 py-1 font-medium">Change</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map((e, i) => (
+                  <tr key={i} className="border-t border-gray-700/30">
+                    <td className="px-2 py-1 text-gray-400 whitespace-nowrap">{fmtTime(e.changedAt)}</td>
+                    <td className="px-2 py-1 text-gray-300 whitespace-nowrap">{nameOf(e.playerId).split(' ')[0]}</td>
+                    <td className="px-2 py-1 text-gray-500 whitespace-nowrap">{teamByMatchup.get(e.matchupId) ?? '—'}</td>
+                    <td className="px-2 py-1 text-center text-gray-300">{e.hole}</td>
+                    <td className="px-2 py-1 text-center whitespace-nowrap">
+                      {changeKind(e) === 'changed' ? (
+                        <span className="text-yellow-300">{fmtVal(e.oldScore)} → {fmtVal(e.newScore)}</span>
+                      ) : changeKind(e) === 'cleared' ? (
+                        <span className="text-red-400">cleared ({fmtVal(e.oldScore)})</span>
+                      ) : (
+                        <span className="text-green-400">{fmtVal(e.newScore)}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   );
 }

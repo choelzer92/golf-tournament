@@ -220,6 +220,13 @@ export interface TournamentGameContext {
 // In-memory cache for synchronous reads
 const tournamentCache = new Map<string, Tournament>();
 const scoresCache = new Map<string, any>();
+// The last snapshot actually PERSISTED (or fetched) per matchup — the audit
+// baseline. It must be separate from scoresCache: the play page writes
+// scoresCache on every keystroke (via cacheGameScores) but only calls
+// saveGameScores on a debounce, so scoresCache already holds the new value by
+// save time. Diffing against this persisted baseline captures the real net
+// change between server writes.
+const lastPersistedScores = new Map<string, GameScore[]>();
 
 export function saveTournament(tournament: Tournament) {
   tournamentCache.set(tournament.id, tournament);
@@ -230,7 +237,51 @@ export function saveTournament(tournament: Tournament) {
   }).then();
 }
 
+// Append audit rows for any score that was ADDED, CHANGED, or CLEARED between
+// the previous snapshot and the incoming scores for this matchup. Best-effort
+// and fire-and-forget — a logging failure must never block a score save (the
+// score itself persists via the write below). When ownedPlayerIds is given
+// (per-team writes), only those players' changes are diffed, so the other
+// foursome's untouched scores aren't re-logged as spurious changes.
+function auditScoreChanges(matchupId: string, prev: GameScore[] | null, next: GameScore[], ownedPlayerIds?: string[]) {
+  const key = (s: { playerId: string; hole: number }) => `${s.playerId}_${s.hole}`;
+  const inScope = (playerId: string) => !ownedPlayerIds || ownedPlayerIds.includes(playerId);
+  const prevMap = new Map<string, number>();
+  for (const s of prev ?? []) if (inScope(s.playerId)) prevMap.set(key(s), s.grossScore);
+  const nextMap = new Map<string, number>();
+  for (const s of next ?? []) if (inScope(s.playerId)) nextMap.set(key(s), s.grossScore);
+
+  const rows: { matchup_id: string; player_id: string; hole: number; old_score: number | null; new_score: number | null }[] = [];
+  const seen = new Set<string>();
+  const consider = (s: { playerId: string; hole: number }) => {
+    const k = key(s);
+    if (seen.has(k)) return;
+    seen.add(k);
+    const oldV = prevMap.has(k) ? prevMap.get(k)! : null;
+    const newV = nextMap.has(k) ? nextMap.get(k)! : null;
+    if (oldV !== newV) rows.push({ matchup_id: matchupId, player_id: s.playerId, hole: s.hole, old_score: oldV, new_score: newV });
+  };
+  for (const s of next ?? []) if (inScope(s.playerId)) consider(s);
+  for (const s of prev ?? []) if (inScope(s.playerId)) consider(s);
+
+  if (rows.length === 0) return;
+  // Fire-and-forget; swallow errors (e.g. table not yet migrated) so saves never break.
+  supabase.from('score_audit').insert(rows).then(undefined, () => {});
+}
+
 export function saveGameScores(matchupId: string, scores: any, ownedPlayerIds?: string[]) {
+  // Audit is fully insulated: anything it does is wrapped so a logging bug can
+  // NEVER prevent the score write below. Diff against the last PERSISTED
+  // snapshot (not scoresCache, which the play page overwrites on every
+  // keystroke), then advance the baseline.
+  try {
+    if (Array.isArray(scores)) {
+      const baseline = lastPersistedScores.get(matchupId) ?? null;
+      auditScoreChanges(matchupId, baseline, scores as GameScore[], ownedPlayerIds);
+      lastPersistedScores.set(matchupId, (scores as GameScore[]).map((s) => ({ ...s })));
+    }
+  } catch { /* never let auditing block a score save */ }
+
   scoresCache.set(matchupId, scores);
 
   if (ownedPlayerIds && ownedPlayerIds.length > 0) {
@@ -251,6 +302,38 @@ export function saveGameScores(matchupId: string, scores: any, ownedPlayerIds?: 
 
 export function cacheGameScores(matchupId: string, scores: any) {
   scoresCache.set(matchupId, scores);
+}
+
+export interface ScoreAuditEntry {
+  matchupId: string;
+  playerId: string;
+  hole: number;
+  oldScore: number | null;
+  newScore: number | null;
+  changedAt: string;
+}
+
+// Read the score-change history for a set of matchups (a pool game's foursomes),
+// newest first. Returns [] if the audit table isn't present yet.
+export async function fetchScoreAudit(matchupIds: string[]): Promise<ScoreAuditEntry[]> {
+  if (matchupIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('score_audit')
+    .select('matchup_id, player_id, hole, old_score, new_score, changed_at')
+    .in('matchup_id', matchupIds)
+    .order('changed_at', { ascending: false })
+    .limit(1000);
+  if (error || !data) return [];
+  return data.map((r: {
+    matchup_id: string; player_id: string; hole: number; old_score: number | null; new_score: number | null; changed_at: string;
+  }) => ({
+    matchupId: r.matchup_id,
+    playerId: r.player_id,
+    hole: r.hole,
+    oldScore: r.old_score,
+    newScore: r.new_score,
+    changedAt: r.changed_at,
+  }));
 }
 
 export function loadGameScores(matchupId: string): any | null {
@@ -315,6 +398,9 @@ export async function fetchGameScores(matchupId: string): Promise<any | null> {
   const { data } = await supabase.from('game_scores').select('data').eq('matchup_id', matchupId).single();
   if (data) {
     scoresCache.set(matchupId, data.data);
+    // Seed the audit baseline to server truth so the next save logs only the
+    // real delta (not every pre-existing score as a fresh entry).
+    lastPersistedScores.set(matchupId, ((data.data as GameScore[]) ?? []).map((s) => ({ ...s })));
     return data.data;
   }
   return scoresCache.get(matchupId) || null;
@@ -348,6 +434,10 @@ export function subscribeToScores(matchupId: string, onUpdate: (scores: any) => 
       const scores = (payload.new as any)?.data;
       if (scores) {
         scoresCache.set(matchupId, scores);
+        // A realtime update IS the new server truth — advance the audit baseline
+        // so a later local save diffs against it (the change was already logged
+        // by whoever wrote it; don't re-log the other device's edits here).
+        lastPersistedScores.set(matchupId, (scores as GameScore[]).map((s) => ({ ...s })));
         onUpdate(scores);
       }
     })
