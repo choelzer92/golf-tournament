@@ -1088,6 +1088,31 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
     }
   }
 
+  // Manually set a player's handicap INDEX on this game (e.g. a no-GHIN player
+  // typed in wrong). Updates game.players so strokes recompute immediately, and
+  // mirrors to the roster so it sticks for future games. Empty clears to null.
+  function setPlayerHandicap(playerId: string, raw: string) {
+    const trimmed = raw.trim();
+    const idx = trimmed === '' ? null : parseFloat(trimmed);
+    const handicapIndex = idx === null || isNaN(idx) ? null : idx;
+    onSave({
+      ...game,
+      players: game.players.map((p) => (p.id === playerId ? { ...p, handicapIndex } : p)),
+      handicapsRefreshedAt: new Date().toISOString(),
+    });
+    const player = playerById.get(playerId);
+    if (player) {
+      upsertRosterPlayer({
+        id: player.id,
+        ghinNumber: player.ghinNumber ?? null,
+        name: player.name,
+        handicapIndex,
+        gender: player.gender ?? null,
+        defaultTeeName: null,
+      });
+    }
+  }
+
   // Remove a player from their team AND from game.players. Any score rows they
   // had become orphaned (keyed by matchupId), which is acceptable. If they were a
   // captain, the role passes to their team's next-lowest handicap.
@@ -1365,6 +1390,19 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
                   </div>
                   {/* Line 2: clearly-labeled controls with real tap targets */}
                   <div className="mt-1.5 flex items-end gap-2 flex-wrap">
+                    <label className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Index</span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.1"
+                        defaultValue={p.handicapIndex ?? ''}
+                        onBlur={(e) => { if ((e.target.value.trim() === '' ? null : parseFloat(e.target.value)) !== p.handicapIndex) setPlayerHandicap(pid, e.target.value); }}
+                        placeholder="—"
+                        className="w-16 text-sm rounded-md border border-gray-300 px-2 py-1 shadow-sm focus:border-green-500 focus:outline-none bg-white"
+                        title="Handicap index — edit for a player entered by hand"
+                      />
+                    </label>
                     {useCaptains && !isCaptain && (
                       <button
                         onClick={() => makeCaptain(team.id, pid)}
