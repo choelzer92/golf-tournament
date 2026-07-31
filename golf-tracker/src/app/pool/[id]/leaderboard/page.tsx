@@ -169,9 +169,10 @@ export default function PoolLeaderboardPage() {
                         const score = h.teamScores[r.teamId];
                         const lowOnHole = lowScoreOnHole(h.teamScores);
                         const isLow = score !== null && score === lowOnHole;
+                        const tiedLow = isLow && countAtScore(h.teamScores, lowOnHole) > 1;
                         return (
                           <td key={h.holeNumber} className="text-center px-1 py-1.5">
-                            <div className={`${isLow ? 'font-bold text-green-400' : 'text-gray-300'}`}>
+                            <div className={`${tiedLow ? 'font-bold text-yellow-400' : isLow ? 'font-bold text-green-400' : 'text-gray-300'}`}>
                               {score ?? '-'}
                             </div>
                           </td>
@@ -184,9 +185,10 @@ export default function PoolLeaderboardPage() {
                         const score = h.teamScores[r.teamId];
                         const lowOnHole = lowScoreOnHole(h.teamScores);
                         const isLow = score !== null && score === lowOnHole;
+                        const tiedLow = isLow && countAtScore(h.teamScores, lowOnHole) > 1;
                         return (
                           <td key={h.holeNumber} className="text-center px-1 py-1.5">
-                            <div className={`${isLow ? 'font-bold text-green-400' : 'text-gray-300'}`}>
+                            <div className={`${tiedLow ? 'font-bold text-yellow-400' : isLow ? 'font-bold text-green-400' : 'text-gray-300'}`}>
                               {score ?? '-'}
                             </div>
                           </td>
@@ -613,4 +615,13 @@ function lowScoreOnHole(teamScores: Record<string, number | null>): number | nul
     if (low === null || s < low) low = s;
   }
   return low;
+}
+
+// How many teams share a given score on a hole. Used to tell a sole low (green)
+// from a tied low (yellow) — a tie means the hole is halved, not won.
+function countAtScore(teamScores: Record<string, number | null>, score: number | null): number {
+  if (score === null) return 0;
+  let n = 0;
+  for (const s of Object.values(teamScores)) if (s === score) n++;
+  return n;
 }

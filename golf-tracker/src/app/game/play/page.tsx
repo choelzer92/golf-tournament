@@ -10,8 +10,8 @@ import { loadTournament, saveTournament, saveGameScores, cacheGameScores, loadGa
 import { computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, computeSplitMatchStatuses, type SplitMatchup } from '@/lib/live-scoring';
 import { computeSideGameResult } from '@/lib/side-game';
 import type { SideGameResult } from '@/lib/side-game';
-import type { PoolGame } from '@/lib/pool-game';
-import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame } from '@/lib/pool-game';
+import type { PoolGame, PoolResult, PoolLeg } from '@/lib/pool-game';
+import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores } from '@/lib/pool-game';
 
 interface PoolGameContext {
   poolGameId: string;
@@ -31,6 +31,7 @@ export default function PlayGamePage() {
   const [isSideGame, setIsSideGame] = useState(false);
   const [poolCtx, setPoolCtx] = useState<PoolGameContext | null>(null);
   const [poolGame, setPoolGame] = useState<PoolGame | null>(null);
+  const [poolOtherTick, setPoolOtherTick] = useState(0);
   const didAutoJump = useRef(false);
   const remoteScoresRef = useRef<GameScore[]>([]);
 
@@ -148,6 +149,33 @@ export default function PlayGamePage() {
     const channel = subscribeToPoolGame(poolCtx.poolGameId, (g) => setPoolGame(g));
     return () => { channel.unsubscribe(); };
   }, [poolCtx]);
+
+  // Keep every OTHER foursome's scores fresh so the on-scorecard pool overview
+  // (current match/place) is live without opening the leaderboard. This foursome's
+  // own scores flow through the debounced save + cacheGameScores; here we fetch,
+  // subscribe, poll (15s), and refetch-on-resume the other groups' rows. Each
+  // update bumps poolOtherTick so the overview recomputes. (Our own matchup is
+  // already covered above; skip it to avoid clobbering unsaved local edits.)
+  useEffect(() => {
+    if (!poolCtx || !poolGame) return;
+    const otherIds = Array.from(new Set(poolGame.teams.map((t) => t.matchupId)))
+      .filter((mid) => mid !== poolCtx.matchupId);
+    if (otherIds.length === 0) return;
+
+    const bump = () => setPoolOtherTick((t) => t + 1);
+    Promise.all(otherIds.map((mid) => fetchGameScores(mid))).then(bump);
+    const channels = otherIds.map((mid) => subscribeToScores(mid, bump));
+    const cleanupVisibility = onVisibilityRefetch(otherIds, bump);
+    const poll = setInterval(() => {
+      Promise.all(otherIds.map((mid) => fetchGameScores(mid))).then(bump);
+    }, 15000);
+
+    return () => {
+      channels.forEach((ch) => ch.unsubscribe());
+      cleanupVisibility();
+      clearInterval(poll);
+    };
+  }, [poolCtx, poolGame?.id, poolGame?.teams.map((t) => t.matchupId).join(',')]);
 
   function mergeScores(local: GameScore[], remote: GameScore[]): GameScore[] {
     const map = new Map<string, GameScore>();
@@ -663,6 +691,10 @@ export default function PlayGamePage() {
 
       {tournamentCtx && !isSideGame && (
         <TournamentOverviewPanel tournamentCtx={tournamentCtx} currentMatchupId={tournamentCtx.matchupId} currentScores={scores} setup={setup} getScore={getScore} getPlayerStrokesOnHole={getPlayerStrokesOnHole} remoteScores={remoteScores} otherMatchupTick={otherMatchupTick} />
+      )}
+
+      {poolCtx && poolGame && (
+        <PoolOverviewPanel poolGame={poolGame} myMatchupId={poolCtx.matchupId} myScores={scores} tick={poolOtherTick} />
       )}
 
       {isSideGame && tournamentCtx && (
@@ -2165,6 +2197,122 @@ function TeamMatchStatus({
       )}
     </div>
   );
+}
+
+// Live pool standing shown at the top of the scoring page, so a foursome sees
+// where it stands without opening the leaderboard. My own (possibly unsaved)
+// scores are merged with every other foursome's cached scores, concealment is
+// applied (hideHolesUntilAllFinish), then computePoolResult gives front/back/
+// overall. Per the user: OVERALL is the prominent box; front/back are collapsed.
+// In 2-team match play the boxes show the head-to-head match score (e.g. 2½–1½);
+// otherwise they show this team's place/total among all foursomes.
+function PoolOverviewPanel({ poolGame, myMatchupId, myScores, tick }: {
+  poolGame: PoolGame;
+  myMatchupId: string;
+  myScores: GameScore[];
+  tick: number;
+}) {
+  void tick; // recompute when other foursomes' scores update
+  const [expanded, setExpanded] = useState(false);
+
+  const myTeam = poolGame.teams.find((t) => t.matchupId === myMatchupId);
+
+  // Assemble scores for ALL foursomes: my live scores for my row, cache for the
+  // rest. Then apply concealment and compute.
+  const scoresByMatchup = new Map<string, GameScore[]>();
+  for (const t of poolGame.teams) {
+    if (t.matchupId === myMatchupId) {
+      scoresByMatchup.set(t.matchupId, myScores);
+    } else {
+      const cached = loadGameScores(t.matchupId);
+      if (Array.isArray(cached)) scoresByMatchup.set(t.matchupId, cached);
+    }
+  }
+
+  const visible = filterConcealedScores(poolGame, scoresByMatchup);
+  const result = computePoolResult(poolGame, visible);
+  if (result.thruHole === 0 || !myTeam) return null;
+
+  const isMatch = poolGame.moneyMode === 'match';
+  const isHoleMatch = isMatch && poolGame.teams.length === 2 && (poolGame.matchConfig?.scoring === 'holes');
+
+  const legByKey = (k: 'front' | 'back' | 'overall'): PoolLeg | undefined => result.legs.find((l) => l.leg === k);
+  const fmtPts = (n: number) => (n % 1 === 0 ? String(n) : `${Math.floor(n)}½`);
+
+  // Build a one-line status for a leg from MY team's perspective.
+  function legLine(k: 'front' | 'back' | 'overall'): { headline: string; sub: string; tone: 'win' | 'lose' | 'even' } {
+    const leg = legByKey(k);
+    if (!leg) return { headline: '–', sub: '', tone: 'even' };
+    const mine = leg.standings.find((s) => s.teamId === myTeam!.id);
+    if (!mine || mine.thru === 0) return { headline: '–', sub: 'not started', tone: 'even' };
+
+    if (isHoleMatch) {
+      const other = leg.standings.find((s) => s.teamId !== myTeam!.id);
+      const myPts = mine.matchPoints ?? 0;
+      const oppPts = other?.matchPoints ?? 0;
+      const tone = myPts > oppPts ? 'win' : myPts < oppPts ? 'lose' : 'even';
+      const headline = `${fmtPts(myPts)}–${fmtPts(oppPts)}`;
+      const diffHoles = (mine.holesWon ?? 0) - (other?.holesWon ?? 0);
+      const sub = diffHoles === 0 ? `All square · thru ${mine.thru}`
+        : diffHoles > 0 ? `${diffHoles} up · thru ${mine.thru}`
+        : `${Math.abs(diffHoles)} down · thru ${mine.thru}`;
+      return { headline, sub, tone };
+    }
+
+    // Stroke / pot: show place + total among all foursomes.
+    const placed = leg.standings.filter((s) => s.thru > 0);
+    const tone = mine.place === 1 && placed.length > 1 ? 'win' : 'even';
+    const suffix = poolGame.teams.length > 2 ? ` of ${placed.length}` : '';
+    const headline = mine.place > 0 ? `${ordinal(mine.place)}${suffix}` : '–';
+    return { headline, sub: `${mine.total} · thru ${mine.thru}`, tone };
+  }
+
+  const overall = legLine('overall');
+  const front = legLine('front');
+  const back = legLine('back');
+  const toneCls = (t: 'win' | 'lose' | 'even') =>
+    t === 'win' ? 'text-green-300' : t === 'lose' ? 'text-red-300' : 'text-gray-200';
+
+  return (
+    <div className="bg-gray-800 text-white">
+      <div className="max-w-lg mx-auto px-4 py-2">
+        <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center justify-between gap-3">
+          <div className="text-left">
+            <p className="text-[10px] uppercase tracking-wider text-gray-400">
+              {isHoleMatch ? 'Match · Overall' : 'Overall'}
+            </p>
+            <p className="text-xs text-gray-400 truncate">{myTeam.name}</p>
+          </div>
+          <div className="text-right">
+            <p className={`text-2xl font-black leading-none ${toneCls(overall.tone)}`}>{overall.headline}</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">{overall.sub}</p>
+          </div>
+          <span className="text-gray-500 text-xs w-3 shrink-0">{expanded ? '▾' : '▸'}</span>
+        </button>
+
+        {expanded && (
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            {[{ label: 'Front 9', l: front }, { label: 'Back 9', l: back }].map(({ label, l }) => (
+              <div key={label} className="rounded-lg bg-gray-900/60 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wider text-gray-500">{label}</p>
+                <p className={`text-lg font-bold leading-none ${toneCls(l.tone)}`}>{l.headline}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">{l.sub}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        {poolGame.hideHolesUntilAllFinish && (
+          <p className="text-[10px] text-yellow-300/80 mt-1">Holes appear once every group has entered them.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
 function SideGameFlightPanel({ tournamentId, currentScores, ownMatchupId }: {
