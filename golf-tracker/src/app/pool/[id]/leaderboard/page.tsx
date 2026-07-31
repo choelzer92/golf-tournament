@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { GameScore } from '@/lib/game-state';
 import { loadGameScores, fetchGameScores, subscribeToScores, onVisibilityRefetch, fetchScoreAudit, type ScoreAuditEntry } from '@/lib/tournament-state';
-import type { PoolGame, PoolResult, PoolTeamDetail, PoolLegKey } from '@/lib/pool-game';
+import type { PoolGame, PoolResult, PoolTeamDetail, PoolLegKey, PoolLeg } from '@/lib/pool-game';
 import {
   loadPoolGame,
   fetchPoolGame,
@@ -108,6 +108,26 @@ export default function PoolLeaderboardPage() {
   const rankedJunk = [...result.junkDetails].sort((a, b) => b.total - a.total);
 
   const isMatch = game.moneyMode === 'match';
+  // Hole-by-hole match play (2 teams): the F/B/Tot columns show MATCH POINTS
+  // (green ahead / red behind / yellow tied) instead of stroke totals — in match
+  // play the point tally is the score that matters, not raw strokes.
+  const isHoleMatch = isMatch && game.teams.length === 2 && game.matchConfig?.scoring === 'holes';
+  const fmtPts = (n: number) => (n % 1 === 0 ? String(n) : `${Math.floor(n)}½`);
+
+  // A team's match-point cell for a leg (front/back/overall): its points and tone
+  // vs the opponent. Returns null when the leg has no match tally (non-match mode).
+  function legPointCell(leg: PoolLeg | undefined, teamId: string): { text: string; tone: 'win' | 'lose' | 'even' } | null {
+    const mine = leg?.standings.find((s) => s.teamId === teamId);
+    if (!mine || mine.matchPoints === undefined) return null;
+    if (mine.thru === 0) return { text: '-', tone: 'even' };
+    const opp = leg?.standings.find((s) => s.teamId !== teamId);
+    const myPts = mine.matchPoints ?? 0;
+    const oppPts = opp?.matchPoints ?? 0;
+    const tone = myPts > oppPts ? 'win' : myPts < oppPts ? 'lose' : 'even';
+    return { text: fmtPts(myPts), tone };
+  }
+  const pointToneCls = (t: 'win' | 'lose' | 'even') =>
+    t === 'win' ? 'text-green-400' : t === 'lose' ? 'text-red-400' : 'text-yellow-400';
 
   return (
     <div className="min-h-full bg-gray-900">
@@ -130,11 +150,36 @@ export default function PoolLeaderboardPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-2 py-4 space-y-4">
-        {game.hideHolesUntilAllFinish && (
-          <div className="rounded-lg border border-yellow-700/50 bg-yellow-900/20 px-3 py-2 text-xs text-yellow-200">
-            Holes are hidden until <span className="font-semibold">every group</span> has finished them, so no team can see the standings before they play. Thru hole {result.thruHole}.
-          </div>
-        )}
+        {/* Overall match score banner (replaces the concealment note per user).
+            Two teams, hole-match: show both sides' overall points, colored by who
+            leads. Falls back to nothing when there's no match tally. */}
+        {isHoleMatch && overallLeg.standings.length === 2 && (() => {
+          const [a, b] = overallLeg.standings;
+          const aPts = a.matchPoints ?? 0;
+          const bPts = b.matchPoints ?? 0;
+          const started = (a.thru ?? 0) > 0 || (b.thru ?? 0) > 0;
+          const leadCls = (mine: number, opp: number) => mine > opp ? 'text-green-400' : mine < opp ? 'text-red-400' : 'text-yellow-400';
+          const summary = !started ? 'Not started'
+            : aPts === bPts ? 'All square'
+            : `${aPts > bPts ? a.teamName : b.teamName} leads`;
+          return (
+            <div className="rounded-xl bg-gray-800 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-gray-500 text-center mb-1">Overall · thru {result.thruHole}</p>
+              <div className="flex items-center justify-center gap-6">
+                <div className="text-center">
+                  <p className="text-xs text-gray-400 truncate max-w-[9rem]">{a.teamName}</p>
+                  <p className={`text-4xl font-black leading-none ${leadCls(aPts, bPts)}`}>{fmtPts(aPts)}</p>
+                </div>
+                <div className="text-gray-600 text-2xl font-light">–</div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-400 truncate max-w-[9rem]">{b.teamName}</p>
+                  <p className={`text-4xl font-black leading-none ${leadCls(bPts, aPts)}`}>{fmtPts(bPts)}</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 text-center mt-1">{summary}</p>
+            </div>
+          );
+        })()}
         {/* Per-hole grid: every team's team score per hole (lowest is best) */}
         <div className="bg-gray-800 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
@@ -157,6 +202,10 @@ export default function PoolLeaderboardPage() {
                 {rankedTeams.map((r, idx) => {
                   const frontTotal = frontLeg?.standings.find((x) => x.teamId === r.teamId)?.total ?? 0;
                   const backTotal = backLeg?.standings.find((x) => x.teamId === r.teamId)?.total ?? 0;
+                  // Match-play point cells (green/red/yellow) for the F/B/Tot columns.
+                  const frontPts = isHoleMatch ? legPointCell(frontLeg, r.teamId) : null;
+                  const backPts = isHoleMatch ? legPointCell(backLeg, r.teamId) : null;
+                  const overallPts = isHoleMatch ? legPointCell(overallLeg, r.teamId) : null;
 
                   return (
                     <tr key={r.teamId} className={`${idx > 0 ? 'border-t border-gray-700/30' : ''}`}>
@@ -179,7 +228,9 @@ export default function PoolLeaderboardPage() {
                         );
                       })}
                       <td className="text-center px-1.5 py-1.5 bg-gray-750">
-                        <div className="font-bold text-gray-200">{frontTotal || '-'}</div>
+                        {isHoleMatch && frontPts
+                          ? <div className={`font-bold ${pointToneCls(frontPts.tone)}`}>{frontPts.text}</div>
+                          : <div className="font-bold text-gray-200">{frontTotal || '-'}</div>}
                       </td>
                       {backHoles.map((h) => {
                         const score = h.teamScores[r.teamId];
@@ -195,10 +246,14 @@ export default function PoolLeaderboardPage() {
                         );
                       })}
                       <td className="text-center px-1.5 py-1.5 bg-gray-750">
-                        <div className="font-bold text-gray-200">{backTotal || '-'}</div>
+                        {isHoleMatch && backPts
+                          ? <div className={`font-bold ${pointToneCls(backPts.tone)}`}>{backPts.text}</div>
+                          : <div className="font-bold text-gray-200">{backTotal || '-'}</div>}
                       </td>
                       <td className="text-center px-1.5 py-1.5 bg-gray-750">
-                        <div className="font-bold text-white">{r.total || '-'}</div>
+                        {isHoleMatch && overallPts
+                          ? <div className={`font-bold ${pointToneCls(overallPts.tone)}`}>{overallPts.text}</div>
+                          : <div className="font-bold text-white">{r.total || '-'}</div>}
                       </td>
                     </tr>
                   );
@@ -207,7 +262,9 @@ export default function PoolLeaderboardPage() {
             </table>
           </div>
           <div className="px-3 py-2 text-[10px] text-gray-500 border-t border-gray-700">
-            Team score = {ballSelectionCaption(game.ballSelection)} per hole · lowest total wins
+            {isHoleMatch
+              ? <>Holes = {ballSelectionCaption(game.ballSelection)} (lower wins the hole) · F/B/Tot show match points (<span className="text-green-400">ahead</span> / <span className="text-red-400">behind</span> / <span className="text-yellow-400">tied</span>)</>
+              : <>Team score = {ballSelectionCaption(game.ballSelection)} per hole · lowest total wins</>}
           </div>
         </div>
 
