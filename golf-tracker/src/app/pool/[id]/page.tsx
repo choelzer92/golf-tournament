@@ -231,7 +231,7 @@ export default function PoolHubPage() {
         </div>
       </header>
 
-      {sharing && <SharePanel onClose={() => setSharing(false)} />}
+      {sharing && <SharePanel gameId={id} gameName={game.name} onClose={() => setSharing(false)} />}
 
       <GhinLoginModal
         open={showLogin}
@@ -449,48 +449,68 @@ function TeamBuildSummaryCard({ game }: { game: PoolGame }) {
   );
 }
 
-function SharePanel({ onClose }: { onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
+function SharePanel({ gameId, gameName, onClose }: { gameId: string; gameName: string; onClose: () => void }) {
+  const [copiedKey, setCopiedKey] = useState<'player' | 'organizer' | null>(null);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  // Organizer link: opens pool setup with 'pool' access (create/manage pool
-  // games) — it does NOT expose the dashboard or the rest of the app.
+  // Player scoring link: opens THIS game's hub with 'pool' access (the token
+  // skips the invite code). The other foursome opens it, taps "Enter scores"
+  // for their team, and scores with NO GHIN login. This is what lets each group
+  // post their own foursome's scores to the shared leaderboard.
+  const playerLink = `${origin}/pool/${gameId}?key=${ORGANIZER_TOKEN}`;
+  // Organizer link: opens pool setup to create/manage games (a different job —
+  // for a co-organizer, not for players joining THIS game).
   const organizerLink = `${origin}/pool/new?key=${ORGANIZER_TOKEN}`;
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(organizerLink)}`;
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(playerLink)}`;
 
-  async function share() {
+  async function shareLink(url: string, title: string, key: 'player' | 'organizer') {
     if (typeof navigator !== 'undefined' && navigator.share) {
-      try { await navigator.share({ title: 'Create a pool game', url: organizerLink }); return; } catch { /* fall through to copy */ }
+      try { await navigator.share({ title, url }); return; } catch { /* fall through to copy */ }
     }
     try {
-      await navigator.clipboard.writeText(organizerLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(url);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
     } catch { /* clipboard blocked — user can long-press the field */ }
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-900">Share pool games</h2>
+          <h2 className="text-lg font-bold text-gray-900">Share “{gameName}”</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">&times;</button>
         </div>
 
-        <p className="text-sm font-semibold text-gray-800">Organizer link</p>
+        {/* Primary: player scoring link for THIS game */}
+        <p className="text-sm font-semibold text-gray-800">Player scoring link</p>
         <p className="text-xs text-gray-500 mb-2">
-          Send this to whoever runs the game. They can create and manage pool games, build teams, and make scorecards — logging into their own GHIN. It does not open the rest of your app.
+          Send this to the other foursomes. It opens <span className="font-medium">this</span> game — each group taps their own team and enters their scores. No login or invite code needed; everyone&apos;s scores land on the same leaderboard.
         </p>
         <div className="flex gap-2">
-          <input readOnly value={organizerLink} className="flex-1 min-w-0 rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-600" onFocus={(e) => e.currentTarget.select()} />
-          <button onClick={share} className="flex-shrink-0 rounded-md bg-green-700 px-3 py-1.5 text-sm text-white font-medium hover:bg-green-800">
-            {copied ? 'Copied!' : 'Share'}
+          <input readOnly value={playerLink} className="flex-1 min-w-0 rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-600" onFocus={(e) => e.currentTarget.select()} />
+          <button onClick={() => shareLink(playerLink, `Join & score: ${gameName}`, 'player')} className="flex-shrink-0 rounded-md bg-green-700 px-3 py-1.5 text-sm text-white font-medium hover:bg-green-800">
+            {copiedKey === 'player' ? 'Copied!' : 'Share'}
           </button>
         </div>
         <div className="mt-3 flex justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrSrc} alt="QR code — create a pool game" width={180} height={180} className="rounded-lg border border-gray-200" />
+          <img src={qrSrc} alt="QR code — open this game to enter scores" width={180} height={180} className="rounded-lg border border-gray-200" />
         </div>
-        <p className="text-center text-[11px] text-gray-400 mt-1">Or scan to open on a phone</p>
+        <p className="text-center text-[11px] text-gray-400 mt-1">Or scan to open this game on a phone</p>
+
+        {/* Secondary: organizer link to CREATE games (collapsed emphasis) */}
+        <div className="mt-5 border-t border-gray-200 pt-4">
+          <p className="text-sm font-semibold text-gray-800">Organizer link</p>
+          <p className="text-xs text-gray-500 mb-2">
+            For a co-organizer who needs to <span className="font-medium">create</span> their own pool games. Opens pool setup, not this game.
+          </p>
+          <div className="flex gap-2">
+            <input readOnly value={organizerLink} className="flex-1 min-w-0 rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-600" onFocus={(e) => e.currentTarget.select()} />
+            <button onClick={() => shareLink(organizerLink, 'Create a pool game', 'organizer')} className="flex-shrink-0 rounded-md bg-gray-200 px-3 py-1.5 text-sm text-gray-700 font-medium hover:bg-gray-300">
+              {copiedKey === 'organizer' ? 'Copied!' : 'Share'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
