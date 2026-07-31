@@ -485,6 +485,7 @@ function ScoreHistory({ game }: { game: PoolGame }) {
 function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult }) {
   const cfg = game.matchConfig ?? DEFAULT_MATCH_CONFIG;
   const twoTeams = game.teams.length === 2;
+  const isHoleMatch = cfg.scoring === 'holes';
   const teamName = (id: string) => game.teams.find((t) => t.id === id)?.name ?? '?';
 
   const scoreLegs: { key: PoolLegKey; label: string; dollars: number }[] = [
@@ -493,16 +494,33 @@ function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult })
     { key: 'overall', label: 'Overall 18', dollars: cfg.legDollars.overall },
   ];
 
-  // Winner of a leg by lowest toPar among teams that have played; null = push/none.
+  // Winner of a leg. In hole-match scoring the winner is whoever won more holes
+  // (standings carry holesWon); otherwise it's the lower toPar. null = push/halved.
   function legWinner(leg: PoolLegKey): { winnerId: string | null; a?: PoolResult['legs'][number]['standings'][number]; b?: PoolResult['legs'][number]['standings'][number] } {
     const l = result.legs.find((x) => x.leg === leg);
     if (!l) return { winnerId: null };
     const played = l.standings.filter((s) => s.thru > 0);
     const [a, b] = l.standings;
     if (played.length < 2) return { winnerId: null, a, b };
+    if (isHoleMatch && played.every((s) => s.holesWon !== undefined)) {
+      const sorted = [...played].sort((x, y) => (y.holesWon ?? 0) - (x.holesWon ?? 0));
+      if ((sorted[0].holesWon ?? 0) === (sorted[1].holesWon ?? 0)) return { winnerId: null, a, b };
+      return { winnerId: sorted[0].teamId, a, b };
+    }
     const sorted = [...played].sort((x, y) => x.toPar - y.toPar);
     if (sorted[0].toPar === sorted[1].toPar) return { winnerId: null, a, b };
     return { winnerId: sorted[0].teamId, a, b };
+  }
+
+  // Match-play sub-caption for a leg: "5½–3½ (holes won)" from the two standings.
+  function holeMatchLine(leg: PoolLegKey): string | null {
+    if (!isHoleMatch) return null;
+    const l = result.legs.find((x) => x.leg === leg);
+    if (!l) return null;
+    const [a, b] = l.standings;
+    if (!a || !b || a.matchPoints === undefined || b.matchPoints === undefined) return null;
+    const fmt = (n: number) => (n % 1 === 0 ? String(n) : `${Math.floor(n)}½`);
+    return `${teamName(a.teamId)} ${fmt(a.matchPoints)} – ${fmt(b.matchPoints)} ${teamName(b.teamId)} (holes won)`;
   }
 
   // Junk differential
@@ -529,12 +547,15 @@ function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult })
       <div className="divide-y divide-gray-700/30">
         {scoreLegs.map(({ key, label, dollars }) => {
           const { winnerId, a, b } = legWinner(key);
+          const matchLine = holeMatchLine(key);
           return (
             <div key={key} className="px-4 py-2.5 flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-200">{label}</p>
                 <p className="text-[10px] text-gray-500">
-                  {a && b ? `${teamName(a.teamId)} ${a.thru ? a.toPar : '–'} vs ${teamName(b.teamId)} ${b.thru ? b.toPar : '–'} (to par)` : '—'}
+                  {matchLine
+                    ? matchLine
+                    : a && b ? `${teamName(a.teamId)} ${a.thru ? a.toPar : '–'} vs ${teamName(b.teamId)} ${b.thru ? b.toPar : '–'} (to par)` : '—'}
                 </p>
               </div>
               <div className="text-right text-sm">

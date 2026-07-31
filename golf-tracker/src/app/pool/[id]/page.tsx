@@ -28,6 +28,7 @@ import {
   poolStrokeMap,
   summarizeTeamBuild,
   DEFAULT_MATCH_CONFIG,
+  DEFAULT_MATCH_POINTS,
   DEFAULT_JUNK_VALUES,
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
@@ -657,6 +658,60 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
 
         {isMatch ? (
           <div className="border-t pt-3">
+            {/* How each leg (front/back/overall) is WON between the two foursomes.
+                Money settlement (below) is identical either way. */}
+            <p className="text-sm font-semibold text-gray-800 mb-2">Leg scoring</p>
+            <div className="flex gap-2 mb-1">
+              {([
+                { v: 'stroke' as const, label: 'Stroke (lower total)' },
+                { v: 'holes' as const, label: 'Match play (holes won)' },
+              ]).map(({ v, label }) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => onSave({ ...game, matchConfig: {
+                    ...matchCfg,
+                    scoring: v,
+                    pointsPerHole: matchCfg.pointsPerHole ?? { ...DEFAULT_MATCH_POINTS },
+                  } })}
+                  className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                    (matchCfg.scoring ?? 'stroke') === v ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              {(matchCfg.scoring ?? 'stroke') === 'holes'
+                ? 'Each leg goes to whoever wins more holes head-to-head (lower team score wins the hole) — like regular match play. Money is unchanged: winning a leg pays the amount below.'
+                : 'Each leg goes to the lower net-to-par total across its holes.'}
+            </p>
+
+            {(matchCfg.scoring ?? 'stroke') === 'holes' && (
+              <div className="mb-3">
+                <label className="block text-xs text-gray-600 font-medium mb-1">Points per hole (display only)</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { key: 'win' as const, label: 'Win', fallback: 1 },
+                    { key: 'tie' as const, label: 'Tie', fallback: 0.5 },
+                    { key: 'loss' as const, label: 'Loss', fallback: 0 },
+                  ]).map(({ key, label, fallback }) => (
+                    <div key={key}>
+                      <label className="block text-[11px] text-gray-500 font-medium mb-1">{label}</label>
+                      <NumberField className={inputCls + ' text-center'}
+                        value={(matchCfg.pointsPerHole ?? DEFAULT_MATCH_POINTS)[key]} fallback={fallback}
+                        onCommit={(n) => onSave({ ...game, matchConfig: {
+                          ...matchCfg,
+                          pointsPerHole: { ...(matchCfg.pointsPerHole ?? DEFAULT_MATCH_POINTS), [key]: n },
+                        } })} />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">The leg is always won by more holes; points just set how the match score reads (e.g. 5½–3½).</p>
+              </div>
+            )}
+
             <p className="text-sm font-semibold text-gray-800 mb-2">Match payouts ($ / player)</p>
             <div className="grid grid-cols-3 gap-2">
               {(['front', 'back', 'overall'] as const).map((key) => (

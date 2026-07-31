@@ -61,14 +61,30 @@ export type PoolMoneyMode = 'pot' | 'match';
 
 // Match-mode money config. legDollars are PER PLAYER per leg; junkPerPoint is the
 // dollars PER PLAYER for each junk point of margin between the two teams.
+//
+// `scoring` decides HOW a leg (front/back/overall) is won between the two
+// foursomes — the money settlement (fixed $/leg + junk differential) is the
+// same either way:
+//   'stroke' (default, legacy) — the leg goes to the lower net-to-par TOTAL.
+//   'holes'  — real match play: the leg goes to whoever WON MORE HOLES
+//              head-to-head (lower team score wins the hole). `pointsPerHole`
+//              (default 1 / 0.5 / 0) is just how that hole tally is DISPLAYED as
+//              a score (e.g. "5½–3½"); it never changes who wins the leg (that's
+//              always more holes won). Match play is only defined for two teams.
 export interface PoolMatchConfig {
   legDollars: { front: number; back: number; overall: number };
   junkPerPoint: number;
+  scoring?: 'stroke' | 'holes';
+  pointsPerHole?: { win: number; tie: number; loss: number };
 }
+
+export const DEFAULT_MATCH_POINTS = { win: 1, tie: 0.5, loss: 0 };
 
 export const DEFAULT_MATCH_CONFIG: PoolMatchConfig = {
   legDollars: { front: 10, back: 10, overall: 10 },
   junkPerPoint: 5,
+  scoring: 'stroke',
+  pointsPerHole: { ...DEFAULT_MATCH_POINTS },
 };
 
 export interface PoolGame {
@@ -167,6 +183,11 @@ export interface PoolTeamLegStanding {
   thru: number;    // leg holes scored
   place: number;
   payout: number;  // gross winnings from this leg's sub-pot
+  // Head-to-head match play only (matchConfig.scoring === 'holes'): holes won by
+  // THIS team over the other in the leg, and the display points from those
+  // (holesWon × win + holesTied × tie). Undefined in stroke/pot scoring.
+  holesWon?: number;
+  matchPoints?: number;
 }
 
 export interface PoolLeg {
@@ -1130,13 +1151,51 @@ function computeJunk(
   });
 }
 
-// The winner/loser of a single leg in a HEAD-TO-HEAD match. Ranks the two
-// foursomes by toPar (lower is better) — toPar normalizes for differing thru
-// counts, so this reads correctly live and mirrors how pot mode ranks. Returns
-// nulls for a push (equal toPar) or when fewer than two teams have any score.
+// Head-to-head HOLE tally for a leg between exactly two teams (match-play
+// scoring). For each leg hole where BOTH teams have a team score, the lower
+// score wins the hole; equal scores halve it. Returns holes won by each side,
+// halved holes, and the display points (holesWon × win + halved × tie).
+function computeLegHoleMatch(
+  legHoles: HoleData[],
+  teamAId: string,
+  teamBId: string,
+  holeScoresByTeam: Map<string, Map<number, number | null>>,
+  points: { win: number; tie: number; loss: number }
+): { aWon: number; bWon: number; tied: number; aPoints: number; bPoints: number } {
+  const aMap = holeScoresByTeam.get(teamAId);
+  const bMap = holeScoresByTeam.get(teamBId);
+  let aWon = 0, bWon = 0, tied = 0;
+  for (const hole of legHoles) {
+    const a = aMap?.get(hole.number);
+    const b = bMap?.get(hole.number);
+    if (a === null || a === undefined || b === null || b === undefined) continue;
+    if (a < b) aWon++;
+    else if (b < a) bWon++;
+    else tied++;
+  }
+  return {
+    aWon, bWon, tied,
+    aPoints: aWon * points.win + tied * points.tie,
+    bPoints: bWon * points.win + tied * points.tie,
+  };
+}
+
+// The winner/loser of a single leg in a HEAD-TO-HEAD match. In match-play
+// ('holes') scoring the leg standings carry `holesWon`, so the leg goes to
+// whoever won more holes (equal = halved = push). Otherwise ranks by toPar
+// (lower is better) — toPar normalizes for differing thru counts. Returns nulls
+// for a push, or when fewer than two teams have any score.
 function matchLegOutcome(leg: PoolLeg): { winnerId: string | null; loserId: string | null } {
   const played = leg.standings.filter((s) => s.thru > 0);
   if (played.length < 2) return { winnerId: null, loserId: null };
+
+  // Match-play: decide by holes won when the leg has been annotated with a tally.
+  if (played.every((s) => s.holesWon !== undefined)) {
+    const sorted = [...played].sort((a, b) => (b.holesWon ?? 0) - (a.holesWon ?? 0));
+    if ((sorted[0].holesWon ?? 0) === (sorted[1].holesWon ?? 0)) return { winnerId: null, loserId: null }; // halved
+    return { winnerId: sorted[0].teamId, loserId: sorted[1].teamId };
+  }
+
   const sorted = [...played].sort((a, b) => a.toPar - b.toPar);
   if (sorted[0].toPar === sorted[1].toPar) return { winnerId: null, loserId: null }; // push
   return { winnerId: sorted[0].teamId, loserId: sorted[1].teamId };
@@ -1296,6 +1355,44 @@ export function computePoolResult(
   const front = buildLeg('front', frontHoles, game.teams, holeScoresByTeam, pot * game.potSplit.front, game.positionSplit);
   const back = buildLeg('back', backHoles, game.teams, holeScoresByTeam, pot * game.potSplit.back, game.positionSplit);
   const overall = buildLeg('overall', holes, game.teams, holeScoresByTeam, pot * game.potSplit.overall, game.positionSplit);
+
+  // Head-to-head match play (two teams, matchConfig.scoring === 'holes'):
+  // annotate each score leg with the hole-by-hole tally so the leg is won by
+  // holes-won (not lowest total) and the leaderboard can show a match score.
+  // Money settlement is unchanged (computeMatchPayouts reads holesWon via
+  // matchLegOutcome). Stroke/pot scoring leaves the legs untouched.
+  const matchCfg0 = game.matchConfig ?? DEFAULT_MATCH_CONFIG;
+  if (isMatch && matchCfg0.scoring === 'holes' && game.teams.length === 2) {
+    const [tA, tB] = game.teams;
+    const pts = matchCfg0.pointsPerHole ?? DEFAULT_MATCH_POINTS;
+    const annotate = (leg: PoolLeg, legHoles: HoleData[]) => {
+      const m = computeLegHoleMatch(legHoles, tA.id, tB.id, holeScoresByTeam, pts);
+      for (const s of leg.standings) {
+        const isA = s.teamId === tA.id;
+        s.holesWon = isA ? m.aWon : m.bWon;
+        s.matchPoints = isA ? m.aPoints : m.bPoints;
+      }
+      // Re-rank place/order by holes won (higher is better) so the leaderboard's
+      // place number and row order match the match result, not the stroke total.
+      // Only teams that have played get a place; a tie shares place 1.
+      leg.standings.sort((a, b) => {
+        if (a.thru === 0 && b.thru === 0) return 0;
+        if (a.thru === 0) return 1;
+        if (b.thru === 0) return -1;
+        return (b.holesWon ?? 0) - (a.holesWon ?? 0);
+      });
+      let place = 1;
+      for (let i = 0; i < leg.standings.length; i++) {
+        const s = leg.standings[i];
+        if (s.thru === 0) { s.place = 0; continue; }
+        if (i > 0 && leg.standings[i - 1].thru > 0 && (leg.standings[i - 1].holesWon ?? 0) !== (s.holesWon ?? 0)) place = i + 1;
+        s.place = place;
+      }
+    };
+    annotate(front, frontHoles);
+    annotate(back, backHoles);
+    annotate(overall, holes);
+  }
 
   // Junk leg — ranked by most points (higher is better).
   const junkDetails = computeJunk(game, holes, scoresByMatchup);
