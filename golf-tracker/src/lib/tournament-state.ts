@@ -419,7 +419,16 @@ export function onVisibilityRefetch(matchupIds: string[], onRefreshed?: () => vo
   return () => document.removeEventListener('visibilitychange', handler);
 }
 
-// Subscribe to realtime score changes for a matchup
+// Subscribe to realtime score changes for a matchup.
+//
+// Self-healing: supabase-js automatically rejoins the channel when the
+// WebSocket drops (mobile network handoff, wifi↔cellular, brief signal loss),
+// but a plain onUpdate handler only sees changes that arrive AFTER the channel
+// is healthy again — anything written during the outage is silently missed
+// until something else refetches. So on every (re)SUBSCRIBED — the initial join
+// and every automatic rejoin — we pull the current server truth and push it
+// through onUpdate. That closes the outage gap the instant realtime revives,
+// which is what keeps updates feeling live rather than waiting for a poll tick.
 let scoreChannelCounter = 0;
 export function subscribeToScores(matchupId: string, onUpdate: (scores: any) => void) {
   const channelName = `scores:${matchupId}:${++scoreChannelCounter}`;
@@ -441,7 +450,14 @@ export function subscribeToScores(matchupId: string, onUpdate: (scores: any) => 
         onUpdate(scores);
       }
     })
-    .subscribe();
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        // fetchGameScores also refreshes scoresCache + the audit baseline.
+        fetchGameScores(matchupId).then((scores) => {
+          if (scores) onUpdate(scores);
+        });
+      }
+    });
 }
 
 // Subscribe to realtime tournament changes

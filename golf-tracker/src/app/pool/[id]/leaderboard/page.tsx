@@ -62,11 +62,15 @@ export default function PoolLeaderboardPage() {
 
     Promise.all(ids.map((mid) => fetchGameScores(mid))).then(recompute);
 
+    // Realtime is the primary path (self-healing: each channel re-syncs on
+    // connect/reconnect). This poll is a backstop for the rare case realtime is
+    // fully blocked (e.g. guest wifi killing WebSockets) — 15s so worst-case lag
+    // is small without hammering the network from every viewer's phone.
     const channels = ids.map((mid) => subscribeToScores(mid, () => recompute()));
     const removeVisibility = onVisibilityRefetch(ids, recompute);
     const interval = setInterval(() => {
       Promise.all(ids.map((mid) => fetchGameScores(mid))).then(recompute);
-    }, 30000);
+    }, 15000);
 
     return () => {
       channels.forEach((ch) => ch.unsubscribe());

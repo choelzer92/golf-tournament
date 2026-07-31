@@ -71,7 +71,18 @@ export default function ScoreboardPage() {
     // Re-fetch when tab becomes visible (catches missed realtime events)
     const cleanupVisibility = onVisibilityRefetch(matchupIds, () => setScoreTick((t) => t + 1));
 
-    return () => { channels.forEach((ch) => ch.unsubscribe()); cleanupVisibility(); };
+    // Poll every 15s as a fallback for dropped/blocked realtime. A shared
+    // scoreboard on a viewer device often never receives WebSocket events
+    // (cellular↔wifi handoff, guest/corporate wifi blocking WS, mobile
+    // throttling); without this the board freezes on the scores present at
+    // page load. Mirrors the pool leaderboard and the play-page scorecard.
+    const pollInterval = setInterval(() => {
+      Promise.all(matchupIds.map((mid) => fetchGameScores(mid))).then(() => {
+        setScoreTick((t) => t + 1);
+      });
+    }, 15000);
+
+    return () => { channels.forEach((ch) => ch.unsubscribe()); cleanupVisibility(); clearInterval(pollInterval); };
   }, [tournament?.rounds.map((r) => r.matchups.filter((m) => m.gameId && !m.result).map((m) => m.id)).flat().join(',')]);
 
   if (!tournament) return null;
@@ -700,7 +711,7 @@ function RoundScoreboard({ round, tournament, scoreTick }: { round: TournamentRo
 
       <div className="divide-y divide-gray-700">
         {round.matchups.map((matchup) => (
-          <MatchupScorecard key={matchup.id} matchup={matchup} round={round} tournament={tournament} />
+          <MatchupScorecard key={matchup.id} matchup={matchup} round={round} tournament={tournament} scoreTick={scoreTick} />
         ))}
       </div>
 
@@ -722,7 +733,7 @@ function RoundScoreboard({ round, tournament, scoreTick }: { round: TournamentRo
   );
 }
 
-function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchup; round: TournamentRound; tournament: Tournament }) {
+function MatchupScorecard({ matchup, round, tournament, scoreTick }: { matchup: RoundMatchup; round: TournamentRound; tournament: Tournament; scoreTick: number }) {
   const [expanded, setExpanded] = useState(false);
   const [scores, setScores] = useState<GameScore[] | null>(loadGameScores(matchup.id));
 
@@ -737,6 +748,14 @@ function MatchupScorecard({ matchup, round, tournament }: { matchup: RoundMatchu
       return () => { channel.unsubscribe(); };
     }
   }, [matchup.id, matchup.gameId, matchup.result]);
+
+  // Refresh from cache when the parent's 15s poll advances scoreTick — the poll
+  // already fetched fresh scores into the cache, so an expanded card stays live
+  // even when this row's own realtime channel is dropped/blocked.
+  useEffect(() => {
+    const s = loadGameScores(matchup.id);
+    if (s && Array.isArray(s)) setScores(s);
+  }, [scoreTick, matchup.id]);
 
   const teamAPlayers = tournament.players.filter((p) => matchup.teamAPlayerIds.includes(p.id));
   const teamBPlayers = tournament.players.filter((p) => matchup.teamBPlayerIds.includes(p.id));
