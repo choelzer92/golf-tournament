@@ -9,7 +9,6 @@ import { teamGame } from './team-game';
 import { wolf } from './wolf';
 import { stablefordIndividual } from './stableford';
 import { lowTotal } from './low-total';
-import { splitSixes } from './split-sixes';
 
 export type {
   GameCategory,
@@ -26,7 +25,7 @@ export { defaultSettings, settingValue, numberSetting, boolSetting, stringSettin
 
 // Registered game modes (order = display order in the wizard).
 export const GAME_MODES: GameModeDescriptor[] = [
-  nines, splitSixes, skins, stablefordIndividual, quota, lowTotal, teamGame, wolf,
+  nines, skins, stablefordIndividual, quota, lowTotal, teamGame, wolf,
 ];
 
 export function getGameMode(id: string | undefined): GameModeDescriptor | undefined {

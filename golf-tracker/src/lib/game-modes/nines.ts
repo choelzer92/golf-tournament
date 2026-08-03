@@ -18,7 +18,7 @@ const SETTINGS: FormatSetting[] = [
   {
     key: 'pointVector', label: 'Points per hole (best → worst)', type: 'text',
     defaultValue: '5,3,1',
-    hint: 'Points awarded 1st/2nd/3rd… Sums to the hole pool (5+3+1 = 9). Editable, e.g. "6,4,2".',
+    hint: 'Points awarded 1st/2nd/3rd… Sums to the hole pool (5+3+1 = 9). Editable — e.g. "4,2,0" for Split Sixes, or "5,3,1,0" for four players.',
   },
   {
     key: 'moneyModel', label: 'Money', type: 'select',
@@ -100,8 +100,8 @@ function compute(ctx: GameModeContext): IndividualResult {
 
 export const nines: GameModeDescriptor = {
   id: 'nines',
-  name: 'Nines (5-3-1)',
-  description: 'Split a pool of points each hole by score — best takes the most. Ties split evenly.',
+  name: 'Nines / Split Sixes',
+  description: 'Split a pool of points each hole by score — best takes the most, ties split evenly. Default 5-3-1 (Nines); set 4-2-0 for Split Sixes.',
   category: 'individual',
   inputType: 'gross',
   playersMin: 3,
