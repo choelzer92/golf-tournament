@@ -812,6 +812,28 @@ function IndividualLeaderboard({ id }: { id: string }) {
               )}
             </div>
 
+            {/* Front / Back / Overall breakdown (2v2 team games) — Nassau-style. */}
+            {result.teamLegs && result.teamLegs.length > 0 && (
+              <div className="bg-gray-800 rounded-xl overflow-hidden">
+                <div className="px-4 py-2 border-b border-gray-700">
+                  <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Front · Back · Overall</p>
+                </div>
+                <div className="divide-y divide-gray-700/30">
+                  {result.teamLegs.map((leg) => (
+                    <div key={leg.key} className="px-4 py-2.5 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-200">{leg.label}</p>
+                        {leg.thru > 0 && <p className="text-[10px] text-gray-500">thru {leg.thru}</p>}
+                      </div>
+                      <span className={`text-sm font-medium ${leg.winner === 'a' ? 'text-blue-300' : leg.winner === 'b' ? 'text-red-300' : 'text-gray-400'}`}>
+                        {leg.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Per-player scorecard (reuses the same grid + strokes box as the team view). */}
             {players.length > 0 && (
               <div className="bg-gray-800 rounded-xl overflow-hidden">

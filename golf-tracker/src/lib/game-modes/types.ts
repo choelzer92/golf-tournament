@@ -69,6 +69,18 @@ export interface PlayerStanding {
   place: number;                  // 1-based rank (ties share a place); 0 if unscored
 }
 
+// A front/back/overall sub-result for a 2v2 team game (Nassau-style breakdown).
+// `label` is "Front 9" / "Back 9" / "Overall 18". `status` is a ready-to-show
+// line (e.g. "A 2 UP", "All square", "Side A by 3"). `winner` is which side
+// leads that leg ('a'|'b'|null for tied/none).
+export interface TeamLegLine {
+  key: 'front' | 'back' | 'overall';
+  label: string;
+  status: string;
+  winner: 'a' | 'b' | null;
+  thru: number;
+}
+
 // The individual-game result. Discriminated by `kind` so the leaderboard can
 // branch once against the team PoolResult.
 export interface IndividualResult {
@@ -79,6 +91,9 @@ export interface IndividualResult {
   pot: number;
   thruHole: number;
   moneyModel: 'per-point' | 'pot';
+  // 2v2 team games only: front/back/overall breakdown for the leaderboard.
+  teamLegs?: TeamLegLine[];
+  sideNames?: { a: string; b: string };
 }
 
 // --- shared settlement helpers (kept here so every mode reuses one impl) -----

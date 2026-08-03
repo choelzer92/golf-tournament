@@ -172,7 +172,7 @@ export default function PoolHubPage() {
   }
 
   function enterScores(team: PoolTeam) {
-    const players = playersForTeam(team);
+    let players = playersForTeam(team);
     const strokeMethod = game!.strokeMethod || 'full';
 
     // For off-the-low, compute the field-low playing handicap across the WHOLE
@@ -185,12 +185,37 @@ export default function PoolHubPage() {
       );
     }
 
+    // Base setup: a normal per-player pool scorecard (best-ball/combined/individual
+    // games need nothing more — the leaderboard folds sides at compute time).
+    let teamMode: GameSetup['teamMode'] = 'two-best-balls';
+    let handicapAllowance = game!.handicapAllowance;
+
+    // Scramble / alternate-shot (2v2 within group) enter ONE ball per side. We
+    // reuse the existing play-page oneBall entry by tagging each player with their
+    // side (.team) and setting teamMode; the format-specific allowance makes the
+    // play page's team-handicap DISPLAY match the leaderboard compute (scramble
+    // uses -1 for USGA tiered; alt-shot uses its % of the 60/40 combined).
+    const mode = getGameMode(game!.gameMode);
+    if (mode?.category === 'team-within-group') {
+      const fmt = String(game!.modeSettings?.format ?? 'best-ball');
+      if (fmt === 'scramble' || fmt === 'alternate-shot') {
+        const sides = game!.subTeams
+          ?? defaultSubTeams(game!.players.map((p) => p.id), game!.players, game!.course, game!.handicapAllowance, game!.handicapBasis);
+        players = players.map((p) => ({
+          ...p,
+          team: sides.a.includes(p.id) ? 'A' : sides.b.includes(p.id) ? 'B' : undefined,
+        }));
+        teamMode = fmt;
+        handicapAllowance = fmt === 'scramble' ? -1 : Number(game!.modeSettings?.altShotAllowance ?? 50);
+      }
+    }
+
     const setup: GameSetup = {
       formatId: 'stroke-play',
-      teamMode: 'two-best-balls',
+      teamMode,
       course: game!.course,
       players,
-      handicapAllowance: game!.handicapAllowance,
+      handicapAllowance,
       holesPlaying: '18',
       strokeMethod,
       handicapBasis: game!.handicapBasis ?? 'course',

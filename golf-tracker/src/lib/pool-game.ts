@@ -920,6 +920,34 @@ export function defaultSubTeams(
   return { a, b };
 }
 
+// One team playing handicap for a single-ball format (scramble / alternate shot),
+// from the members' RAW course handicaps (allowance 100). Matches the play page's
+// getScrambleTeamHandicap / getAlternateShotTeamHandicap exactly so the on-screen
+// entry net and the leaderboard agree.
+//   scramble: USGA tiered by member count (2:[.35,.15] 3:[.30,.20,.10]
+//             4:[.25,.20,.15,.10]) — UNLESS allowancePct >= 0, then flat sum×%.
+//   alternate-shot: (low×0.6 + high×0.4) × (allowancePct/100), default 50%.
+export function teamHandicapForFormat(
+  rawCourseHcaps: number[],
+  format: 'scramble' | 'alternate-shot',
+  allowancePct?: number,
+): number {
+  const hcaps = [...rawCourseHcaps].sort((a, b) => a - b);
+  if (format === 'alternate-shot') {
+    const allowance = (allowancePct ?? 50) / 100;
+    if (hcaps.length < 2) return Math.round((hcaps[0] || 0) * allowance);
+    return Math.round((hcaps[0] * 0.6 + hcaps[1] * 0.4) * allowance);
+  }
+  // scramble
+  if (allowancePct !== undefined && allowancePct >= 0) {
+    return Math.round(hcaps.reduce((s, h) => s + h, 0) * (allowancePct / 100));
+  }
+  const multipliers = hcaps.length === 2 ? [0.35, 0.15]
+    : hcaps.length === 3 ? [0.30, 0.20, 0.10]
+    : [0.25, 0.20, 0.15, 0.10];
+  return Math.round(hcaps.reduce((sum, h, i) => sum + h * (multipliers[i] || 0), 0));
+}
+
 // Display order for a foursome: the CAPTAIN first (so the (C) row leads), then
 // everyone else low->high. Used by every read-only team view so the captain is
 // always at the top regardless of their handicap.
