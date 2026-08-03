@@ -15,7 +15,7 @@ import {
   DEFAULT_MATCH_CONFIG,
 } from '@/lib/pool-game';
 import { getGameMode, type IndividualResult } from '@/lib/game-modes';
-import { computeGameResult } from '@/lib/game-modes/result';
+import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
 
 const LEG_LABELS: Record<PoolLegKey, string> = {
   front: 'Front 9',
@@ -86,9 +86,10 @@ export default function PoolLeaderboardPage() {
 
   if (!game) return null;
 
-  // Individual game (9s / skins / quota / …): render the per-player leaderboard.
-  // The team path below is untouched for classic pot/match pools.
-  if (getGameMode(game.gameMode)?.category === 'individual') {
+  // Single-group game (9s / skins / quota / 2v2 within group): render the
+  // per-player/side leaderboard. The team path below is untouched for classic
+  // pot/match pools.
+  if (isSingleGroupGame(game)) {
     return <IndividualLeaderboard id={id} />;
   }
 
@@ -739,13 +740,21 @@ function IndividualLeaderboard({ id }: { id: string }) {
 
   if (!game) return null;
   const mode = getGameMode(game.gameMode);
+  const isWithinGroup = mode?.category === 'team-within-group';
   const players = teamDetails[0]?.players ?? [];
 
   const money = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}$${Math.abs(Math.round(n))}`;
-  const fmtPts = (n: number) => {
+  // Signed points (9s/quota, match pts) read better with a leading +. But a
+  // stroke-total metric is a raw net (e.g. 72) that must NOT be +-prefixed.
+  const isStrokeMetric = result?.metricLabel === 'net';
+  const fmtMetric = (n: number) => {
     const r = Math.round(n * 10) / 10;
-    return (r > 0 ? '+' : '') + (r % 1 === 0 ? String(r) : r.toFixed(1));
+    const s = r % 1 === 0 ? String(r) : r.toFixed(1);
+    return isStrokeMetric ? s : (r > 0 ? '+' : '') + s;
   };
+  // Side labels ("Alice & Bob") aren't personal names — don't truncate to a first
+  // word. Per-player individual games still show first names.
+  const displayName = (n: string) => (isWithinGroup ? n : n.split(' ')[0]);
 
   return (
     <div className="min-h-full bg-gray-900">
@@ -778,7 +787,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
                 <thead>
                   <tr className="text-gray-500 border-b border-gray-700/50 text-xs">
                     <th className="text-left px-3 py-1.5 font-medium">#</th>
-                    <th className="text-left px-2 py-1.5 font-medium">Player</th>
+                    <th className="text-left px-2 py-1.5 font-medium">{isWithinGroup ? 'Side' : 'Player'}</th>
                     <th className="text-center px-2 py-1.5 font-medium">{result.metricLabel}</th>
                     <th className="text-center px-2 py-1.5 font-medium">Thru</th>
                     <th className="text-right px-3 py-1.5 font-medium">$</th>
@@ -788,8 +797,8 @@ function IndividualLeaderboard({ id }: { id: string }) {
                   {result.standings.map((s) => (
                     <tr key={s.playerId} className="border-t border-gray-700/30">
                       <td className="px-3 py-1.5 text-gray-400">{s.place || '-'}</td>
-                      <td className="px-2 py-1.5 text-gray-200 font-medium">{s.playerName.split(' ')[0]}</td>
-                      <td className="text-center px-2 py-1.5 font-bold text-white">{fmtPts(s.points)}</td>
+                      <td className="px-2 py-1.5 text-gray-200 font-medium">{displayName(s.playerName)}</td>
+                      <td className="text-center px-2 py-1.5 font-bold text-white">{fmtMetric(s.points)}</td>
                       <td className="text-center px-2 py-1.5 text-gray-400">{s.thru || '-'}</td>
                       <td className={`text-right px-3 py-1.5 font-medium ${s.moneyNet > 0 ? 'text-green-400' : s.moneyNet < 0 ? 'text-red-400' : 'text-gray-500'}`}>
                         {money(s.moneyNet)}

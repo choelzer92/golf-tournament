@@ -21,6 +21,7 @@ import {
   pickCaptains,
   sortPlayerIdsByHcap,
   orderPlayerIdsWithCaptain,
+  defaultSubTeams,
   teeOptionsForPlayer,
   playerTeeGenderMismatch,
   rankSwapCandidates,
@@ -590,13 +591,22 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
 
   const inputCls = 'w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500';
 
-  // Individual game (9s / skins / quota / …): name + handicap fields + the mode's
-  // own toggleable options. No pot/match/ball/team settings apply.
+  // Single-group game (9s / skins / quota / 2v2 / …): name + handicap fields +
+  // the mode's own toggleable options (+ a Sides editor for 2v2). No pot/match/
+  // ball/team settings apply.
   const indMode = getGameMode(game.gameMode);
-  if (indMode && indMode.category === 'individual') {
+  if (indMode && (indMode.category === 'individual' || indMode.category === 'team-within-group')) {
+    const isWithinGroup = indMode.category === 'team-within-group';
     const modeSettings = game.modeSettings ?? defaultSettings(indMode.settings);
     const setModeSetting = (key: string, value: SettingValue) =>
       onSave({ ...game, modeSettings: { ...modeSettings, [key]: value } });
+    const sides = game.subTeams ?? defaultSubTeams(game.players.map((p) => p.id), game.players, game.course, game.handicapAllowance, game.handicapBasis);
+    const assignSide = (pid: string, side: 'a' | 'b') => {
+      const a = sides.a.filter((x) => x !== pid);
+      const b = sides.b.filter((x) => x !== pid);
+      (side === 'a' ? a : b).push(pid);
+      onSave({ ...game, subTeams: { a, b } });
+    };
     return (
       <section className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-4 py-3 bg-gray-100 border-b">
@@ -633,6 +643,35 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
             <p className="text-sm font-semibold text-gray-800 mb-2">{indMode.name} options</p>
             <ModeSettingsEditor schema={indMode.settings} values={modeSettings} onChangeAction={setModeSetting} />
           </div>
+          {isWithinGroup && (
+            <div className="pt-2 border-t">
+              <p className="text-sm font-semibold text-gray-800 mb-2">Sides</p>
+              <div className="divide-y divide-gray-100 rounded-md border border-gray-200">
+                {game.players.map((p) => {
+                  const s = sides.a.includes(p.id) ? 'a' : sides.b.includes(p.id) ? 'b' : null;
+                  return (
+                    <div key={p.id} className="flex items-center justify-between px-3 py-2">
+                      <span className="text-sm text-gray-800">{p.name}</span>
+                      <div className="flex gap-1.5">
+                        {(['a', 'b'] as const).map((side) => (
+                          <button
+                            key={side}
+                            type="button"
+                            onClick={() => assignSide(p.id, side)}
+                            className={`w-8 h-8 rounded-full text-xs font-bold transition ${
+                              s === side ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            {side.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </section>
     );
@@ -862,7 +901,7 @@ function PotSplitEditor({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame
 
 function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
   const indMode = getGameMode(game.gameMode);
-  if (indMode && indMode.category === 'individual') {
+  if (indMode && (indMode.category === 'individual' || indMode.category === 'team-within-group')) {
     const settings = game.modeSettings ?? {};
     // Show the mode's chosen option values as a compact read-only summary.
     const rows = indMode.settings.map((s) => {

@@ -120,6 +120,9 @@ export interface PoolGame {
   // rendered from the mode's FormatSetting[] schema). See lib/game-modes/.
   gameMode?: string;
   modeSettings?: Record<string, string | number | boolean>;
+  // Team-within-group games only (2v2 in one foursome). ABSENT for every other
+  // game. Player-id lists don't fit the flat modeSettings bag, so they live here.
+  subTeams?: { a: string[]; b: string[] };
 }
 
 export const DEFAULT_JUNK_VALUES: PoolJunkValues = {
@@ -894,6 +897,27 @@ export function sortPlayerIdsByHcap(
     const hb = pb ? getPoolPlayingHandicap(pb, course, allowance, basis) : 0;
     return ha - hb;
   });
+}
+
+// A balanced default 2v2 split for a group: sort by course handicap, then pair
+// the lowest with the highest (side A) against the two middle players (side B) —
+// the standard way to even up a two-on-two. Handles 3 players (2v1) and other
+// sizes gracefully by alternating the sorted order.
+export function defaultSubTeams(
+  playerIds: string[],
+  players: Player[],
+  course: CourseSelection | null,
+  allowance: number,
+  basis: 'course' | 'index' = 'course'
+): { a: string[]; b: string[] } {
+  const sorted = sortPlayerIdsByHcap(playerIds, players, course, allowance, basis);
+  if (sorted.length === 4) {
+    return { a: [sorted[0], sorted[3]], b: [sorted[1], sorted[2]] };
+  }
+  // Fallback for non-4 groups: alternate low/high into the two sides.
+  const a: string[] = [], b: string[] = [];
+  sorted.forEach((id, i) => (i % 2 === 0 ? a : b).push(id));
+  return { a, b };
 }
 
 // Display order for a foursome: the CAPTAIN first (so the (C) row leads), then

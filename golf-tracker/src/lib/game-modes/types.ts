@@ -3,10 +3,14 @@ import type { FormatSetting } from '../formats';
 import type { HoleData } from '../pool-game';
 
 // A game mode's category decides which result axis (and leaderboard) it uses.
-//   'team'       — the classic pool: compare foursomes (computePoolResult).
-//   'individual' — the players of ONE foursome compete against each other
-//                  (this module's compute + IndividualResult).
-export type GameCategory = 'team' | 'individual';
+//   'team'              — the classic pool: compare foursomes (computePoolResult).
+//                         (Documentation value; classic pool has no descriptor.)
+//   'individual'        — the players of ONE foursome compete against each other.
+//   'team-within-group' — the players of ONE foursome are split into two SIDES
+//                         (2v2) that compete head-to-head. Also single-group.
+// Both 'individual' and 'team-within-group' produce an IndividualResult and use
+// the single-group leaderboard (see isSingleGroupGame).
+export type GameCategory = 'team' | 'individual' | 'team-within-group';
 
 // What score entry a mode needs. 'gross' reuses the existing gross-per-player
 // scorecard unchanged. 'gross+decisions' additionally needs per-hole decision
@@ -46,6 +50,13 @@ export interface GameModeContext {
   strokesOnHole(playerId: string, hole: HoleData): number;
   grossOnHole(playerId: string, hole: HoleData): number | null;
   netOnHole(playerId: string, hole: HoleData): number | null;
+  // Team-within-group games only: the two sides' player-id lists (from
+  // game.subTeams, else a balanced default). Undefined for individual games.
+  subTeams?: { a: string[]; b: string[] };
+  // Raw course handicap (allowance 100, no off-the-low) — the input the USGA
+  // team-handicap formulas need (scramble/alt-shot, Phase B). Distinct from
+  // playingHcap, which is allowance-adjusted, off-the-low-adjusted, and rounded.
+  rawCourseHcap(playerId: string): number;
 }
 
 export interface PlayerStanding {

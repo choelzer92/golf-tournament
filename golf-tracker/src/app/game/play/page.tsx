@@ -12,6 +12,7 @@ import { computeSideGameResult } from '@/lib/side-game';
 import type { SideGameResult } from '@/lib/side-game';
 import type { PoolGame, PoolResult, PoolLeg } from '@/lib/pool-game';
 import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores } from '@/lib/pool-game';
+import { isSingleGroupGame } from '@/lib/game-modes/result';
 
 interface PoolGameContext {
   poolGameId: string;
@@ -693,7 +694,10 @@ export default function PlayGamePage() {
         <TournamentOverviewPanel tournamentCtx={tournamentCtx} currentMatchupId={tournamentCtx.matchupId} currentScores={scores} setup={setup} getScore={getScore} getPlayerStrokesOnHole={getPlayerStrokesOnHole} remoteScores={remoteScores} otherMatchupTick={otherMatchupTick} />
       )}
 
-      {poolCtx && poolGame && (
+      {/* The pool overview is the foursome-vs-foursome standing — only meaningful
+          for the classic multi-team pool. Single-group games (9s/skins/quota/2v2)
+          have their own leaderboard and would get a meaningless "1st of 1" here. */}
+      {poolCtx && poolGame && !isSingleGroupGame(poolGame) && (
         <PoolOverviewPanel poolGame={poolGame} myMatchupId={poolCtx.matchupId} myScores={scores} tick={poolOtherTick} />
       )}
 

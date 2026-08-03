@@ -30,6 +30,7 @@ import {
   sortPlayerIdsByHcap,
   orderPlayerIdsWithCaptain,
   teeOptionsForPlayer,
+  defaultSubTeams,
 } from '@/lib/pool-game';
 import {
   type RosterPlayer,
@@ -139,6 +140,8 @@ export default function NewPoolGamePage() {
   // ('nines'|'skins'|'quota'|...) = an INDIVIDUAL game scored within one group.
   const [gameMode, setGameMode] = useState<string | undefined>(undefined);
   const [modeSettings, setModeSettings] = useState<SettingsBag>({});
+  // 2v2 within-group games only: the two sides' player-id lists.
+  const [subTeams, setSubTeams] = useState<{ a: string[]; b: string[] } | undefined>(undefined);
   const [entryPerPlayer, setEntryPerPlayer] = useState('25');
   const [handicapAllowance, setHandicapAllowance] = useState('100');
   const [strokeMethod, setStrokeMethod] = useState<'full' | 'off-the-low'>('off-the-low');
@@ -183,6 +186,12 @@ export default function NewPoolGamePage() {
   // the game so the read-only hub can show "how these teams were built".
   const [teamBuild, setTeamBuild] = useState<PoolGame['teamBuild']>(undefined);
 
+  // Category of the picked game (from the registry). Individual + within-group
+  // are both single-group flows; within-group additionally needs sub-team setup.
+  const modeCategory = getGameMode(gameMode)?.category;
+  const isSingleGroup = modeCategory === 'individual' || modeCategory === 'team-within-group';
+  const isWithinGroup = modeCategory === 'team-within-group';
+
   // Hydrate wizard draft on mount
   useEffect(() => {
     try {
@@ -203,6 +212,8 @@ export default function NewPoolGamePage() {
         if (data.moneyMode === 'pot' || data.moneyMode === 'match') setMoneyMode(data.moneyMode);
         if (data.matchLegs) setMatchLegs(data.matchLegs);
         if (typeof data.matchJunkPerPoint === 'string') setMatchJunkPerPoint(data.matchJunkPerPoint);
+        if (typeof data.gameMode === 'string') setGameMode(data.gameMode);
+        if (data.modeSettings && typeof data.modeSettings === 'object') setModeSettings(data.modeSettings);
         if (data.course) setCourse(data.course);
         // Intentionally NOT restoring players/teams/step: the day's field is a
         // fresh per-game selection (the roster is the durable store), so every
@@ -217,10 +228,10 @@ export default function NewPoolGamePage() {
     if (!hydrated) return;
     sessionStorage.setItem(WIZARD_KEY, JSON.stringify({
       name, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
-      junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, course, players, teams, teamBuild, step,
+      junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step,
     }));
   }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
-      junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, course, players, teams, teamBuild, step]);
+      junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step]);
 
   // The current format settings, packaged as a group's defaults (for "save field
   // as a group"). Only the format — the member list is saved separately.
@@ -307,6 +318,8 @@ export default function NewPoolGamePage() {
       // Individual game mode + its chosen option values (absent for classic pool).
       gameMode,
       modeSettings: gameMode ? modeSettings : undefined,
+      // 2v2 within-group only: the two sides.
+      subTeams: isWithinGroup ? subTeams : undefined,
       status: 'active',
       handicapsRefreshedAt: new Date().toISOString(),
       createdByGhin: getCreatorGhin() ?? undefined,
@@ -352,7 +365,7 @@ export default function NewPoolGamePage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6">
-        <StepIndicator current={step} course={course} individualGame={getGameMode(gameMode)?.category === 'individual'} />
+        <StepIndicator current={step} course={course} individualGame={modeCategory === 'individual'} withinGroup={isWithinGroup} />
 
         {step === 'details' && (
           <DetailsStep
@@ -417,16 +430,22 @@ export default function NewPoolGamePage() {
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             handicapBasis={handicapBasis}
             onNext={() => {
-              // Individual games are a single group — skip the Teams step and
-              // auto-build one team holding every player, then go to Create.
-              if (getGameMode(gameMode)?.category === 'individual') {
+              // Single-group games (individual + 2v2) run as ONE team holding every
+              // player. Auto-build it now. Individual → straight to Create;
+              // within-group → the SubTeamsStep (shown in the 'teams' slot).
+              if (isSingleGroup) {
                 setTeams([{
                   id: crypto.randomUUID(),
                   name: 'Group',
                   playerIds: players.map((p) => p.id),
                   matchupId: crypto.randomUUID(),
                 }]);
-                setStep('create');
+                if (isWithinGroup) {
+                  setSubTeams((prev) => prev ?? defaultSubTeams(players.map((p) => p.id), players, course, parseFloat(handicapAllowance) || 100, handicapBasis));
+                  setStep('teams');
+                } else {
+                  setStep('create');
+                }
               } else {
                 setStep('teams');
               }
@@ -435,7 +454,20 @@ export default function NewPoolGamePage() {
           />
         )}
 
-        {step === 'teams' && (
+        {step === 'teams' && isWithinGroup && (
+          <SubTeamsStep
+            players={players}
+            course={course}
+            handicapAllowance={parseFloat(handicapAllowance) || 100}
+            handicapBasis={handicapBasis}
+            subTeams={subTeams}
+            setSubTeams={setSubTeams}
+            onNext={() => setStep('create')}
+            onBack={() => setStep('tees')}
+          />
+        )}
+
+        {step === 'teams' && !isWithinGroup && (
           <TeamsStep
             course={course}
             players={players}
@@ -476,7 +508,7 @@ export default function NewPoolGamePage() {
             handicapBasis={handicapBasis}
             gameMode={gameMode}
             onCreate={createPoolGame}
-            onBack={() => setStep(getGameMode(gameMode)?.category === 'individual' ? 'tees' : 'teams')}
+            onBack={() => setStep(modeCategory === 'individual' ? 'tees' : 'teams')}
           />
         )}
       </main>
@@ -484,14 +516,15 @@ export default function NewPoolGamePage() {
   );
 }
 
-function StepIndicator({ current, course, individualGame }: { current: Step; course: CourseSelection | null; individualGame?: boolean }) {
+function StepIndicator({ current, course, individualGame, withinGroup }: { current: Step; course: CourseSelection | null; individualGame?: boolean; withinGroup?: boolean }) {
   const steps = [
     { key: 'details', label: 'Details' },
     { key: 'course', label: course?.courseName || 'Course' },
     { key: 'field', label: 'Field' },
     { key: 'tees', label: 'Tees' },
-    // Individual games are a single group — no team-building step.
-    ...(individualGame ? [] : [{ key: 'teams', label: 'Teams' }]),
+    // Individual games skip team-building entirely; 2v2 within-group replaces it
+    // with a "Sides" step; classic pool keeps "Teams".
+    ...(individualGame ? [] : [{ key: 'teams', label: withinGroup ? 'Sides' : 'Teams' }]),
     { key: 'create', label: 'Create' },
   ];
   const currentIdx = steps.findIndex((s) => s.key === current);
@@ -2306,6 +2339,83 @@ function TeamsStep({
   );
 }
 
+// 2v2 within-group: assign the group's players to Side A or Side B. Seeded from
+// a balanced default (low+high vs the two middle). Each player is exactly one side.
+function SubTeamsStep({
+  players, course, handicapAllowance, handicapBasis, subTeams, setSubTeams, onNext, onBack,
+}: {
+  players: Player[];
+  course: CourseSelection | null;
+  handicapAllowance: number;
+  handicapBasis: 'course' | 'index';
+  subTeams: { a: string[]; b: string[] } | undefined;
+  setSubTeams: (v: { a: string[]; b: string[] }) => void;
+  onNext: () => void;
+  onBack: () => void;
+}) {
+  const effective = subTeams ?? defaultSubTeams(players.map((p) => p.id), players, course, handicapAllowance, handicapBasis);
+  const sideOf = (id: string): 'a' | 'b' | null =>
+    effective.a.includes(id) ? 'a' : effective.b.includes(id) ? 'b' : null;
+
+  function assign(id: string, side: 'a' | 'b') {
+    const a = effective.a.filter((x) => x !== id);
+    const b = effective.b.filter((x) => x !== id);
+    (side === 'a' ? a : b).push(id);
+    setSubTeams({ a, b });
+  }
+
+  const balanced = effective.a.length === effective.b.length;
+  const chcp = (p: Player) => Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis));
+
+  return (
+    <div>
+      <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
+      <h2 className="text-lg font-semibold text-gray-900 mb-1">Sides (2 vs 2)</h2>
+      <p className="text-sm text-gray-500 mb-4">Assign each player to a side. Seeded to balance handicaps — adjust as you like.</p>
+
+      <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
+        {players.map((p) => {
+          const s = sideOf(p.id);
+          return (
+            <div key={p.id} className="flex items-center justify-between px-4 py-3">
+              <span className="text-sm text-gray-800">
+                {p.name}
+                {course && <span className="ml-2 text-xs text-gray-400">CHcp {chcp(p)}</span>}
+              </span>
+              <div className="flex gap-1.5">
+                {(['a', 'b'] as const).map((side) => (
+                  <button
+                    key={side}
+                    type="button"
+                    onClick={() => assign(p.id, side)}
+                    className={`w-9 h-9 rounded-full text-sm font-bold transition ${
+                      s === side ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {side.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {!balanced && (
+        <p className="text-xs text-amber-700 mt-2">Sides are uneven ({effective.a.length} vs {effective.b.length}). 2v2 works best with two on each side.</p>
+      )}
+
+      <button
+        onClick={onNext}
+        disabled={effective.a.length === 0 || effective.b.length === 0}
+        className="mt-6 w-full rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Next: Review &amp; Create
+      </button>
+    </div>
+  );
+}
+
 function CreateStep({
   name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited,
   moneyMode, matchConfig, handicapBasis, gameMode, onCreate, onBack,
@@ -2327,7 +2437,7 @@ function CreateStep({
   onCreate: () => void; onBack: () => void;
 }) {
   const mode = getGameMode(gameMode);
-  const isIndividual = mode?.category === 'individual';
+  const isIndividual = mode?.category === 'individual' || mode?.category === 'team-within-group';
   const isMatch = moneyMode === 'match';
   const playerById = new Map(players.map((p) => [p.id, p]));
   const pot = players.length * entryPerPlayer;

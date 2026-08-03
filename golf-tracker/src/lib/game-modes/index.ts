@@ -5,6 +5,7 @@ import type { GameModeDescriptor } from './types';
 import { nines } from './nines';
 import { skins } from './skins';
 import { quota } from './quota';
+import { teamGame } from './team-game';
 
 export type {
   GameCategory,
@@ -19,8 +20,8 @@ export type {
 export { buildGameModeContext } from './context';
 export { defaultSettings, settingValue, numberSetting, boolSetting, stringSetting, parseVector } from './settings';
 
-// Registered individual game modes (order = display order in the wizard).
-export const GAME_MODES: GameModeDescriptor[] = [nines, skins, quota];
+// Registered game modes (order = display order in the wizard).
+export const GAME_MODES: GameModeDescriptor[] = [nines, skins, quota, teamGame];
 
 export function getGameMode(id: string | undefined): GameModeDescriptor | undefined {
   return id ? GAME_MODES.find((m) => m.id === id) : undefined;

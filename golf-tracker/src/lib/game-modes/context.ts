@@ -1,6 +1,6 @@
 import type { GameScore } from '../game-state';
 import type { PoolGame, HoleData } from '../pool-game';
-import { getHoleData, buildHcapMap, playerHoleStrokeIndex } from '../pool-game';
+import { getHoleData, buildHcapMap, playerHoleStrokeIndex, getPoolPlayingHandicap, defaultSubTeams } from '../pool-game';
 import { getMoneyStrokesOnHole } from '../money-games';
 import type { GameModeContext, SettingsBag } from './types';
 
@@ -56,5 +56,15 @@ export function buildGameModeContext(
   const settings: SettingsBag = game.modeSettings ?? {};
   const pot = players.length * (game.entryPerPlayer || 0);
 
-  return { players, holes, scores, settings, pot, playingHcap, strokesOnHole, grossOnHole, netOnHole };
+  // Team-within-group: the two sides (stored, else a balanced default).
+  const subTeams = game.subTeams
+    ?? defaultSubTeams(players.map((p) => p.id), players, game.course, game.handicapAllowance, game.handicapBasis);
+
+  // Raw course handicap (allowance 100, no off-the-low) for the USGA team formulas.
+  const rawCourseHcap = (playerId: string): number => {
+    const p = playerById.get(playerId);
+    return p ? getPoolPlayingHandicap(p, game.course, 100, game.handicapBasis) : 0;
+  };
+
+  return { players, holes, scores, settings, pot, playingHcap, strokesOnHole, grossOnHole, netOnHole, subTeams, rawCourseHcap };
 }
