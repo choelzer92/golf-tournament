@@ -13,6 +13,9 @@ import type { SideGameResult } from '@/lib/side-game';
 import type { PoolGame, PoolResult, PoolLeg } from '@/lib/pool-game';
 import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores } from '@/lib/pool-game';
 import { isSingleGroupGame } from '@/lib/game-modes/result';
+import { getGameMode } from '@/lib/game-modes';
+import { wolfForHole } from '@/lib/game-modes/wolf';
+import type { WolfHoleDecision } from '@/lib/pool-game';
 
 interface PoolGameContext {
   poolGameId: string;
@@ -978,6 +981,82 @@ export default function PlayGamePage() {
           </div>
         )}
 
+        {/* Wolf decision — per hole, who's the Wolf and their choice (partner / lone
+            / blind). Rotates by tee order; tap to record the outcome. */}
+        {poolCtx && poolGame && getGameMode(poolGame.gameMode)?.inputType === 'gross+decisions' && (() => {
+          const orderIds = setup.players.map((p) => p.id);
+          const rotating = wolfForHole(orderIds, currentHole);
+          const decision = poolGame.wolfDecisions?.[currentHole];
+          const wolfId = decision?.wolfId ?? rotating;
+          const wolf = setup.players.find((p) => p.id === wolfId);
+          const mode = decision?.mode ?? 'lone';
+          const partnerId = decision?.partnerId ?? null;
+          const others = setup.players.filter((p) => p.id !== wolfId);
+          const set = (d: Partial<WolfHoleDecision>) =>
+            setWolfDecision(currentHole, { wolfId: wolfId!, mode, partnerId, ...d });
+          return (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+              <p className="text-xs font-semibold text-amber-900 mb-2">
+                🐺 Wolf on hole {currentHole}: <span className="underline">{wolf?.name.split(' ')[0] ?? '—'}</span>
+                {decision?.wolfId && decision.wolfId !== rotating && <span className="ml-1 text-[10px] text-amber-600">(overridden)</span>}
+              </p>
+
+              {/* Partner picks (2v2), or lone / blind. */}
+              <div className="flex gap-1.5 flex-wrap mb-1.5">
+                {others.map((p) => {
+                  const active = mode === 'partner' && partnerId === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => set(active ? { mode: 'lone', partnerId: null } : { mode: 'partner', partnerId: p.id })}
+                      className={`px-3 h-9 rounded-full text-sm font-medium transition ${
+                        active ? 'bg-amber-600 text-white' : 'bg-white border border-amber-300 text-amber-800 hover:bg-amber-100'
+                      }`}
+                    >
+                      + {p.name.split(' ')[0]}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => set({ mode: 'lone', partnerId: null })}
+                  className={`px-3 h-9 rounded-full text-sm font-medium transition ${
+                    mode === 'lone' ? 'bg-amber-700 text-white' : 'bg-white border border-amber-300 text-amber-800 hover:bg-amber-100'
+                  }`}
+                >
+                  Lone Wolf
+                </button>
+                <button
+                  onClick={() => set({ mode: 'blind', partnerId: null })}
+                  className={`px-3 h-9 rounded-full text-sm font-medium transition ${
+                    mode === 'blind' ? 'bg-amber-800 text-white' : 'bg-white border border-amber-300 text-amber-800 hover:bg-amber-100'
+                  }`}
+                >
+                  Blind
+                </button>
+              </div>
+
+              {/* Override who the Wolf is (usual case: leave as the rotation). */}
+              <details className="mt-1">
+                <summary className="text-[11px] text-amber-700 cursor-pointer">Change who&apos;s the Wolf</summary>
+                <div className="flex gap-1.5 flex-wrap mt-1.5">
+                  {setup.players.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setWolfDecision(currentHole, { wolfId: p.id, mode: 'lone', partnerId: null })}
+                      className={`px-2.5 h-8 rounded-full text-xs font-medium transition ${
+                        wolfId === p.id ? 'bg-amber-600 text-white' : 'bg-white border border-amber-300 text-amber-800 hover:bg-amber-100'
+                      }`}
+                    >
+                      {p.name.split(' ')[0]}
+                    </button>
+                  ))}
+                </div>
+              </details>
+              <p className="text-[11px] text-amber-700 mt-1.5">Lone/Blind multiply the points. Editable later on the pool page.</p>
+            </div>
+          );
+        })()}
+
         {/* Score entry */}
         <div className="space-y-3 mb-6">
           {oneBall ? (
@@ -1745,6 +1824,20 @@ export default function PlayGamePage() {
     const updated: PoolGame = {
       ...latest,
       ctpWinners: { ...latest.ctpWinners, [hole]: playerId },
+    };
+    savePoolGame(updated);
+    setPoolGame(updated);
+  }
+
+  // Record the Wolf decision for a hole (read-latest-merge like setCtpWinner, so
+  // concurrent writers don't clobber). Wolf is single-group, so contention is
+  // unlikely, but the merge is cheap insurance.
+  function setWolfDecision(hole: number, decision: WolfHoleDecision) {
+    if (!poolGame) return;
+    const latest = loadPoolGame(poolGame.id) || poolGame;
+    const updated: PoolGame = {
+      ...latest,
+      wolfDecisions: { ...latest.wolfDecisions, [hole]: decision },
     };
     savePoolGame(updated);
     setPoolGame(updated);

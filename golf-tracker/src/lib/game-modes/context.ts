@@ -66,5 +66,5 @@ export function buildGameModeContext(
     return p ? getPoolPlayingHandicap(p, game.course, 100, game.handicapBasis) : 0;
   };
 
-  return { players, holes, scores, settings, pot, playingHcap, strokesOnHole, grossOnHole, netOnHole, subTeams, rawCourseHcap };
+  return { players, holes, scores, settings, pot, playingHcap, strokesOnHole, grossOnHole, netOnHole, subTeams, rawCourseHcap, wolfDecisions: game.wolfDecisions };
 }

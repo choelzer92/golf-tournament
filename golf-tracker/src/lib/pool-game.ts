@@ -123,6 +123,19 @@ export interface PoolGame {
   // Team-within-group games only (2v2 in one foursome). ABSENT for every other
   // game. Player-id lists don't fit the flat modeSettings bag, so they live here.
   subTeams?: { a: string[]; b: string[] };
+  // Wolf (and Wolf-family) per-hole decisions: who was the Wolf and whether they
+  // took a partner / went lone / blind. Keyed by hole number. Mirrors ctpWinners'
+  // storage (whole-JSON, read-latest-merge on write). Absent for other games.
+  wolfDecisions?: Record<number, WolfHoleDecision>;
+}
+
+// One hole's Wolf decision. `mode`: 'partner' = Wolf + partnerId vs the other two
+// (2v2); 'lone' = Wolf alone vs the other three; 'blind' = lone, declared before
+// tee shots (higher stakes). partnerId is set only for 'partner'.
+export interface WolfHoleDecision {
+  wolfId: string;
+  mode: 'partner' | 'lone' | 'blind';
+  partnerId: string | null;
 }
 
 export const DEFAULT_JUNK_VALUES: PoolJunkValues = {

@@ -1,6 +1,6 @@
 import type { Player, GameScore } from '../game-state';
 import type { FormatSetting } from '../formats';
-import type { HoleData } from '../pool-game';
+import type { HoleData, WolfHoleDecision } from '../pool-game';
 
 // A game mode's category decides which result axis (and leaderboard) it uses.
 //   'team'              — the classic pool: compare foursomes (computePoolResult).
@@ -57,6 +57,8 @@ export interface GameModeContext {
   // team-handicap formulas need (scramble/alt-shot, Phase B). Distinct from
   // playingHcap, which is allowance-adjusted, off-the-low-adjusted, and rounded.
   rawCourseHcap(playerId: string): number;
+  // Decision-input games only (Wolf): per-hole decisions from game.wolfDecisions.
+  wolfDecisions?: Record<number, WolfHoleDecision>;
 }
 
 export interface PlayerStanding {
