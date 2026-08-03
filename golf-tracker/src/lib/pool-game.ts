@@ -113,6 +113,13 @@ export interface PoolGame {
   createdByGhin?: number;                       // GHIN number of the organizer who created it (for their history)
   lockedGroups?: string[][];                    // player-id groups kept on the same team through auto-balance
   teamBuild?: PoolTeamBuild;                     // how the current teams were built (for the read-only "how these were built" summary)
+  // Pluggable game-mode library. ABSENT = the classic team-comparison pool
+  // (pot/match) — unchanged. When set to a registry id ('9s' | 'skins' | 'quota'
+  // | ...), the game is an INDIVIDUAL game scored among the players of a single
+  // foursome; modeSettings holds that game's chosen option values (a uniform bag
+  // rendered from the mode's FormatSetting[] schema). See lib/game-modes/.
+  gameMode?: string;
+  modeSettings?: Record<string, string | number | boolean>;
 }
 
 export const DEFAULT_JUNK_VALUES: PoolJunkValues = {
@@ -237,7 +244,7 @@ export interface PoolResult {
   thruHole: number;
 }
 
-interface HoleData {
+export interface HoleData {
   number: number;
   par: number;
   handicap: number;
@@ -248,7 +255,7 @@ interface HoleData {
 // is what reconciles mixed men's/women's fields)
 // ---------------------------------------------------------------------------
 
-function getHoleData(course: CourseSelection | null): HoleData[] {
+export function getHoleData(course: CourseSelection | null): HoleData[] {
   if (!course) return [];
   const tee = course.teeSets.find((t) => t.id === course.selectedTeeId) || course.teeSets[0];
   if (!tee) return [];
@@ -303,7 +310,7 @@ export function playerTeeGenderMismatch(course: CourseSelection | null, player: 
 // Creek differs on 14 of 18 holes), so strokes must be allocated per that
 // player's tee, not the shared default tee. Falls back to the passed-in default
 // index if the player's tee lacks the hole.
-function playerHoleStrokeIndex(player: Player, course: CourseSelection | null, holeNumber: number, fallbackIndex: number): number {
+export function playerHoleStrokeIndex(player: Player, course: CourseSelection | null, holeNumber: number, fallbackIndex: number): number {
   const tee = getPlayerTee(player, course);
   const h = tee?.holes.find((x) => x.number === holeNumber);
   return h ? h.handicap : fallbackIndex;
@@ -341,7 +348,7 @@ export function getPar3Holes(course: CourseSelection | null): number[] {
 // handicap in the whole field is subtracted from everyone (field plays off the
 // low). Every team is measured off the same baseline, keeping cross-team
 // comparison fair; the low player plays to scratch.
-function buildHcapMap(game: PoolGame): Map<string, number> {
+export function buildHcapMap(game: PoolGame): Map<string, number> {
   const raw = new Map<string, number>();
   for (const player of game.players) {
     raw.set(player.id, getPoolPlayingHandicap(player, game.course, game.handicapAllowance, game.handicapBasis));

@@ -14,6 +14,8 @@ import {
   filterConcealedScores,
   DEFAULT_MATCH_CONFIG,
 } from '@/lib/pool-game';
+import { getGameMode, type IndividualResult } from '@/lib/game-modes';
+import { computeGameResult } from '@/lib/game-modes/result';
 
 const LEG_LABELS: Record<PoolLegKey, string> = {
   front: 'Front 9',
@@ -83,6 +85,12 @@ export default function PoolLeaderboardPage() {
   }, [game?.id, game?.teams.map((t) => t.matchupId).join(',')]);
 
   if (!game) return null;
+
+  // Individual game (9s / skins / quota / …): render the per-player leaderboard.
+  // The team path below is untouched for classic pot/match pools.
+  if (getGameMode(game.gameMode)?.category === 'individual') {
+    return <IndividualLeaderboard id={id} />;
+  }
 
   if (!result || result.thruHole === 0) {
     return (
@@ -685,6 +693,189 @@ function ballSelectionCaption(variant: PoolGame['ballSelection'] | undefined): s
     case '1-net-1-gross':
     default: return 'best net + best gross';
   }
+}
+
+// Leaderboard for INDIVIDUAL game modes (9s / skins / quota / …). Runs its own
+// game + score sync (mirrors the team leaderboard's effects), computes the
+// per-player standings via the registry, and shows a standings table + the
+// reused expandable per-player scorecard grid. Kept as its own component so the
+// team leaderboard code path stays entirely untouched.
+function IndividualLeaderboard({ id }: { id: string }) {
+  const router = useRouter();
+  const [game, setGame] = useState<PoolGame | null>(null);
+  const [result, setResult] = useState<IndividualResult | null>(null);
+  const [teamDetails, setTeamDetails] = useState<PoolTeamDetail[]>([]);
+
+  useEffect(() => {
+    const cached = loadPoolGame(id);
+    if (cached) setGame(cached);
+    fetchPoolGame(id).then((g) => { if (g) setGame(g); });
+    const channel = subscribeToPoolGame(id, (g) => setGame(g));
+    return () => { channel.unsubscribe(); };
+  }, [id]);
+
+  useEffect(() => {
+    if (!game) return;
+    const ids = Array.from(new Set(game.teams.map((t) => t.matchupId)));
+    function recompute() {
+      const allScores = new Map<string, GameScore[]>();
+      for (const mid of ids) {
+        const cached = loadGameScores(mid);
+        if (cached) allScores.set(mid, cached);
+      }
+      const visible = filterConcealedScores(game!, allScores);
+      const r = computeGameResult(game!, visible);
+      if (r.kind === 'individual') setResult(r);
+      setTeamDetails(computePoolPlayerDetails(game!, visible));
+    }
+    Promise.all(ids.map((mid) => fetchGameScores(mid))).then(recompute);
+    const channels = ids.map((mid) => subscribeToScores(mid, () => recompute()));
+    const removeVisibility = onVisibilityRefetch(ids, recompute);
+    const interval = setInterval(() => {
+      Promise.all(ids.map((mid) => fetchGameScores(mid))).then(recompute);
+    }, 15000);
+    return () => { channels.forEach((ch) => ch.unsubscribe()); removeVisibility(); clearInterval(interval); };
+  }, [game?.id, game?.teams.map((t) => t.matchupId).join(',')]);
+
+  if (!game) return null;
+  const mode = getGameMode(game.gameMode);
+  const players = teamDetails[0]?.players ?? [];
+
+  const money = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}$${Math.abs(Math.round(n))}`;
+  const fmtPts = (n: number) => {
+    const r = Math.round(n * 10) / 10;
+    return (r > 0 ? '+' : '') + (r % 1 === 0 ? String(r) : r.toFixed(1));
+  };
+
+  return (
+    <div className="min-h-full bg-gray-900">
+      <header className="bg-gray-800 text-white shadow-lg">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-bold">{game.name}</h1>
+            <p className="text-xs text-gray-400">
+              {mode?.name}{result && result.thruHole > 0 ? ` · thru hole ${result.thruHole}` : ''}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => router.push('/game/play')} className="text-sm text-yellow-300 hover:text-yellow-100 font-medium">Scorecard</button>
+            <button onClick={() => router.push(`/pool/${id}`)} className="text-sm text-gray-400 hover:text-white">Back</button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-2 py-4 space-y-4">
+        {!result || result.thruHole === 0 ? (
+          <div className="text-center py-12 text-gray-500">No scores yet.</div>
+        ) : (
+          <>
+            {/* Standings */}
+            <div className="bg-gray-800 rounded-xl overflow-hidden">
+              <div className="px-4 py-2 border-b border-gray-700">
+                <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Standings</p>
+              </div>
+              <table className="text-sm w-full">
+                <thead>
+                  <tr className="text-gray-500 border-b border-gray-700/50 text-xs">
+                    <th className="text-left px-3 py-1.5 font-medium">#</th>
+                    <th className="text-left px-2 py-1.5 font-medium">Player</th>
+                    <th className="text-center px-2 py-1.5 font-medium">{result.metricLabel}</th>
+                    <th className="text-center px-2 py-1.5 font-medium">Thru</th>
+                    <th className="text-right px-3 py-1.5 font-medium">$</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.standings.map((s) => (
+                    <tr key={s.playerId} className="border-t border-gray-700/30">
+                      <td className="px-3 py-1.5 text-gray-400">{s.place || '-'}</td>
+                      <td className="px-2 py-1.5 text-gray-200 font-medium">{s.playerName.split(' ')[0]}</td>
+                      <td className="text-center px-2 py-1.5 font-bold text-white">{fmtPts(s.points)}</td>
+                      <td className="text-center px-2 py-1.5 text-gray-400">{s.thru || '-'}</td>
+                      <td className={`text-right px-3 py-1.5 font-medium ${s.moneyNet > 0 ? 'text-green-400' : s.moneyNet < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                        {money(s.moneyNet)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {result.moneyModel === 'pot' && result.pot > 0 && (
+                <div className="px-3 py-2 text-[10px] text-gray-500 border-t border-gray-700">${Math.round(result.pot)} pot</div>
+              )}
+            </div>
+
+            {/* Per-player scorecard (reuses the same grid + strokes box as the team view). */}
+            {players.length > 0 && (
+              <div className="bg-gray-800 rounded-xl overflow-hidden">
+                <div className="px-4 py-2 border-b border-gray-700">
+                  <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Player Details</p>
+                </div>
+                <IndividualPlayerGrid players={players} />
+              </div>
+            )}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+// The per-player scorecard grid for individual games — same Out/In/Gross/Net
+// columns and strokes-given box as the team leaderboard's Player Details, but for
+// the single group. Extracted so both paths share the presentation.
+function IndividualPlayerGrid({ players }: { players: PoolPlayerDetail[] }) {
+  const allHoles = players[0]?.holes ?? [];
+  const frontHoles = allHoles.filter((h) => h.holeNumber <= 9);
+  const backHoles = allHoles.filter((h) => h.holeNumber > 9);
+  const sumGross = (p: PoolPlayerDetail, pred: (h: PoolPlayerHoleScore) => boolean) => {
+    const played = p.holes.filter((h) => pred(h) && h.gross != null);
+    return played.length ? played.reduce((s, h) => s + (h.gross ?? 0), 0) : null;
+  };
+  return (
+    <div className="px-2 pb-3 pt-1 overflow-x-auto">
+      <table className="text-xs w-full">
+        <thead>
+          <tr className="text-gray-500">
+            <th className="text-left px-1 py-1 font-medium min-w-[60px] sticky left-0 bg-gray-800">Player</th>
+            {frontHoles.map((h) => <th key={h.holeNumber} className="text-center px-1 py-1 font-medium min-w-[24px]">{h.holeNumber}</th>)}
+            <th className="text-center px-1.5 py-1 font-bold text-gray-400 min-w-[28px]">Out</th>
+            {backHoles.map((h) => <th key={h.holeNumber} className="text-center px-1 py-1 font-medium min-w-[24px]">{h.holeNumber}</th>)}
+            <th className="text-center px-1.5 py-1 font-bold text-gray-400 min-w-[28px]">In</th>
+            <th className="text-center px-1.5 py-1 font-bold text-gray-300 min-w-[32px]">Gross</th>
+            <th className="text-center px-1.5 py-1 font-medium text-gray-400 min-w-[32px]">Net</th>
+          </tr>
+        </thead>
+        <tbody>
+          {players.map((player) => {
+            const outGross = sumGross(player, (h) => h.holeNumber <= 9);
+            const inGross = sumGross(player, (h) => h.holeNumber > 9);
+            return (
+              <tr key={player.playerId} className="border-t border-gray-700/30">
+                <td className="px-1 py-1 text-gray-300 font-medium whitespace-nowrap sticky left-0 bg-gray-800">
+                  {player.playerName.split(' ')[0]}
+                  <span className="text-[10px] text-gray-500 ml-0.5">({Math.round(player.playingHcap)})</span>
+                </td>
+                {player.holes.filter((h) => h.holeNumber <= 9).map((h) => (
+                  <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
+                    {h.gross != null ? (<span>{h.gross}{h.strokes > 0 && <span className="text-[8px] text-blue-400 align-super">{'•'.repeat(h.strokes)}</span>}</span>) : '-'}
+                  </td>
+                ))}
+                <td className="text-center px-1.5 py-1 font-bold text-gray-400 bg-gray-750">{outGross ?? '-'}</td>
+                {player.holes.filter((h) => h.holeNumber > 9).map((h) => (
+                  <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
+                    {h.gross != null ? (<span>{h.gross}{h.strokes > 0 && <span className="text-[8px] text-blue-400 align-super">{'•'.repeat(h.strokes)}</span>}</span>) : '-'}
+                  </td>
+                ))}
+                <td className="text-center px-1.5 py-1 font-bold text-gray-400 bg-gray-750">{inGross ?? '-'}</td>
+                <td className="text-center px-1.5 py-1 font-bold text-white bg-gray-750">{player.grossTotal ?? '-'}</td>
+                <td className="text-center px-1.5 py-1 font-medium text-gray-300 bg-gray-750">{player.netTotal ?? '-'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <StrokesGivenBox players={players} />
+    </div>
+  );
 }
 
 // Expandable per-player list of the holes where each player receives a stroke

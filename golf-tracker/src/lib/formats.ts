@@ -130,9 +130,14 @@ export interface GameFormat {
 export interface FormatSetting {
   key: string;
   label: string;
-  type: 'toggle' | 'select' | 'number';
+  // 'text' holds a free-form string (e.g. a "5,3,1" point vector) — added for the
+  // pool game-mode registry so groups can type custom variants. No existing
+  // FORMATS use it, so existing renderers are unaffected.
+  type: 'toggle' | 'select' | 'number' | 'text';
   options?: { value: string; label: string }[];
   defaultValue: string | number | boolean;
+  // Optional help/placeholder shown under the field by the pool mode editor.
+  hint?: string;
 }
 
 export const FORMATS: GameFormat[] = [

@@ -49,6 +49,8 @@ import {
   getGroups,
   upsertGroup,
 } from '@/lib/roster-groups';
+import { GAME_MODES, getGameMode, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
+import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 
 const WIZARD_KEY = 'pool_wizard_draft';
 
@@ -133,6 +135,10 @@ export default function NewPoolGamePage() {
 
   // Details
   const [name, setName] = useState('');
+  // Game mode: undefined = classic team pool (pot/match). A registry id
+  // ('nines'|'skins'|'quota'|...) = an INDIVIDUAL game scored within one group.
+  const [gameMode, setGameMode] = useState<string | undefined>(undefined);
+  const [modeSettings, setModeSettings] = useState<SettingsBag>({});
   const [entryPerPlayer, setEntryPerPlayer] = useState('25');
   const [handicapAllowance, setHandicapAllowance] = useState('100');
   const [strokeMethod, setStrokeMethod] = useState<'full' | 'off-the-low'>('off-the-low');
@@ -298,6 +304,9 @@ export default function NewPoolGamePage() {
       positionSplit: parsePositionSplit(positionSplitText),
       junkValues,
       ctpWinners: {},
+      // Individual game mode + its chosen option values (absent for classic pool).
+      gameMode,
+      modeSettings: gameMode ? modeSettings : undefined,
       status: 'active',
       handicapsRefreshedAt: new Date().toISOString(),
       createdByGhin: getCreatorGhin() ?? undefined,
@@ -343,12 +352,16 @@ export default function NewPoolGamePage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6">
-        <StepIndicator current={step} course={course} />
+        <StepIndicator current={step} course={course} individualGame={getGameMode(gameMode)?.category === 'individual'} />
 
         {step === 'details' && (
           <DetailsStep
             name={name}
             setName={setName}
+            gameMode={gameMode}
+            setGameMode={setGameMode}
+            modeSettings={modeSettings}
+            setModeSettings={setModeSettings}
             entryPerPlayer={entryPerPlayer}
             setEntryPerPlayer={setEntryPerPlayer}
             handicapAllowance={handicapAllowance}
@@ -403,7 +416,21 @@ export default function NewPoolGamePage() {
             setPlayers={setPlayers}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             handicapBasis={handicapBasis}
-            onNext={() => setStep('teams')}
+            onNext={() => {
+              // Individual games are a single group — skip the Teams step and
+              // auto-build one team holding every player, then go to Create.
+              if (getGameMode(gameMode)?.category === 'individual') {
+                setTeams([{
+                  id: crypto.randomUUID(),
+                  name: 'Group',
+                  playerIds: players.map((p) => p.id),
+                  matchupId: crypto.randomUUID(),
+                }]);
+                setStep('create');
+              } else {
+                setStep('teams');
+              }
+            }}
             onBack={() => setStep('field')}
           />
         )}
@@ -447,8 +474,9 @@ export default function NewPoolGamePage() {
             moneyMode={moneyMode}
             matchConfig={buildMatchConfig()}
             handicapBasis={handicapBasis}
+            gameMode={gameMode}
             onCreate={createPoolGame}
-            onBack={() => setStep('teams')}
+            onBack={() => setStep(getGameMode(gameMode)?.category === 'individual' ? 'tees' : 'teams')}
           />
         )}
       </main>
@@ -456,13 +484,14 @@ export default function NewPoolGamePage() {
   );
 }
 
-function StepIndicator({ current, course }: { current: Step; course: CourseSelection | null }) {
+function StepIndicator({ current, course, individualGame }: { current: Step; course: CourseSelection | null; individualGame?: boolean }) {
   const steps = [
     { key: 'details', label: 'Details' },
     { key: 'course', label: course?.courseName || 'Course' },
     { key: 'field', label: 'Field' },
     { key: 'tees', label: 'Tees' },
-    { key: 'teams', label: 'Teams' },
+    // Individual games are a single group — no team-building step.
+    ...(individualGame ? [] : [{ key: 'teams', label: 'Teams' }]),
     { key: 'create', label: 'Create' },
   ];
   const currentIdx = steps.findIndex((s) => s.key === current);
@@ -482,7 +511,9 @@ function StepIndicator({ current, course }: { current: Step; course: CourseSelec
 }
 
 function DetailsStep({
-  name, setName, entryPerPlayer, setEntryPerPlayer, handicapAllowance, setHandicapAllowance,
+  name, setName,
+  gameMode, setGameMode, modeSettings, setModeSettings,
+  entryPerPlayer, setEntryPerPlayer, handicapAllowance, setHandicapAllowance,
   strokeMethod, setStrokeMethod,
   handicapBasis, setHandicapBasis,
   positionSplitText, setPositionSplitText,
@@ -491,6 +522,8 @@ function DetailsStep({
   onNext,
 }: {
   name: string; setName: (s: string) => void;
+  gameMode: string | undefined; setGameMode: (v: string | undefined) => void;
+  modeSettings: SettingsBag; setModeSettings: (v: SettingsBag) => void;
   entryPerPlayer: string; setEntryPerPlayer: (s: string) => void;
   handicapAllowance: string; setHandicapAllowance: (s: string) => void;
   strokeMethod: 'full' | 'off-the-low'; setStrokeMethod: (v: 'full' | 'off-the-low') => void;
@@ -504,6 +537,15 @@ function DetailsStep({
   matchJunkPerPoint: string; setMatchJunkPerPoint: (s: string) => void;
   onNext: () => void;
 }) {
+  const selectedMode = getGameMode(gameMode);
+  const isIndividual = selectedMode?.category === 'individual';
+  // Pick a game type: classic team pool, or one of the registered individual
+  // games. Selecting an individual game seeds its norm defaults into modeSettings.
+  function pickGame(id: string | undefined) {
+    setGameMode(id);
+    const mode = getGameMode(id);
+    if (mode) setModeSettings(defaultSettings(mode.settings));
+  }
   const junkFields: { key: keyof PoolJunkValues; label: string }[] = [
     { key: 'birdie', label: 'Birdie' },
     { key: 'eagle', label: 'Eagle' },
@@ -536,6 +578,40 @@ function DetailsStep({
           />
         </div>
 
+        {/* Game picker: classic team pool, or a registered individual game.
+            Choosing an individual game reveals only that game's options below. */}
+        <div className="pt-2 border-t">
+          <label className="block text-sm font-medium text-gray-800 mb-1">Game</label>
+          <select
+            value={gameMode ?? 'pool'}
+            onChange={(e) => pickGame(e.target.value === 'pool' ? undefined : e.target.value)}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+          >
+            <option value="pool">Team Pool (foursomes vs foursomes)</option>
+            {GAME_MODES.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            {selectedMode
+              ? `${selectedMode.description} Played within a single group of ${selectedMode.playersMin}–${selectedMode.playersMax}.`
+              : 'The classic buy-in pool or head-to-head match across foursomes.'}
+          </p>
+        </div>
+
+        {/* Individual game options (rendered from the mode's settings schema). */}
+        {isIndividual && selectedMode && (
+          <div className="pt-2 border-t">
+            <label className="block text-sm font-medium text-gray-800 mb-2">{selectedMode.name} options</label>
+            <ModeSettingsEditor
+              schema={selectedMode.settings}
+              values={modeSettings}
+              onChangeAction={(key, value) => setModeSettings({ ...modeSettings, [key]: value })}
+            />
+          </div>
+        )}
+
+        {!isIndividual && (
         <div className="pt-2 border-t">
           <label className="block text-sm font-medium text-gray-800 mb-1">Game Type</label>
           <div className="flex gap-2">
@@ -563,9 +639,10 @@ function DetailsStep({
               : 'Everyone buys in to one pot, split into front / back / overall / junk and paid out by finishing place.'}
           </p>
         </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3 pt-2 border-t">
-          {moneyMode === 'pot' && (
+          {moneyMode === 'pot' && !isIndividual && (
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1">Entry ($ / player)</label>
             <input
@@ -645,13 +722,13 @@ function DetailsStep({
           </p>
         </div>
 
-        {moneyMode === 'pot' && (
+        {moneyMode === 'pot' && !isIndividual && (
         <div className="pt-2 border-t">
           <p className="text-xs text-gray-500">Pot split (front / back / overall / junk) is set on the final step — it fills in automatically from the number of teams.</p>
         </div>
         )}
 
-        {moneyMode === 'pot' && (
+        {moneyMode === 'pot' && !isIndividual && (
         <div className="pt-2 border-t">
           <label className="block text-sm font-medium text-gray-800 mb-1">Position Split</label>
           <input
@@ -705,6 +782,7 @@ function DetailsStep({
         </div>
         )}
 
+        {!isIndividual && (
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-2">Junk Values (points)</p>
           <div className="grid grid-cols-5 gap-2">
@@ -722,7 +800,9 @@ function DetailsStep({
             ))}
           </div>
         </div>
+        )}
 
+        {!isIndividual && (
         <div className="pt-2 border-t">
           <label className="block text-sm font-medium text-gray-800 mb-1">Team Ball Selection</label>
           <select
@@ -736,6 +816,7 @@ function DetailsStep({
           </select>
           <p className="text-xs text-gray-500 mt-1">Per-hole team score for each foursome.</p>
         </div>
+        )}
       </div>
 
       <button
@@ -2227,7 +2308,7 @@ function TeamsStep({
 
 function CreateStep({
   name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited,
-  moneyMode, matchConfig, handicapBasis, onCreate, onBack,
+  moneyMode, matchConfig, handicapBasis, gameMode, onCreate, onBack,
 }: {
   name: string;
   entryPerPlayer: number;
@@ -2242,8 +2323,11 @@ function CreateStep({
   moneyMode: PoolMoneyMode;
   matchConfig: PoolMatchConfig;
   handicapBasis: 'course' | 'index';
+  gameMode: string | undefined;
   onCreate: () => void; onBack: () => void;
 }) {
+  const mode = getGameMode(gameMode);
+  const isIndividual = mode?.category === 'individual';
   const isMatch = moneyMode === 'match';
   const playerById = new Map(players.map((p) => [p.id, p]));
   const pot = players.length * entryPerPlayer;
@@ -2279,10 +2363,30 @@ function CreateStep({
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
         <div>
-          <p className="text-sm text-gray-500">Pool Game</p>
+          <p className="text-sm text-gray-500">{isIndividual ? mode!.name : 'Pool Game'}</p>
           <p className="text-lg font-bold text-gray-900">{name}</p>
+          {isIndividual && <p className="text-xs text-gray-500 mt-0.5">{mode!.description}</p>}
         </div>
 
+        {isIndividual ? (
+          <div className="pt-2 border-t">
+            <div className="grid grid-cols-2 gap-3 text-center">
+              <div>
+                <p className="text-xs text-gray-500">Players</p>
+                <p className="text-lg font-bold text-gray-900">{players.length}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Group size</p>
+                <p className="text-lg font-bold text-gray-900">{mode!.playersMin}–{mode!.playersMax}</p>
+              </div>
+            </div>
+            {(players.length < mode!.playersMin || players.length > mode!.playersMax) && (
+              <p className="text-xs text-amber-700 mt-2">
+                {mode!.name} is played in a single group of {mode!.playersMin}–{mode!.playersMax} players — you have {players.length}. Go back to Field to adjust.
+              </p>
+            )}
+          </div>
+        ) : (
         <div className="grid grid-cols-3 gap-3 pt-2 border-t text-center">
           <div>
             <p className="text-xs text-gray-500">Players</p>
@@ -2297,8 +2401,9 @@ function CreateStep({
             <p className="text-lg font-bold text-green-700">{isMatch ? 'Match' : `$${pot}`}</p>
           </div>
         </div>
+        )}
 
-        {!isMatch && (
+        {!isMatch && !isIndividual && (
         <div className="pt-2 border-t">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-semibold text-gray-800">Pot Split ($ per pot)</p>

@@ -36,6 +36,8 @@ import {
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
+import { getGameMode, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
+import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { PairingLocks } from '@/components/pairing-locks';
 import { CaptainsPanel } from '@/components/captains-panel';
 import { TeeTimePicker } from '@/components/tee-time-picker';
@@ -588,6 +590,54 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
 
   const inputCls = 'w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500';
 
+  // Individual game (9s / skins / quota / …): name + handicap fields + the mode's
+  // own toggleable options. No pot/match/ball/team settings apply.
+  const indMode = getGameMode(game.gameMode);
+  if (indMode && indMode.category === 'individual') {
+    const modeSettings = game.modeSettings ?? defaultSettings(indMode.settings);
+    const setModeSetting = (key: string, value: SettingValue) =>
+      onSave({ ...game, modeSettings: { ...modeSettings, [key]: value } });
+    return (
+      <section className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-4 py-3 bg-gray-100 border-b">
+          <h2 className="font-semibold text-gray-900">Game Settings</h2>
+          <p className="text-xs text-gray-500">{indMode.name} · changes save immediately and update the leaderboard.</p>
+        </div>
+        <div className="p-4 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-800 mb-1">Game name</label>
+            <input className={inputCls} value={game.name} onChange={(e) => onSave({ ...game, name: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-800 mb-1">Handicap allowance (%)</label>
+              <NumberField className={inputCls} value={game.handicapAllowance} fallback={100}
+                onCommit={(n) => onSave({ ...game, handicapAllowance: n })} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-800 mb-1">Handicap strokes</label>
+              <select className={inputCls} value={game.strokeMethod ?? 'full'} onChange={(e) => onSave({ ...game, strokeMethod: e.target.value as 'full' | 'off-the-low' })}>
+                <option value="full">Full handicap</option>
+                <option value="off-the-low">Off the low</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-800 mb-1">Handicap basis</label>
+            <select className={inputCls} value={game.handicapBasis ?? 'course'} onChange={(e) => onSave({ ...game, handicapBasis: e.target.value as 'course' | 'index' })}>
+              <option value="course">Course handicap (off the tee)</option>
+              <option value="index">Player handicap index</option>
+            </select>
+          </div>
+          <div className="pt-2 border-t">
+            <p className="text-sm font-semibold text-gray-800 mb-2">{indMode.name} options</p>
+            <ModeSettingsEditor schema={indMode.settings} values={modeSettings} onChangeAction={setModeSetting} />
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="bg-white rounded-lg shadow overflow-hidden">
       <div className="px-4 py-3 bg-gray-100 border-b">
@@ -811,6 +861,38 @@ function PotSplitEditor({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame
 }
 
 function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
+  const indMode = getGameMode(game.gameMode);
+  if (indMode && indMode.category === 'individual') {
+    const settings = game.modeSettings ?? {};
+    // Show the mode's chosen option values as a compact read-only summary.
+    const rows = indMode.settings.map((s) => {
+      const raw = (s.key in settings ? settings[s.key] : s.defaultValue);
+      let display: string;
+      if (s.type === 'toggle') display = raw === true || raw === 'true' ? 'On' : 'Off';
+      else if (s.type === 'select') display = s.options?.find((o) => o.value === String(raw))?.label ?? String(raw);
+      else display = String(raw);
+      return { label: s.label, display };
+    });
+    return (
+      <section>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="px-4 py-3 bg-gray-100 border-b flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">{indMode.name}</h2>
+            <span className="text-sm text-gray-600">{game.players.length} players · {game.handicapAllowance}% hcap</span>
+          </div>
+          <p className="px-4 pt-2 text-xs text-gray-500">{indMode.description}</p>
+          <div className="px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-1">
+            {rows.map((r) => (
+              <div key={r.label} className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">{r.label}</span>
+                <span className="font-medium text-gray-800">{r.display}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
   if (game.moneyMode === 'match') {
     const cfg = game.matchConfig ?? DEFAULT_MATCH_CONFIG;
     const rows = [
