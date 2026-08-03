@@ -39,6 +39,7 @@ import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import { getGameMode, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
+import { saveFormat, formatFromGame } from '@/lib/pool-formats';
 import { PairingLocks } from '@/components/pairing-locks';
 import { CaptainsPanel } from '@/components/captains-panel';
 import { TeeTimePicker } from '@/components/tee-time-picker';
@@ -96,6 +97,7 @@ export default function PoolHubPage() {
   const [game, setGame] = useState<PoolGame | null>(null);
   const [editing, setEditing] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [savingFormat, setSavingFormat] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   // Share-link (pool) visitors don't have the dashboard; give them "New Game" instead.
   const [poolOnly, setPoolOnly] = useState(false);
@@ -248,6 +250,12 @@ export default function PoolHubPage() {
               Share
             </button>
             <button
+              onClick={() => setSavingFormat(true)}
+              className="text-sm font-medium text-green-200 hover:text-white"
+            >
+              Save format
+            </button>
+            <button
               onClick={() => setEditing((e) => !e)}
               className={`text-sm font-medium ${editing ? 'text-white' : 'text-green-200 hover:text-white'}`}
             >
@@ -261,6 +269,8 @@ export default function PoolHubPage() {
       </header>
 
       {sharing && <SharePanel gameId={id} gameName={game.name} onClose={() => setSharing(false)} />}
+
+      {savingFormat && <SaveFormatModal game={game} onClose={() => setSavingFormat(false)} />}
 
       <GhinLoginModal
         open={showLogin}
@@ -475,6 +485,64 @@ function TeamBuildSummaryCard({ game }: { game: PoolGame }) {
         )}
       </div>
     </details>
+  );
+}
+
+// Save the current game's format (mode + all settings, no players) to the Format
+// Library so it can be reused/duplicated later. Name defaults to the game name;
+// a "share with everyone" toggle stores it as a shared format (owner_ghin null).
+function SaveFormatModal({ game, onClose }: { game: PoolGame; onClose: () => void }) {
+  const [name, setName] = useState(game.name);
+  const [shared, setShared] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const modeName = getGameMode(game.gameMode)?.name
+    ?? (game.moneyMode === 'match' ? 'Head-to-head match' : 'Pool (pot split)');
+
+  async function doSave() {
+    setSaving(true);
+    try {
+      await saveFormat(name, formatFromGame(game), { shared });
+      setDone(true);
+      setTimeout(onClose, 900);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-gray-900">Save as format</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">&times;</button>
+        </div>
+        <p className="text-xs text-gray-500 mb-3">
+          Saves this game&apos;s <span className="font-medium">{modeName}</span> setup (no players) to your Format
+          Library — reuse it to start a new game or spin off a variant.
+        </p>
+        <label className="block text-sm font-medium text-gray-800 mb-1">Format name</label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+        />
+        <label className="flex items-start gap-2 cursor-pointer mt-3">
+          <input type="checkbox" className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500" checked={shared} onChange={(e) => setShared(e.target.checked)} />
+          <span>
+            <span className="block text-sm font-medium text-gray-800">Share with everyone</span>
+            <span className="block text-xs text-gray-500">Others with a pool link can use this format too. Off = only you.</span>
+          </span>
+        </label>
+        <button
+          onClick={doSave}
+          disabled={saving || !name.trim() || done}
+          className="mt-4 w-full rounded-md bg-green-700 px-4 py-2.5 text-white font-medium hover:bg-green-800 disabled:opacity-50"
+        >
+          {done ? 'Saved ✓' : saving ? 'Saving…' : 'Save format'}
+        </button>
+      </div>
+    </div>
   );
 }
 

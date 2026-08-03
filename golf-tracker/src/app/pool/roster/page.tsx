@@ -18,12 +18,12 @@ import {
 import {
   type RosterGroup,
   hydrateGroups,
-  getGroups,
   upsertGroup,
   renameGroup,
   deleteGroup,
   setGroupMembers,
 } from '@/lib/roster-groups';
+import { getPlayerGroups } from '@/lib/pool-formats';
 
 // Dedicated, clearly-labeled roster manager — SEPARATE from picking a game's
 // field. Building your saved-player list and choosing who plays today are two
@@ -445,7 +445,7 @@ function GroupsManager({ rosterLoading }: { rosterLoading: boolean }) {
   // it finishes so member names resolve).
   useEffect(() => {
     hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' })
-      .then(() => setGroups(getGroups()))
+      .then(() => setGroups(getPlayerGroups()))
       .catch(() => {});
   }, []);
   useEffect(() => {
@@ -471,7 +471,7 @@ function GroupsManager({ rosterLoading }: { rosterLoading: boolean }) {
       defaults: null,
     };
     await upsertGroup(group);
-    setGroups(getGroups());
+    setGroups(getPlayerGroups());
     setSelectedId(group.id);
     setNewName('');
     flash(`Created group “${name}”. Add players below.`);
@@ -482,7 +482,7 @@ function GroupsManager({ rosterLoading }: { rosterLoading: boolean }) {
     const name = renameText.trim();
     if (!name) return;
     await renameGroup(selected.id, name);
-    setGroups(getGroups());
+    setGroups(getPlayerGroups());
     setRenaming(false);
     flash('Group renamed.');
   }
@@ -491,7 +491,7 @@ function GroupsManager({ rosterLoading }: { rosterLoading: boolean }) {
     if (!selected) return;
     if (!confirm(`Delete group “${selected.name}”? This does not remove any players from your roster.`)) return;
     await deleteGroup(selected.id);
-    setGroups(getGroups());
+    setGroups(getPlayerGroups());
     setSelectedId('');
     flash('Group deleted.');
   }
@@ -501,7 +501,7 @@ function GroupsManager({ rosterLoading }: { rosterLoading: boolean }) {
     const has = selected.playerIds.includes(playerId);
     const next = has ? selected.playerIds.filter((id) => id !== playerId) : [...selected.playerIds, playerId];
     await setGroupMembers(selected.id, next);
-    setGroups(getGroups());
+    setGroups(getPlayerGroups());
   }
 
   const inputCls = 'rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500';

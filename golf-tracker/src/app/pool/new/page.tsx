@@ -54,6 +54,8 @@ import { GAME_MODES, getGameMode, defaultSettings, type SettingsBag, type Settin
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 
 const WIZARD_KEY = 'pool_wizard_draft';
+// Set by the Format Library's "Start a game" to preconfigure the wizard once.
+const FORMAT_SEED_KEY = 'pool_format_seed';
 
 type Step = 'details' | 'course' | 'field' | 'tees' | 'teams' | 'create';
 
@@ -220,6 +222,17 @@ export default function NewPoolGamePage() {
         // new game starts with nobody selected. Name/course/config still restore.
       }
     } catch {}
+    // Seed from a Format Library entry (set by the library's "Start a game").
+    // Applied AFTER the draft so a chosen format wins; consumed once.
+    try {
+      const seedRaw = sessionStorage.getItem(FORMAT_SEED_KEY);
+      if (seedRaw) {
+        sessionStorage.removeItem(FORMAT_SEED_KEY);
+        const seed = JSON.parse(seedRaw) as { name?: string; defaults?: GroupDefaults };
+        if (seed.name && seed.name.trim()) setName(seed.name);
+        if (seed.defaults) applyGroupDefaults(seed.defaults);
+      }
+    } catch {}
     setHydrated(true);
   }, []);
 
@@ -247,6 +260,10 @@ export default function NewPoolGamePage() {
       handicapBasis,
       ballSelection,
       useCaptains,
+      // Game mode + its settings (so a saved group/format restores the game type).
+      gameMode,
+      modeSettings: gameMode ? modeSettings : undefined,
+      subTeams,
     };
   }
 
@@ -271,6 +288,11 @@ export default function NewPoolGamePage() {
     if (d.handicapBasis === 'course' || d.handicapBasis === 'index') setHandicapBasis(d.handicapBasis);
     if (d.ballSelection) setBallSelection(d.ballSelection);
     if (typeof d.useCaptains === 'boolean') setUseCaptains(d.useCaptains);
+    // Game mode + settings (restore a saved individual/2v2/decision game). Only
+    // set gameMode when present so a plain player-group (no mode) stays classic.
+    if (typeof d.gameMode === 'string') setGameMode(d.gameMode);
+    if (d.modeSettings && typeof d.modeSettings === 'object') setModeSettings(d.modeSettings);
+    if (d.subTeams && Array.isArray(d.subTeams.a) && Array.isArray(d.subTeams.b)) setSubTeams(d.subTeams);
   }
 
   // Parse the match-config inputs into a PoolMatchConfig (per-player $/leg + junk

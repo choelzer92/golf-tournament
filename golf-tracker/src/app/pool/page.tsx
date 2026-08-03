@@ -78,12 +78,20 @@ export default function PoolGamesListPage() {
           + New Pool Game
         </button>
         {!needsLogin && (
-          <button
-            onClick={() => router.push('/pool/roster')}
-            className="w-full mb-6 rounded-lg border border-green-700 bg-white px-6 py-3 text-green-700 font-semibold hover:bg-green-50"
-          >
-            Saved Players &amp; Groups
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 mb-6">
+            <button
+              onClick={() => router.push('/pool/roster')}
+              className="flex-1 rounded-lg border border-green-700 bg-white px-6 py-3 text-green-700 font-semibold hover:bg-green-50"
+            >
+              Saved Players &amp; Groups
+            </button>
+            <button
+              onClick={() => router.push('/pool/formats')}
+              className="flex-1 rounded-lg border border-green-700 bg-white px-6 py-3 text-green-700 font-semibold hover:bg-green-50"
+            >
+              Game Formats
+            </button>
+          </div>
         )}
 
         {loading ? (

@@ -17,6 +17,16 @@ export interface GroupDefaults {
   handicapBasis?: 'course' | 'index';
   ballSelection?: TwoBestBallsVariant;
   useCaptains?: boolean;
+  // Game-mode fields (added with the pluggable game-mode library). Let a saved
+  // group/format carry a full individual/2v2/decision game, not just the classic
+  // pot/match settings. All ride in the existing `defaults` JSONB — no migration.
+  gameMode?: string;
+  modeSettings?: Record<string, string | number | boolean>;
+  subTeams?: { a: string[]; b: string[] };
+  // Marks this roster_groups row as a Format Library entry (a reusable game
+  // format, typically with no players) rather than a player Group. Absent = a
+  // normal player group (unchanged behavior).
+  kind?: 'format';
 }
 
 export interface RosterGroup {
@@ -150,4 +160,24 @@ export async function removeGroupMember(id: string, playerId: string): Promise<v
 export async function deleteGroup(id: string): Promise<void> {
   groupCache.delete(id);
   await supabase.from('roster_groups').delete().eq('id', id);
+}
+
+// Explicitly set a group/format's owner (null = shared/visible to all). Unlike
+// upsertGroup — which PRESERVES an existing row's owner so a rename/member-edit
+// can't change it — this deliberately changes ownership, for sharing/unsharing a
+// Format Library entry.
+export async function setGroupOwner(id: string, ownerGhin: number | null): Promise<RosterGroup | null> {
+  const g = groupCache.get(id);
+  if (!g) return null;
+  const merged: RosterGroup = { ...g, ownerGhin };
+  groupCache.set(id, merged);
+  await supabase.from('roster_groups').upsert({
+    id: merged.id,
+    name: merged.name,
+    owner_ghin: merged.ownerGhin,
+    player_ids: merged.playerIds,
+    defaults: merged.defaults,
+    updated_at: new Date().toISOString(),
+  });
+  return merged;
 }
