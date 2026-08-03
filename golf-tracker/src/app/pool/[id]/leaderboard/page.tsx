@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { GameScore } from '@/lib/game-state';
 import { loadGameScores, fetchGameScores, subscribeToScores, onVisibilityRefetch, fetchScoreAudit, type ScoreAuditEntry } from '@/lib/tournament-state';
-import type { PoolGame, PoolResult, PoolTeamDetail, PoolLegKey, PoolLeg } from '@/lib/pool-game';
+import type { PoolGame, PoolResult, PoolTeamDetail, PoolPlayerDetail, PoolPlayerHoleScore, PoolLegKey, PoolLeg } from '@/lib/pool-game';
 import {
   loadPoolGame,
   fetchPoolGame,
@@ -29,7 +29,10 @@ export default function PoolLeaderboardPage() {
   const [game, setGame] = useState<PoolGame | null>(null);
   const [result, setResult] = useState<PoolResult | null>(null);
   const [teamDetails, setTeamDetails] = useState<PoolTeamDetail[]>([]);
-  const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
+  // Player Details default to EXPANDED (post-round, everyone wants to see gross
+  // scores immediately). Track which teams the user has COLLAPSED, so empty = all
+  // open. A team is expanded unless its id is in this set.
+  const [collapsedTeams, setCollapsedTeams] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const cached = loadPoolGame(id);
@@ -345,14 +348,24 @@ export default function PoolLeaderboardPage() {
             <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Player Details</p>
           </div>
           {rankedTeams.map((r) => {
-            const isTeamExpanded = expandedTeam === r.teamId;
+            const isTeamExpanded = !collapsedTeams.has(r.teamId);
             const teamDetail = teamDetails.find((td) => td.teamId === r.teamId);
             const payout = result.payouts.find((p) => p.teamId === r.teamId);
+            const toggle = () => setCollapsedTeams((prev) => {
+              const next = new Set(prev);
+              if (next.has(r.teamId)) next.delete(r.teamId); else next.add(r.teamId);
+              return next;
+            });
+            // Gross sums per player, split at the turn (answers "what did I shoot").
+            const sumGross = (p: PoolPlayerDetail, pred: (h: PoolPlayerHoleScore) => boolean) => {
+              const played = p.holes.filter((h) => pred(h) && h.gross != null);
+              return played.length ? played.reduce((s, h) => s + (h.gross ?? 0), 0) : null;
+            };
 
             return (
               <div key={r.teamId} className="border-b border-gray-700/30 last:border-0">
                 <button
-                  onClick={() => setExpandedTeam(isTeamExpanded ? null : r.teamId)}
+                  onClick={toggle}
                   className="w-full px-4 py-2 flex items-center justify-between hover:bg-gray-750"
                 >
                   <span className="text-sm text-gray-300">{r.teamName}</span>
@@ -375,17 +388,22 @@ export default function PoolLeaderboardPage() {
                           {frontHoles.map((h) => (
                             <th key={h.holeNumber} className="text-center px-1 py-1 font-medium min-w-[24px]">{h.holeNumber}</th>
                           ))}
-                          <th className="text-center px-1 py-1 min-w-[28px]"></th>
+                          <th className="text-center px-1.5 py-1 font-bold text-gray-400 min-w-[28px]">Out</th>
                           {backHoles.map((h) => (
                             <th key={h.holeNumber} className="text-center px-1 py-1 font-medium min-w-[24px]">{h.holeNumber}</th>
                           ))}
+                          <th className="text-center px-1.5 py-1 font-bold text-gray-400 min-w-[28px]">In</th>
+                          <th className="text-center px-1.5 py-1 font-bold text-gray-300 min-w-[32px]">Gross</th>
+                          <th className="text-center px-1.5 py-1 font-medium text-gray-400 min-w-[32px]">Net</th>
                         </tr>
                       </thead>
                       <tbody>
                         {teamDetail.players.map((player) => {
                           const isCaptain = game.teams.find((t) => t.id === r.teamId)?.captainId === player.playerId;
+                          const outGross = sumGross(player, (h) => h.holeNumber <= 9);
+                          const inGross = sumGross(player, (h) => h.holeNumber > 9);
                           return (
-                          <tr key={player.playerId}>
+                          <tr key={player.playerId} className="border-t border-gray-700/30">
                             <td className="px-1 py-1 text-gray-300 font-medium whitespace-nowrap sticky left-0 bg-gray-800">
                               {isCaptain && <span className="text-[9px] font-bold text-green-400 mr-0.5" title="Captain">(C)</span>}
                               {player.playerName.split(' ')[0]}
@@ -401,7 +419,7 @@ export default function PoolLeaderboardPage() {
                                 ) : '-'}
                               </td>
                             ))}
-                            <td className="text-center px-1 py-1 text-gray-600">|</td>
+                            <td className="text-center px-1.5 py-1 font-bold text-gray-400 bg-gray-750">{outGross ?? '-'}</td>
                             {player.holes.filter((h) => h.holeNumber > 9).map((h) => (
                               <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
                                 {h.gross != null ? (
@@ -412,11 +430,15 @@ export default function PoolLeaderboardPage() {
                                 ) : '-'}
                               </td>
                             ))}
+                            <td className="text-center px-1.5 py-1 font-bold text-gray-400 bg-gray-750">{inGross ?? '-'}</td>
+                            <td className="text-center px-1.5 py-1 font-bold text-white bg-gray-750">{player.grossTotal ?? '-'}</td>
+                            <td className="text-center px-1.5 py-1 font-medium text-gray-300 bg-gray-750">{player.netTotal ?? '-'}</td>
                           </tr>
                           );
                         })}
                       </tbody>
                     </table>
+                    <StrokesGivenBox players={teamDetail.players} />
                   </div>
                 )}
               </div>
@@ -663,6 +685,44 @@ function ballSelectionCaption(variant: PoolGame['ballSelection'] | undefined): s
     case '1-net-1-gross':
     default: return 'best net + best gross';
   }
+}
+
+// Expandable per-player list of the holes where each player receives a stroke
+// (with the count, for 2-stroke holes). Answers "which holes do I get a shot on?"
+// without reading the tiny dots off the grid. Collapsed by default.
+function StrokesGivenBox({ players }: { players: PoolPlayerDetail[] }) {
+  const [open, setOpen] = useState(false);
+  const anyStrokes = players.some((p) => p.holes.some((h) => h.strokes > 0));
+  if (!anyStrokes) return null;
+
+  return (
+    <div className="mt-2 rounded-lg bg-gray-900/50">
+      <button onClick={() => setOpen((o) => !o)} className="w-full px-3 py-1.5 flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-wider text-gray-500 font-medium">Strokes given — which holes</span>
+        <span className="text-gray-600 text-xs">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <div className="px-3 pb-2 space-y-1">
+          {players.map((p) => {
+            const strokeHoles = p.holes.filter((h) => h.strokes > 0);
+            return (
+              <div key={p.playerId} className="flex gap-2 text-xs">
+                <span className="text-gray-300 font-medium whitespace-nowrap min-w-[70px]">
+                  {p.playerName.split(' ')[0]}
+                  <span className="text-[10px] text-gray-500 ml-0.5">({Math.round(p.playingHcap)})</span>
+                </span>
+                <span className="text-gray-400">
+                  {strokeHoles.length === 0
+                    ? 'none'
+                    : strokeHoles.map((h) => `${h.holeNumber}${h.strokes > 1 ? `×${h.strokes}` : ''}`).join(', ')}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function lowScoreOnHole(teamScores: Record<string, number | null>): number | null {
