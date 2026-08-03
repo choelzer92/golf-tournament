@@ -745,8 +745,8 @@ function IndividualLeaderboard({ id }: { id: string }) {
 
   const money = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}$${Math.abs(Math.round(n))}`;
   // Signed points (9s/quota, match pts) read better with a leading +. But a
-  // stroke-total metric is a raw net (e.g. 72) that must NOT be +-prefixed.
-  const isStrokeMetric = result?.metricLabel === 'net';
+  // stroke-total metric is a raw net/gross (e.g. 72) that must NOT be +-prefixed.
+  const isStrokeMetric = result?.metricLabel === 'net' || result?.metricLabel === 'gross';
   const fmtMetric = (n: number) => {
     const r = Math.round(n * 10) / 10;
     const s = r % 1 === 0 ? String(r) : r.toFixed(1);

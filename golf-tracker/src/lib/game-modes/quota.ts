@@ -31,10 +31,11 @@ const SETTINGS: FormatSetting[] = [
     key: 'quotaBasis', label: 'Quota', type: 'select',
     options: [
       { value: 'par2minus', label: '36 − course handicap' },
+      { value: 'chicago', label: 'Chicago (39 − course handicap)' },
       { value: 'fixed', label: 'Same fixed quota for all' },
     ],
     defaultValue: 'par2minus',
-    hint: '36 − handicap is the classic quota (par = 2 pts). Or set one fixed target for everyone.',
+    hint: '36 − handicap is the classic quota (par = 2 pts). Chicago starts from 39. Or set one fixed target.',
   },
   { key: 'fixedQuota', label: 'Fixed quota (if used)', type: 'number', defaultValue: 36 },
   {
@@ -50,7 +51,9 @@ function compute(ctx: GameModeContext): IndividualResult {
   const dollarsPerPoint = numberSetting(SETTINGS, ctx.settings, 'dollarsPerPoint');
 
   const quotaFor = (playerId: string): number =>
-    quotaBasis === 'fixed' ? fixedQuota : Math.max(0, 36 - ctx.playingHcap(playerId));
+    quotaBasis === 'fixed' ? fixedQuota
+    : quotaBasis === 'chicago' ? Math.max(0, 39 - ctx.playingHcap(playerId))
+    : Math.max(0, 36 - ctx.playingHcap(playerId));
 
   const standings: PlayerStanding[] = ctx.players.map((p) => ({
     playerId: p.id, playerName: p.name, points: 0, moneyNet: 0,
