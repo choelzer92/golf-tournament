@@ -1,6 +1,6 @@
 import type { FormatSetting } from '../formats';
 import type { HoleData } from '../pool-game';
-import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding } from './types';
+import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding, WolfHoleLine } from './types';
 import { rankByPointsDesc, settlePerPoint } from './types';
 import { numberSetting, stringSetting } from './settings';
 
@@ -46,6 +46,7 @@ function compute(ctx: GameModeContext): IndividualResult {
 
   const order = ctx.players.map((p) => p.id); // rotation order = player (tee) order
   const decisions = ctx.wolfDecisions ?? {};
+  const nameOf = (id: string): string => ctx.players.find((p) => p.id === id)?.name ?? id;
 
   const standings: PlayerStanding[] = ctx.players.map((p) => ({
     playerId: p.id, playerName: p.name, points: 0, moneyNet: 0,
@@ -53,6 +54,8 @@ function compute(ctx: GameModeContext): IndividualResult {
   }));
   const byId = new Map(standings.map((s) => [s.playerId, s]));
   let thruHole = 0;
+  const wolfHoles: WolfHoleLine[] = [];              // per-hole matchup breakdown
+  const holesWon = new Map<string, number[]>();      // playerId -> hole numbers they won
 
   ctx.holes.forEach((hole, hIdx) => {
     // The rotating Wolf for this hole (unless a decision overrode who it is).
@@ -77,8 +80,9 @@ function compute(ctx: GameModeContext): IndividualResult {
 
     // Push = nobody scores.
     let winners: string[] = [];
-    if (wolfBest < fieldBest) winners = wolfSide;
-    else if (fieldBest < wolfBest) winners = fieldSide;
+    let outcome: 'wolf' | 'field' | 'push' = 'push';
+    if (wolfBest < fieldBest) { winners = wolfSide; outcome = 'wolf'; }
+    else if (fieldBest < wolfBest) { winners = fieldSide; outcome = 'field'; }
 
     // Award: each winner gets the pot; in a lone/blind loss the whole field wins.
     for (const id of winners) {
@@ -86,13 +90,30 @@ function compute(ctx: GameModeContext): IndividualResult {
       if (!s) continue;
       s.points += pot;
       s.perHole[hIdx] = (s.perHole[hIdx] ?? 0) + pot;
+      holesWon.set(id, [...(holesWon.get(id) ?? []), hole.number]);
     }
+
+    wolfHoles.push({
+      holeNumber: hole.number,
+      wolfName: nameOf(wolfId),
+      mode,
+      partnerName: partnerId ? nameOf(partnerId) : null,
+      multiplier: mult,
+      wolfSideNames: wolfSide.map(nameOf),
+      fieldSideNames: fieldSide.map(nameOf),
+      wolfNet: wolfBest,
+      fieldNet: fieldBest,
+      outcome,
+      pointsEach: outcome === 'push' ? 0 : pot,
+      winnerNames: winners.map(nameOf),
+    });
   });
 
-  // thru = holes each player has a gross for.
+  // thru = holes each player has a gross for; holesWon = holes they earned on.
   for (const p of ctx.players) {
     const s = byId.get(p.id)!;
     s.thru = ctx.holes.filter((h) => ctx.grossOnHole(p.id, h) !== null).length;
+    s.holesWon = holesWon.get(p.id) ?? [];
   }
 
   rankByPointsDesc(standings);
@@ -100,7 +121,7 @@ function compute(ctx: GameModeContext): IndividualResult {
 
   return {
     kind: 'individual', gameModeId: 'wolf', metricLabel: 'pts',
-    standings, pot: 0, thruHole, moneyModel: 'per-point',
+    standings, pot: 0, thruHole, moneyModel: 'per-point', wolfHoles,
   };
 }
 

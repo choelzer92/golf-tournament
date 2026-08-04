@@ -69,6 +69,7 @@ export interface PlayerStanding {
   perHole: (number | null)[];     // metric contribution per hole, aligned to ctx.holes (null = not scored)
   thru: number;                   // holes this player has scored
   place: number;                  // 1-based rank (ties share a place); 0 if unscored
+  holesWon?: number[];            // Wolf only: hole numbers this player earned points on (for the expandable standings)
 }
 
 // A front/back/overall sub-result for a 2v2 team game (Nassau-style breakdown).
@@ -81,6 +82,25 @@ export interface TeamLegLine {
   status: string;
   winner: 'a' | 'b' | null;
   thru: number;
+}
+
+// One hole's matchup story for the Wolf leaderboard breakdown. Wolf's whole
+// interest is per-hole (who was Wolf, their call, both sides' best net, who
+// won), so compute() surfaces it instead of only the running points. Sides are
+// always BEST NET (lower net of the side's members), never combined.
+export interface WolfHoleLine {
+  holeNumber: number;
+  wolfName: string;                        // the Wolf's display name
+  mode: 'partner' | 'lone' | 'blind';
+  partnerName: string | null;              // partner's name when mode === 'partner'
+  multiplier: number;                       // 1 / lone× / blind×
+  wolfSideNames: string[];                  // display names on the Wolf's side
+  fieldSideNames: string[];                 // display names on the field side
+  wolfNet: number | null;                   // Wolf side's best net (null = unscored)
+  fieldNet: number | null;                  // field side's best net
+  outcome: 'wolf' | 'field' | 'push';       // who won the hole
+  pointsEach: number;                        // points each winner earned this hole
+  winnerNames: string[];                     // who got the points (may be the whole field)
 }
 
 // The individual-game result. Discriminated by `kind` so the leaderboard can
@@ -96,6 +116,8 @@ export interface IndividualResult {
   // 2v2 team games only: front/back/overall breakdown for the leaderboard.
   teamLegs?: TeamLegLine[];
   sideNames?: { a: string; b: string };
+  // Wolf only: per-hole matchup breakdown (Wolf, call, side nets, winner).
+  wolfHoles?: WolfHoleLine[];
 }
 
 // --- shared settlement helpers (kept here so every mode reuses one impl) -----

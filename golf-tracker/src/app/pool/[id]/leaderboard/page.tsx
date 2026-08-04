@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { GameScore } from '@/lib/game-state';
 import { loadGameScores, fetchGameScores, subscribeToScores, onVisibilityRefetch, fetchScoreAudit, type ScoreAuditEntry } from '@/lib/tournament-state';
@@ -15,6 +15,7 @@ import {
   DEFAULT_MATCH_CONFIG,
 } from '@/lib/pool-game';
 import { getGameMode, type IndividualResult } from '@/lib/game-modes';
+import type { WolfHoleLine } from '@/lib/game-modes/types';
 import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
 
 const LEG_LABELS: Record<PoolLegKey, string> = {
@@ -706,6 +707,8 @@ function IndividualLeaderboard({ id }: { id: string }) {
   const [game, setGame] = useState<PoolGame | null>(null);
   const [result, setResult] = useState<IndividualResult | null>(null);
   const [teamDetails, setTeamDetails] = useState<PoolTeamDetail[]>([]);
+  // Wolf standings: which player row is expanded to show the holes they won.
+  const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null);
 
   useEffect(() => {
     const cached = loadPoolGame(id);
@@ -794,23 +797,53 @@ function IndividualLeaderboard({ id }: { id: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {result.standings.map((s) => (
-                    <tr key={s.playerId} className="border-t border-gray-700/30">
-                      <td className="px-3 py-1.5 text-gray-400">{s.place || '-'}</td>
-                      <td className="px-2 py-1.5 text-gray-200 font-medium">{displayName(s.playerName)}</td>
-                      <td className="text-center px-2 py-1.5 font-bold text-white">{fmtMetric(s.points)}</td>
-                      <td className="text-center px-2 py-1.5 text-gray-400">{s.thru || '-'}</td>
-                      <td className={`text-right px-3 py-1.5 font-medium ${s.moneyNet > 0 ? 'text-green-400' : s.moneyNet < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                        {money(s.moneyNet)}
-                      </td>
-                    </tr>
-                  ))}
+                  {result.standings.map((s) => {
+                    // Wolf standings are expandable: tap a row to see which holes
+                    // the player won. `holesWon` is only present for Wolf.
+                    const canExpand = s.holesWon !== undefined;
+                    const isOpen = expandedPlayer === s.playerId;
+                    return (
+                      <Fragment key={s.playerId}>
+                        <tr
+                          className={`border-t border-gray-700/30 ${canExpand ? 'cursor-pointer hover:bg-gray-700/30' : ''}`}
+                          onClick={canExpand ? () => setExpandedPlayer(isOpen ? null : s.playerId) : undefined}
+                        >
+                          <td className="px-3 py-1.5 text-gray-400">{s.place || '-'}</td>
+                          <td className="px-2 py-1.5 text-gray-200 font-medium">
+                            {displayName(s.playerName)}
+                            {canExpand && <span className="ml-1 text-gray-600 text-[10px]">{isOpen ? '▾' : '▸'}</span>}
+                          </td>
+                          <td className="text-center px-2 py-1.5 font-bold text-white">{fmtMetric(s.points)}</td>
+                          <td className="text-center px-2 py-1.5 text-gray-400">{s.thru || '-'}</td>
+                          <td className={`text-right px-3 py-1.5 font-medium ${s.moneyNet > 0 ? 'text-green-400' : s.moneyNet < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                            {money(s.moneyNet)}
+                          </td>
+                        </tr>
+                        {canExpand && isOpen && (
+                          <tr className="bg-gray-900/40">
+                            <td />
+                            <td colSpan={4} className="px-2 pb-2 text-[11px] text-gray-400">
+                              {s.holesWon && s.holesWon.length > 0
+                                ? <>Won holes: <span className="text-gray-300">{s.holesWon.join(', ')}</span></>
+                                : 'No holes won yet.'}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
               {result.moneyModel === 'pot' && result.pot > 0 && (
                 <div className="px-3 py-2 text-[10px] text-gray-500 border-t border-gray-700">${Math.round(result.pot)} pot</div>
               )}
             </div>
+
+            {/* Wolf hole-by-hole matchup breakdown — who was Wolf, their call,
+                both sides' best net, and who took the points. */}
+            {result.wolfHoles && result.wolfHoles.length > 0 && (
+              <WolfBreakdown lines={result.wolfHoles} />
+            )}
 
             {/* Front / Back / Overall breakdown (2v2 team games) — Nassau-style. */}
             {result.teamLegs && result.teamLegs.length > 0 && (
@@ -846,6 +879,64 @@ function IndividualLeaderboard({ id }: { id: string }) {
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+// Wolf hole-by-hole matchup breakdown. Each hole tells its own story: who was the
+// Wolf, whether they took a partner / went lone / went blind (with the point
+// multiplier), each side's BEST net (Wolf partnerships are always best-ball, not
+// combined), who won the hole, and the points awarded. A tied hole is a push —
+// no points — and is labelled as such so it doesn't read like a gap.
+function WolfBreakdown({ lines }: { lines: WolfHoleLine[] }) {
+  const first = (n: string) => n.split(' ')[0];
+  // Most recent hole first — the current state of play is what you glance at.
+  const ordered = [...lines].sort((a, b) => b.holeNumber - a.holeNumber);
+  return (
+    <div className="bg-gray-800 rounded-xl overflow-hidden">
+      <div className="px-4 py-2 border-b border-gray-700 flex items-center justify-between">
+        <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Hole by Hole</p>
+        <p className="text-[10px] text-gray-600">best net per side · lone ×/blind × multiply</p>
+      </div>
+      <div className="divide-y divide-gray-700/30">
+        {ordered.map((h) => {
+          const call =
+            h.mode === 'partner'
+              ? `+ ${first(h.partnerName ?? '')}`
+              : h.mode === 'lone'
+              ? `Lone ×${h.multiplier}`
+              : `Blind ×${h.multiplier}`;
+          const wolfWon = h.outcome === 'wolf';
+          const fieldWon = h.outcome === 'field';
+          return (
+            <div key={h.holeNumber} className="px-4 py-2.5">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-sm font-medium text-gray-200">
+                  <span className="text-gray-500">H{h.holeNumber}</span>
+                  {' · '}🐺 {first(h.wolfName)}{' '}
+                  <span className={`text-xs ${h.mode === 'partner' ? 'text-amber-300' : 'text-orange-400'}`}>{call}</span>
+                </p>
+                <span className={`text-xs font-semibold ${h.outcome === 'push' ? 'text-gray-500' : 'text-green-400'}`}>
+                  {h.outcome === 'push'
+                    ? 'Push — no points'
+                    : `${h.winnerNames.map(first).join(' & ')} +${h.pointsEach}`}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-[11px]">
+                <span className={`flex-1 ${wolfWon ? 'text-white font-medium' : 'text-gray-400'}`}>
+                  {h.wolfSideNames.map(first).join(' & ')}
+                  <span className="text-gray-500"> · net {h.wolfNet ?? '–'}</span>
+                </span>
+                <span className="text-gray-600">vs</span>
+                <span className={`flex-1 text-right ${fieldWon ? 'text-white font-medium' : 'text-gray-400'}`}>
+                  {h.fieldSideNames.map(first).join(' & ')}
+                  <span className="text-gray-500"> · net {h.fieldNet ?? '–'}</span>
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
