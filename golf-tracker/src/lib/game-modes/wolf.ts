@@ -2,7 +2,8 @@ import type { FormatSetting } from '../formats';
 import type { HoleData } from '../pool-game';
 import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding, WolfHoleLine } from './types';
 import { rankByPointsDesc, settlePerPoint } from './types';
-import { numberSetting, stringSetting } from './settings';
+import type { NassauLegLine } from './types';
+import { numberSetting, stringSetting, NASSAU_SETTINGS, settleNassauFromSettings } from './settings';
 
 // Wolf. Each hole one player is the "Wolf" (rotating by tee order). The Wolf
 // either takes a PARTNER (2v2, best net of the pair vs best net of the other
@@ -24,7 +25,16 @@ const SETTINGS: FormatSetting[] = [
   { key: 'basePoints', label: 'Base points / hole', type: 'number', defaultValue: 1, hint: 'Points the winning side earns per hole (per player).' },
   { key: 'loneMultiplier', label: 'Lone Wolf ×', type: 'number', defaultValue: 2, hint: 'Multiplier when the Wolf goes it alone (1 vs 3).' },
   { key: 'blindMultiplier', label: 'Blind Wolf ×', type: 'number', defaultValue: 3, hint: 'Multiplier for a blind Wolf (declared before tee shots).' },
-  { key: 'dollarsPerPoint', label: '$ per point', type: 'number', defaultValue: 1, hint: 'Settle (points − group avg) × this. Zero-sum.' },
+  {
+    key: 'moneyModel', label: 'Money', type: 'select',
+    options: [
+      { value: 'per-point', label: '$ per point (zero-sum)' },
+      { value: 'nassau', label: 'Nassau pot (buy-in, split by segment)' },
+    ],
+    defaultValue: 'per-point',
+  },
+  { key: 'dollarsPerPoint', label: '$ per point', type: 'number', defaultValue: 1, hint: 'Used when money = $ per point. Settle (points − group avg) × this. Zero-sum.' },
+  ...NASSAU_SETTINGS,
 ];
 
 // Best score (lower = better) among a set of players on a hole; null if none scored.
@@ -43,6 +53,7 @@ function compute(ctx: GameModeContext): IndividualResult {
   const loneMult = numberSetting(SETTINGS, ctx.settings, 'loneMultiplier');
   const blindMult = numberSetting(SETTINGS, ctx.settings, 'blindMultiplier');
   const dollarsPerPoint = numberSetting(SETTINGS, ctx.settings, 'dollarsPerPoint');
+  const moneyModel = stringSetting(SETTINGS, ctx.settings, 'moneyModel') === 'nassau' ? 'nassau' : 'per-point';
 
   const order = ctx.players.map((p) => p.id); // the full field (for sides + all-scored check)
   // Rotation order = the Wolf draw result if set, else the field order. Only who's
@@ -120,11 +131,18 @@ function compute(ctx: GameModeContext): IndividualResult {
   }
 
   rankByPointsDesc(standings);
-  settlePerPoint(standings, dollarsPerPoint);
+  let nassauLegs: NassauLegLine[] | undefined;
+  if (moneyModel === 'nassau') {
+    nassauLegs = settleNassauFromSettings(SETTINGS, ctx.settings, standings, true);
+  } else {
+    settlePerPoint(standings, dollarsPerPoint);
+  }
 
   return {
     kind: 'individual', gameModeId: 'wolf', metricLabel: 'pts',
-    standings, pot: 0, thruHole, moneyModel: 'per-point', wolfHoles,
+    standings, pot: 0, thruHole,
+    moneyModel: moneyModel === 'nassau' ? 'pot' : 'per-point',
+    wolfHoles, nassauLegs,
   };
 }
 

@@ -1,7 +1,8 @@
 import type { FormatSetting } from '../formats';
 import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding } from './types';
 import { rankByPointsDesc, settlePerPoint } from './types';
-import { numberSetting, stringSetting } from './settings';
+import type { NassauLegLine } from './types';
+import { numberSetting, stringSetting, NASSAU_SETTINGS, settleNassauFromSettings } from './settings';
 
 // Quota (a.k.a. Points / Chicago). Each player has a target "quota" of points to
 // earn; they score Stableford-style points vs par (net or gross) and settle on
@@ -39,9 +40,18 @@ const SETTINGS: FormatSetting[] = [
   },
   { key: 'fixedQuota', label: 'Fixed quota (if used)', type: 'number', defaultValue: 36 },
   {
-    key: 'dollarsPerPoint', label: '$ per point', type: 'number', defaultValue: 1,
-    hint: 'Each player settles (points beaten vs quota − group avg) × this. Zero-sum.',
+    key: 'moneyModel', label: 'Money', type: 'select',
+    options: [
+      { value: 'per-point', label: '$ per point (zero-sum)' },
+      { value: 'nassau', label: 'Nassau pot (buy-in, split by segment)' },
+    ],
+    defaultValue: 'per-point',
   },
+  {
+    key: 'dollarsPerPoint', label: '$ per point', type: 'number', defaultValue: 1,
+    hint: 'Used when money = $ per point. Each player settles (points beaten vs quota − group avg) × this. Zero-sum.',
+  },
+  ...NASSAU_SETTINGS,
 ];
 
 function compute(ctx: GameModeContext): IndividualResult {
@@ -49,6 +59,7 @@ function compute(ctx: GameModeContext): IndividualResult {
   const quotaBasis = stringSetting(SETTINGS, ctx.settings, 'quotaBasis');
   const fixedQuota = numberSetting(SETTINGS, ctx.settings, 'fixedQuota');
   const dollarsPerPoint = numberSetting(SETTINGS, ctx.settings, 'dollarsPerPoint');
+  const moneyModel = stringSetting(SETTINGS, ctx.settings, 'moneyModel') === 'nassau' ? 'nassau' : 'per-point';
 
   const quotaFor = (playerId: string): number =>
     quotaBasis === 'fixed' ? fixedQuota
@@ -84,11 +95,20 @@ function compute(ctx: GameModeContext): IndividualResult {
   }
 
   rankByPointsDesc(standings);
-  settlePerPoint(standings, dollarsPerPoint);
+  let nassauLegs: NassauLegLine[] | undefined;
+  if (moneyModel === 'nassau') {
+    // Total segment ranks by the vs-quota metric (s.points, set above); front/back
+    // rank by raw Stableford points earned on that nine (no per-nine quota target).
+    nassauLegs = settleNassauFromSettings(SETTINGS, ctx.settings, standings, true);
+  } else {
+    settlePerPoint(standings, dollarsPerPoint);
+  }
 
   return {
     kind: 'individual', gameModeId: 'quota', metricLabel: 'vs quota',
-    standings, pot: 0, thruHole, moneyModel: 'per-point',
+    standings, pot: 0, thruHole,
+    moneyModel: moneyModel === 'nassau' ? 'pot' : 'per-point',
+    nassauLegs,
   };
 }
 

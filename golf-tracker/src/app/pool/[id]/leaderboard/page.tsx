@@ -15,7 +15,7 @@ import {
   DEFAULT_MATCH_CONFIG,
 } from '@/lib/pool-game';
 import { getGameMode, type IndividualResult } from '@/lib/game-modes';
-import type { WolfHoleLine } from '@/lib/game-modes/types';
+import type { WolfHoleLine, NassauLegLine } from '@/lib/game-modes/types';
 import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
 
 const LEG_LABELS: Record<PoolLegKey, string> = {
@@ -839,6 +839,11 @@ function IndividualLeaderboard({ id }: { id: string }) {
               )}
             </div>
 
+            {/* Nassau-pot payout board — front / back / total segment winners. */}
+            {result.nassauLegs && result.nassauLegs.length > 0 && (
+              <NassauPayoutBoard legs={result.nassauLegs} />
+            )}
+
             {/* Wolf hole-by-hole matchup breakdown — who was Wolf, their call,
                 both sides' best net, and who took the points. */}
             {result.wolfHoles && result.wolfHoles.length > 0 && (
@@ -879,6 +884,36 @@ function IndividualLeaderboard({ id }: { id: string }) {
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+// Nassau-pot payout board. Shows each segment's pot and who's winning it (ties
+// share). A segment not yet started (e.g. the back 9 early on) reads "TBD".
+function NassauPayoutBoard({ legs }: { legs: NassauLegLine[] }) {
+  const first = (n: string) => n.split(' ')[0];
+  return (
+    <div className="bg-gray-800 rounded-xl overflow-hidden">
+      <div className="px-4 py-2 border-b border-gray-700">
+        <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Nassau Pots</p>
+      </div>
+      <div className="divide-y divide-gray-700/30">
+        {legs.map((leg) => (
+          <div key={leg.key} className="px-4 py-2.5 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-200">{leg.label}</p>
+              <p className="text-[10px] text-gray-500">${Math.round(leg.pot)} pot</p>
+            </div>
+            <span className={`text-sm font-medium ${leg.thru === 0 ? 'text-gray-500' : 'text-green-400'}`}>
+              {leg.thru === 0
+                ? 'TBD'
+                : leg.winnerNames.length === 0
+                ? '—'
+                : `${leg.winnerNames.map(first).join(' & ')}${leg.winnerNames.length > 1 ? ' (split)' : ''}`}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

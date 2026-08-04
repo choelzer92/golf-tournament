@@ -1,7 +1,8 @@
 import type { FormatSetting } from '../formats';
 import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding } from './types';
 import { rankByPointsDesc, settlePerPoint, settlePot } from './types';
-import { numberSetting, stringSetting, parseVector } from './settings';
+import type { NassauLegLine } from './types';
+import { numberSetting, stringSetting, parseVector, NASSAU_SETTINGS, settleNassauFromSettings } from './settings';
 
 // Nines (a.k.a. 9s / 5-3-1). On each hole a fixed pool of points (default 9,
 // split 5/3/1) is divided among the group by score — best score takes the top
@@ -22,13 +23,18 @@ const SETTINGS: FormatSetting[] = [
   },
   {
     key: 'moneyModel', label: 'Money', type: 'select',
-    options: [{ value: 'per-point', label: '$ per point' }, { value: 'pot', label: 'Buy-in pot' }],
+    options: [
+      { value: 'per-point', label: '$ per point' },
+      { value: 'pot', label: 'Buy-in pot (most points wins)' },
+      { value: 'nassau', label: 'Nassau pot (split front/back/total)' },
+    ],
     defaultValue: 'per-point',
   },
   {
     key: 'dollarsPerPoint', label: '$ per point', type: 'number', defaultValue: 1,
     hint: 'Used when money = $ per point. Each player settles (points − group avg) × this.',
   },
+  ...NASSAU_SETTINGS,
 ];
 
 // Distribute a point vector across N ranked players with tie-averaging. `order`
@@ -59,7 +65,8 @@ function distributeVector(
 function compute(ctx: GameModeContext): IndividualResult {
   const basis = stringSetting(SETTINGS, ctx.settings, 'scoreBasis'); // 'net' | 'gross'
   const vector = parseVector(stringSetting(SETTINGS, ctx.settings, 'pointVector'));
-  const moneyModel = stringSetting(SETTINGS, ctx.settings, 'moneyModel') === 'pot' ? 'pot' : 'per-point';
+  const moneyModelRaw = stringSetting(SETTINGS, ctx.settings, 'moneyModel');
+  const moneyModel = moneyModelRaw === 'pot' ? 'pot' : moneyModelRaw === 'nassau' ? 'nassau' : 'per-point';
   const dollarsPerPoint = numberSetting(SETTINGS, ctx.settings, 'dollarsPerPoint');
 
   const standings: PlayerStanding[] = ctx.players.map((p) => ({
@@ -89,12 +96,21 @@ function compute(ctx: GameModeContext): IndividualResult {
   });
 
   rankByPointsDesc(standings);
-  if (moneyModel === 'pot') settlePot(standings, ctx.pot, ctx.pot / Math.max(1, ctx.players.length));
-  else settlePerPoint(standings, dollarsPerPoint);
+  let nassauLegs: NassauLegLine[] | undefined;
+  if (moneyModel === 'nassau') {
+    nassauLegs = settleNassauFromSettings(SETTINGS, ctx.settings, standings, true);
+  } else if (moneyModel === 'pot') {
+    settlePot(standings, ctx.pot, ctx.pot / Math.max(1, ctx.players.length));
+  } else {
+    settlePerPoint(standings, dollarsPerPoint);
+  }
 
+  const resultMoneyModel: 'per-point' | 'pot' = moneyModel === 'per-point' ? 'per-point' : 'pot';
   return {
     kind: 'individual', gameModeId: 'nines', metricLabel: 'pts',
-    standings, pot: moneyModel === 'pot' ? ctx.pot : 0, thruHole, moneyModel,
+    standings, pot: moneyModel === 'pot' ? ctx.pot : 0, thruHole,
+    moneyModel: resultMoneyModel,
+    nassauLegs,
   };
 }
 

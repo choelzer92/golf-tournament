@@ -1,7 +1,8 @@
 import type { FormatSetting } from '../formats';
 import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding } from './types';
 import { rankByPointsDesc } from './types';
-import { numberSetting, stringSetting, boolSetting } from './settings';
+import type { NassauLegLine } from './types';
+import { numberSetting, stringSetting, boolSetting, NASSAU_SETTINGS, settleNassauFromSettings } from './settings';
 
 // Skins. Each hole is a skin; the outright low score wins it. A tie carries the
 // skin (and any carried skins) to the next hole when carryover is on; with
@@ -15,15 +16,25 @@ const SETTINGS: FormatSetting[] = [
   },
   { key: 'carryover', label: 'Carry ties to next hole', type: 'toggle', defaultValue: true },
   {
-    key: 'skinValue', label: '$ per skin', type: 'number', defaultValue: 5,
-    hint: 'Each skin won is paid by every other player. Zero-sum across the group.',
+    key: 'moneyModel', label: 'Money', type: 'select',
+    options: [
+      { value: 'per-skin', label: '$ per skin (zero-sum)' },
+      { value: 'nassau', label: 'Nassau pot (most skins front/back/total)' },
+    ],
+    defaultValue: 'per-skin',
   },
+  {
+    key: 'skinValue', label: '$ per skin', type: 'number', defaultValue: 5,
+    hint: 'Used when money = $ per skin. Each skin won is paid by every other player. Zero-sum across the group.',
+  },
+  ...NASSAU_SETTINGS,
 ];
 
 function compute(ctx: GameModeContext): IndividualResult {
   const basis = stringSetting(SETTINGS, ctx.settings, 'scoreBasis');
   const carryover = boolSetting(SETTINGS, ctx.settings, 'carryover');
   const skinValue = numberSetting(SETTINGS, ctx.settings, 'skinValue');
+  const moneyModel = stringSetting(SETTINGS, ctx.settings, 'moneyModel') === 'nassau' ? 'nassau' : 'per-skin';
 
   const standings: PlayerStanding[] = ctx.players.map((p) => ({
     playerId: p.id, playerName: p.name, points: 0, moneyNet: 0,
@@ -62,22 +73,29 @@ function compute(ctx: GameModeContext): IndividualResult {
     }
   });
 
-  // Money: a skin is worth skinValue from EACH other player. Net for a player =
-  // skinValue × (skinsWon × (N−1) − skinsWonByOthers). Equivalent zero-sum form:
-  const played = standings.filter((s) => s.thru > 0);
-  const n = played.length;
-  const totalSkins = standings.reduce((sum, s) => sum + s.points, 0);
-  for (const s of standings) {
-    if (s.thru === 0) { s.moneyNet = 0; continue; }
-    // won from others − paid to others
-    s.moneyNet = skinValue * (s.points * (n - 1) - (totalSkins - s.points));
-  }
-
   rankByPointsDesc(standings);
+
+  let nassauLegs: NassauLegLine[] | undefined;
+  if (moneyModel === 'nassau') {
+    // Nassau: most skins on the front / back / total takes each pot (ties split).
+    nassauLegs = settleNassauFromSettings(SETTINGS, ctx.settings, standings, true);
+  } else {
+    // Per-skin: a skin is worth skinValue from EACH other player. Net for a player
+    // = skinValue × (skinsWon × (N−1) − skinsWonByOthers). Zero-sum form:
+    const played = standings.filter((s) => s.thru > 0);
+    const n = played.length;
+    const totalSkins = standings.reduce((sum, s) => sum + s.points, 0);
+    for (const s of standings) {
+      if (s.thru === 0) { s.moneyNet = 0; continue; }
+      s.moneyNet = skinValue * (s.points * (n - 1) - (totalSkins - s.points));
+    }
+  }
 
   return {
     kind: 'individual', gameModeId: 'skins', metricLabel: 'skins',
-    standings, pot: 0, thruHole, moneyModel: 'per-point',
+    standings, pot: 0, thruHole,
+    moneyModel: moneyModel === 'nassau' ? 'pot' : 'per-point',
+    nassauLegs,
   };
 }
 

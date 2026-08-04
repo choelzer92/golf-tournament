@@ -1,6 +1,6 @@
 import type { FormatSetting } from '../formats';
-import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding } from './types';
-import { numberSetting, stringSetting } from './settings';
+import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding, NassauLegLine } from './types';
+import { numberSetting, stringSetting, NASSAU_SETTINGS, settleNassauFromSettings } from './settings';
 
 // Low total pool. Lowest NET (or gross) total over the round wins. Unlike the
 // points games, LOWER is better — so ranking and money are handled directly here
@@ -17,11 +17,13 @@ const SETTINGS: FormatSetting[] = [
     options: [
       { value: 'per-stroke', label: '$ per stroke vs field' },
       { value: 'pot', label: 'Buy-in pot (low total wins)' },
+      { value: 'nassau', label: 'Nassau pot (low front/back/total)' },
     ],
     defaultValue: 'pot',
   },
   { key: 'dollarsPerStroke', label: '$ per stroke', type: 'number', defaultValue: 1, hint: 'Used when money = per stroke. Settle (field avg − your total) × this. Zero-sum.' },
   { key: 'entryPerPlayer', label: 'Buy-in ($ / player)', type: 'number', defaultValue: 20, hint: 'Used when money = pot. Lowest total wins the pot; ties split.' },
+  ...NASSAU_SETTINGS,
 ];
 
 function compute(ctx: GameModeContext): IndividualResult {
@@ -65,7 +67,11 @@ function compute(ctx: GameModeContext): IndividualResult {
   }
 
   const played = standings.filter((s) => s.thru > 0);
-  if (moneyModel === 'pot') {
+  let nassauLegs: NassauLegLine[] | undefined;
+  if (moneyModel === 'nassau') {
+    // Lowest total on the front / back / total takes each pot (ties split).
+    nassauLegs = settleNassauFromSettings(SETTINGS, ctx.settings, standings, false);
+  } else if (moneyModel === 'pot') {
     const pot = played.length * entry;
     for (const s of standings) s.moneyNet = s.thru > 0 ? -entry : 0;
     if (pot > 0 && played.length > 0) {
@@ -84,6 +90,7 @@ function compute(ctx: GameModeContext): IndividualResult {
   return {
     kind: 'individual', gameModeId: 'low-total', metricLabel: basis === 'gross' ? 'gross' : 'net',
     standings, pot: moneyModel === 'pot' ? played.length * entry : 0, thruHole, moneyModel: 'per-point',
+    nassauLegs,
   };
 }
 

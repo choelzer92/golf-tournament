@@ -1,7 +1,8 @@
 import type { FormatSetting } from '../formats';
 import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding } from './types';
 import { rankByPointsDesc, settlePerPoint } from './types';
-import { numberSetting, stringSetting, parseVector } from './settings';
+import type { NassauLegLine } from './types';
+import { numberSetting, stringSetting, parseVector, NASSAU_SETTINGS, settleNassauFromSettings } from './settings';
 
 // Stableford (individual). Points per hole vs par off the net (or gross) score.
 // Highest total wins. The scale is selectable: Standard (5/4/3/2/1/0 for
@@ -40,13 +41,23 @@ const SETTINGS: FormatSetting[] = [
     key: 'customScale', label: 'Custom scale', type: 'text', defaultValue: '5,4,3,2,1,0',
     hint: 'Used when scale = Custom. Six values: albatross+, eagle, birdie, par, bogey, double+.',
   },
-  { key: 'dollarsPerPoint', label: '$ per point', type: 'number', defaultValue: 1, hint: 'Settle (points − group avg) × this. Zero-sum.' },
+  {
+    key: 'moneyModel', label: 'Money', type: 'select',
+    options: [
+      { value: 'per-point', label: '$ per point (zero-sum)' },
+      { value: 'nassau', label: 'Nassau pot (buy-in, split by segment)' },
+    ],
+    defaultValue: 'per-point',
+  },
+  { key: 'dollarsPerPoint', label: '$ per point', type: 'number', defaultValue: 1, hint: 'Used when money = $ per point. Settle (points − group avg) × this. Zero-sum.' },
+  ...NASSAU_SETTINGS,
 ];
 
 function compute(ctx: GameModeContext): IndividualResult {
   const basis = stringSetting(SETTINGS, ctx.settings, 'scoreBasis');
   const scaleKey = stringSetting(SETTINGS, ctx.settings, 'scale');
   const dollarsPerPoint = numberSetting(SETTINGS, ctx.settings, 'dollarsPerPoint');
+  const moneyModel = stringSetting(SETTINGS, ctx.settings, 'moneyModel') === 'nassau' ? 'nassau' : 'per-point';
 
   let scale = STANDARD;
   if (scaleKey === 'modified') scale = MODIFIED;
@@ -76,11 +87,18 @@ function compute(ctx: GameModeContext): IndividualResult {
   });
 
   rankByPointsDesc(standings);
-  settlePerPoint(standings, dollarsPerPoint);
+  let nassauLegs: NassauLegLine[] | undefined;
+  if (moneyModel === 'nassau') {
+    nassauLegs = settleNassauFromSettings(SETTINGS, ctx.settings, standings, true);
+  } else {
+    settlePerPoint(standings, dollarsPerPoint);
+  }
 
   return {
     kind: 'individual', gameModeId: 'stableford-ind', metricLabel: 'pts',
-    standings, pot: 0, thruHole, moneyModel: 'per-point',
+    standings, pot: 0, thruHole,
+    moneyModel: moneyModel === 'nassau' ? 'pot' : 'per-point',
+    nassauLegs,
   };
 }
 
