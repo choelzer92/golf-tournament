@@ -44,6 +44,7 @@ import { PairingLocks } from '@/components/pairing-locks';
 import { CaptainsPanel } from '@/components/captains-panel';
 import { TeeTimePicker } from '@/components/tee-time-picker';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
+import { WolfDrawCtp } from '@/components/wolf-draw-ctp';
 import {
   type RosterPlayer,
   hydrateRoster,
@@ -2131,6 +2132,7 @@ function SwapPanel({ game, onSwap }: { game: PoolGame; onSwap: (a: string, b: st
 // or reset to field order. The Wolf draw mini-games (a later layer) also write
 // game.wolfOrder — this editor is the manual/randomize entry point.
 function WolfRotationEditor({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
+  const [drawing, setDrawing] = useState(false);
   // Wolf is a single-foursome game: the one team's players, in field order.
   const fieldIds = game.teams[0]?.playerIds ?? game.players.map((p) => p.id);
   // Current rotation: stored order (filtered to current field) padded with any
@@ -2177,10 +2179,16 @@ function WolfRotationEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
         {isCustom ? ' Custom order set.' : ' Using the order players were added.'}
       </p>
 
-      <div className="flex gap-2 mb-3">
+      <div className="flex flex-wrap gap-2 mb-3">
+        <button
+          onClick={() => setDrawing(true)}
+          className="text-sm px-3 py-1.5 rounded-lg bg-green-700 text-white font-medium hover:bg-green-800"
+        >
+          🎯 Play for it
+        </button>
         <button
           onClick={randomize}
-          className="text-sm px-3 py-1.5 rounded-lg bg-green-700 text-white font-medium hover:bg-green-800"
+          className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-600 font-medium hover:border-gray-400"
         >
           🎲 Randomize
         </button>
@@ -2196,6 +2204,14 @@ function WolfRotationEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
           Reset to entry order
         </button>
       </div>
+
+      {drawing && (
+        <WolfDrawCtp
+          players={orderIds.map((id) => ({ id, name: game.players.find((p) => p.id === id)?.name ?? '—' }))}
+          onCompleteAction={(ordered) => { save(ordered); setDrawing(false); }}
+          onCancelAction={() => setDrawing(false)}
+        />
+      )}
 
       <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
         {orderIds.map((id, idx) => (
