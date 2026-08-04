@@ -47,15 +47,11 @@ export function defaultSettings(schema: FormatSetting[]): SettingsBag {
 // --- Shared Nassau-pot money settings ---------------------------------------
 // Reused across every individual game so "buy-in, split front/back/total" is
 // configured identically everywhere. Games spread NASSAU_SETTINGS into their
-// SETTINGS after their existing money settings, then call maybeSettleNassau.
-// The Nassau ante/split only take effect when a game's money model selects it
-// (games expose that via their own 'moneyModel'/'moneyModel'-style select), so
-// these three are inert unless the game routes to settleNassau.
+// SETTINGS after their existing money settings. Inert unless the game's money
+// model routes to settleNassau. Amounts are PER PLAYER and independent per
+// segment (e.g. 5 / 5 / 20 to make the Total the big prize); everyone antes the
+// sum of the segments in play. Total-only ignores the front/back amounts.
 export const NASSAU_SETTINGS: FormatSetting[] = [
-  {
-    key: 'nassauAnte', label: 'Nassau ante ($ / player)', type: 'number', defaultValue: 10,
-    hint: 'Used when money = Nassau pot. Everyone antes this; the pool is split by segment.',
-  },
   {
     key: 'nassauSplit', label: 'Nassau split', type: 'select',
     options: [
@@ -63,21 +59,38 @@ export const NASSAU_SETTINGS: FormatSetting[] = [
       { value: 'total', label: 'Total only' },
     ],
     defaultValue: 'three',
-    hint: 'Split the ante pool into three equal pots (front 9 / back 9 / total) or a single total pot.',
+    hint: 'Contest three segments (front 9 / back 9 / total) or a single total pot.',
+  },
+  {
+    key: 'nassauFront', label: 'Front 9 ($ / player)', type: 'number', defaultValue: 10,
+    hint: '3-way only. Everyone antes this for the front-9 pot; low/high leader takes it.',
+  },
+  {
+    key: 'nassauBack', label: 'Back 9 ($ / player)', type: 'number', defaultValue: 10,
+    hint: '3-way only. Ante for the back-9 pot.',
+  },
+  {
+    key: 'nassauTotal', label: 'Total ($ / player)', type: 'number', defaultValue: 10,
+    hint: 'Ante for the 18-hole total pot. Used in both split modes.',
   },
 ];
 
 // Settle a game via the Nassau pot when its money model selected it. Returns the
 // segment leg lines (for IndividualResult.nassauLegs) and mutates moneyNet; pass
-// the game's own SETTINGS + bag so the ante/split read through the same defaults.
-// `higherIsBetter` false for lower-is-better games (Low Total).
+// the game's own SETTINGS + bag so the amounts read through the same defaults.
+// `higherIsBetter` false for lower-is-better games (Low Total). Total-only zeros
+// the front/back amounts so only the total pot is contested.
 export function settleNassauFromSettings(
   schema: FormatSetting[],
   bag: SettingsBag,
   standings: PlayerStanding[],
   higherIsBetter = true,
 ): NassauLegLine[] {
-  const ante = numberSetting(schema, bag, 'nassauAnte');
-  const split = stringSetting(schema, bag, 'nassauSplit') === 'total' ? 'total' : 'three';
-  return settleNassau(standings, ante, split, higherIsBetter);
+  const totalOnly = stringSetting(schema, bag, 'nassauSplit') === 'total';
+  const amounts = {
+    front: totalOnly ? 0 : numberSetting(schema, bag, 'nassauFront'),
+    back: totalOnly ? 0 : numberSetting(schema, bag, 'nassauBack'),
+    total: numberSetting(schema, bag, 'nassauTotal'),
+  };
+  return settleNassau(standings, amounts, higherIsBetter);
 }

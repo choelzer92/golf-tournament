@@ -183,38 +183,46 @@ export function settlePot(standings: PlayerStanding[], pot: number, entryPerPlay
   for (const w of winners) w.moneyNet += share;
 }
 
-// Nassau-pot money: everyone antes `antePerPlayer`; the total ante pool is split
-// into segments — Front 9 / Back 9 / Total (3-way) or a single Total (total-only).
-// Each segment's pot goes to whoever leads that segment (summed metric over the
-// segment's holes); ties split it. moneyNet = winnings − ante, zero-sum once
-// scored. Returns the per-segment leg lines for the leaderboard and mutates
-// moneyNet in place. `higherIsBetter` false for lower-is-better games (Low Total).
+// Per-player dollar amounts for each Nassau segment. Every player antes the sum
+// of the amounts for the segments in play; each segment's pot = amount × players.
+// Amounts can differ (e.g. 5/5/20 to make the Total the big prize). For a
+// total-only Nassau, front/back are 0 and only `total` is contested.
+export interface NassauAmounts {
+  front: number;
+  back: number;
+  total: number;
+}
+
+// Nassau-pot money: everyone antes the segment amounts they're playing; each
+// segment's pot (amount × players) goes to whoever leads that segment; ties
+// split it. moneyNet = winnings − ante, zero-sum once scored. Returns the
+// per-segment leg lines for the leaderboard and mutates moneyNet in place.
+// `higherIsBetter` false for lower-is-better games (Low Total). A segment with a
+// $0 amount is skipped entirely (that's how total-only drops front/back).
 //
 // A segment ranks by each player's summed `perHole` contribution over its holes;
 // only players who scored at least one hole in the segment are eligible for it.
 export function settleNassau(
   standings: PlayerStanding[],
-  antePerPlayer: number,
-  split: 'three' | 'total',
+  amounts: NassauAmounts,
   higherIsBetter: boolean = true,
 ): NassauLegLine[] {
   const n = standings.length;
-  const antePool = antePerPlayer * n;
-  const segDefs: { key: 'front' | 'back' | 'total'; label: string; inSeg: (holeIdx1: number) => boolean }[] =
-    split === 'three'
-      ? [
-          { key: 'front', label: 'Front 9', inSeg: (h) => h <= 9 },
-          { key: 'back', label: 'Back 9', inSeg: (h) => h > 9 },
-          { key: 'total', label: 'Total', inSeg: () => true },
-        ]
-      : [{ key: 'total', label: 'Total', inSeg: () => true }];
-  const potPer = segDefs.length > 0 ? antePool / segDefs.length : 0;
+  const allSegs: { key: 'front' | 'back' | 'total'; label: string; amount: number; inSeg: (holeIdx1: number) => boolean }[] = [
+    { key: 'front', label: 'Front 9', amount: amounts.front, inSeg: (h) => h <= 9 },
+    { key: 'back', label: 'Back 9', amount: amounts.back, inSeg: (h) => h > 9 },
+    { key: 'total', label: 'Total', amount: amounts.total, inSeg: () => true },
+  ];
+  // Only segments with a positive stake are contested.
+  const segDefs = allSegs.filter((s) => s.amount > 0);
 
-  // Everyone antes up front.
+  // Everyone antes the sum of the segment amounts they're playing.
+  const antePerPlayer = segDefs.reduce((sum, s) => sum + s.amount, 0);
   for (const s of standings) s.moneyNet = -antePerPlayer;
 
   const legs: NassauLegLine[] = [];
   for (const seg of segDefs) {
+    const pot = seg.amount * n;
     // Each player's segment value + holes scored within this segment. The TOTAL
     // segment ranks by the standings metric `s.points` (identical to the summed
     // perHole for every game except Quota, whose metric is points-vs-quota — this
@@ -234,16 +242,16 @@ export function settleNassau(
     const eligible = rows.filter((r) => r.thru > 0);
     const segThru = eligible.reduce((m, r) => Math.max(m, r.thru), 0);
     if (eligible.length === 0) {
-      legs.push({ key: seg.key, label: seg.label, pot: potPer, winnerNames: [], thru: 0 });
+      legs.push({ key: seg.key, label: seg.label, pot, winnerNames: [], thru: 0 });
       continue;
     }
     const best = higherIsBetter
       ? Math.max(...eligible.map((r) => r.value))
       : Math.min(...eligible.map((r) => r.value));
     const winners = eligible.filter((r) => r.value === best);
-    const share = potPer / winners.length;
+    const share = pot / winners.length;
     for (const w of winners) w.s.moneyNet += share;
-    legs.push({ key: seg.key, label: seg.label, pot: potPer, winnerNames: winners.map((w) => w.s.playerName), thru: segThru });
+    legs.push({ key: seg.key, label: seg.label, pot, winnerNames: winners.map((w) => w.s.playerName), thru: segThru });
   }
   return legs;
 }
