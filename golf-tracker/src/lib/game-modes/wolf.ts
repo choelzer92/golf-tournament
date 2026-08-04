@@ -44,7 +44,10 @@ function compute(ctx: GameModeContext): IndividualResult {
   const blindMult = numberSetting(SETTINGS, ctx.settings, 'blindMultiplier');
   const dollarsPerPoint = numberSetting(SETTINGS, ctx.settings, 'dollarsPerPoint');
 
-  const order = ctx.players.map((p) => p.id); // rotation order = player (tee) order
+  const order = ctx.players.map((p) => p.id); // the full field (for sides + all-scored check)
+  // Rotation order = the Wolf draw result if set, else the field order. Only who's
+  // the default Wolf each hole reads from this; sides + scoring use `order`.
+  const rotationOrder = ctx.wolfOrder && ctx.wolfOrder.length > 0 ? ctx.wolfOrder : order;
   const decisions = ctx.wolfDecisions ?? {};
   const nameOf = (id: string): string => ctx.players.find((p) => p.id === id)?.name ?? id;
 
@@ -60,7 +63,7 @@ function compute(ctx: GameModeContext): IndividualResult {
   ctx.holes.forEach((hole, hIdx) => {
     // The rotating Wolf for this hole (unless a decision overrode who it is).
     const decided = decisions[hole.number];
-    const wolfId = decided?.wolfId ?? order[(hole.number - 1) % order.length];
+    const wolfId = decided?.wolfId ?? rotationOrder[(hole.number - 1) % rotationOrder.length];
     const mode = decided?.mode ?? 'lone';
     const partnerId = mode === 'partner' ? decided?.partnerId ?? null : null;
 

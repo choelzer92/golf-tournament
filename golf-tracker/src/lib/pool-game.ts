@@ -127,6 +127,10 @@ export interface PoolGame {
   // took a partner / went lone / blind. Keyed by hole number. Mirrors ctpWinners'
   // storage (whole-JSON, read-latest-merge on write). Absent for other games.
   wolfDecisions?: Record<number, WolfHoleDecision>;
+  // Wolf rotation order: player ids in the sequence the Wolf rotates through
+  // (hole N → wolfOrder[(N-1) % len]). Absent = fall back to game.players order
+  // (today's behavior). Set via the Wolf draw (mini-game / randomize / manual).
+  wolfOrder?: string[];
 }
 
 // One hole's Wolf decision. `mode`: 'partner' = Wolf + partnerId vs the other two

@@ -336,6 +336,9 @@ export default function PoolHubPage() {
           )}
         </section>
 
+        {/* Wolf rotation editor — only for Wolf games. */}
+        {game.gameMode === 'wolf' && <WolfRotationEditor game={game} onSave={persist} />}
+
         {/* CTP editor / finalize surface */}
         <CtpEditor game={game} onSave={persist} />
       </main>
@@ -2119,6 +2122,111 @@ function SwapPanel({ game, onSwap }: { game: PoolGame; onSwap: (a: string, b: st
         </div>
       )}
     </div>
+  );
+}
+
+// Wolf rotation editor. Sets the order the Wolf rotates through the group
+// (hole N → order[(N-1) % 4]). Stored on game.wolfOrder; absent = field-entry
+// order (the game.players sequence). Three paths: randomize, reorder by hand,
+// or reset to field order. The Wolf draw mini-games (a later layer) also write
+// game.wolfOrder — this editor is the manual/randomize entry point.
+function WolfRotationEditor({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
+  // Wolf is a single-foursome game: the one team's players, in field order.
+  const fieldIds = game.teams[0]?.playerIds ?? game.players.map((p) => p.id);
+  // Current rotation: stored order (filtered to current field) padded with any
+  // field members it's missing, else plain field order.
+  const stored = game.wolfOrder?.filter((id) => fieldIds.includes(id)) ?? [];
+  const orderIds = stored.length > 0
+    ? [...stored, ...fieldIds.filter((id) => !stored.includes(id))]
+    : fieldIds;
+
+  const nameOf = (id: string): string =>
+    game.players.find((p) => p.id === id)?.name.split(' ')[0] ?? '—';
+  const isCustom = (game.wolfOrder?.length ?? 0) > 0;
+
+  function save(newOrder: string[]) {
+    onSave({ ...game, wolfOrder: newOrder });
+  }
+  function resetToField() {
+    const updated = { ...game };
+    delete updated.wolfOrder;
+    onSave(updated);
+  }
+  function randomize() {
+    const shuffled = [...orderIds];
+    // Fisher–Yates.
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    save(shuffled);
+  }
+  function move(idx: number, dir: -1 | 1) {
+    const next = [...orderIds];
+    const target = idx + dir;
+    if (target < 0 || target >= next.length) return;
+    [next[idx], next[target]] = [next[target], next[idx]];
+    save(next);
+  }
+
+  return (
+    <section>
+      <h2 className="text-lg font-semibold text-gray-900 mb-1">Wolf Rotation</h2>
+      <p className="text-xs text-gray-400 mb-3">
+        Who&apos;s the Wolf each hole. Rotates in this order and repeats (hole 5 = 1st again).
+        {isCustom ? ' Custom order set.' : ' Using the order players were added.'}
+      </p>
+
+      <div className="flex gap-2 mb-3">
+        <button
+          onClick={randomize}
+          className="text-sm px-3 py-1.5 rounded-lg bg-green-700 text-white font-medium hover:bg-green-800"
+        >
+          🎲 Randomize
+        </button>
+        <button
+          onClick={resetToField}
+          disabled={!isCustom}
+          className={`text-sm px-3 py-1.5 rounded-lg border font-medium ${
+            isCustom
+              ? 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+              : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+          }`}
+        >
+          Reset to entry order
+        </button>
+      </div>
+
+      <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
+        {orderIds.map((id, idx) => (
+          <div key={id} className="flex items-center justify-between px-3 py-2">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-medium text-gray-400 w-14">Hole {idx + 1}</span>
+              <span className="font-medium text-gray-900">{nameOf(id)}</span>
+            </div>
+            <div className="flex gap-1">
+              <button
+                onClick={() => move(idx, -1)}
+                disabled={idx === 0}
+                className={`w-8 h-8 rounded-md border text-gray-600 ${idx === 0 ? 'opacity-30 cursor-not-allowed border-gray-200' : 'border-gray-300 hover:border-gray-400'}`}
+                aria-label="Move up"
+              >
+                ▲
+              </button>
+              <button
+                onClick={() => move(idx, 1)}
+                disabled={idx === orderIds.length - 1}
+                className={`w-8 h-8 rounded-md border text-gray-600 ${idx === orderIds.length - 1 ? 'opacity-30 cursor-not-allowed border-gray-200' : 'border-gray-300 hover:border-gray-400'}`}
+                aria-label="Move down"
+              >
+                ▼
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-gray-400 mt-2">Wraps after hole {orderIds.length} · you can still override any single hole while scoring.</p>
+    </section>
   );
 }
 

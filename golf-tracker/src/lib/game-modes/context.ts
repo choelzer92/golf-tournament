@@ -66,5 +66,10 @@ export function buildGameModeContext(
     return p ? getPoolPlayingHandicap(p, game.course, 100, game.handicapBasis) : 0;
   };
 
-  return { players, holes, scores, settings, pot, playingHcap, strokesOnHole, grossOnHole, netOnHole, subTeams, rawCourseHcap, wolfDecisions: game.wolfDecisions };
+  // Wolf rotation order: keep only ids actually in this foursome (guards against
+  // stale ids); undefined when unset so wolf.ts falls back to ctx.players order.
+  const playerIdSet = new Set(players.map((p) => p.id));
+  const wolfOrder = game.wolfOrder?.filter((id) => playerIdSet.has(id));
+
+  return { players, holes, scores, settings, pot, playingHcap, strokesOnHole, grossOnHole, netOnHole, subTeams, rawCourseHcap, wolfDecisions: game.wolfDecisions, wolfOrder: wolfOrder && wolfOrder.length > 0 ? wolfOrder : undefined };
 }

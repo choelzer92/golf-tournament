@@ -984,7 +984,12 @@ export default function PlayGamePage() {
         {/* Wolf decision — per hole, who's the Wolf and their choice (partner / lone
             / blind). Rotates by tee order; tap to record the outcome. */}
         {poolCtx && poolGame && getGameMode(poolGame.gameMode)?.inputType === 'gross+decisions' && (() => {
-          const orderIds = setup.players.map((p) => p.id);
+          // Rotation source must match the leaderboard compute: the Wolf draw
+          // order if set (filtered to this foursome), else field order.
+          const fieldIds = setup.players.map((p) => p.id);
+          const fieldIdSet = new Set(fieldIds);
+          const drawOrder = poolGame.wolfOrder?.filter((pid) => fieldIdSet.has(pid));
+          const orderIds = drawOrder && drawOrder.length > 0 ? drawOrder : fieldIds;
           const rotating = wolfForHole(orderIds, currentHole);
           const decision = poolGame.wolfDecisions?.[currentHole];
           const wolfId = decision?.wolfId ?? rotating;

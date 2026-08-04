@@ -59,6 +59,10 @@ export interface GameModeContext {
   rawCourseHcap(playerId: string): number;
   // Decision-input games only (Wolf): per-hole decisions from game.wolfDecisions.
   wolfDecisions?: Record<number, WolfHoleDecision>;
+  // Wolf only: the rotation order (player ids). Absent = use ctx.players order.
+  // Kept separate from ctx.players so it drives ONLY who's the default Wolf each
+  // hole, not the standings display order or the "all four scored" check.
+  wolfOrder?: string[];
 }
 
 export interface PlayerStanding {
