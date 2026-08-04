@@ -1663,9 +1663,17 @@ export function getPoolGameListForGhin(ghinNumber: number): PoolGameListItem[] {
   return getPoolGameList().filter((g) => g.createdByGhin === ghinNumber);
 }
 
+// Unique per subscription: two components (e.g. the leaderboard page and its
+// IndividualLeaderboard child) can subscribe to the SAME game id concurrently.
+// A fixed channel name (`pool_game:${id}`) makes supabase hand back the already-
+// subscribed channel, and the second `.on()` after `subscribe()` throws
+// ("cannot add postgres_changes callbacks ... after subscribe()") — which
+// crashed the individual-game leaderboards. Mirror subscribeToScores' counter.
+let poolGameChannelCounter = 0;
+
 export function subscribeToPoolGame(id: string, onUpdate: (game: PoolGame) => void) {
   return supabase
-    .channel(`pool_game:${id}`)
+    .channel(`pool_game:${id}:${++poolGameChannelCounter}`)
     .on('postgres_changes', {
       event: '*',
       schema: 'public',
