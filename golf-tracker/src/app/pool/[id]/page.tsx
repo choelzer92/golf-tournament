@@ -37,7 +37,7 @@ import {
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
-import { getGameMode, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
+import { getGameMode, GAME_MODES, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { saveFormat, formatFromGame } from '@/lib/pool-formats';
 import { PairingLocks } from '@/components/pairing-locks';
@@ -704,6 +704,36 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
       (side === 'a' ? a : b).push(pid);
       onSave({ ...game, subTeams: { a, b } });
     };
+
+    // Switch this game to a different mode WITHOUT losing scores (they're gross,
+    // stored per player — every mode recomputes from them). Seed the new mode's
+    // default settings but CARRY OVER any shared keys (moneyModel, the Nassau
+    // amounts, scoreBasis, …) so a Wolf→Skins switch keeps your money setup.
+    // Only same-structure targets are offered (all registered modes are single-
+    // group: individual or 2v2); switching to 2v2 seeds balanced sides.
+    const playerCount = game.players.length;
+    const switchTargets = GAME_MODES.filter(
+      (m) => playerCount >= m.playersMin && playerCount <= m.playersMax,
+    );
+    const changeMode = (newId: string) => {
+      if (newId === game.gameMode) return;
+      const target = getGameMode(newId);
+      if (!target) return;
+      const seeded = defaultSettings(target.settings);
+      // Preserve overlapping setting values (shared keys keep their current value).
+      const carried: SettingsBag = { ...seeded };
+      for (const k of Object.keys(seeded)) {
+        if (modeSettings[k] !== undefined) carried[k] = modeSettings[k];
+      }
+      const updated: PoolGame = { ...game, gameMode: newId, modeSettings: carried };
+      // 2v2 needs sides; seed a balanced default if we don't already have them.
+      if (target.category === 'team-within-group' && !updated.subTeams) {
+        updated.subTeams = defaultSubTeams(game.players.map((p) => p.id), game.players, game.course, game.handicapAllowance, game.handicapBasis);
+      }
+      // Wolf-family per-hole decisions don't transfer to a different game.
+      if (newId !== 'wolf') delete updated.wolfDecisions;
+      onSave(updated);
+    };
     return (
       <section className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-4 py-3 bg-gray-100 border-b">
@@ -714,6 +744,13 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1">Game name</label>
             <input className={inputCls} value={game.name} onChange={(e) => onSave({ ...game, name: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-800 mb-1">Game</label>
+            <select className={inputCls} value={game.gameMode ?? ''} onChange={(e) => changeMode(e.target.value)}>
+              {switchTargets.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Change the game any time — scores already entered carry over and recompute. Money settings are kept where they apply.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
