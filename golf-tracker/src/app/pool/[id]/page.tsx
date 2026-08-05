@@ -706,24 +706,31 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
     };
 
     // Switch this game to a different mode WITHOUT losing scores (they're gross,
-    // stored per player — every mode recomputes from them). Seed the new mode's
-    // default settings but CARRY OVER any shared keys (moneyModel, the Nassau
-    // amounts, scoreBasis, …) so a Wolf→Skins switch keeps your money setup.
-    // Only same-structure targets are offered (all registered modes are single-
-    // group: individual or 2v2); switching to 2v2 seeds balanced sides.
+    // stored per player — every mode recomputes from them). Money RESETS to the
+    // new game's natural default (Skins → $ per skin, Low Total → pot, etc.), so
+    // switching never leaves an odd combo like Nassau-on-skins. Game-neutral
+    // shared settings (e.g. scoreBasis net/gross) DO carry over. Only same-
+    // structure targets are offered (all registered modes are single-group:
+    // individual or 2v2); switching to 2v2 seeds balanced sides.
     const playerCount = game.players.length;
     const switchTargets = GAME_MODES.filter(
       (m) => playerCount >= m.playersMin && playerCount <= m.playersMax,
     );
+    // Money-specific keys — reset these to the target's default on a switch.
+    const MONEY_KEYS = new Set([
+      'moneyModel', 'dollarsPerPoint', 'dollarsPerStroke', 'skinValue',
+      'entryPerPlayer', 'nassauSplit', 'nassauFront', 'nassauBack', 'nassauTotal',
+    ]);
     const changeMode = (newId: string) => {
       if (newId === game.gameMode) return;
       const target = getGameMode(newId);
       if (!target) return;
       const seeded = defaultSettings(target.settings);
-      // Preserve overlapping setting values (shared keys keep their current value).
+      // Carry over shared NON-money keys (e.g. scoreBasis); money seeds fresh from
+      // the target's defaults so each game uses its natural money model.
       const carried: SettingsBag = { ...seeded };
       for (const k of Object.keys(seeded)) {
-        if (modeSettings[k] !== undefined) carried[k] = modeSettings[k];
+        if (!MONEY_KEYS.has(k) && modeSettings[k] !== undefined) carried[k] = modeSettings[k];
       }
       const updated: PoolGame = { ...game, gameMode: newId, modeSettings: carried };
       // 2v2 needs sides; seed a balanced default if we don't already have them.
@@ -750,7 +757,7 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
             <select className={inputCls} value={game.gameMode ?? ''} onChange={(e) => changeMode(e.target.value)}>
               {switchTargets.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
-            <p className="text-xs text-gray-500 mt-1">Change the game any time — scores already entered carry over and recompute. Money settings are kept where they apply.</p>
+            <p className="text-xs text-gray-500 mt-1">Change the game any time — scores already entered carry over and recompute. Money resets to the new game&apos;s usual setup, so double-check it.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
