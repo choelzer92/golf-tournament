@@ -111,6 +111,7 @@ export interface PoolGame {
   status: 'setup' | 'active' | 'completed';
   handicapsRefreshedAt?: string;               // ISO time this game's handicaps were last pulled from GHIN
   createdByGhin?: number;                       // GHIN number of the organizer who created it (for their history)
+  sourceGroupId?: string;                       // the saved group this game was created FROM (exact stats/ledger link; absent = made outside a group). See lib/stats-ledger.ts
   lockedGroups?: string[][];                    // player-id groups kept on the same team through auto-balance
   teamBuild?: PoolTeamBuild;                     // how the current teams were built (for the read-only "how these were built" summary)
   // Pluggable game-mode library. ABSENT = the classic team-comparison pool

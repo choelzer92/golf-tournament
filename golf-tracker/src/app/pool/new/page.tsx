@@ -48,8 +48,10 @@ import {
   type GroupDefaults,
   hydrateGroups,
   getGroups,
+  getGroupById,
   upsertGroup,
 } from '@/lib/roster-groups';
+import { POOL_GROUP_SEED_KEY } from '@/lib/group-seed';
 import { GAME_MODES, getGameMode, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 
@@ -168,6 +170,10 @@ export default function NewPoolGamePage() {
 
   // Field
   const [players, setPlayers] = useState<Player[]>([]);
+  // The saved group this game was created FROM (a seed from /home/groups/[id], or
+  // the FieldStep "Load group" picker). Stamped onto the game as sourceGroupId so
+  // stats/ledger can attribute it exactly. Absent = made outside a group.
+  const [sourceGroupId, setSourceGroupId] = useState<string | undefined>(undefined);
 
   // Teams
   const [teams, setTeams] = useState<PoolTeam[]>([]);
@@ -345,6 +351,8 @@ export default function NewPoolGamePage() {
       status: 'active',
       handicapsRefreshedAt: new Date().toISOString(),
       createdByGhin: getCreatorGhin() ?? undefined,
+      // Exact stats/ledger link when this game was built from a saved group.
+      sourceGroupId,
       // Persist pairing locks onto the game so they can be reused/edited when the
       // organizer reopens it (locks live on the game, not just the wizard).
       lockedGroups: lockedGroups.length > 0 ? lockedGroups : undefined,
@@ -439,6 +447,7 @@ export default function NewPoolGamePage() {
             handicapBasis={handicapBasis}
             getGroupDefaults={currentGroupDefaults}
             applyGroupDefaults={applyGroupDefaults}
+            onGroupLoaded={setSourceGroupId}
             onNext={() => setStep('tees')}
             onBack={() => setStep('course')}
           />
@@ -603,7 +612,13 @@ function DetailsStep({
   function pickGame(id: string | undefined) {
     setGameMode(id);
     const mode = getGameMode(id);
-    if (mode) setModeSettings(defaultSettings(mode.settings));
+    if (mode) {
+      setModeSettings(defaultSettings(mode.settings));
+      // A registered mode carries its own money settings and hides the classic
+      // pot/match toggle. Clear any stale 'match' (e.g. from a prior draft) so it
+      // can't leak into the review/hub as a contradictory head-to-head warning.
+      setMoneyMode('pot');
+    }
   }
   const junkFields: { key: keyof PoolJunkValues; label: string }[] = [
     { key: 'birdie', label: 'Birdie' },
@@ -1130,7 +1145,7 @@ function CourseStep({
 }
 
 function FieldStep({
-  course, players, setPlayers, handicapAllowance, handicapBasis, getGroupDefaults, applyGroupDefaults, onNext, onBack,
+  course, players, setPlayers, handicapAllowance, handicapBasis, getGroupDefaults, applyGroupDefaults, onGroupLoaded, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
@@ -1138,6 +1153,7 @@ function FieldStep({
   handicapBasis: 'course' | 'index';
   getGroupDefaults: () => GroupDefaults;
   applyGroupDefaults: (d: GroupDefaults | null) => void;
+  onGroupLoaded: (groupId: string) => void;
   onNext: () => void; onBack: () => void;
 }) {
   const [rosterQuery, setRosterQuery] = useState('');
@@ -1185,7 +1201,19 @@ function FieldStep({
       setRosterResults(searchRoster(''));
       // Groups share the same viewer scope. Best-effort — fails soft to empty.
       hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' })
-        .then(() => setGroups(getGroups()))
+        .then(() => {
+          setGroups(getGroups());
+          // A group seed from /home/groups/[id] "Start casual round": load that
+          // group now (course is already chosen on this step, so tees resolve)
+          // and consume the seed so it applies exactly once.
+          try {
+            const seededGroupId = sessionStorage.getItem(POOL_GROUP_SEED_KEY);
+            if (seededGroupId) {
+              sessionStorage.removeItem(POOL_GROUP_SEED_KEY);
+              loadGroup(seededGroupId);
+            }
+          } catch {}
+        })
         .catch(() => {});
       // Auto-refresh from GHIN if the roster's handicaps are stale (>24h) or
       // never refreshed — so new games start current without hammering GHIN
@@ -1219,7 +1247,10 @@ function FieldStep({
   // Load a group: REPLACE today's field with the group's members (looked up in
   // the roster and given a tee), and apply the group's saved format defaults.
   function loadGroup(groupId: string) {
-    const group = groups.find((g) => g.id === groupId);
+    // Prefer the group cache (populated by hydrateGroups) over the `groups`
+    // React state, so a seed can load a group in the same tick hydration
+    // finishes — before setGroups has re-rendered. Falls back to state.
+    const group = getGroupById(groupId) ?? groups.find((g) => g.id === groupId);
     if (!group) return;
     const loaded: Player[] = [];
     let missing = 0;
@@ -1237,6 +1268,7 @@ function FieldStep({
     }
     setPlayers(loaded);
     applyGroupDefaults(group.defaults);
+    onGroupLoaded(groupId);         // stamp the game's sourceGroupId (exact stats link)
     setActiveGroupId(groupId);      // the picker now centers on this group
     setShowOtherPlayers(false);
     setGroupNote(
@@ -2618,7 +2650,12 @@ function CreateStep({
         </div>
         )}
 
-        {isMatch && (
+        {/* Classic pot/match money UI applies ONLY to the classic team pool. A
+            registered game mode (individual OR 2v2-within-group) carries its own
+            money settings, so it must never render this block — otherwise a stale
+            moneyMode:'match' from a prior draft shows a contradictory "needs two
+            foursomes" warning over a self-contained single-group game. */}
+        {isMatch && !isIndividual && (
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-2">Match Payouts ($ / player)</p>
           <div className="grid grid-cols-4 gap-2 text-center">

@@ -8,6 +8,12 @@ import type { Player, CourseSelection, TeeSetOption } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
 import type { Tournament, TournamentRound, Team, DisplayMode } from '@/lib/tournament-state';
 import { saveTournament } from '@/lib/tournament-state';
+import { hydrateRoster, getRosterPlayerById } from '@/lib/roster';
+import { hydrateGroups, getGroupById } from '@/lib/roster-groups';
+import { balanceTeamsWithLocks } from '@/lib/pool-game';
+import { getCreatorGhin } from '@/lib/pool-identity';
+import { getAccessLevel } from '@/lib/invite-gate';
+import { TOURNAMENT_GROUP_SEED_KEY } from '@/lib/group-seed';
 
 const WIZARD_KEY = 'tournament_wizard_draft';
 
@@ -30,6 +36,9 @@ export default function NewTournamentPage() {
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [teamAssignments, setTeamAssignments] = useState<Record<string, 'A' | 'B'>>({});
+  // The saved group this event was created FROM (a seed from /home/groups/[id]).
+  // Stamped onto the tournament as sourceGroupId for exact stats/ledger attribution.
+  const [sourceGroupId, setSourceGroupId] = useState<string | undefined>(undefined);
 
   const [rounds, setRounds] = useState<Omit<TournamentRound, 'matchups' | 'status' | 'bonuses'>[]>([]);
 
@@ -50,6 +59,64 @@ export default function NewTournamentPage() {
         if (data.step) setStep(data.step);
       }
     } catch {}
+
+    // A group seed from /home/groups/[id] "Start tournament": pre-fill the
+    // roster from that group's members. The tournament wizard has no group
+    // support of its own, so we resolve members here (reusing the shared roster
+    // library) and auto-split them into the two teams it requires — the
+    // organizer rearranges on the Roster step. Applied AFTER the draft restore
+    // so a chosen group wins, and consumed once.
+    let seededGroupId: string | null = null;
+    try { seededGroupId = sessionStorage.getItem(TOURNAMENT_GROUP_SEED_KEY); } catch {}
+    if (seededGroupId) {
+      try { sessionStorage.removeItem(TOURNAMENT_GROUP_SEED_KEY); } catch {}
+      const isOwner = getAccessLevel() === 'full';
+      const ghin = getCreatorGhin();
+      hydrateRoster({ viewerGhin: ghin, isOwner })
+        .then(() => hydrateGroups({ viewerGhin: ghin, isOwner }))
+        .then(() => {
+          const group = getGroupById(seededGroupId as string);
+          if (!group) return;
+          const seededPlayers: Player[] = [];
+          for (const pid of group.playerIds) {
+            const rp = getRosterPlayerById(pid);
+            if (!rp) continue;
+            seededPlayers.push({
+              id: rp.id,
+              name: rp.name,
+              handicapIndex: rp.handicapIndex,
+              gender: rp.gender ?? undefined,
+              ghinNumber: rp.ghinNumber ?? undefined,
+            });
+          }
+          if (seededPlayers.length === 0) return;
+          // Split into 2 teams with Pool's real balancer (LPT + 2-swap + exact
+          // branch-and-bound), which MINIMIZES the spread in total team handicap
+          // — not a snake heuristic. Course handicaps aren't available yet (no
+          // course at the roster step), so we balance on raw handicap INDEX
+          // (tee-independent, the fair basis). Unrated players count as 0. This
+          // is the starting split; the organizer refines with the per-player A/B
+          // toggles on the Roster step. Reuses the same balancer the flights
+          // work will (pool↔tournament convergence).
+          const [teamAIds = []] = balanceTeamsWithLocks(
+            seededPlayers,
+            2,
+            (p) => p.handicapIndex ?? 0,
+            [],
+          );
+          const teamA = new Set(teamAIds);
+          const assignments: Record<string, 'A' | 'B'> = {};
+          seededPlayers.forEach((p) => { assignments[p.id] = teamA.has(p.id) ? 'A' : 'B'; });
+          setPlayers(seededPlayers);
+          setTeamAssignments(assignments);
+          setSourceGroupId(group.id);  // exact stats/ledger link
+          setStep('roster');
+        })
+        .catch(() => {})
+        .finally(() => setHydrated(true));
+      return;
+    }
+
     setHydrated(true);
   }, []);
 
@@ -91,6 +158,7 @@ export default function NewTournamentPage() {
         };
       }),
       status: 'active',
+      sourceGroupId,
     };
 
     saveTournament(tournament);

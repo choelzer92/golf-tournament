@@ -56,12 +56,14 @@ const SETTINGS: FormatSetting[] = [
     ],
     defaultValue: 'legs',
   },
-  { key: 'dollarsPerHole', label: '$ per hole won', type: 'number', defaultValue: 2, hint: 'Money = $ per hole × (holes won − holes lost) over 18.' },
-  { key: 'dollarsPerPoint', label: '$ per point', type: 'number', defaultValue: 1, hint: 'Money = $ per point × 18-hole margin.' },
-  { key: 'legFront', label: 'Front 9 ($)', type: 'number', defaultValue: 10 },
-  { key: 'legBack', label: 'Back 9 ($)', type: 'number', defaultValue: 10 },
-  { key: 'legOverall', label: 'Overall 18 ($)', type: 'number', defaultValue: 10 },
-  { key: 'altShotAllowance', label: 'Alt-shot allowance (%)', type: 'number', defaultValue: 50, hint: 'Alternate shot only: % of the 60/40 combined handicap. USGA default 50.' },
+  { key: 'dollarsPerHole', label: '$ per hole won', type: 'number', defaultValue: 2, hint: 'Money = $ per hole × (holes won − holes lost) over 18.', showIf: { key: 'moneyModel', in: ['per-hole'] } },
+  { key: 'dollarsPerPoint', label: '$ per point', type: 'number', defaultValue: 1, hint: 'Money = $ per point × 18-hole margin.', showIf: { key: 'moneyModel', in: ['per-point'] } },
+  { key: 'legFront', label: 'Front 9 ($)', type: 'number', defaultValue: 10, showIf: { key: 'moneyModel', in: ['legs'] } },
+  { key: 'legBack', label: 'Back 9 ($)', type: 'number', defaultValue: 10, showIf: { key: 'moneyModel', in: ['legs'] } },
+  { key: 'legOverall', label: 'Overall 18 ($)', type: 'number', defaultValue: 10, showIf: { key: 'moneyModel', in: ['legs'] } },
+  { key: 'altShotAllowance', label: 'Alt-shot allowance (%)', type: 'number', defaultValue: 50, hint: 'Alternate shot only: % of the 60/40 combined handicap. USGA default 50.', showIf: { key: 'format', in: ['alternate-shot'] } },
+  { key: 'sideAName', label: 'Side A name', type: 'text', defaultValue: '', hint: 'Optional — leave blank to name it after its players.' },
+  { key: 'sideBName', label: 'Side B name', type: 'text', defaultValue: '', hint: 'Optional — leave blank to name it after its players.' },
 ];
 
 type Side = 'a' | 'b';
@@ -83,7 +85,14 @@ function compute(ctx: GameModeContext): IndividualResult {
 
   const sides = ctx.subTeams ?? { a: [], b: [] };
   const sideIds = (side: Side) => sides[side];
+  // Custom side names (optional). Blank falls back to naming the side after its
+  // players ("Craig & Jym"), then "Side A"/"Side B" if the side has no players.
+  const customName: Record<Side, string> = {
+    a: stringSetting(SETTINGS, ctx.settings, 'sideAName').trim(),
+    b: stringSetting(SETTINGS, ctx.settings, 'sideBName').trim(),
+  };
   const nameFor = (side: Side): string => {
+    if (customName[side]) return customName[side];
     const names = sideIds(side).map((id) => ctx.players.find((p) => p.id === id)?.name.split(' ')[0]).filter(Boolean);
     return names.length ? names.join(' & ') : `Side ${side.toUpperCase()}`;
   };
@@ -231,9 +240,16 @@ function compute(ctx: GameModeContext): IndividualResult {
   stand.b.moneyNet = -aMoney;
 
   const metricLabel = result === 'match' ? 'match pts' : scoring === 'stableford' ? 'pts' : 'net';
+  // Order the two sides by who's winning (place 1 first). Unscored (place 0) sinks
+  // last. Without this the board always listed A then B regardless of the lead.
+  const standings = [stand.a, stand.b].sort((x, y) => {
+    const px = x.place === 0 ? Infinity : x.place;
+    const py = y.place === 0 ? Infinity : y.place;
+    return px - py;
+  });
   return {
     kind: 'individual', gameModeId: 'team-2v2', metricLabel,
-    standings: [stand.a, stand.b], pot: 0, thruHole, moneyModel: 'per-point',
+    standings, pot: 0, thruHole, moneyModel: 'per-point',
     teamLegs, sideNames: { a: nameA, b: nameB },
   };
 }

@@ -37,7 +37,7 @@ import {
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
-import { getGameMode, GAME_MODES, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
+import { getGameMode, GAME_MODES, defaultSettings, settingValue, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { saveFormat, formatFromGame } from '@/lib/pool-formats';
 import { PairingLocks } from '@/components/pairing-locks';
@@ -1045,7 +1045,14 @@ function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
   if (indMode && (indMode.category === 'individual' || indMode.category === 'team-within-group')) {
     const settings = game.modeSettings ?? {};
     // Show the mode's chosen option values as a compact read-only summary.
-    const rows = indMode.settings.map((s) => {
+    // Honor each setting's showIf so only relevant options appear (e.g. "$ per
+    // point" only in the per-point money model, alt-shot % only for alt-shot) —
+    // same predicate the editor uses, so create and view stay consistent.
+    const rows = indMode.settings.filter((s) => {
+      if (!s.showIf) return true;
+      const conds = Array.isArray(s.showIf) ? s.showIf : [s.showIf];
+      return conds.every((c) => c.in.includes(String(settingValue(indMode.settings, settings, c.key))));
+    }).map((s) => {
       const raw = (s.key in settings ? settings[s.key] : s.defaultValue);
       let display: string;
       if (s.type === 'toggle') display = raw === true || raw === 'true' ? 'On' : 'Off';

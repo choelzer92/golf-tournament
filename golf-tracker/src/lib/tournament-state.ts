@@ -199,6 +199,7 @@ export interface Tournament {
   sideGames?: SideGame[];
   hypeContent?: HypeContent;
   recapEnabled?: boolean;
+  sourceGroupId?: string;   // the saved group this event was created FROM (exact stats/ledger link; absent = made outside a group). See lib/stats-ledger.ts
 }
 
 export interface TournamentListItem {

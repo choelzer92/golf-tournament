@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveGhinIdentity } from '@/lib/pool-identity';
+import { HOME_V2 } from '@/lib/flags';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,7 +36,9 @@ export default function LoginPage() {
       // "My Pool Games" recognizes a returning organizer.
       if (data.golfer) saveGhinIdentity(data.golfer);
 
-      router.push('/dashboard');
+      // HOME_V2 (default off): a logged-in full user lands on the new Home hub
+      // instead of the classic dashboard. Flag off = unchanged behavior.
+      router.push(HOME_V2 ? '/home' : '/dashboard');
     } catch {
       setError('Network error. Please try again.');
     } finally {

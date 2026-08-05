@@ -210,9 +210,17 @@ export default function DashboardPage() {
               </form>
             )}
           </div>
-          <button onClick={logout} className="text-sm text-green-200 hover:text-white">
-            Sign Out
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.push('/home')}
+              className="text-sm text-green-200 hover:text-white"
+            >
+              Try new Home
+            </button>
+            <button onClick={logout} className="text-sm text-green-200 hover:text-white">
+              Sign Out
+            </button>
+          </div>
         </div>
       </header>
 
