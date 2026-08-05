@@ -1166,6 +1166,12 @@ function FieldStep({
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [saveGroupName, setSaveGroupName] = useState('');
   const [groupNote, setGroupNote] = useState('');
+  // The group currently loaded as today's roster context. When set, the player
+  // picker shows this group's members up top ("who's playing today") and tucks
+  // the rest of the roster behind an "Add someone else" toggle — so you pick a
+  // day's field FROM the group instead of scrolling the whole saved-player pool.
+  const [activeGroupId, setActiveGroupId] = useState('');
+  const [showOtherPlayers, setShowOtherPlayers] = useState(false);
 
   useEffect(() => {
     // Scope the roster to this organizer (owner sees all; others see the shared
@@ -1226,8 +1232,10 @@ function FieldStep({
     }
     setPlayers(loaded);
     applyGroupDefaults(group.defaults);
+    setActiveGroupId(groupId);      // the picker now centers on this group
+    setShowOtherPlayers(false);
     setGroupNote(
-      `Loaded “${group.name}” — ${loaded.length} player${loaded.length === 1 ? '' : 's'}${missing > 0 ? ` (${missing} no longer on the roster)` : ''}.`
+      `Loaded “${group.name}” — ${loaded.length} player${loaded.length === 1 ? '' : 's'} pre-selected${missing > 0 ? ` (${missing} no longer on the roster)` : ''}. Uncheck anyone sitting out, or add others below.`
     );
   }
 
@@ -1530,7 +1538,7 @@ function FieldStep({
           </div>
         </div>
         {groupNote && <p className="text-xs text-gray-500 mt-2">{groupNote}</p>}
-        <p className="text-xs text-gray-400 mt-1">Loading a group replaces today&apos;s field and applies its saved game settings.</p>
+        <p className="text-xs text-gray-400 mt-1">Loading a group pre-selects its members below (and applies its saved game settings) — then just uncheck anyone sitting out.</p>
       </div>
 
       {/* Saved roster — alphabetical checklist, tap to add/remove today's field */}
@@ -1541,11 +1549,11 @@ function FieldStep({
             <span className="ml-2 text-xs font-normal text-gray-500">{players.length} selected</span>
           </p>
           <div className="flex items-center gap-3">
-            {players.length > 0 && (
+            {(players.length > 0 || activeGroupId) && (
               <button
-                onClick={() => setPlayers([])}
+                onClick={() => { setPlayers([]); setActiveGroupId(''); setShowOtherPlayers(false); setGroupNote(''); }}
                 className="text-xs text-gray-500 hover:text-red-600 font-medium"
-                title="Deselect everyone and start fresh"
+                title="Deselect everyone, clear the loaded group, and start fresh"
               >
                 Clear
               </button>
@@ -1568,31 +1576,68 @@ function FieldStep({
           placeholder="Filter by name…"
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
         />
-        {rosterResults.length === 0 ? (
-          <p className="mt-2 text-xs text-gray-500">No saved players{rosterQuery ? ' match' : ' yet'}. Add by GHIN # or manually below.</p>
-        ) : (
-          <ul className="mt-2 max-h-80 overflow-y-auto divide-y divide-gray-100 rounded-md border border-gray-100">
-            {rosterResults.map((rp) => {
-              const inField = fieldIds.has(rp.id);
-              return (
-                <li key={rp.id}>
-                  <button
-                    onClick={() => (inField ? removePlayer(rp.id) : addRosterPlayer(rp))}
-                    className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm hover:bg-gray-50 ${inField ? 'bg-green-50' : ''}`}
-                  >
-                    <span className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border ${inField ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300 bg-white'}`}>
-                      {inField ? '✓' : ''}
-                    </span>
-                    <span className="flex-1 font-medium text-gray-900">{rp.name}</span>
-                    <span className="text-xs text-gray-500">
-                      {rp.handicapIndex ?? '—'}{rp.gender ? ` · ${rp.gender}` : ''}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        {(() => {
+          // Reusable row renderer so the group section and the "everyone else"
+          // section look identical.
+          const row = (rp: RosterPlayer) => {
+            const inField = fieldIds.has(rp.id);
+            return (
+              <li key={rp.id}>
+                <button
+                  onClick={() => (inField ? removePlayer(rp.id) : addRosterPlayer(rp))}
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm hover:bg-gray-50 ${inField ? 'bg-green-50' : ''}`}
+                >
+                  <span className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border ${inField ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300 bg-white'}`}>
+                    {inField ? '✓' : ''}
+                  </span>
+                  <span className="flex-1 font-medium text-gray-900">{rp.name}</span>
+                  <span className="text-xs text-gray-500">
+                    {rp.handicapIndex ?? '—'}{rp.gender ? ` · ${rp.gender}` : ''}
+                  </span>
+                </button>
+              </li>
+            );
+          };
+
+          if (rosterResults.length === 0) {
+            return <p className="mt-2 text-xs text-gray-500">No saved players{rosterQuery ? ' match' : ' yet'}. Add by GHIN # or manually below.</p>;
+          }
+
+          // When a group is loaded, split the roster into that group's members
+          // (shown up top — "who's playing today") and everyone else (collapsed
+          // behind a toggle). No active group → the plain full list as before.
+          const activeGroup = activeGroupId ? groups.find((g) => g.id === activeGroupId) : null;
+          if (!activeGroup) {
+            return (
+              <ul className="mt-2 max-h-80 overflow-y-auto divide-y divide-gray-100 rounded-md border border-gray-100">
+                {rosterResults.map(row)}
+              </ul>
+            );
+          }
+          const memberIds = new Set(activeGroup.playerIds);
+          const members = rosterResults.filter((rp) => memberIds.has(rp.id));
+          const others = rosterResults.filter((rp) => !memberIds.has(rp.id));
+          return (
+            <div className="mt-2 space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{activeGroup.name} · {members.length}</p>
+              <ul className="max-h-72 overflow-y-auto divide-y divide-gray-100 rounded-md border border-gray-100">
+                {members.length > 0 ? members.map(row) : <li className="px-3 py-2 text-xs text-gray-500">No group members match this filter.</li>}
+              </ul>
+              <button
+                type="button"
+                onClick={() => setShowOtherPlayers((v) => !v)}
+                className="text-xs font-medium text-green-700 hover:text-green-900"
+              >
+                {showOtherPlayers ? '▾ Hide other players' : `▸ Add someone else (${others.length})`}
+              </button>
+              {showOtherPlayers && (
+                <ul className="max-h-72 overflow-y-auto divide-y divide-gray-100 rounded-md border border-gray-100">
+                  {others.length > 0 ? others.map(row) : <li className="px-3 py-2 text-xs text-gray-500">Everyone else is already in the field or filtered out.</li>}
+                </ul>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Add by GHIN # + manual */}
