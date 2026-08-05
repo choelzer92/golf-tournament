@@ -241,14 +241,17 @@ export function settleNassau(
     });
     const eligible = rows.filter((r) => r.thru > 0);
     const segThru = eligible.reduce((m, r) => Math.max(m, r.thru), 0);
-    if (eligible.length === 0) {
-      legs.push({ key: seg.key, label: seg.label, pot, winnerNames: [], thru: 0 });
-      continue;
-    }
-    const best = higherIsBetter
-      ? Math.max(...eligible.map((r) => r.value))
-      : Math.min(...eligible.map((r) => r.value));
-    const winners = eligible.filter((r) => r.value === best);
+    // A segment nobody has played yet is a dead heat: everyone's tied, so the pot
+    // splits evenly — which returns each player's ante for that segment (net zero
+    // on it). This keeps the WHOLE board zero-sum at every moment (an un-started
+    // back 9 doesn't leave its pot undistributed). Once holes come in, the
+    // leader(s) among those who've played take it (ties still split).
+    const winners = eligible.length === 0 ? rows : (() => {
+      const best = higherIsBetter
+        ? Math.max(...eligible.map((r) => r.value))
+        : Math.min(...eligible.map((r) => r.value));
+      return eligible.filter((r) => r.value === best);
+    })();
     const share = pot / winners.length;
     for (const w of winners) w.s.moneyNet += share;
     legs.push({ key: seg.key, label: seg.label, pot, winnerNames: winners.map((w) => w.s.playerName), thru: segThru });

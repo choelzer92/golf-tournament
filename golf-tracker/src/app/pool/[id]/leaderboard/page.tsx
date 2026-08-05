@@ -898,21 +898,29 @@ function NassauPayoutBoard({ legs }: { legs: NassauLegLine[] }) {
         <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Nassau Pots</p>
       </div>
       <div className="divide-y divide-gray-700/30">
-        {legs.map((leg) => (
-          <div key={leg.key} className="px-4 py-2.5 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-200">{leg.label}</p>
-              <p className="text-[10px] text-gray-500">${Math.round(leg.pot)} pot</p>
+        {legs.map((leg) => {
+          // Not-started segment = dead heat, pot splits evenly (antes returned).
+          const notStarted = leg.thru === 0;
+          // A split among everyone (all players lead) reads as "tied" not a winner.
+          const allSplit = leg.winnerNames.length >= 4;
+          return (
+            <div key={leg.key} className="px-4 py-2.5 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-200">{leg.label}</p>
+                <p className="text-[10px] text-gray-500">${Math.round(leg.pot)} pot{leg.thru > 0 ? ` · thru ${leg.thru}` : ''}</p>
+              </div>
+              <span className={`text-sm font-medium ${notStarted || allSplit ? 'text-gray-400' : 'text-green-400'}`}>
+                {notStarted
+                  ? 'Not started · splits evenly'
+                  : allSplit
+                  ? 'All tied · splits'
+                  : leg.winnerNames.length === 0
+                  ? '—'
+                  : `${leg.winnerNames.map(first).join(' & ')}${leg.winnerNames.length > 1 ? ' (leading, split)' : ' (leading)'}`}
+              </span>
             </div>
-            <span className={`text-sm font-medium ${leg.thru === 0 ? 'text-gray-500' : 'text-green-400'}`}>
-              {leg.thru === 0
-                ? 'TBD'
-                : leg.winnerNames.length === 0
-                ? '—'
-                : `${leg.winnerNames.map(first).join(' & ')}${leg.winnerNames.length > 1 ? ' (split)' : ''}`}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
