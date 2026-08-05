@@ -138,6 +138,13 @@ export interface FormatSetting {
   defaultValue: string | number | boolean;
   // Optional help/placeholder shown under the field by the pool mode editor.
   hint?: string;
+  // Optional conditional visibility: only show this field when the referenced
+  // setting(s) match. A single {key,in} shows the field when that setting's value
+  // is one of `in`; an array requires ALL conditions (AND). Lets a mode hide
+  // options that don't apply to the chosen path (e.g. "$ per point" only when
+  // moneyModel = per-point; Nassau front/back only when moneyModel = nassau AND
+  // split = 3-way). Purely presentational — a hidden field keeps its stored value.
+  showIf?: { key: string; in: string[] } | { key: string; in: string[] }[];
 }
 
 export const FORMATS: GameFormat[] = [

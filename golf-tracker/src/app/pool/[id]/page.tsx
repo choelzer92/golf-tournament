@@ -1257,6 +1257,11 @@ function StrokeAllocation({ detail, game }: { detail: PoolTeamDetail; game: Pool
 function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
   const course = game.course;
   const playerById = new Map(game.players.map((p) => [p.id, p]));
+  // Single-group games (individual / 2v2 / Wolf) are ONE foursome — the captains,
+  // pairing-locks, balance, auto-generate, and swap machinery is meaningless
+  // there, so hide it and keep just the per-player list (rename/tees/add/remove).
+  const modeCategory = getGameMode(game.gameMode)?.category;
+  const isSingleGroup = modeCategory === 'individual' || modeCategory === 'team-within-group';
   // Strokes THIS GAME (off-the-low-adjusted) — same number as the cards and the
   // swap tool, so the handicap shown next to each name here is consistent.
   const strokeMap = poolStrokeMap(game);
@@ -1592,8 +1597,9 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
       </p>
 
       {/* Team-building style: captains vs plain balance. Mirrors the wizard so a
-          game can drop or add captains after creation. */}
-      {game.players.length > 0 && (
+          game can drop or add captains after creation. Single-group games (Wolf/
+          individual/2v2) have one foursome, so none of this applies. */}
+      {!isSingleGroup && game.players.length > 0 && (
         <div className="bg-white rounded-lg shadow p-3">
           <p className="text-sm font-semibold text-gray-800 mb-2">Team Building</p>
           <div className="flex gap-2">
@@ -1616,7 +1622,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
         </div>
       )}
 
-      {useCaptains && game.players.length > 0 && (
+      {!isSingleGroup && useCaptains && game.players.length > 0 && (
         <CaptainsPanel
           players={game.players}
           course={course}
@@ -1630,7 +1636,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
           onApplyAction={autoBalance}
         />
       )}
-      {game.players.length > 0 && (
+      {!isSingleGroup && game.players.length > 0 && (
         <PairingLocks
           players={game.players}
           lockedGroups={game.lockedGroups ?? []}
@@ -1638,7 +1644,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
           onApplyAction={autoBalance}
         />
       )}
-      {game.teams.length > 0 && (
+      {!isSingleGroup && game.teams.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Build &amp; adjust teams</p>
           <div className="flex gap-2 flex-wrap">
@@ -1746,7 +1752,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
                         title="Handicap index — edit for a player entered by hand"
                       />
                     </label>
-                    {useCaptains && !isCaptain && (
+                    {!isSingleGroup && useCaptains && !isCaptain && (
                       <button
                         onClick={() => makeCaptain(team.id, pid)}
                         className="rounded-md border border-green-600 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50"
@@ -2146,12 +2152,26 @@ function WolfRotationEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
     game.players.find((p) => p.id === id)?.name.split(' ')[0] ?? '—';
   const isCustom = (game.wolfOrder?.length ?? 0) > 0;
 
+  // Changing the rotation invalidates any recorded per-hole Wolf picks (each pins
+  // a specific wolf, so a stale pick would keep showing the old wolf "overridden"
+  // against the new order). Clear them on any order change — but confirm first if
+  // picks exist, so a genuine mid-round reorder doesn't silently wipe real data.
+  function clearDecisionsOk(): boolean {
+    const hasDecisions = Object.keys(game.wolfDecisions ?? {}).length > 0;
+    if (!hasDecisions) return true;
+    return confirm('Changing the Wolf rotation will reset the per-hole Wolf picks already recorded. Continue?');
+  }
   function save(newOrder: string[]) {
-    onSave({ ...game, wolfOrder: newOrder });
+    if (!clearDecisionsOk()) return;
+    const updated = { ...game, wolfOrder: newOrder };
+    delete updated.wolfDecisions;
+    onSave(updated);
   }
   function resetToField() {
+    if (!clearDecisionsOk()) return;
     const updated = { ...game };
     delete updated.wolfOrder;
+    delete updated.wolfDecisions;
     onSave(updated);
   }
   function randomize() {

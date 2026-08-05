@@ -33,7 +33,7 @@ const SETTINGS: FormatSetting[] = [
     ],
     defaultValue: 'per-point',
   },
-  { key: 'dollarsPerPoint', label: '$ per point', type: 'number', defaultValue: 1, hint: 'Used when money = $ per point. Settle (points − group avg) × this. Zero-sum.' },
+  { key: 'dollarsPerPoint', label: '$ per point', type: 'number', defaultValue: 1, hint: 'Settle (points − group avg) × this. Zero-sum.', showIf: { key: 'moneyModel', in: ['per-point'] } },
   ...NASSAU_SETTINGS,
 ];
 

@@ -25,7 +25,8 @@ const SETTINGS: FormatSetting[] = [
   },
   {
     key: 'skinValue', label: '$ per skin', type: 'number', defaultValue: 5,
-    hint: 'Used when money = $ per skin. Each skin won is paid by every other player. Zero-sum across the group.',
+    hint: 'Each skin won is paid by every other player. Zero-sum across the group.',
+    showIf: { key: 'moneyModel', in: ['per-skin'] },
   },
   ...NASSAU_SETTINGS,
 ];

@@ -21,8 +21,8 @@ const SETTINGS: FormatSetting[] = [
     ],
     defaultValue: 'pot',
   },
-  { key: 'dollarsPerStroke', label: '$ per stroke', type: 'number', defaultValue: 1, hint: 'Used when money = per stroke. Settle (field avg − your total) × this. Zero-sum.' },
-  { key: 'entryPerPlayer', label: 'Buy-in ($ / player)', type: 'number', defaultValue: 20, hint: 'Used when money = pot. Lowest total wins the pot; ties split.' },
+  { key: 'dollarsPerStroke', label: '$ per stroke', type: 'number', defaultValue: 1, hint: 'Settle (field avg − your total) × this. Zero-sum.', showIf: { key: 'moneyModel', in: ['per-stroke'] } },
+  { key: 'entryPerPlayer', label: 'Buy-in ($ / player)', type: 'number', defaultValue: 20, hint: 'Lowest total wins the pot; ties split.', showIf: { key: 'moneyModel', in: ['pot'] } },
   ...NASSAU_SETTINGS,
 ];
 

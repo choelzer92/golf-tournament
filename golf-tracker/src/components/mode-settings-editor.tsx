@@ -17,9 +17,17 @@ export function ModeSettingsEditor({
   values: SettingsBag;
   onChangeAction: (key: string, value: SettingValue) => void;
 }) {
+  // Honor each setting's optional showIf predicate: hide a field unless the
+  // referenced setting(s) match (single condition, or an array = AND). Keeps the
+  // editor uncluttered (e.g. "$ per point" only when moneyModel = per-point).
+  const visible = schema.filter((s) => {
+    if (!s.showIf) return true;
+    const conds = Array.isArray(s.showIf) ? s.showIf : [s.showIf];
+    return conds.every((c) => c.in.includes(String(settingValue(schema, values, c.key))));
+  });
   return (
     <div className="space-y-3">
-      {schema.map((s) => (
+      {visible.map((s) => (
         <SettingField key={s.key} setting={s} value={settingValue(schema, values, s.key)} onChange={(v) => onChangeAction(s.key, v)} />
       ))}
     </div>

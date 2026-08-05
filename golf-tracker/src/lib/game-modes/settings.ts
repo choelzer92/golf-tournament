@@ -51,6 +51,10 @@ export function defaultSettings(schema: FormatSetting[]): SettingsBag {
 // model routes to settleNassau. Amounts are PER PLAYER and independent per
 // segment (e.g. 5 / 5 / 20 to make the Total the big prize); everyone antes the
 // sum of the segments in play. Total-only ignores the front/back amounts.
+// Every Nassau field is gated on moneyModel = 'nassau', so games that offer the
+// Nassau option only surface these once it's chosen. Front/Back additionally
+// require the 3-way split. `moneyModel` is the shared key each game uses for its
+// money select — games that expose Nassau MUST use that key for consistency.
 export const NASSAU_SETTINGS: FormatSetting[] = [
   {
     key: 'nassauSplit', label: 'Nassau split', type: 'select',
@@ -60,18 +64,22 @@ export const NASSAU_SETTINGS: FormatSetting[] = [
     ],
     defaultValue: 'three',
     hint: 'Contest three segments (front 9 / back 9 / total) or a single total pot.',
+    showIf: { key: 'moneyModel', in: ['nassau'] },
   },
   {
     key: 'nassauFront', label: 'Front 9 ($ / player)', type: 'number', defaultValue: 10,
     hint: '3-way only. Everyone antes this for the front-9 pot; low/high leader takes it.',
+    showIf: [{ key: 'moneyModel', in: ['nassau'] }, { key: 'nassauSplit', in: ['three'] }],
   },
   {
     key: 'nassauBack', label: 'Back 9 ($ / player)', type: 'number', defaultValue: 10,
     hint: '3-way only. Ante for the back-9 pot.',
+    showIf: [{ key: 'moneyModel', in: ['nassau'] }, { key: 'nassauSplit', in: ['three'] }],
   },
   {
     key: 'nassauTotal', label: 'Total ($ / player)', type: 'number', defaultValue: 10,
     hint: 'Ante for the 18-hole total pot. Used in both split modes.',
+    showIf: { key: 'moneyModel', in: ['nassau'] },
   },
 ];
 

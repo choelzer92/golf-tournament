@@ -49,7 +49,8 @@ const SETTINGS: FormatSetting[] = [
   },
   {
     key: 'dollarsPerPoint', label: '$ per point', type: 'number', defaultValue: 1,
-    hint: 'Used when money = $ per point. Each player settles (points beaten vs quota − group avg) × this. Zero-sum.',
+    hint: 'Each player settles (points beaten vs quota − group avg) × this. Zero-sum.',
+    showIf: { key: 'moneyModel', in: ['per-point'] },
   },
   ...NASSAU_SETTINGS,
 ];
