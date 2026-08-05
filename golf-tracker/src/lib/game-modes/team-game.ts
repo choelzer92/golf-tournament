@@ -36,15 +36,16 @@ const SETTINGS: FormatSetting[] = [
     hint: 'How each side’s hole score is formed. Scramble/alt-shot enter one team score per hole.',
   },
   {
-    key: 'scoring', label: 'Scoring', type: 'select',
-    options: [{ value: 'stableford', label: 'Stableford (points)' }, { value: 'stroke', label: 'Stroke (net)' }],
+    key: 'scoring', label: 'Hole score', type: 'select',
+    options: [{ value: 'stableford', label: 'Points (Stableford)' }, { value: 'stroke', label: 'Net strokes' }],
     defaultValue: 'stableford',
+    hint: 'How each side’s hole score is expressed — Stableford points or net strokes. (Not the same as match vs total — see “Compare by”.)',
   },
   {
-    key: 'result', label: 'Result', type: 'select',
-    options: [{ value: 'match', label: 'Match play (hole by hole)' }, { value: 'total', label: 'Total (18 holes)' }],
+    key: 'result', label: 'Compare by', type: 'select',
+    options: [{ value: 'match', label: 'Match (hole by hole)' }, { value: 'total', label: 'Total (18 holes)' }],
     defaultValue: 'match',
-    hint: 'Match: win each hole for points. Total: compare the 18-hole total. Front/back/overall shown either way.',
+    hint: 'Match: win each hole. Total: compare the 18-hole total. Works with either hole score. Front/back/overall shown either way.',
   },
   {
     key: 'moneyModel', label: 'Money', type: 'select',

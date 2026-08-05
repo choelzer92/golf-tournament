@@ -593,7 +593,11 @@ function DetailsStep({
   onNext: () => void;
 }) {
   const selectedMode = getGameMode(gameMode);
-  const isIndividual = selectedMode?.category === 'individual';
+  // Any registered game mode (individual OR 2v2 within-group) is a single-group
+  // game: it renders ITS OWN options (via the mode's settings schema) and does
+  // NOT use the classic team-pool "Game Type / pot / match / junk / ball" block.
+  // Only the classic foursome-vs-foursome pool (no gameMode) uses that block.
+  const isRegisteredMode = !!selectedMode;
   // Pick a game type: classic team pool, or one of the registered individual
   // games. Selecting an individual game seeds its norm defaults into modeSettings.
   function pickGame(id: string | undefined) {
@@ -654,8 +658,9 @@ function DetailsStep({
           </p>
         </div>
 
-        {/* Individual game options (rendered from the mode's settings schema). */}
-        {isIndividual && selectedMode && (
+        {/* Game options for ANY registered mode — individual AND 2v2 within-group
+            (2v2's Team format / Hole score / Compare-by / Money live here). */}
+        {isRegisteredMode && selectedMode && (
           <div className="pt-2 border-t">
             <label className="block text-sm font-medium text-gray-800 mb-2">{selectedMode.name} options</label>
             <ModeSettingsEditor
@@ -666,7 +671,7 @@ function DetailsStep({
           </div>
         )}
 
-        {!isIndividual && (
+        {!isRegisteredMode && (
         <div className="pt-2 border-t">
           <label className="block text-sm font-medium text-gray-800 mb-1">Game Type</label>
           <div className="flex gap-2">
@@ -697,7 +702,7 @@ function DetailsStep({
         )}
 
         <div className="grid grid-cols-2 gap-3 pt-2 border-t">
-          {moneyMode === 'pot' && !isIndividual && (
+          {moneyMode === 'pot' && !isRegisteredMode && (
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1">Entry ($ / player)</label>
             <input
@@ -777,13 +782,13 @@ function DetailsStep({
           </p>
         </div>
 
-        {moneyMode === 'pot' && !isIndividual && (
+        {moneyMode === 'pot' && !isRegisteredMode && (
         <div className="pt-2 border-t">
           <p className="text-xs text-gray-500">Pot split (front / back / overall / junk) is set on the final step — it fills in automatically from the number of teams.</p>
         </div>
         )}
 
-        {moneyMode === 'pot' && !isIndividual && (
+        {moneyMode === 'pot' && !isRegisteredMode && (
         <div className="pt-2 border-t">
           <label className="block text-sm font-medium text-gray-800 mb-1">Position Split</label>
           <input
@@ -837,7 +842,7 @@ function DetailsStep({
         </div>
         )}
 
-        {!isIndividual && (
+        {!isRegisteredMode && (
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-2">Junk Values (points)</p>
           <div className="grid grid-cols-5 gap-2">
@@ -857,7 +862,7 @@ function DetailsStep({
         </div>
         )}
 
-        {!isIndividual && (
+        {!isRegisteredMode && (
         <div className="pt-2 border-t">
           <label className="block text-sm font-medium text-gray-800 mb-1">Team Ball Selection</label>
           <select
