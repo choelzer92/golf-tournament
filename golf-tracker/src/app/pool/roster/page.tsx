@@ -35,6 +35,20 @@ function getToken() {
   return sessionStorage.getItem('ghin_token');
 }
 
+// A player's "usual tee" as a RELATIVE position, so it applies at any course
+// regardless of that course's tee names. Value = defaultTeeRank (0 = longest /
+// back tee, counting toward forward); '' = no preference (falls back to the
+// gender default). Ranks beyond a course's tee count clamp to its most-forward
+// tee (see pickTeeForPlayer). Labels are course-agnostic on purpose.
+const USUAL_TEE_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'Tee: auto' },
+  { value: '0', label: 'Longest (back)' },
+  { value: '1', label: '2nd longest' },
+  { value: '2', label: 'Middle' },
+  { value: '3', label: '4th (forward-ish)' },
+  { value: '4', label: 'Most forward' },
+];
+
 export default function RosterPage() {
   const router = useRouter();
   const [players, setPlayers] = useState<RosterPlayer[]>([]);
@@ -199,6 +213,19 @@ export default function RosterPage() {
     flashConfirmation(`Removed ${rp.name} from your saved players.`);
   }
 
+  // Set a player's USUAL tee as a relative position (0 = longest/back, up to
+  // forward). Stored as defaultTeeRank so it travels to any course regardless of
+  // that course's tee names; the game wizard resolves it into an actual tee.
+  // We also clear defaultTeeName (to '' — NOT null, which upsertRosterPlayer
+  // treats as "keep existing") so a stale course-specific name can't win over
+  // this deliberate preference, since the picker checks name before rank.
+  // rankStr '' clears the preference entirely.
+  async function setUsualTee(rp: RosterPlayer, rankStr: string) {
+    const rank = rankStr === '' ? null : Number(rankStr);
+    await upsertRosterPlayer({ ...rp, defaultTeeName: '', defaultTeeRank: rank });
+    refresh(query);
+  }
+
   async function doRefreshHandicaps() {
     const token = getToken();
     if (!token) { retryRef.current = doRefreshHandicaps; setShowLogin(true); return; }
@@ -287,6 +314,16 @@ export default function RosterPage() {
                     Index {rp.handicapIndex ?? '—'}
                     {rp.ghinNumber ? ` · GHIN ${rp.ghinNumber}` : ' · manual'}
                   </span>
+                  <select
+                    value={rp.defaultTeeRank ?? ''}
+                    onChange={(e) => setUsualTee(rp, e.target.value)}
+                    title="Usual tee — the tee this player normally plays, applied as their default in new games (overridable per game)."
+                    className="text-xs border border-gray-200 rounded px-1 py-0.5 text-gray-600 flex-shrink-0 max-w-[7.5rem]"
+                  >
+                    {USUAL_TEE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
                   <button
                     onClick={() => removePlayer(rp)}
                     className="text-red-500 hover:text-red-700 text-xs font-medium flex-shrink-0"

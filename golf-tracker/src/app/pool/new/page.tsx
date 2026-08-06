@@ -43,6 +43,7 @@ import {
   refreshRosterHandicaps,
   getOldestHcapRefresh,
 } from '@/lib/roster';
+import { pickTeeForPlayer, teeRankInPool } from '@/lib/tee-pick';
 import {
   type RosterGroup,
   type GroupDefaults,
@@ -72,42 +73,6 @@ function getToken() {
 // handicap, so we only ever choose from tees whose own gender matches the player.
 // Priority: remembered tee name (within gender) -> gender default -> first
 // same-gender tee -> course default.
-function pickTeeForPlayer(
-  course: CourseSelection | null,
-  gender: 'M' | 'F' | undefined,
-  rememberedTeeName: string | null | undefined
-): number | undefined {
-  if (!course || course.teeSets.length === 0) return undefined;
-  const tees = course.teeSets;
-  const g: 'M' | 'F' = gender === 'F' ? 'F' : 'M';
-
-  // Gender pool by the tee's own gender flag (the reliable signal). Fall back to
-  // the (W) name suffix only if tees somehow lack a gender, then to all tees.
-  let pool = tees.filter((t) => t.gender === g);
-  if (pool.length === 0) {
-    pool = tees.filter((t) => (g === 'F' ? /\(w\)/i.test(t.name) : !/\(w\)/i.test(t.name)));
-  }
-  if (pool.length === 0) pool = tees;
-
-  // Normalize for comparison: strip a trailing "(W)" and lowercase.
-  const norm = (n: string) => n.replace(/\s*\(w\)\s*$/i, '').trim().toLowerCase();
-
-  // 1) Remembered tee by name, matched WITHIN the gender pool.
-  if (rememberedTeeName) {
-    const want = norm(rememberedTeeName);
-    const hit = pool.find((t) => norm(t.name) === want);
-    if (hit) return hit.id;
-  }
-
-  // 2) Gender default: men -> "3 Stars", women -> "1 Star" (by base name).
-  const wantDefault = g === 'F' ? '1 star' : '3 stars';
-  const def = pool.find((t) => norm(t.name) === wantDefault);
-  if (def) return def.id;
-
-  // 3) First same-gender tee, else course default.
-  return pool[0]?.id ?? course.selectedTeeId ?? tees[0]?.id ?? undefined;
-}
-
 // Pot legs entered in DOLLARS (front/back/overall/junk), held as strings so the
 // inputs stay editable. Auto-filled from the team-count table but overridable.
 interface PotDollars {
@@ -359,9 +324,11 @@ export default function NewPoolGamePage() {
       teamBuild,
     };
 
-    // Remember each player's tee (by name) for next time — whatever they're
-    // actually playing here, auto-picked or manually chosen. Without this, a
-    // player whose tee was never manually toggled reverts to the gender default.
+    // Remember each player's tee for next time — whatever they're actually
+    // playing here, auto-picked or manually chosen. Saved by NAME (exact match)
+    // AND by RELATIVE RANK (the cross-course fallback), so their usual tee
+    // follows them to courses whose tee names differ. Without this, a player
+    // whose tee was never manually toggled reverts to the gender default.
     for (const p of players) {
       const teeName = course?.teeSets.find((t) => t.id === p.teeSetId)?.name;
       if (!teeName) continue;
@@ -372,6 +339,7 @@ export default function NewPoolGamePage() {
         handicapIndex: p.handicapIndex,
         gender: p.gender ?? null,
         defaultTeeName: teeName,
+        defaultTeeRank: teeRankInPool(course, p.gender ?? undefined, p.teeSetId),
       });
     }
 
@@ -1263,7 +1231,7 @@ function FieldStep({
         handicapIndex: rp.handicapIndex,
         gender: rp.gender ?? undefined,
         ghinNumber: rp.ghinNumber ?? undefined,
-        teeSetId: pickTeeForPlayer(course, rp.gender ?? undefined, rp.defaultTeeName),
+        teeSetId: pickTeeForPlayer(course, rp.gender ?? undefined, rp.defaultTeeName, rp.defaultTeeRank),
       });
     }
     setPlayers(loaded);
@@ -1316,7 +1284,7 @@ function FieldStep({
       handicapIndex: rp.handicapIndex,
       gender: rp.gender ?? undefined,
       ghinNumber: rp.ghinNumber ?? undefined,
-      teeSetId: pickTeeForPlayer(course, rp.gender ?? undefined, rp.defaultTeeName),
+      teeSetId: pickTeeForPlayer(course, rp.gender ?? undefined, rp.defaultTeeName, rp.defaultTeeRank),
     };
     const nextPlayers = [...players, newPlayer];
     setPlayers(nextPlayers);
@@ -1382,14 +1350,14 @@ function FieldStep({
       const ghinGender = (golfer.gender || golfer.Gender || '').toLowerCase();
       const gender: 'M' | 'F' = ghinGender === 'female' || ghinGender === 'f' ? 'F' : 'M';
       const ghinNumber = Number(ghinInput);
-      const remembered = getRosterPlayerByGhin(ghinNumber)?.defaultTeeName ?? null;
+      const rememberedRp = getRosterPlayerByGhin(ghinNumber);
       const newPlayer: Player = {
         id: crypto.randomUUID(),
         name: `${golfer.first_name} ${golfer.last_name}`,
         handicapIndex: hi,
         gender,
         ghinNumber,
-        teeSetId: pickTeeForPlayer(course, gender, remembered),
+        teeSetId: pickTeeForPlayer(course, gender, rememberedRp?.defaultTeeName ?? null, rememberedRp?.defaultTeeRank),
       };
       setPlayers([...players, newPlayer]);
       upsertRosterPlayer({
@@ -1476,14 +1444,14 @@ function FieldStep({
     const ghinGender = (g.gender || g.Gender || '').toLowerCase();
     const gender: 'M' | 'F' = ghinGender === 'female' || ghinGender === 'f' ? 'F' : 'M';
     const id = crypto.randomUUID();
-    const remembered = !isNaN(ghinNumber) ? (getRosterPlayerByGhin(ghinNumber)?.defaultTeeName ?? null) : null;
+    const rememberedRp = !isNaN(ghinNumber) ? getRosterPlayerByGhin(ghinNumber) : null;
     const newPlayer: Player = {
       id,
       name: `${g.first_name ?? ''} ${g.last_name ?? ''}`.trim(),
       handicapIndex: hi,
       gender,
       ghinNumber: isNaN(ghinNumber) ? undefined : ghinNumber,
-      teeSetId: pickTeeForPlayer(course, gender, remembered),
+      teeSetId: pickTeeForPlayer(course, gender, rememberedRp?.defaultTeeName ?? null, rememberedRp?.defaultTeeRank),
     };
     setPlayers([...players, newPlayer]);
     upsertRosterPlayer({
@@ -1503,7 +1471,8 @@ function FieldStep({
 
   function changePlayerTee(id: string, teeSetId: number) {
     setPlayers(players.map((p) => (p.id === id ? { ...p, teeSetId } : p)));
-    // Remember this tee (by name) for next time this player is added.
+    // Remember this tee for next time — by NAME (exact) and by RELATIVE RANK
+    // (cross-course fallback), so their usual tee follows them to other courses.
     const player = players.find((p) => p.id === id);
     const teeName = course?.teeSets.find((t) => t.id === teeSetId)?.name;
     if (player && teeName) {
@@ -1514,6 +1483,7 @@ function FieldStep({
         handicapIndex: player.handicapIndex,
         gender: player.gender ?? null,
         defaultTeeName: teeName,
+        defaultTeeRank: teeRankInPool(course, player.gender ?? undefined, teeSetId),
       });
     }
   }

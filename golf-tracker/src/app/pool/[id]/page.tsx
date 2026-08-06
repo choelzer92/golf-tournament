@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import type { GameSetup, Player, CourseSelection, TeeSetOption } from '@/lib/game-state';
+import type { GameSetup, Player, TeeSetOption } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
 import type { PoolGame, PoolTeam, PoolTeamDetail, PoolJunkValues, PoolMoneyMode } from '@/lib/pool-game';
 import type { TwoBestBallsVariant } from '@/lib/formats';
@@ -52,6 +52,7 @@ import {
   getRosterPlayerByGhin,
   upsertRosterPlayer,
 } from '@/lib/roster';
+import { pickTeeForPlayer, teeRankInPool } from '@/lib/tee-pick';
 
 function getToken() {
   return sessionStorage.getItem('ghin_token');
@@ -61,36 +62,6 @@ function getToken() {
 // (src/app/pool/new/page.tsx). A course's men's and women's tees can share a
 // name/yardage yet carry different ratings and hole stroke-index, so we only
 // ever choose from tees whose own gender matches the player.
-function pickTeeForPlayer(
-  course: CourseSelection | null,
-  gender: 'M' | 'F' | undefined,
-  rememberedTeeName: string | null | undefined
-): number | undefined {
-  if (!course || course.teeSets.length === 0) return undefined;
-  const tees = course.teeSets;
-  const g: 'M' | 'F' = gender === 'F' ? 'F' : 'M';
-
-  let pool = tees.filter((t) => t.gender === g);
-  if (pool.length === 0) {
-    pool = tees.filter((t) => (g === 'F' ? /\(w\)/i.test(t.name) : !/\(w\)/i.test(t.name)));
-  }
-  if (pool.length === 0) pool = tees;
-
-  const norm = (n: string) => n.replace(/\s*\(w\)\s*$/i, '').trim().toLowerCase();
-
-  if (rememberedTeeName) {
-    const want = norm(rememberedTeeName);
-    const hit = pool.find((t) => norm(t.name) === want);
-    if (hit) return hit.id;
-  }
-
-  const wantDefault = g === 'F' ? '1 star' : '3 stars';
-  const def = pool.find((t) => norm(t.name) === wantDefault);
-  if (def) return def.id;
-
-  return pool[0]?.id ?? course.selectedTeeId ?? tees[0]?.id ?? undefined;
-}
-
 export default function PoolHubPage() {
   const router = useRouter();
   const params = useParams();
@@ -1482,6 +1453,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
         handicapIndex: player.handicapIndex,
         gender: player.gender ?? null,
         defaultTeeName: teeName,
+        defaultTeeRank: teeRankInPool(course, player.gender ?? undefined, teeSetId),
       });
     }
   }
@@ -1910,7 +1882,7 @@ function AddPlayerPanel({
       handicapIndex: rp.handicapIndex,
       gender: rp.gender ?? undefined,
       ghinNumber: rp.ghinNumber ?? undefined,
-      teeSetId: pickTeeForPlayer(course, rp.gender ?? undefined, rp.defaultTeeName),
+      teeSetId: pickTeeForPlayer(course, rp.gender ?? undefined, rp.defaultTeeName, rp.defaultTeeRank),
     };
     onAdd(newPlayer, targetTeamId);
   }
@@ -1934,14 +1906,14 @@ function AddPlayerPanel({
       const gender: 'M' | 'F' = ghinGender === 'female' || ghinGender === 'f' ? 'F' : 'M';
       const ghinNumber = Number(ghinInput);
       if (existingGhins.has(ghinNumber)) { setGhinError('Player already in the game'); return; }
-      const remembered = getRosterPlayerByGhin(ghinNumber)?.defaultTeeName ?? null;
+      const rememberedRp = getRosterPlayerByGhin(ghinNumber);
       const newPlayer: Player = {
         id: crypto.randomUUID(),
         name: `${golfer.first_name} ${golfer.last_name}`,
         handicapIndex: hi,
         gender,
         ghinNumber,
-        teeSetId: pickTeeForPlayer(course, gender, remembered),
+        teeSetId: pickTeeForPlayer(course, gender, rememberedRp?.defaultTeeName ?? null, rememberedRp?.defaultTeeRank),
       };
       onAdd(newPlayer, targetTeamId);
       upsertRosterPlayer({

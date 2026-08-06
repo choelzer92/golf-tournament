@@ -9,7 +9,12 @@ export interface RosterPlayer {
   name: string;
   handicapIndex: number | null;
   gender: 'M' | 'F' | null;
-  defaultTeeName: string | null;  // remembered tee (by name) from last game
+  defaultTeeName: string | null;  // remembered tee (by name) from last game — exact match, preferred
+  // Cross-course fallback for the usual tee: the tee's RELATIVE position in the
+  // player's gender pool, 0 = longest (back) counting toward forward. Used when a
+  // course has no tee matching defaultTeeName (names differ course-to-course).
+  // Kept in sync with defaultTeeName whenever a game is played or a pref is set.
+  defaultTeeRank?: number | null;
   hcapUpdatedAt?: string | null;  // ISO time the index was last pulled from GHIN
   ownerGhin?: number | null;      // organizer who owns this entry; null = shared "base" roster
 }
@@ -21,6 +26,7 @@ interface RosterRow {
   handicap_index: number | null;
   gender: string | null;
   default_tee_name: string | null;
+  default_tee_rank?: number | null;
   hcap_updated_at: string | null;
   owner_ghin?: number | null;
 }
@@ -54,6 +60,7 @@ function rowToPlayer(row: RosterRow): RosterPlayer {
     handicapIndex: row.handicap_index,
     gender: row.gender === 'F' ? 'F' : row.gender === 'M' ? 'M' : null,
     defaultTeeName: row.default_tee_name ?? null,
+    defaultTeeRank: row.default_tee_rank ?? null,
     hcapUpdatedAt: row.hcap_updated_at ?? null,
     ownerGhin: row.owner_ghin ?? null,
   };
@@ -112,6 +119,7 @@ export async function upsertRosterPlayer(player: RosterPlayer): Promise<RosterPl
   // Preserve previously remembered fields when this call doesn't supply them
   // (e.g. a tee edit shouldn't wipe the handicap-refresh time, and vice versa).
   const defaultTeeName = player.defaultTeeName ?? existing?.defaultTeeName ?? null;
+  const defaultTeeRank = player.defaultTeeRank ?? existing?.defaultTeeRank ?? null;
   const hcapUpdatedAt = player.hcapUpdatedAt ?? existing?.hcapUpdatedAt ?? null;
   // Ownership: preserve an existing entry's owner (an update must never reassign
   // it); for a brand-new entry, the app owner's adds go to the shared BASE roster
@@ -121,7 +129,7 @@ export async function upsertRosterPlayer(player: RosterPlayer): Promise<RosterPl
     : player.ownerGhin !== undefined
       ? player.ownerGhin
       : (viewerIsOwner ? null : viewerGhin);
-  const merged: RosterPlayer = { ...player, id: existing?.id || player.id, defaultTeeName, hcapUpdatedAt, ownerGhin };
+  const merged: RosterPlayer = { ...player, id: existing?.id || player.id, defaultTeeName, defaultTeeRank, hcapUpdatedAt, ownerGhin };
   rosterCache.set(merged.id, merged);
 
   const row = {
@@ -131,18 +139,29 @@ export async function upsertRosterPlayer(player: RosterPlayer): Promise<RosterPl
     handicap_index: merged.handicapIndex,
     gender: merged.gender,
     default_tee_name: merged.defaultTeeName,
+    default_tee_rank: merged.defaultTeeRank,
     hcap_updated_at: merged.hcapUpdatedAt,
     owner_ghin: merged.ownerGhin,
     updated_at: new Date().toISOString(),
   };
-  // Resilient write: if the owner_ghin column isn't present yet (scoping
-  // migration not applied), retry without it so the save still persists —
-  // scoping simply activates once the column exists. Decouples deploy ordering.
+  // Resilient write: if a newer column isn't present yet (migration not applied),
+  // retry without it so the save still persists — the feature simply activates
+  // once the column exists. Decouples deploy ordering. Handles owner_ghin and
+  // default_tee_rank independently (either or both may be missing).
   (async () => {
     const { error } = await supabase.from('players').upsert(row);
-    if (error && /owner_ghin/i.test(error.message)) {
-      const { owner_ghin: _omit, ...rest } = row;
-      await supabase.from('players').upsert(rest);
+    if (!error) return;
+    if (/owner_ghin/i.test(error.message) || /default_tee_rank/i.test(error.message)) {
+      const stripped: Record<string, unknown> = { ...row };
+      if (/owner_ghin/i.test(error.message)) delete stripped.owner_ghin;
+      if (/default_tee_rank/i.test(error.message)) delete stripped.default_tee_rank;
+      const { error: err2 } = await supabase.from('players').upsert(stripped);
+      // A first missing column can mask a second — strip both and try once more.
+      if (err2 && (/owner_ghin/i.test(err2.message) || /default_tee_rank/i.test(err2.message))) {
+        delete stripped.owner_ghin;
+        delete stripped.default_tee_rank;
+        await supabase.from('players').upsert(stripped);
+      }
     }
   })();
 
