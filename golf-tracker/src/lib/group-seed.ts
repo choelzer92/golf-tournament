@@ -7,3 +7,10 @@
 // Kept in lib (not a page) because Next.js pages may only export the component.
 export const POOL_GROUP_SEED_KEY = 'pool_group_seed';
 export const TOURNAMENT_GROUP_SEED_KEY = 'tournament_group_seed';
+
+// Format seed: the pool wizard applies this format's defaults on mount (set by
+// the Format Library's "Start a game" and by the group page's format picker).
+// Composes with POOL_GROUP_SEED_KEY — members from the group, settings from the
+// format. Value is JSON { name?, defaults }. Matches the literal the pool wizard
+// and /pool/formats already use; centralized here so all callers share it.
+export const FORMAT_SEED_KEY = 'pool_format_seed';

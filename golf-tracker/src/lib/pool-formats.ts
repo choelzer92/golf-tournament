@@ -7,6 +7,26 @@ import type { GroupDefaults, RosterGroup } from './roster-groups';
 import { getGroups, upsertGroup, getGroupById, setGroupOwner } from './roster-groups';
 import { getCreatorGhin } from './pool-identity';
 
+// A group's attached formats (resolved to the RosterGroup format rows), in the
+// order they were attached. Skips ids that no longer resolve to a format.
+export function getGroupFormats(group: RosterGroup): RosterGroup[] {
+  const ids = group.defaults?.formatIds ?? [];
+  return ids.map((id) => getFormatById(id)).filter((f): f is RosterGroup => !!f);
+}
+
+// Attach/detach a Format Library entry to a group. Persists via upsertGroup,
+// which preserves the group's other defaults and its owner.
+export async function attachFormatToGroup(group: RosterGroup, formatId: string): Promise<RosterGroup> {
+  const existing = group.defaults?.formatIds ?? [];
+  if (existing.includes(formatId)) return group;
+  return upsertGroup({ ...group, defaults: { ...(group.defaults ?? {}), formatIds: [...existing, formatId] } });
+}
+
+export async function detachFormatFromGroup(group: RosterGroup, formatId: string): Promise<RosterGroup> {
+  const existing = group.defaults?.formatIds ?? [];
+  return upsertGroup({ ...group, defaults: { ...(group.defaults ?? {}), formatIds: existing.filter((id) => id !== formatId) } });
+}
+
 // Format Library entries (kind === 'format'), scoped/sorted by getGroups().
 export function getFormats(): RosterGroup[] {
   return getGroups().filter((g) => g.defaults?.kind === 'format');

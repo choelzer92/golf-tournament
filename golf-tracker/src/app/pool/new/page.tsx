@@ -143,6 +143,10 @@ export default function NewPoolGamePage() {
   // the FieldStep "Load group" picker). Stamped onto the game as sourceGroupId so
   // stats/ledger can attribute it exactly. Absent = made outside a group.
   const [sourceGroupId, setSourceGroupId] = useState<string | undefined>(undefined);
+  // True once a FORMAT seed has been applied (group page's format picker or the
+  // library). Tells the FieldStep group-seed loader to bring in members WITHOUT
+  // re-applying the group's own default settings (which would clobber the format).
+  const [formatSeedApplied, setFormatSeedApplied] = useState(false);
 
   // Teams
   const [teams, setTeams] = useState<PoolTeam[]>([]);
@@ -199,8 +203,10 @@ export default function NewPoolGamePage() {
         // new game starts with nobody selected. Name/course/config still restore.
       }
     } catch {}
-    // Seed from a Format Library entry (set by the library's "Start a game").
-    // Applied AFTER the draft so a chosen format wins; consumed once.
+    // Seed from a Format Library entry (set by the library's "Start a game" or
+    // the group page's format picker). Applied AFTER the draft so a chosen
+    // format wins; consumed once. Records that a format was applied so a group
+    // seed loading members later doesn't clobber it with the group's own default.
     try {
       const seedRaw = sessionStorage.getItem(FORMAT_SEED_KEY);
       if (seedRaw) {
@@ -208,6 +214,7 @@ export default function NewPoolGamePage() {
         const seed = JSON.parse(seedRaw) as { name?: string; defaults?: GroupDefaults };
         if (seed.name && seed.name.trim()) setName(seed.name);
         if (seed.defaults) applyGroupDefaults(seed.defaults);
+        setFormatSeedApplied(true);
       }
     } catch {}
     setHydrated(true);
@@ -432,6 +439,7 @@ export default function NewPoolGamePage() {
             getGroupDefaults={currentGroupDefaults}
             applyGroupDefaults={applyGroupDefaults}
             onGroupLoaded={setSourceGroupId}
+            formatSeedApplied={formatSeedApplied}
             onNext={() => setStep('tees')}
             onBack={() => setStep('course')}
           />
@@ -1186,7 +1194,7 @@ function CourseStep({
 }
 
 function FieldStep({
-  course, players, setPlayers, handicapAllowance, handicapBasis, getGroupDefaults, applyGroupDefaults, onGroupLoaded, onNext, onBack,
+  course, players, setPlayers, handicapAllowance, handicapBasis, getGroupDefaults, applyGroupDefaults, onGroupLoaded, formatSeedApplied, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
@@ -1195,6 +1203,7 @@ function FieldStep({
   getGroupDefaults: () => GroupDefaults;
   applyGroupDefaults: (d: GroupDefaults | null) => void;
   onGroupLoaded: (groupId: string) => void;
+  formatSeedApplied: boolean;
   onNext: () => void; onBack: () => void;
 }) {
   const [rosterQuery, setRosterQuery] = useState('');
@@ -1251,7 +1260,10 @@ function FieldStep({
             const seededGroupId = sessionStorage.getItem(POOL_GROUP_SEED_KEY);
             if (seededGroupId) {
               sessionStorage.removeItem(POOL_GROUP_SEED_KEY);
-              loadGroup(seededGroupId);
+              // If a format was chosen for this game, load members only — the
+              // format seed already set the settings; don't clobber with the
+              // group's own default.
+              loadGroup(seededGroupId, { skipDefaults: formatSeedApplied });
             }
           } catch {}
         })
@@ -1286,8 +1298,12 @@ function FieldStep({
   }
 
   // Load a group: REPLACE today's field with the group's members (looked up in
-  // the roster and given a tee), and apply the group's saved format defaults.
-  function loadGroup(groupId: string) {
+  // the roster and given a tee), and (unless skipDefaults) apply the group's
+  // saved format defaults. skipDefaults is used when a specific FORMAT was
+  // chosen for this game (group page's format picker): the format seed already
+  // applied the settings on mount, so re-applying the group's OWN baked-in
+  // default here would clobber the chosen format. Members still load either way.
+  function loadGroup(groupId: string, opts?: { skipDefaults?: boolean }) {
     // Prefer the group cache (populated by hydrateGroups) over the `groups`
     // React state, so a seed can load a group in the same tick hydration
     // finishes — before setGroups has re-rendered. Falls back to state.
@@ -1308,7 +1324,7 @@ function FieldStep({
       });
     }
     setPlayers(loaded);
-    applyGroupDefaults(group.defaults);
+    if (!opts?.skipDefaults) applyGroupDefaults(group.defaults);
     onGroupLoaded(groupId);         // stamp the game's sourceGroupId (exact stats link)
     setActiveGroupId(groupId);      // the picker now centers on this group
     setShowOtherPlayers(false);

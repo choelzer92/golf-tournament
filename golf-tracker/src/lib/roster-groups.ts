@@ -27,6 +27,12 @@ export interface GroupDefaults {
   // format, typically with no players) rather than a player Group. Absent = a
   // normal player group (unchanged behavior).
   kind?: 'format';
+  // For a player GROUP: the Format Library entries this group plays (ids into
+  // roster_groups rows tagged kind:'format'). Lets a group offer a LIST of its
+  // formats to pick from when starting a round, on top of its single baked-in
+  // default. Absent/empty = no attached formats (unchanged behavior). Rides the
+  // existing defaults JSONB — no migration.
+  formatIds?: string[];
 }
 
 export interface RosterGroup {
