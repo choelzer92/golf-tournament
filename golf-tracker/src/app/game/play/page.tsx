@@ -11,7 +11,8 @@ import { computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, comp
 import { computeSideGameResult } from '@/lib/side-game';
 import type { SideGameResult } from '@/lib/side-game';
 import type { PoolGame, PoolResult, PoolLeg } from '@/lib/pool-game';
-import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores } from '@/lib/pool-game';
+import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores, buildHcapMap, playerHoleStrokeIndexForGame, numHolesForStrokes } from '@/lib/pool-game';
+import { getMoneyStrokesOnHole } from '@/lib/money-games';
 import { isSingleGroupGame } from '@/lib/game-modes/result';
 import { getGameMode } from '@/lib/game-modes';
 import { wolfForHole } from '@/lib/game-modes/wolf';
@@ -280,6 +281,15 @@ export default function PlayGamePage() {
   const defaultTee = setup.course?.teeSets.find((t) => String(t.id) === String(setup.course?.selectedTeeId)) || setup.course?.teeSets[0];
   const holes = getHolesForSetup(setup);
 
+  // For a POOL game, the scorecard's stroke dots must match the money engine in
+  // ALL cases (18-hole, 9-hole/18-basis, 9-hole/USGA-basis). Rather than mirror
+  // the pool stroke math here (which drifts), compute strokes with the SAME pool
+  // helpers the leaderboard/payout use. buildHcapMap already encodes allowance,
+  // off-the-low, and the 9-hole handicap basis; playerHoleStrokeIndexForGame
+  // gives the correct per-player-tee index (reranked 1–9 only on the USGA basis).
+  const poolHcapMap = poolGame ? buildHcapMap(poolGame) : null;
+  const poolNumHoles = poolGame ? numHolesForStrokes(poolGame) : 18;
+
   const sortedPlayers = [...setup.players].sort((a, b) => {
     const teamOrder = (t?: 'A' | 'B') => t === 'A' ? 0 : t === 'B' ? 1 : 2;
     return teamOrder(a.team) - teamOrder(b.team);
@@ -498,6 +508,17 @@ export default function PlayGamePage() {
   }
 
   function getPlayerStrokesOnHole(player: Player, holeHandicap: number, holeNumber?: number): number {
+    // Pool games: defer to the money engine so the on-screen dots ALWAYS match
+    // the payout. buildHcapMap has already applied allowance + off-the-low + the
+    // 9-hole handicap basis; the per-game stroke index is reranked 1–9 only on
+    // the USGA basis (else the true 18-hole index). Guarded to holeNumber so the
+    // per-hole calls resolve; the tournament path below is unchanged.
+    if (poolGame && poolHcapMap && holeNumber !== undefined) {
+      const hcap = poolHcapMap.get(player.id) ?? 0;
+      const idx = playerHoleStrokeIndexForGame(poolGame, player, holeNumber, holeHandicap);
+      return getMoneyStrokesOnHole(hcap, idx, poolNumHoles);
+    }
+
     const rawHcap = getPlayingHandicap(player, holeNumber);
     const playingHcap = Math.round(rawHcap);
     const numHoles = setup!.splitFormat ? 9 : holes.length;
