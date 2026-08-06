@@ -6,6 +6,7 @@ import { getTournamentList, importTournament, hydrateTournaments, type Tournamen
 import { parseGhinIndex } from '@/lib/game-state';
 import { PoolShareButton } from '@/components/pool-share';
 import { getPoolGameList, hydratePoolGames, type PoolGameListItem } from '@/lib/pool-game';
+import { SOLO_ROUNDS } from '@/lib/flags';
 
 interface TeeRating {
   RatingType: 'Front' | 'Back' | 'Total';
@@ -250,6 +251,14 @@ export default function DashboardPage() {
           >
             Pool Game
           </button>
+          {SOLO_ROUNDS && (
+            <button
+              onClick={() => router.push('/solo')}
+              className="flex-1 min-w-[140px] rounded-lg bg-emerald-700 px-6 py-4 text-white font-bold text-lg hover:bg-emerald-800 shadow-md"
+            >
+              Solo Round
+            </button>
+          )}
           <button
             onClick={() => {
               const input = document.createElement('input');

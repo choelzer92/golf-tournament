@@ -13,6 +13,7 @@ import { hydrateGroups, type RosterGroup } from '@/lib/roster-groups';
 import { getPlayerGroups } from '@/lib/pool-formats';
 import { getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorGhin, getCreatorName } from '@/lib/pool-identity';
+import { SOLO_ROUNDS } from '@/lib/flags';
 
 // PHASE 1 Home hub — a user-centric landing that only READS existing data:
 // your groups, your active/recent games (pool + tournament merged), and a
@@ -175,6 +176,17 @@ export default function HomePage() {
               <p className="text-sm text-green-100 mt-0.5">A tournament across several rounds.</p>
             </button>
           </div>
+          {SOLO_ROUNDS && (
+            <button
+              onClick={() => router.push('/solo')}
+              className="mt-3 w-full rounded-lg bg-emerald-700 px-6 py-5 text-white text-left hover:bg-emerald-800 shadow-md"
+            >
+              <p className="font-bold text-lg">Solo round 🎤</p>
+              <p className="text-sm text-emerald-100 mt-0.5">
+                Play by yourself — log each shot by voice or tap and learn how far you really hit each club.
+              </p>
+            </button>
+          )}
         </section>
 
         <section>
