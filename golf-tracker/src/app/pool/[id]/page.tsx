@@ -190,7 +190,14 @@ export default function PoolHubPage() {
       course: game!.course,
       players,
       handicapAllowance,
-      holesPlaying: '18',
+      // Carry the pool game's holes selection so the scorecard shows only the
+      // played nine. NOTE: the play page's getHolesForSetup re-ranks stroke
+      // indexes 1–9 whenever holesPlaying !== '18' — correct for the USGA 9-hole
+      // basis; for the 18-hole basis the SCORING engine (getGameHoles) keeps the
+      // 18-hole indexes, so the scorecard's per-hole "Hdcp" label may differ from
+      // where strokes actually fall. Strokes/money come from the engine, not this
+      // label. (Aligning the play-page label to the basis is a display follow-up.)
+      holesPlaying: game!.holesPlaying ?? '18',
       strokeMethod,
       handicapBasis: game!.handicapBasis ?? 'course',
       formatSettings: { ballSelection: game!.ballSelection },

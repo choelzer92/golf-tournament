@@ -132,6 +132,10 @@ export default function NewPoolGamePage() {
 
   // Course
   const [course, setCourse] = useState<CourseSelection | null>(null);
+  // Holes played (default 18). A nine restricts scoring/legs/scorecard to it.
+  const [holesPlaying, setHolesPlaying] = useState<'18' | 'front9' | 'back9'>('18');
+  // 9-hole handicap basis (default '18' = the common casual method; '9' = USGA-proper).
+  const [nineHandicapBasis, setNineHandicapBasis] = useState<'18' | '9'>('18');
 
   // Field
   const [players, setPlayers] = useState<Player[]>([]);
@@ -188,6 +192,8 @@ export default function NewPoolGamePage() {
         if (typeof data.gameMode === 'string') setGameMode(data.gameMode);
         if (data.modeSettings && typeof data.modeSettings === 'object') setModeSettings(data.modeSettings);
         if (data.course) setCourse(data.course);
+        if (data.holesPlaying === '18' || data.holesPlaying === 'front9' || data.holesPlaying === 'back9') setHolesPlaying(data.holesPlaying);
+        if (data.nineHandicapBasis === '18' || data.nineHandicapBasis === '9') setNineHandicapBasis(data.nineHandicapBasis);
         // Intentionally NOT restoring players/teams/step: the day's field is a
         // fresh per-game selection (the roster is the durable store), so every
         // new game starts with nobody selected. Name/course/config still restore.
@@ -213,9 +219,11 @@ export default function NewPoolGamePage() {
     sessionStorage.setItem(WIZARD_KEY, JSON.stringify({
       name, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step,
+      holesPlaying, nineHandicapBasis,
     }));
   }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
-      junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step]);
+      junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step,
+      holesPlaying, nineHandicapBasis]);
 
   // The current format settings, packaged as a group's defaults (for "save field
   // as a group"). Only the format — the member list is saved separately.
@@ -314,6 +322,10 @@ export default function NewPoolGamePage() {
       // 2v2 within-group only: the two sides.
       subTeams: isWithinGroup ? subTeams : undefined,
       status: 'active',
+      // 9-hole support (absent/'18' = full 18, every existing game). nineHandicapBasis
+      // only matters when a nine is chosen.
+      holesPlaying,
+      nineHandicapBasis: holesPlaying === '18' ? undefined : nineHandicapBasis,
       handicapsRefreshedAt: new Date().toISOString(),
       createdByGhin: getCreatorGhin() ?? undefined,
       // Exact stats/ledger link when this game was built from a saved group.
@@ -401,6 +413,10 @@ export default function NewPoolGamePage() {
           <CourseStep
             course={course}
             setCourse={setCourse}
+            holesPlaying={holesPlaying}
+            setHolesPlaying={setHolesPlaying}
+            nineHandicapBasis={nineHandicapBasis}
+            setNineHandicapBasis={setNineHandicapBasis}
             onNext={() => setStep('field')}
             onBack={() => setStep('details')}
           />
@@ -874,10 +890,14 @@ function DetailsStep({
 }
 
 function CourseStep({
-  course, setCourse, onNext, onBack,
+  course, setCourse, holesPlaying, setHolesPlaying, nineHandicapBasis, setNineHandicapBasis, onNext, onBack,
 }: {
   course: CourseSelection | null;
   setCourse: (c: CourseSelection | null) => void;
+  holesPlaying: '18' | 'front9' | 'back9';
+  setHolesPlaying: (v: '18' | 'front9' | 'back9') => void;
+  nineHandicapBasis: '18' | '9';
+  setNineHandicapBasis: (v: '18' | '9') => void;
   onNext: () => void;
   onBack: () => void;
 }) {
@@ -1098,6 +1118,59 @@ function CourseStep({
               </select>
             </div>
           )}
+
+          {/* Holes played. 18 (default) keeps the classic front/back/overall pot
+              split; a nine puts the whole pot on the nine and reveals the
+              handicap-basis choice below. */}
+          <div className="mt-4 pt-3 border-t">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Holes</label>
+            <div className="flex gap-2">
+              {([
+                { v: '18', label: '18 holes' },
+                { v: 'front9', label: 'Front 9' },
+                { v: 'back9', label: 'Back 9' },
+              ] as const).map(({ v, label }) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setHolesPlaying(v)}
+                  className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                    holesPlaying === v ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {holesPlaying !== '18' && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">9-hole handicap</label>
+                <div className="flex gap-2">
+                  {([
+                    { v: '18', label: 'Half of 18-hole' },
+                    { v: '9', label: '9-hole (USGA)' },
+                  ] as const).map(({ v, label }) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setNineHandicapBasis(v)}
+                      className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                        nineHandicapBasis === v ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {nineHandicapBasis === '18'
+                    ? 'Most casual games: take each player’s full 18-hole course handicap and give strokes on this nine using the regular 18-hole stroke index (so a player gets roughly half their strokes).'
+                    : 'USGA-proper: use the tee’s 9-hole rating with the handicap halved, and re-rank the stroke index 1–9 for this nine. More technically correct, less common casually.'}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

@@ -109,6 +109,15 @@ export interface PoolGame {
   junkValues: PoolJunkValues;                  // 1 / 2 / 3 / 1 / 1
   ctpWinners: Record<number, string | null>;  // par-3 holeNumber -> playerId
   status: 'setup' | 'active' | 'completed';
+  // Holes played. ABSENT = full 18 (every existing game). 'front9'/'back9' play
+  // only that nine — scoring, legs, and the scorecard restrict to those holes.
+  holesPlaying?: '18' | 'front9' | 'back9';
+  // For a 9-hole game, how the handicap is figured. ABSENT/'18' = the common
+  // casual method: full 18-hole course handicap, keeping the 18-hole stroke
+  // indexes on the played nine (a player gets ~half their strokes naturally).
+  // '9' = USGA-proper: the tee's 9-hole (Front/Back) rating, index halved, with
+  // stroke indexes re-ranked 1–9. Only meaningful when holesPlaying is a nine.
+  nineHandicapBasis?: '18' | '9';
   handicapsRefreshedAt?: string;               // ISO time this game's handicaps were last pulled from GHIN
   createdByGhin?: number;                       // GHIN number of the organizer who created it (for their history)
   sourceGroupId?: string;                       // the saved group this game was created FROM (exact stats/ledger link; absent = made outside a group). See lib/stats-ledger.ts
@@ -287,6 +296,39 @@ export function getHoleData(course: CourseSelection | null): HoleData[] {
   }));
 }
 
+// The holes actually played in a game. Full 18 unless holesPlaying restricts it
+// to a nine. This is what every scoring path should use (NOT getHoleData) so a
+// 9-hole game scores, legs, and displays only its nine.
+//
+// On the 18-hole handicap basis (the default), the returned holes KEEP their
+// 18-hole stroke indexes — strokes fall exactly where the 18-hole card says, and
+// the stroke threshold stays 18 (see numHolesForStrokes) — which is the common
+// casual method. On the USGA 9-hole basis, the stroke indexes are re-ranked 1–9
+// (see the '9' branch); that path lands in #13e.
+export function getGameHoles(game: PoolGame): HoleData[] {
+  const all = getHoleData(game.course);
+  const which = game.holesPlaying ?? '18';
+  if (which === '18') return all;
+  const nine = all.filter((h) => (which === 'front9' ? h.number <= 9 : h.number > 9));
+  if (game.nineHandicapBasis === '9') {
+    // USGA-proper: re-rank the played nine's stroke indexes 1..9 by difficulty.
+    // NOTE: this re-ranks the SHARED (selected-tee) index; per-player-tee
+    // re-ranking is finished in #13e via a game-aware playerHoleStrokeIndex.
+    const ranked = [...nine].sort((a, b) => a.handicap - b.handicap);
+    const rankMap = new Map(ranked.map((h, i) => [h.number, i + 1]));
+    return nine.map((h) => ({ ...h, handicap: rankMap.get(h.number)! }));
+  }
+  return nine; // 18-hole basis: keep the 18-hole stroke indexes as-is.
+}
+
+// The hole count used for STROKE ALLOCATION (getMoneyStrokesOnHole's threshold).
+// It's about the handicap basis, NOT how many holes are on the card: the 18-hole
+// basis allocates as if over 18 (so a 20-handicap still gets 2 strokes on the
+// hardest holes of the nine), while the USGA 9-hole basis allocates over 9.
+export function numHolesForStrokes(game: PoolGame): number {
+  return game.holesPlaying && game.holesPlaying !== '18' && game.nineHandicapBasis === '9' ? 9 : 18;
+}
+
 function getPlayerTee(player: Player, course: CourseSelection | null): TeeSetOption | null {
   if (!course) return null;
   if (player.teeSetId) {
@@ -337,6 +379,29 @@ export function playerHoleStrokeIndex(player: Player, course: CourseSelection | 
   return h ? h.handicap : fallbackIndex;
 }
 
+// The stroke index to use for a hole IN A GAME — the piece that respects the
+// 9-hole handicap basis. On the USGA 9-hole basis, re-rank the played nine's
+// holes 1–9 by difficulty ON THE PLAYER'S OWN TEE (pool allocates strokes per
+// each player's tee, whose hole ranking can differ from the shared tee). On the
+// 18-hole basis (and full 18), it's just the player's own-tee 1–18 index —
+// identical to playerHoleStrokeIndex. `fallbackIndex` is the getGameHoles value
+// (already reranked for the shared tee) used when the player's tee lacks the hole.
+export function playerHoleStrokeIndexForGame(
+  game: PoolGame,
+  player: Player,
+  holeNumber: number,
+  fallbackIndex: number,
+): number {
+  const nine = gameNineBasis(game);
+  if (!nine) return playerHoleStrokeIndex(player, game.course, holeNumber, fallbackIndex);
+  const tee = getPlayerTee(player, game.course);
+  if (!tee) return fallbackIndex;
+  const nineHoles = tee.holes.filter((h) => (nine === 'front9' ? h.number <= 9 : h.number > 9));
+  const ranked = [...nineHoles].sort((a, b) => a.handicap - b.handicap);
+  const rankMap = new Map(ranked.map((h, i) => [h.number, i + 1]));
+  return rankMap.get(holeNumber) ?? fallbackIndex;
+}
+
 // A player's playing handicap × allowance. Default basis 'course' uses the full
 // course-handicap calc off the player's own tee (par/rating/slope). Basis
 // 'index' plays straight off the raw handicap INDEX × allowance — skipping the
@@ -346,12 +411,39 @@ export function getPoolPlayingHandicap(
   player: Player,
   course: CourseSelection | null,
   allowance: number,
-  basis: 'course' | 'index' = 'course'
+  basis: 'course' | 'index' = 'course',
+  // USGA 9-hole basis: when set, compute the 9-hole course handicap off the
+  // tee's Front/Back rating with the index halved (and 9-hole par). Absent = the
+  // full-18 calc (also the 18-hole basis for a nine, where we just halve strokes
+  // implicitly by keeping the 18-hole handicap over 9 played holes). See #13.
+  nine?: 'front9' | 'back9' | null,
 ): number {
   if (!player.handicapIndex) return 0;
-  if (basis === 'index') return player.handicapIndex * (allowance / 100);
+  if (basis === 'index') {
+    const idx = nine ? player.handicapIndex / 2 : player.handicapIndex;
+    return idx * (allowance / 100);
+  }
   const tee = getPlayerTee(player, course);
   if (!tee) return player.handicapIndex * (allowance / 100);
+
+  if (nine) {
+    // 9-hole course handicap: (index/2) × (nineSlope/113) + (nineRating − ninePar).
+    const ratingType = nine === 'front9' ? 'Front' : 'Back';
+    const nineRating = tee.ratings?.find((r) => r.type === ratingType);
+    const ninePar = (tee.holes || [])
+      .filter((h) => (nine === 'front9' ? h.number <= 9 : h.number > 9))
+      .reduce((sum, h) => sum + h.par, 0) || Math.round(tee.totalPar / 2);
+    if (nineRating?.slopeRating && nineRating?.courseRating) {
+      const ch = calcCourseHandicap(player.handicapIndex / 2, nineRating.slopeRating, nineRating.courseRating, ninePar);
+      return isNaN(ch) ? 0 : ch * (allowance / 100);
+    }
+    // No 9-hole rating on the tee: fall back to half the full-18 course handicap.
+    const totalRating = tee.ratings?.find((r) => r.type === 'Total');
+    if (!totalRating?.slopeRating || !totalRating?.courseRating) return (player.handicapIndex / 2) * (allowance / 100);
+    const full = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, tee.totalPar);
+    return isNaN(full) ? 0 : (full / 2) * (allowance / 100);
+  }
+
   const totalRating = tee.ratings?.find((r) => r.type === 'Total');
   if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) {
     return player.handicapIndex * (allowance / 100);
@@ -359,6 +451,15 @@ export function getPoolPlayingHandicap(
   const courseHcap = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, tee.totalPar);
   if (isNaN(courseHcap)) return 0;
   return courseHcap * (allowance / 100);
+}
+
+// The USGA nine to pass to getPoolPlayingHandicap for a game, or null when the
+// 9-hole basis doesn't apply (full 18, or the casual 18-hole basis). Centralizes
+// the "is this game on the USGA 9-hole basis?" check.
+export function gameNineBasis(game: PoolGame): 'front9' | 'back9' | null {
+  if (!game.holesPlaying || game.holesPlaying === '18') return null;
+  if (game.nineHandicapBasis !== '9') return null;
+  return game.holesPlaying;
 }
 
 export function getPar3Holes(course: CourseSelection | null): number[] {
@@ -370,9 +471,13 @@ export function getPar3Holes(course: CourseSelection | null): number[] {
 // low). Every team is measured off the same baseline, keeping cross-team
 // comparison fair; the low player plays to scratch.
 export function buildHcapMap(game: PoolGame): Map<string, number> {
+  // On the USGA 9-hole basis, handicaps come off the tee's 9-hole rating (index
+  // halved); otherwise the full-18 calc (the 18-hole basis for a nine keeps the
+  // full handicap and lets strokes fall over the 9 played holes).
+  const nine = gameNineBasis(game);
   const raw = new Map<string, number>();
   for (const player of game.players) {
-    raw.set(player.id, getPoolPlayingHandicap(player, game.course, game.handicapAllowance, game.handicapBasis));
+    raw.set(player.id, getPoolPlayingHandicap(player, game.course, game.handicapAllowance, game.handicapBasis, nine));
   }
   // 'full' stays unrounded here — getMoneyStrokesOnHole rounds it once, which is
   // exactly round(courseHcap), matching GHIN. Off-the-low is the only path that
@@ -1116,8 +1221,9 @@ function teamHoleScore(
     if (!sc) continue;
     const player = game.players.find((p) => p.id === pid);
     const hcap = hcapMap.get(pid) ?? 0;
-    // Allocate strokes using this player's OWN tee's stroke index for the hole.
-    const strokeIndex = player ? playerHoleStrokeIndex(player, game.course, hole.number, hole.handicap) : hole.handicap;
+    // Allocate strokes using this player's OWN tee's stroke index for the hole
+    // (game-aware: re-ranked 1–9 on the USGA 9-hole basis).
+    const strokeIndex = player ? playerHoleStrokeIndexForGame(game, player, hole.number, hole.handicap) : hole.handicap;
     const strokes = getMoneyStrokesOnHole(hcap, strokeIndex, numHoles);
     playerScores.push({ gross: sc.grossScore, net: sc.grossScore - strokes });
   }
@@ -1358,7 +1464,7 @@ export function filterConcealedScores(
   scoresByMatchup: Map<string, GameScore[]>
 ): Map<string, GameScore[]> {
   if (!game.hideHolesUntilAllFinish) return scoresByMatchup;
-  const holes = getHoleData(game.course);
+  const holes = getGameHoles(game);
   if (holes.length === 0 || game.teams.length === 0) return scoresByMatchup;
 
   // A team has "completed" a hole when every one of its players has a gross on
@@ -1384,7 +1490,7 @@ export function computePoolResult(
   game: PoolGame,
   scoresByMatchup: Map<string, GameScore[]>
 ): PoolResult {
-  const holes = getHoleData(game.course);
+  const holes = getGameHoles(game);
   const isMatch = game.moneyMode === 'match';
   // Match mode has no buy-in pot; legs pay a fixed per-player amount and junk is
   // a differential (both settled in computeMatchPayouts). Pot mode keeps the
@@ -1394,7 +1500,9 @@ export function computePoolResult(
   if (holes.length === 0) {
     return { pot, legs: [], junkDetails: [], payouts: [], holeScores: [], thruHole: 0 };
   }
-  const numHoles = holes.length;
+  // Stroke-allocation threshold (18 on the casual basis, 9 on USGA-proper) —
+  // NOT holes.length, which is 9 for a nine and would mis-allocate strokes.
+  const numHoles = numHolesForStrokes(game);
 
   // Pre-compute each player's playing handicap off their own tee (field-low
   // subtracted when strokeMethod is off-the-low).
@@ -1426,12 +1534,21 @@ export function computePoolResult(
     holeScores.push({ holeNumber: hole.number, par: hole.par, teamScores });
   }
 
-  const frontHoles = holes.filter((h) => h.number <= 9);
-  const backHoles = holes.filter((h) => h.number > 9);
+  // A 9-hole game has no front/back split: the whole (non-junk) pot rides on one
+  // "overall" leg over the nine played. An 18-hole game keeps the classic
+  // front-9 / back-9 / overall sub-split. `nineOnly` drives the collapse; the
+  // front/back legs are still constructed (empty holes → no payout) so every
+  // downstream reader (match annotate, leaderboard) has the same shape.
+  const nineOnly = (game.holesPlaying ?? '18') !== '18';
+  const frontHoles = nineOnly ? [] : holes.filter((h) => h.number <= 9);
+  const backHoles = nineOnly ? [] : holes.filter((h) => h.number > 9);
 
-  const front = buildLeg('front', frontHoles, game.teams, holeScoresByTeam, pot * game.potSplit.front, game.positionSplit);
-  const back = buildLeg('back', backHoles, game.teams, holeScoresByTeam, pot * game.potSplit.back, game.positionSplit);
-  const overall = buildLeg('overall', holes, game.teams, holeScoresByTeam, pot * game.potSplit.overall, game.positionSplit);
+  // Pot allocation: 9-hole puts the whole non-junk pot on overall; 18-hole uses
+  // the configured front/back/overall split.
+  const overallSubPot = nineOnly ? pot * (1 - game.potSplit.junk) : pot * game.potSplit.overall;
+  const front = buildLeg('front', frontHoles, game.teams, holeScoresByTeam, nineOnly ? 0 : pot * game.potSplit.front, game.positionSplit);
+  const back = buildLeg('back', backHoles, game.teams, holeScoresByTeam, nineOnly ? 0 : pot * game.potSplit.back, game.positionSplit);
+  const overall = buildLeg('overall', holes, game.teams, holeScoresByTeam, overallSubPot, game.positionSplit);
 
   // Head-to-head match play (two teams, matchConfig.scoring === 'holes'):
   // annotate each score leg with the hole-by-hole tally so the leg is won by
@@ -1496,7 +1613,9 @@ export function computePoolResult(
       payout: junkPayouts[j.teamId] ?? 0,
     });
   }
-  const junkLeg: PoolLeg = { leg: 'junk', subPot: junkSubPot, complete: thruHole === numHoles, standings: junkStandings };
+  // "Complete" = every hole ON THE CARD scored. Use holes.length (9 for a nine),
+  // NOT numHoles (the stroke-allocation threshold, which is 18 on the casual basis).
+  const junkLeg: PoolLeg = { leg: 'junk', subPot: junkSubPot, complete: holes.length > 0 && thruHole === holes[holes.length - 1].number, standings: junkStandings };
 
   const legs: PoolLeg[] = [front, back, overall, junkLeg];
 
@@ -1564,9 +1683,9 @@ export function computePoolPlayerDetails(
   game: PoolGame,
   scoresByMatchup: Map<string, GameScore[]>
 ): PoolTeamDetail[] {
-  const holes = getHoleData(game.course);
+  const holes = getGameHoles(game);
   if (holes.length === 0) return [];
-  const numHoles = holes.length;
+  const numHoles = numHolesForStrokes(game);
 
   const hcapMap = buildHcapMap(game);
 
@@ -1581,7 +1700,7 @@ export function computePoolPlayerDetails(
       let grossTotal: number | null = null;
       let netTotal: number | null = null;
       for (const hole of holes) {
-        const strokeIndex = playerHoleStrokeIndex(player, game.course, hole.number, hole.handicap);
+        const strokeIndex = playerHoleStrokeIndexForGame(game, player, hole.number, hole.handicap);
         const strokes = getMoneyStrokesOnHole(playingHcap, strokeIndex, numHoles);
         const sc = scores.find((s) => s.playerId === pid && s.hole === hole.number);
         const gross = sc ? sc.grossScore : null;

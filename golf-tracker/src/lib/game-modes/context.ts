@@ -1,6 +1,6 @@
 import type { GameScore } from '../game-state';
 import type { PoolGame, HoleData } from '../pool-game';
-import { getHoleData, buildHcapMap, playerHoleStrokeIndex, getPoolPlayingHandicap, defaultSubTeams } from '../pool-game';
+import { getGameHoles, numHolesForStrokes, buildHcapMap, playerHoleStrokeIndexForGame, gameNineBasis, getPoolPlayingHandicap, defaultSubTeams } from '../pool-game';
 import { getMoneyStrokesOnHole } from '../money-games';
 import type { GameModeContext, SettingsBag } from './types';
 
@@ -17,8 +17,8 @@ export function buildGameModeContext(
   scoresByMatchup: Map<string, GameScore[]>,
   matchupId?: string,
 ): GameModeContext {
-  const holes = getHoleData(game.course);
-  const numHoles = holes.length || 18;
+  const holes = getGameHoles(game);           // the played nine (or full 18)
+  const numHoles = numHolesForStrokes(game);  // stroke-allocation threshold (18 casual / 9 USGA)
   const hcapMap = buildHcapMap(game); // rounded whole strokes when off-the-low; raw otherwise
 
   const mid = matchupId ?? game.teams[0]?.matchupId;
@@ -41,7 +41,7 @@ export function buildGameModeContext(
   const strokesOnHole = (playerId: string, hole: HoleData): number => {
     const player = playerById.get(playerId);
     if (!player) return 0;
-    const idx = playerHoleStrokeIndex(player, game.course, hole.number, hole.handicap);
+    const idx = playerHoleStrokeIndexForGame(game, player, hole.number, hole.handicap);
     return getMoneyStrokesOnHole(hcapMap.get(playerId) ?? 0, idx, numHoles);
   };
 
@@ -61,9 +61,11 @@ export function buildGameModeContext(
     ?? defaultSubTeams(players.map((p) => p.id), players, game.course, game.handicapAllowance, game.handicapBasis);
 
   // Raw course handicap (allowance 100, no off-the-low) for the USGA team formulas.
+  // Respects the 9-hole basis so scramble/alt-shot team handicaps match the nine.
+  const nineBasis = gameNineBasis(game);
   const rawCourseHcap = (playerId: string): number => {
     const p = playerById.get(playerId);
-    return p ? getPoolPlayingHandicap(p, game.course, 100, game.handicapBasis) : 0;
+    return p ? getPoolPlayingHandicap(p, game.course, 100, game.handicapBasis, nineBasis) : 0;
   };
 
   // Wolf rotation order: keep only ids actually in this foursome (guards against
