@@ -12,13 +12,14 @@ import {
 } from '@/lib/solo-round';
 import {
   clubDistanceStats,
+  outcomeCounts,
   strokesForHole,
   holeStarted,
   roundToPar,
   ACCURACY_LIMIT_M,
   type ClubStat,
 } from '@/lib/shot-distance';
-import { clubLabel } from '@/lib/clubs';
+import { clubLabel, OUTCOME_LABEL, type OutcomeTag } from '@/lib/clubs';
 
 // Post-round summary: a scorecard built from shot counts + the first taste of
 // the trainer payoff — your real measured distance per club this round. The
@@ -128,7 +129,12 @@ export default function SoloSummaryPage({ params }: { params: Promise<{ id: stri
               {droppedOnly.map((s) => `${clubLabel(s.club)} (${s.dropped})`).join(', ')}.
             </p>
           )}
+          <div className="mt-2">
+            <ScoreGapNote round={round} />
+          </div>
         </section>
+
+        <OutcomePanel round={round} />
 
         {/* Voice log export — for offline grammar tuning (no runtime AI). */}
         {(round.voiceLog?.length ?? 0) > 0 && <VoiceLogExport round={round} />}
@@ -144,9 +150,19 @@ function VoiceLogExport({ round }: { round: SoloRound }) {
   const [copied, setCopied] = useState(false);
   const log = round.voiceLog ?? [];
 
+  const corrections = log.filter((e) => e.corrected);
+
   function text(): string {
-    const header = `Solo round voice log — ${round.course.courseName} — ${new Date(round.startedAt).toLocaleString()}\n${log.length} utterances\n`;
-    const lines = log.map((e) => `[H${e.hole}] "${e.transcript}"  →  ${e.parsed}`);
+    const header =
+      `Solo round voice log — ${round.course.courseName} — ${new Date(round.startedAt).toLocaleString()}\n` +
+      `${log.length} utterances, ${corrections.length} hand-corrected\n`;
+    // A corrected line carries the ground truth, so mark it clearly — those are
+    // the entries worth tuning the grammar against.
+    const lines = log.map((e) =>
+      e.corrected
+        ? `[H${e.hole}] FIXED "${e.transcript}"\n         heard  → ${e.parsed}\n         should → ${e.corrected}`
+        : `[H${e.hole}] "${e.transcript}"  →  ${e.parsed}`,
+    );
     return `${header}\n${lines.join('\n')}\n`;
   }
 
@@ -164,8 +180,14 @@ function VoiceLogExport({ round }: { round: SoloRound }) {
     <section>
       <h2 className="text-lg font-semibold text-gray-900 mb-1">Voice log</h2>
       <p className="text-xs text-gray-500 mb-2">
-        {log.length} thing{log.length !== 1 ? 's' : ''} you said this round. Copy and share it so the
-        voice recognition can be tuned to how you actually talk.
+        {log.length} thing{log.length !== 1 ? 's' : ''} you said this round
+        {corrections.length > 0 && (
+          <>
+            , <span className="font-medium text-green-700">{corrections.length} you corrected by hand</span>
+          </>
+        )}
+        . Copy and share it so the voice recognition can be tuned to how you actually talk
+        {corrections.length > 0 ? ' — the corrections are the most useful part' : ''}.
       </p>
       <button
         onClick={copy}
@@ -191,13 +213,88 @@ function DistanceRow({ stat }: { stat: ClubStat }) {
         <p className="text-xs text-gray-500">
           {stat.n} shot{stat.n !== 1 ? 's' : ''} · range {Math.round(stat.minYds)}–{Math.round(stat.maxYds)} yds
           {stat.dropped > 0 ? ` · ${stat.dropped} weak-GPS excluded` : ''}
+          {stat.mishits > 0 ? ` · ${stat.mishits} mishit${stat.mishits !== 1 ? 's' : ''} excluded` : ''}
         </p>
+        {/* Median is the number to trust for club selection — one topped shot
+            drags the mean but barely moves the median. Only worth showing when
+            they actually disagree. */}
+        {stat.n > 2 && Math.abs(stat.medianYds - stat.meanYds) >= 3 && (
+          <p className="text-xs text-gray-500">typical {Math.round(stat.medianYds)} yds (median)</p>
+        )}
       </div>
       <div className="text-right">
         <p className="text-2xl font-bold text-gray-900">{Math.round(stat.meanYds)}</p>
         <p className="text-xs text-gray-500">± {Math.round(stat.stdYds)} yds</p>
       </div>
     </div>
+  );
+}
+
+// Where you missed, across the round. Only counts shots you reported on, so the
+// denominator is stated explicitly — a tendency drawn from 6 of 40 shots
+// shouldn't read like it covers the round.
+function OutcomePanel({ round }: { round: SoloRound }) {
+  const { directions, strikes, reported, total } = outcomeCounts(round);
+  if (reported === 0) return null;
+
+  const rows = (m: Map<string, number>) =>
+    [...m.entries()].sort((a, b) => b[1] - a[1]);
+
+  return (
+    <section>
+      <h2 className="text-lg font-semibold text-gray-900 mb-1">Where it went</h2>
+      <p className="text-xs text-gray-500 mb-3">
+        From the {reported} of {total} shot{total !== 1 ? 's' : ''} you called out. GPS can&rsquo;t see
+        curve or contact, so this is only what you said.
+      </p>
+      <div className="bg-white rounded-lg shadow p-4 space-y-3">
+        {directions.size > 0 && (
+          <div>
+            <p className="text-xs font-medium text-gray-700 mb-1">Direction</p>
+            <div className="flex flex-wrap gap-1.5">
+              {rows(directions).map(([tag, n]) => (
+                <span key={tag} className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-700">
+                  {OUTCOME_LABEL[tag as OutcomeTag] ?? tag} · {n}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {strikes.size > 0 && (
+          <div>
+            <p className="text-xs font-medium text-gray-700 mb-1">Contact</p>
+            <div className="flex flex-wrap gap-1.5">
+              {rows(strikes).map(([tag, n]) => (
+                <span key={tag} className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-700">
+                  {OUTCOME_LABEL[tag as OutcomeTag] ?? tag} · {n}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// Holes where the announced score didn't match the shots logged. The score is
+// kept as authoritative (so the card is right), but the gap became putts — which
+// would quietly distort putting stats if it weren't surfaced.
+function ScoreGapNote({ round }: { round: SoloRound }) {
+  const gaps = round.holes.filter((h) => {
+    if (h.scoreSaid == null) return false;
+    // A normal hole: shots logged + putts == announced score, with putts
+    // plausible (<= 4). A large derived putt count means shots went unlogged.
+    return h.putts > 4 || h.shots.length === 0;
+  });
+  if (gaps.length === 0) return null;
+
+  return (
+    <p className="text-xs text-amber-700">
+      Heads up: hole{gaps.length !== 1 ? 's' : ''} {gaps.map((h) => h.hole).join(', ')} ended with more
+      derived putts than expected — the score you called out was kept, but some shots probably
+      weren&rsquo;t logged, so putting numbers on those holes are off.
+    </p>
   );
 }
 

@@ -7,6 +7,7 @@ import {
   SHAPES,
   SHORT_GAME_SHAPES,
   SHAPE_LABEL,
+  OUTCOME_LABEL,
   clubLabel,
   clubsOfKind,
   type ClubId,
@@ -17,7 +18,11 @@ import {
   loadRoundLocal,
   saveRoundLocal,
   saveSoloRound,
+  flushSoloRound,
   newerRound,
+  localIsAhead,
+  loadHandsFreePref,
+  saveHandsFreePref,
   playedTee,
   feetToBucket,
   appendVoiceLog,
@@ -26,10 +31,27 @@ import {
   type Shot,
   type ShotKind,
 } from '@/lib/solo-round';
-import { shotDistances, strokesForHole, holeStarted, ACCURACY_LIMIT_M } from '@/lib/shot-distance';
-import { parseShot, parseProximity } from '@/lib/shot-voice';
+import {
+  shotDistances,
+  strokesForHole,
+  holeStarted,
+  countsForClubAverage,
+  ACCURACY_LIMIT_M,
+} from '@/lib/shot-distance';
+import {
+  parseShot,
+  parseProximity,
+  parseCommand,
+  parseOutcome,
+  looksLikeOutcome,
+  hasWakeWord,
+  type ParsedCommand,
+  type ParsedOutcome,
+} from '@/lib/shot-voice';
 import { useGeo } from '@/hooks/use-geo';
 import { useSpeech } from '@/hooks/use-speech';
+import { useWakeLock } from '@/hooks/use-wake-lock';
+import { useSay } from '@/hooks/use-say';
 
 // The active solo round — where a player logs each shot. Voice is primary
 // (speak "full 6 iron" → chips pre-fill → Log); tap chips are the always-on
@@ -57,9 +79,23 @@ export default function SoloRoundPage({ params }: { params: Promise<{ id: string
   const [draft, setDraft] = useState<DraftShot>(emptyDraft());
   const [editingShotId, setEditingShotId] = useState<string | null>(null);
 
+  // Hands-free: mic stays open for the whole round and voice commands drive it.
+  // Starts from the saved preference (set once, on every round after that), but
+  // only engages while the round is live.
+  const [handsFree, setHandsFree] = useState(false);
+  useEffect(() => { setHandsFree(loadHandsFreePref()); }, []);
+
   const geo = useGeo(round?.status === 'playing');
-  const speech = useSpeech();
+  const speech = useSpeech({ auto: handsFree && round?.status === 'playing' });
+  // Spoken confirmations, so the phone can stay in your pocket. Only in
+  // hands-free — in push-to-talk you're already looking at the screen.
+  const say = useSay(handsFree);
+  // Hold the screen awake while the round is live so the GPS watch stays warm
+  // between shots (a sleeping phone stops the watch → shots log without a fix).
+  const wakeLock = useWakeLock(round?.status === 'playing');
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Latest round with an un-flushed debounced save, so teardown can push it.
+  const pendingSave = useRef<SoloRound | null>(null);
 
   // Load: local-first (offline-safe), then reconcile with Supabase by updatedAt.
   useEffect(() => {
@@ -76,6 +112,10 @@ export default function SoloRoundPage({ params }: { params: Promise<{ id: string
       }
       setRound(best);
       if (!local) setCurrentHole(firstUnfinishedIndex(best));
+      // Local ahead of the server means shots were logged offline (or a save was
+      // lost). Push it now, or the server copy stays stale until the next
+      // mutation — which would lose those shots on another device.
+      if (localIsAhead(local, server)) saveSoloRound(local!);
     });
   }, [id]);
 
@@ -86,33 +126,141 @@ export default function SoloRoundPage({ params }: { params: Promise<{ id: string
       if (!prev) return prev;
       const next = { ...fn(prev), updatedAt: new Date().toISOString() };
       saveRoundLocal(next);
+      pendingSave.current = next;
       if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => saveSoloRound(next), 600);
+      saveTimer.current = setTimeout(() => {
+        pendingSave.current = null;
+        saveSoloRound(next);
+      }, 600);
       return next;
     });
   }, []);
 
-  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
-
-  // When speech finalizes an utterance, parse it into the draft chips (never
-  // auto-commits — the user still taps Log). Also capture the raw transcript +
-  // parse into the round's voice log for offline grammar tuning. Keyed off the
-  // FINAL transcript so interim partials don't fire this many times per phrase.
+  // Flush a pending debounced save on teardown. Cancelling the timer without
+  // flushing (the old behavior) silently dropped the upsert when you left the
+  // page — or the OS evicted the tab — within 600ms of logging a shot.
+  // `pagehide` is the reliable mobile-Safari teardown signal; `visibilitychange`
+  // covers backgrounding the app for a call or a text.
   useEffect(() => {
-    if (!speech.finalTranscript) return;
-    const parsed = parseShot(speech.finalTranscript);
-    setDraft((d) => ({
-      kind: parsed.kind,
-      club: parsed.club ?? d.club,
-      shape: parsed.shape.length ? parsed.shape : d.shape,
-      targetYds: parsed.targetYds ?? d.targetYds,
-    }));
+    const flush = () => {
+      const pending = pendingSave.current;
+      if (!pending) return;
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+      pendingSave.current = null;
+      flushSoloRound(pending);
+    };
+    const onHide = () => { if (document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onHide);
+      flush();
+    };
+  }, []);
+
+  // Every finalized utterance is routed here, in priority order:
+  //   1. COMMAND  ("next hole", "made a five", "undo")
+  //   2. OUTCOME  ("thinned it", "missed it left") → attaches to the LAST shot
+  //   3. SHOT     ("soft 7", "driver")             → the next shot
+  //
+  // Commands go first so navigation can never be read as a club. Outcomes go
+  // before shots because "pulled it left" contains no club and would otherwise
+  // fall through to an empty shot parse.
+  //
+  // AUTO-COMMIT: in hands-free mode a confident shot parse commits immediately —
+  // no "log it" needed, because you announce at the ball and the wake word is
+  // what makes that safe. An open mic hears your partners and the cart radio, so
+  // without the wake word requirement a phantom shot would corrupt the per-club
+  // averages this feature exists to produce. In push-to-talk mode nothing
+  // auto-commits (you already tapped to speak, so you can tap to log).
+  // Keyed off the FINAL transcript so interim partials don't fire this per word.
+  useEffect(() => {
+    const said = speech.finalTranscript;
+    if (!said) return;
+
+    // Hands-free: ignore anything not addressed to the app.
+    const addressed = !handsFree || hasWakeWord(said);
+    if (!addressed) {
+      // Still logged — useful for tuning, and proves what was filtered out.
+      mutate((r) => appendVoiceLog(r, {
+        ts: new Date().toISOString(),
+        hole: r.holes[currentHole]?.hole ?? 0,
+        transcript: said,
+        parsed: JSON.stringify({ ignored: 'no wake word' }),
+      }));
+      speech.reset();
+      return;
+    }
+
+    const command = parseCommand(said);
+    const outcome = !command && looksLikeOutcome(said) ? parseOutcome(said) : undefined;
+    const parsed = command || outcome ? undefined : parseShot(said);
+
     mutate((r) => appendVoiceLog(r, {
       ts: new Date().toISOString(),
       hole: r.holes[currentHole]?.hole ?? 0,
-      transcript: speech.finalTranscript,
-      parsed: JSON.stringify(parsed),
+      transcript: said,
+      parsed: JSON.stringify(command ? { command } : outcome ? { outcome } : parsed),
     }));
+
+    if (command) {
+      switch (command.type) {
+        case 'log':      void logShot(); say.say('logged'); break;
+        case 'nextHole': {
+          const next = Math.min(round!.holes.length - 1, currentHole + 1);
+          setCurrentHole(next);
+          say.say(`hole ${round!.holes[next]?.hole ?? ''}`);
+          break;
+        }
+        case 'prevHole': {
+          const prev = Math.max(0, currentHole - 1);
+          setCurrentHole(prev);
+          say.say(`hole ${round!.holes[prev]?.hole ?? ''}`);
+          break;
+        }
+        case 'undo':     undoLastShot(); say.say('removed'); break;
+        case 'cancel':   setDraft(emptyDraft()); setEditingShotId(null); say.say('cleared'); break;
+        case 'setPutts': setPuttsTo(command.value ?? 0); say.say(`${command.value} putts`); break;
+        case 'holeScore': void closeOutHole(command); break;
+        case 'goToHole': {
+          const idx = round!.holes.findIndex((h) => h.hole === command.value);
+          if (idx >= 0) { setCurrentHole(idx); say.say(`hole ${command.value}`); }
+          break;
+        }
+      }
+      speech.reset();
+      return;
+    }
+
+    if (outcome && (outcome.direction || outcome.strike)) {
+      applyOutcomeToLastShot(outcome, said);
+      say.say('got it');
+      speech.reset();
+      return;
+    }
+
+    if (parsed) {
+      const merged = {
+        kind: parsed.kind,
+        club: parsed.club ?? draft.club,
+        shape: parsed.shape.length ? parsed.shape : draft.shape,
+        targetYds: parsed.targetYds ?? draft.targetYds,
+      };
+      setDraft(merged);
+      // Confident + hands-free → log it right now. `confidence` is 'high' only
+      // when a club (or a putt) was actually identified, so a half-heard phrase
+      // still waits for confirmation rather than inventing a shot.
+      if (handsFree && parsed.confidence === 'high' && (merged.club || merged.kind === 'putt')) {
+        void logShot(merged, said);
+        // Confirm with the club so you can catch a misparse by ear. Safe to
+        // speak a club name here: the recognizer is closed while we talk (it
+        // reopens on our restart cycle), and a stray echo would need the wake
+        // word to be acted on anyway.
+        say.say(`${clubLabel(merged.club) || 'putt'}, logged`);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [speech.finalTranscript]);
 
@@ -161,9 +309,14 @@ export default function SoloRoundPage({ params }: { params: Promise<{ id: string
     }));
   }
 
-  async function logShot() {
-    if (!canLog) return;
-    const pos = draft.kind === 'putt' ? undefined : (await geo.snapshot()) ?? undefined;
+  // `override` lets the voice path commit the freshly-parsed draft directly:
+  // setDraft is async, so reading `draft` here would see the PREVIOUS shot and
+  // log the wrong club. `saidRaw` is the transcript to attach.
+  async function logShot(override?: DraftShot, saidRaw?: string) {
+    const d = override ?? draft;
+    const usable = d.kind === 'putt' || !!d.club;
+    if (!usable) return;
+    const pos = d.kind === 'putt' ? undefined : (await geo.snapshot()) ?? undefined;
     // Preserve any proximity already recorded on the shot being edited (the
     // walk-up value is entered separately, not in this draft).
     const existing = editingShotId
@@ -171,19 +324,37 @@ export default function SoloRoundPage({ params }: { params: Promise<{ id: string
       : undefined;
     const shot: Shot = {
       id: editingShotId ?? crypto.randomUUID(),
-      kind: draft.kind,
-      club: draft.kind === 'putt' ? undefined : draft.club,
-      shape: draft.shape,
+      kind: d.kind,
+      club: d.kind === 'putt' ? undefined : d.club,
+      shape: d.shape,
       pos: editingShotId ? preserveOrReplacePos(round!, currentHole, editingShotId, pos) : pos,
-      targetYds: draft.kind === 'full' ? draft.targetYds : undefined,
+      targetYds: d.kind === 'full' ? d.targetYds : undefined,
+      direction: existing?.direction,
+      strike: existing?.strike,
+      outcomeRaw: existing?.outcomeRaw,
       proximityFeet: existing?.proximityFeet,
       proximity: existing?.proximity,
-      raw: speech.transcript || undefined,
+      // Keep the ORIGINAL transcript when editing. Overwriting it with whatever
+      // the mic last heard would destroy the record of what produced the bad
+      // parse — which is the thing that makes a hand-correction useful later.
+      raw: editingShotId ? existing?.raw : (saidRaw ?? speech.transcript ?? undefined),
     };
+
+    // A hand-edit of a voice-logged shot is a labelled example: the transcript
+    // plus what it SHOULD have produced. Record it so the grammar can be fixed
+    // from real mistakes instead of guesses.
+    const isCorrection =
+      !!editingShotId &&
+      !!existing?.raw &&
+      (existing.club !== shot.club ||
+        existing.kind !== shot.kind ||
+        existing.targetYds !== shot.targetYds ||
+        existing.shape.join(',') !== shot.shape.join(','));
+
     mutate((r) => {
       const holes = r.holes.map((h, i) => {
         if (i !== currentHole) return h;
-        if (draft.kind === 'putt') {
+        if (d.kind === 'putt') {
           // Putts are a counter, not individual shots — but still allow editing.
           return editingShotId ? h : { ...h, putts: h.putts + 1 };
         }
@@ -192,7 +363,22 @@ export default function SoloRoundPage({ params }: { params: Promise<{ id: string
           : [...h.shots, shot];
         return { ...h, shots };
       });
-      return { ...r, holes };
+      const next = { ...r, holes };
+      if (!isCorrection) return next;
+      return appendVoiceLog(next, {
+        ts: new Date().toISOString(),
+        hole: next.holes[currentHole]?.hole ?? 0,
+        transcript: existing!.raw!,
+        parsed: JSON.stringify({
+          club: existing!.club, shape: existing!.shape,
+          kind: existing!.kind, targetYds: existing!.targetYds,
+        }),
+        corrected: JSON.stringify({
+          club: shot.club, shape: shot.shape,
+          kind: shot.kind, targetYds: shot.targetYds,
+        }),
+        correctedFrom: existing!.raw,
+      });
     });
     setDraft(emptyDraft());
     setEditingShotId(null);
@@ -242,6 +428,96 @@ export default function SoloRoundPage({ params }: { params: Promise<{ id: string
     }));
   }
 
+  // Absolute putt count, for the voice command ("two putts") — the +/- buttons
+  // are relative, but a spoken number is the total.
+  function setPuttsTo(count: number) {
+    mutate((r) => ({
+      ...r,
+      holes: r.holes.map((h, i) => (i === currentHole ? { ...h, putts: Math.max(0, count) } : h)),
+    }));
+  }
+
+  // Attach a spoken outcome ("thinned it", "missed it left") to the most recent
+  // shot on this hole — outcome is reported AFTER the swing, so it belongs to the
+  // shot already logged, not the draft. Silently ignored if nothing is logged
+  // yet (you narrated before announcing a club).
+  function applyOutcomeToLastShot(outcome: ParsedOutcome, saidRaw: string) {
+    mutate((r) => ({
+      ...r,
+      holes: r.holes.map((h, i) => {
+        if (i !== currentHole || h.shots.length === 0) return h;
+        const lastIdx = h.shots.length - 1;
+        return {
+          ...h,
+          shots: h.shots.map((s, si) =>
+            si !== lastIdx
+              ? s
+              : {
+                  ...s,
+                  direction: outcome.direction ?? s.direction,
+                  strike: outcome.strike ?? s.strike,
+                  outcomeRaw: saidRaw,
+                },
+          ),
+        };
+      }),
+    }));
+  }
+
+  // "I made a five" / "that's a bogey" — closes out the hole. The announced
+  // score is AUTHORITATIVE for the scorecard: putts are derived as
+  // score - shots-logged, so a shot you forgot to announce shows up as an extra
+  // putt rather than a wrong score. `scoreSaid` records that it came from you,
+  // which lets the summary flag holes where the numbers didn't line up.
+  async function closeOutHole(cmd: ParsedCommand) {
+    const h = round!.holes[currentHole];
+    const par = h.par;
+    const gross = cmd.value ?? (cmd.relativeToPar != null ? par + cmd.relativeToPar : undefined);
+    if (gross == null) return;
+
+    // Capture position at the hole so the approach shot has a measurable
+    // endpoint — without this the last full swing of every hole gets no
+    // distance, which is the most valuable club on the card.
+    const pos = (await geo.snapshot()) ?? undefined;
+
+    mutate((r) => ({
+      ...r,
+      holes: r.holes.map((hole, i) => {
+        if (i !== currentHole) return hole;
+        const shots = hole.shots.length;
+        return {
+          ...hole,
+          putts: Math.max(0, gross - shots),
+          scoreSaid: gross,
+          holedPos: pos ?? hole.holedPos,
+          firstPuttFeet: cmd.proximityFeet ?? hole.firstPuttFeet,
+        };
+      }),
+    }));
+    // Move on automatically — holing out means the hole is done.
+    const nextIdx = Math.min(round!.holes.length - 1, currentHole + 1);
+    setCurrentHole(nextIdx);
+    setDraft(emptyDraft());
+    const rel = gross - par;
+    const name = rel === 0 ? 'par' : rel === -1 ? 'birdie' : rel === 1 ? 'bogey' : `${gross}`;
+    say.say(`${name}. hole ${round!.holes[nextIdx]?.hole ?? ''}`);
+  }
+
+  // Voice "undo" — drop the most recent thing logged on this hole. Prefers the
+  // last shot; falls back to decrementing putts when there are no shots left.
+  function undoLastShot() {
+    mutate((r) => ({
+      ...r,
+      holes: r.holes.map((h, i) => {
+        if (i !== currentHole) return h;
+        if (h.shots.length > 0) return { ...h, shots: h.shots.slice(0, -1) };
+        return { ...h, putts: Math.max(0, h.putts - 1) };
+      }),
+    }));
+    setEditingShotId(null);
+    setDraft(emptyDraft());
+  }
+
   function finish() {
     mutate((r) => ({ ...r, status: 'finished' }));
     router.push(`/solo/${id}/summary`);
@@ -259,7 +535,14 @@ export default function SoloRoundPage({ params }: { params: Promise<{ id: string
             ← Rounds
           </button>
           <p className="text-sm font-medium truncate px-2">{round.course.courseName}</p>
-          <GpsBadge status={geo.status} accuracy={geo.last?.accuracy} />
+          <div className="flex items-center gap-1.5">
+            {wakeLock === 'active' && (
+              <span title="Screen stays awake — GPS stays warm" className="text-xs text-green-200">
+                ☀
+              </span>
+            )}
+            <GpsBadge status={geo.status} accuracy={geo.last?.accuracy} />
+          </div>
         </div>
       </header>
 
@@ -330,16 +613,59 @@ export default function SoloRoundPage({ params }: { params: Promise<{ id: string
           {/* Voice */}
           {speech.isSupported && (
             <div>
-              <button
-                onClick={() => (speech.listening ? speech.stop() : speech.start())}
-                className={`w-full rounded-md px-4 py-3 font-medium text-white ${speech.listening ? 'bg-red-600 hover:bg-red-700 animate-pulse' : 'bg-green-700 hover:bg-green-800'}`}
-              >
-                {speech.listening ? '● Listening… tap to stop' : '🎤 Say your shot'}
-              </button>
+              {/* Hands-free keeps the mic open all round so you never tap. */}
+              <label className="flex items-center justify-between gap-2 mb-2 cursor-pointer">
+                <span className="text-sm text-gray-700">
+                  Hands-free
+                  <span className="block text-[11px] text-gray-500">
+                    Mic stays on. Start with &ldquo;caddy&rdquo; and it logs as you talk.
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={handsFree}
+                  onChange={(e) => { setHandsFree(e.target.checked); saveHandsFreePref(e.target.checked); }}
+                  className="h-5 w-9 shrink-0 accent-green-700"
+                />
+              </label>
+
+              {handsFree ? (
+                <div
+                  className={`w-full rounded-md px-4 py-3 text-center font-medium ${speech.listening ? 'bg-red-50 border border-red-300 text-red-700' : 'bg-gray-100 border border-gray-300 text-gray-600'}`}
+                >
+                  {speech.listening ? '● Listening — just talk' : 'Mic idle — tap below to wake it'}
+                </div>
+              ) : (
+                <button
+                  onClick={() => (speech.listening ? speech.stop() : speech.start())}
+                  className={`w-full rounded-md px-4 py-3 font-medium text-white ${speech.listening ? 'bg-red-600 hover:bg-red-700 animate-pulse' : 'bg-green-700 hover:bg-green-800'}`}
+                >
+                  {speech.listening ? '● Listening… tap to stop' : '🎤 Say your shot'}
+                </button>
+              )}
+
+              {/* In hands-free the mic can be closed by the OS (a call, a long
+                  silence); this re-opens it without leaving the page. */}
+              {handsFree && (
+                <button
+                  onClick={() => (speech.listening ? speech.stop() : speech.start())}
+                  className="mt-1.5 w-full rounded-md border border-green-700 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
+                >
+                  {speech.listening ? 'Pause mic' : '🎤 Wake mic'}
+                </button>
+              )}
+
               {speech.transcript && (
                 <p className="text-xs text-gray-500 mt-1">Heard: &ldquo;{speech.transcript}&rdquo;</p>
               )}
               {speech.error && <p className="text-xs text-amber-700 mt-1">Voice unavailable — use the buttons below.</p>}
+              {handsFree && (
+                <div className="text-[11px] text-gray-400 mt-1 space-y-0.5">
+                  <p>At the ball: &ldquo;caddy, soft 7, about 180 out&rdquo; — logs immediately.</p>
+                  <p>After: &ldquo;caddy, thinned it left&rdquo; · At the hole: &ldquo;caddy, I made a 5&rdquo;</p>
+                  <p>Also: &ldquo;caddy, undo&rdquo; · &ldquo;caddy, next hole&rdquo;</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -412,7 +738,7 @@ export default function SoloRoundPage({ params }: { params: Promise<{ id: string
           )}
 
           <button
-            onClick={logShot}
+            onClick={() => void logShot()}
             disabled={!canLog}
             className="w-full rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800 disabled:opacity-50"
           >
@@ -477,6 +803,11 @@ function firstUnfinishedIndex(round: SoloRound): number {
 function preserveOrReplacePos(round: SoloRound, holeIdx: number, shotId: string, newPos?: Shot['pos']) {
   const existing = round.holes[holeIdx]?.shots.find((s) => s.id === shotId);
   return newPos ?? existing?.pos;
+}
+
+// A reported mis-strike excludes the shot from its club's stock average.
+function mishit(s: Shot): boolean {
+  return !countsForClubAverage(s);
 }
 
 function GpsBadge({ status, accuracy }: { status: string; accuracy?: number }) {
@@ -545,6 +876,19 @@ function ShotList({
                   {s.kind !== 'chip' && d == null && s.kind !== 'putt' ? '— (no distance)' : null}
                   {s.targetYds != null ? ` · aimed ${s.targetYds}` : null}
                 </p>
+                {/* Reported outcome — what actually happened, vs the intent
+                    above. A mis-strike is called out because it means this
+                    shot is excluded from the club's stock average. */}
+                {(s.direction || s.strike) && (
+                  <p className="text-xs mt-0.5">
+                    <span className={mishit(s) ? 'text-amber-700' : 'text-gray-600'}>
+                      {[s.strike && OUTCOME_LABEL[s.strike], s.direction && OUTCOME_LABEL[s.direction]]
+                        .filter(Boolean)
+                        .join(' · ')}
+                      {mishit(s) ? ' — not in club average' : ''}
+                    </span>
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button onClick={() => onEdit(s)} className="text-xs text-green-700 px-2 py-1 hover:underline">

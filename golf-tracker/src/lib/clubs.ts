@@ -87,6 +87,107 @@ export const SHAPE_LABEL: Record<ShapeTag, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Shot OUTCOME — what actually happened, as opposed to `ShapeTag` above, which
+// is what you were TRYING to do.
+//
+// Keeping these apart is the whole point. A tag list that mixes them can't
+// answer "is my fade working?", because `fade` would mean both "I aimed a fade"
+// and "I sliced it". With intent and outcome separate, intended-fade + straight
+// outcome is a countable event, and a fade success rate becomes a real stat.
+//
+// Two independent axes, both optional:
+//   direction — where it finished relative to target (left/right/short/long)
+//   strike    — quality of contact (flushed/thin/fat/topped/chunked)
+// A shot can have one, both, or neither. GPS can't observe either (two points
+// define a straight line), so this is the only way these ever get recorded.
+// ---------------------------------------------------------------------------
+
+export type MissDirection =
+  | 'straight' | 'left' | 'right'
+  | 'short' | 'long'
+  | 'shortLeft' | 'shortRight' | 'longLeft' | 'longRight';
+
+export type StrikeQuality =
+  | 'flushed' | 'solid' | 'thin' | 'fat' | 'topped' | 'chunked'
+  | 'toe' | 'heel' | 'shanked' | 'blocked' | 'duffed';
+
+export type OutcomeTag = MissDirection | StrikeQuality;
+
+export const MISS_DIRECTIONS: MissDirection[] = [
+  'straight', 'left', 'right', 'short', 'long',
+  'shortLeft', 'shortRight', 'longLeft', 'longRight',
+];
+
+export const STRIKE_QUALITIES: StrikeQuality[] = [
+  'flushed', 'solid', 'thin', 'fat', 'topped', 'chunked',
+  'toe', 'heel', 'shanked', 'blocked', 'duffed',
+];
+
+export const OUTCOME_LABEL: Record<OutcomeTag, string> = {
+  straight: 'Straight', left: 'Left', right: 'Right', short: 'Short', long: 'Long',
+  shortLeft: 'Short left', shortRight: 'Short right',
+  longLeft: 'Long left', longRight: 'Long right',
+  flushed: 'Flushed', solid: 'Solid', thin: 'Thin', fat: 'Fat',
+  topped: 'Topped', chunked: 'Chunked', toe: 'Off the toe', heel: 'Off the heel',
+  shanked: 'Shank', blocked: 'Blocked', duffed: 'Duffed',
+};
+
+// A mis-strike makes a shot's distance meaningless as a measure of how far you
+// hit that club — a thinned 7-iron is not a 7-iron sample. These are excluded
+// from the stock per-club average (still recorded, and still worth counting as a
+// tendency). `flushed`/`solid` are good contact and stay in.
+export const MISHIT_STRIKES: StrikeQuality[] = [
+  'thin', 'fat', 'topped', 'chunked', 'toe', 'heel', 'shanked', 'duffed',
+];
+
+// Voice synonyms → outcome tag. Ordered longest-first at use site so
+// "short left" beats a bare "left". Golfers have a lot of words for this.
+export const OUTCOME_SYNONYMS: Record<string, OutcomeTag> = {
+  // --- combined direction (must be matched before the bare words) ---
+  'short left': 'shortLeft', 'left and short': 'shortLeft',
+  'short right': 'shortRight', 'right and short': 'shortRight',
+  'long left': 'longLeft', 'left and long': 'longLeft',
+  'long right': 'longRight', 'right and long': 'longRight',
+
+  // --- direction ---
+  straight: 'straight', 'dead straight': 'straight', 'right at it': 'straight',
+  'on line': 'straight', 'stiffed it': 'straight', flag: 'straight',
+  left: 'left', pulled: 'left', pull: 'left', hooked: 'left', 'drew it': 'left',
+  right: 'right', pushed: 'right', push: 'right', sliced: 'right',
+  'cut it': 'right', 'faded it': 'right', 'leaked right': 'right',
+  short: 'short', 'came up short': 'short', 'left it short': 'short',
+  'in the front': 'short', 'not enough': 'short',
+  long: 'long', 'too much': 'long', 'over the green': 'long',
+  'flew it': 'long', 'went long': 'long', 'airmailed': 'long',
+
+  // --- strike quality ---
+  flushed: 'flushed', flush: 'flushed', 'pured it': 'flushed', pured: 'flushed',
+  striped: 'flushed', 'nutted it': 'flushed', 'crushed it': 'flushed',
+  solid: 'solid', 'well struck': 'solid', 'caught it clean': 'solid',
+  thin: 'thin', thinned: 'thin', 'thinned it': 'thin', bladed: 'thin',
+  'caught it thin': 'thin', skinny: 'thin',
+  fat: 'fat', fatted: 'fat', 'fatted it': 'fat', 'hit it fat': 'fat',
+  'behind it': 'fat', 'caught it fat': 'fat', heavy: 'fat',
+  topped: 'topped', 'topped it': 'topped', 'top it': 'topped',
+  chunked: 'chunked', 'chunked it': 'chunked', chunk: 'chunked',
+  'took a divot first': 'chunked',
+  toe: 'toe', 'off the toe': 'toe', toed: 'toe',
+  heel: 'heel', 'off the heel': 'heel', heeled: 'heel',
+  shanked: 'shanked', shank: 'shanked', 'hosel rocket': 'shanked',
+  blocked: 'blocked', 'block it': 'blocked',
+  duffed: 'duffed', duff: 'duffed', 'chili dipped': 'duffed', 'chili dip': 'duffed',
+};
+
+// Words that signal the utterance is reporting an OUTCOME rather than an intent
+// ("I missed it left", "that was thin"). Used to disambiguate a bare direction
+// word from a shape word — see parseOutcome in shot-voice.ts.
+export const OUTCOME_CUES = [
+  'missed', 'miss', 'mis hit', 'mishit', 'that was', 'thats', "that's",
+  'ended up', 'finished', 'went', 'came up', 'caught it', 'hit it',
+  'i was', 'it was', 'left it', 'pulled', 'pushed', 'blocked',
+];
+
+// ---------------------------------------------------------------------------
 // Synonyms for the voice parser. Keys are lowercase phrases that may appear in
 // a transcript; values are the canonical club id. Number words are handled
 // separately (see shot-voice.ts) so we only need the non-obvious spellings and

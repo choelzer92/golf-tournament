@@ -13,7 +13,7 @@
 
 import { supabase } from './supabase';
 import type { CourseSelection } from './game-state';
-import type { ClubId, ShapeTag } from './clubs';
+import type { ClubId, ShapeTag, MissDirection, StrikeQuality } from './clubs';
 
 export type ShotKind = 'full' | 'chip' | 'putt';
 export type ProxBucket = '0-5' | '6-10' | '11-15' | '16-20' | '20+';
@@ -29,12 +29,18 @@ export interface Shot {
   id: string;
   kind: ShotKind;
   club?: ClubId;          // absent for putts (implicit Putter)
-  shape: ShapeTag[];
+  shape: ShapeTag[];      // what you INTENDED (said before the shot)
   pos?: GpsPoint;         // hit location; absent for putts or GPS-denied
   targetYds?: number;     // aimed distance, said at address ("160 to the pin")
   proximityFeet?: number; // how close you ended up — said when you walk up
   proximity?: ProxBucket; // bucket derived from proximityFeet (kept for display/stats)
   raw?: string;           // original voice transcript, for later re-parse
+  // --- what actually HAPPENED (said after the shot) ---
+  // Separate from `shape` on purpose: intent vs outcome. Comparing the two is
+  // what makes "is my fade working?" answerable — see clubs.ts.
+  direction?: MissDirection; // left / right / short / long / straight
+  strike?: StrikeQuality;    // flushed / thin / fat / topped ...
+  outcomeRaw?: string;       // transcript of the outcome report
   // distance is DERIVED (this shot's pos → next shot's pos), never stored.
 }
 
@@ -43,6 +49,17 @@ export interface HoleLog {
   par: number;
   shots: Shot[];
   putts: number;
+  // The score you ANNOUNCED ("I made a five"). Authoritative for the scorecard:
+  // putts are derived from it, so a shot you forgot to announce becomes an extra
+  // putt instead of a wrong score. Absent when the hole was entered by tapping.
+  scoreSaid?: number;
+  // GPS at the hole, captured when you announce the score. This is what gives
+  // the APPROACH shot a measurable endpoint — without it the last full swing of
+  // every hole has no next position and yields no distance.
+  holedPos?: GpsPoint;
+  // Length of the first putt, if mentioned ("made a 5 from 20 feet"). Lets the
+  // approach distance be corrected for the putt you walked off.
+  firstPuttFeet?: number;
 }
 
 export interface SoloRound {
@@ -79,6 +96,13 @@ export interface VoiceLogEntry {
   hole: number;
   transcript: string;
   parsed: string;        // compact JSON of the ParsedShot result
+  // Set when the user hand-corrected a shot that came from voice. This is the
+  // most valuable line in the log: `parsed` is what the grammar guessed and
+  // `corrected` is the truth, so the pair is a labelled training example. Tuning
+  // from transcripts alone is guesswork — you can see what was said but not what
+  // it should have produced.
+  corrected?: string;    // compact JSON of the fixed {club, shape, kind, targetYds}
+  correctedFrom?: string; // the transcript that produced the bad parse
 }
 
 const VOICE_LOG_CAP = 500; // keep the blob bounded
@@ -127,6 +151,14 @@ export function saveSoloRound(round: SoloRound) {
     data: round,
     updated_at: round.updatedAt,
   }).then();
+}
+
+// Fire-and-forget variant for page-teardown (`pagehide` / tab hidden), where a
+// promise won't be awaited. Same upsert; the caller must not rely on ordering.
+// Used to flush a pending debounced save so closing the app right after logging
+// a shot doesn't leave the server copy behind.
+export function flushSoloRound(round: SoloRound) {
+  saveSoloRound(round);
 }
 
 export function loadSoloRound(id: string): SoloRound | null {
@@ -190,6 +222,27 @@ export function getSoloRoundListForGhin(ghinNumber: number): SoloRoundListItem[]
 
 const localKey = (id: string) => `solo_round_${id}`;
 
+// Hands-free preference — remembered across rounds so you don't have to enable
+// it every time you tee off. A device preference, not round data, so it lives in
+// its own key rather than the blob.
+const HANDS_FREE_KEY = 'solo_hands_free';
+
+export function loadHandsFreePref(): boolean {
+  try {
+    return localStorage.getItem(HANDS_FREE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveHandsFreePref(on: boolean) {
+  try {
+    localStorage.setItem(HANDS_FREE_KEY, on ? '1' : '0');
+  } catch {
+    /* storage unavailable — defaults to off next load */
+  }
+}
+
 export function saveRoundLocal(round: SoloRound) {
   try {
     localStorage.setItem(localKey(round.id), JSON.stringify(round));
@@ -222,4 +275,14 @@ export function newerRound(a: SoloRound | null, b: SoloRound | null): SoloRound 
   if (!a) return b;
   if (!b) return a;
   return a.updatedAt >= b.updatedAt ? a : b;
+}
+
+// True when the local copy is ahead of the server — i.e. shots were logged
+// while offline (or a debounced save was lost). The caller re-upserts so the
+// server stops drifting; without this the local copy stays ahead until the next
+// mutation happens to trigger a save.
+export function localIsAhead(local: SoloRound | null, server: SoloRound | null): boolean {
+  if (!local) return false;
+  if (!server) return true;
+  return local.updatedAt > server.updatedAt;
 }

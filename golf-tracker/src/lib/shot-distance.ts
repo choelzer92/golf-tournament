@@ -10,7 +10,8 @@
 // (accuracy worse than ACCURACY_LIMIT_M) from the aggregate so noise doesn't
 // pollute per-club averages.
 
-import type { ClubId } from './clubs';
+import type { ClubId, StrikeQuality } from './clubs';
+import { MISHIT_STRIKES } from './clubs';
 import type { HoleLog, Shot, SoloRound, GpsPoint } from './solo-round';
 
 const EARTH_RADIUS_M = 6_371_000;
@@ -47,14 +48,34 @@ export function shotDistances(hole: HoleLog): (number | null)[] {
   });
 }
 
+const MISHIT_SET = new Set<StrikeQuality>(MISHIT_STRIKES);
+
+// Whether a shot's measured distance represents how far you hit that club. A
+// reported mis-strike (thin, fat, topped…) does not: a thinned 7-iron is a
+// mis-strike sample, not a 7-iron sample, and averaging it in drags the number
+// toward shots you'd never plan around. Only excluded when you actually SAID it
+// was a mishit — unreported shots are assumed normal.
+export function countsForClubAverage(shot: Shot): boolean {
+  return !(shot.strike && MISHIT_SET.has(shot.strike));
+}
+
 export interface ClubStat {
   club: ClubId;
-  n: number;        // samples used (accuracy-filtered)
+  n: number;        // samples used (accuracy-filtered, mishits excluded)
   meanYds: number;
+  medianYds: number; // outlier-resistant — prefer this for club selection
   stdYds: number;
   minYds: number;
   maxYds: number;
   dropped: number;  // measured shots excluded for coarse GPS
+  mishits: number;  // measured shots excluded as reported mis-strikes
+}
+
+function median(sorted: number[]): number {
+  const n = sorted.length;
+  if (n === 0) return 0;
+  const mid = Math.floor(n / 2);
+  return n % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 // Aggregate measured distances by club across one or more rounds. Only full
@@ -64,6 +85,7 @@ export function clubDistanceStats(rounds: SoloRound | SoloRound[]): ClubStat[] {
   const list = Array.isArray(rounds) ? rounds : [rounds];
   const samples = new Map<ClubId, number[]>();
   const dropped = new Map<ClubId, number>();
+  const mishits = new Map<ClubId, number>();
 
   for (const round of list) {
     for (const hole of round.holes) {
@@ -74,6 +96,10 @@ export function clubDistanceStats(rounds: SoloRound | SoloRound[]): ClubStat[] {
         if (d == null) return;
         if (!shot.pos || shot.pos.accuracy > ACCURACY_LIMIT_M) {
           dropped.set(shot.club, (dropped.get(shot.club) ?? 0) + 1);
+          return;
+        }
+        if (!countsForClubAverage(shot)) {
+          mishits.set(shot.club, (mishits.get(shot.club) ?? 0) + 1);
           return;
         }
         const arr = samples.get(shot.club) ?? [];
@@ -92,18 +118,60 @@ export function clubDistanceStats(rounds: SoloRound | SoloRound[]): ClubStat[] {
       club,
       n,
       meanYds: mean,
+      medianYds: median([...arr].sort((a, b) => a - b)),
       stdYds: Math.sqrt(variance),
       minYds: Math.min(...arr),
       maxYds: Math.max(...arr),
       dropped: dropped.get(club) ?? 0,
+      mishits: mishits.get(club) ?? 0,
     });
     dropped.delete(club);
+    mishits.delete(club);
   }
-  // Clubs that had ONLY dropped (coarse-GPS) samples still worth surfacing as 0-n.
-  for (const [club, d] of dropped) {
-    stats.push({ club, n: 0, meanYds: 0, stdYds: 0, minYds: 0, maxYds: 0, dropped: d });
+  // Clubs with ONLY excluded samples are still worth surfacing as 0-n.
+  const leftovers = new Set([...dropped.keys(), ...mishits.keys()]);
+  for (const club of leftovers) {
+    stats.push({
+      club, n: 0, meanYds: 0, medianYds: 0, stdYds: 0, minYds: 0, maxYds: 0,
+      dropped: dropped.get(club) ?? 0,
+      mishits: mishits.get(club) ?? 0,
+    });
   }
   return stats;
+}
+
+export interface OutcomeCount {
+  tag: string;
+  label: string;
+  n: number;
+}
+
+// Tally reported outcomes across rounds — the "where do I miss?" view. Counts
+// only shots you actually reported on, so the denominator is reported shots.
+export function outcomeCounts(rounds: SoloRound | SoloRound[]): {
+  directions: Map<string, number>;
+  strikes: Map<string, number>;
+  reported: number;
+  total: number;
+} {
+  const list = Array.isArray(rounds) ? rounds : [rounds];
+  const directions = new Map<string, number>();
+  const strikes = new Map<string, number>();
+  let reported = 0;
+  let total = 0;
+
+  for (const round of list) {
+    for (const hole of round.holes) {
+      for (const shot of hole.shots) {
+        if (shot.kind === 'putt') continue;
+        total++;
+        if (shot.direction) directions.set(shot.direction, (directions.get(shot.direction) ?? 0) + 1);
+        if (shot.strike) strikes.set(shot.strike, (strikes.get(shot.strike) ?? 0) + 1);
+        if (shot.direction || shot.strike) reported++;
+      }
+    }
+  }
+  return { directions, strikes, reported, total };
 }
 
 // Strokes taken on a hole = every logged shot plus putts.
