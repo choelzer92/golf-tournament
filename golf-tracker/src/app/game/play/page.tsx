@@ -349,7 +349,9 @@ export default function PlayGamePage() {
   }
 
   function getPlayerEffectiveHcap(player: Player, holeNumber?: number): number {
-    if (!player.handicapIndex) return 0;
+    // null = index unknown; 0 = genuine scratch, negative = plus golfer. Mirrors
+    // live-scoring.ts, which this page must agree with hole for hole.
+    if (player.handicapIndex == null || Number.isNaN(player.handicapIndex)) return 0;
     const allowance = getActiveAllowance(holeNumber);
     const is9 = setup!.holesPlaying === 'front9' || setup!.holesPlaying === 'back9' || !!setup!.splitFormat;
 
@@ -394,7 +396,8 @@ export default function PlayGamePage() {
   }
 
   function getPlayerRawCourseHandicap(player: Player): number {
-    if (!player.handicapIndex) return 0;
+    // See getPlayerEffectiveHcap: only a null/NaN index means "unknown".
+    if (player.handicapIndex == null || Number.isNaN(player.handicapIndex)) return 0;
     const is9 = setup!.holesPlaying === 'front9' || setup!.holesPlaying === 'back9' || !!setup!.splitFormat;
 
     if (setup!.handicapBasis === 'index') {

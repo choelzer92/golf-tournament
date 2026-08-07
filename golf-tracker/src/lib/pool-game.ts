@@ -407,6 +407,22 @@ export function playerHoleStrokeIndexForGame(
 // 'index' plays straight off the raw handicap INDEX × allowance — skipping the
 // slope/rating conversion — which is what an organizer means by "play by player
 // handicap, not course handicap". Mirrors live-scoring.ts's handicapBasis.
+//
+// ROUNDING ORDER (USGA Rules of Handicapping 6.1 → 6.2): Course Handicap is
+// rounded to a whole number FIRST — that integer is what GHIN shows and what a
+// player writes on the card — and the allowance is applied to THAT, with the
+// result rounded again. So the correct chain is
+//   round( round(courseHcap) × allowance )
+// not round(courseHcap × allowance).
+//
+// The two diverge whenever the fractional course handicaps in a field round in
+// different directions, and under off-the-low that shows up as a full stroke.
+// Real case (Spring Creek 3 Stars, front 9, 90%, 2026-08-07 "Pride"): Cory's
+// 9-hole CH of 4.20 gave round(4.20×0.9)=4 while GHIN gives round(4)×0.9=3.6→4
+// — same here, but his stroke count came out 3 instead of 2 because the low
+// man's 1.58 rounded UP to 2 under USGA and DOWN to 1 under the old order.
+// This was flagged as "moot at 100%" when the off-the-low round order was fixed
+// in July; it stops being moot the moment an allowance below 100% is used.
 export function getPoolPlayingHandicap(
   player: Player,
   course: CourseSelection | null,
@@ -418,13 +434,30 @@ export function getPoolPlayingHandicap(
   // implicitly by keeping the 18-hole handicap over 9 played holes). See #13.
   nine?: 'front9' | 'back9' | null,
 ): number {
-  if (!player.handicapIndex) return 0;
+  // `handicapIndex` is `number | null`: null means UNKNOWN (no GHIN pulled yet),
+  // 0 means a genuine scratch player. `!player.handicapIndex` conflated the two
+  // and short-circuited scratch golfers to 0 strokes — wrong, because a scratch
+  // player's course handicap is a real number that is usually NEGATIVE off an
+  // easy tee (e.g. CR 67.9 on a par 71 → −3) and, under off-the-low, is what
+  // sets the baseline everyone else plays off. Sending them down this path made
+  // the low man's handicap 0 instead of −3, quietly removing ~3 strokes from
+  // every other player in the field. Plus handicaps (index below 0) hit the same
+  // bug. Only a null/NaN index means "we don't know".
+  if (player.handicapIndex == null || Number.isNaN(player.handicapIndex)) return 0;
+  // Apply the allowance to the ROUNDED course handicap (see the note above).
+  // Kept as a single helper so every branch — per-tee, 9-hole, and the
+  // no-rating fallbacks — rounds in the same order.
+  const withAllowance = (courseHcap: number) => Math.round(courseHcap) * (allowance / 100);
+
   if (basis === 'index') {
+    // 'index' basis intentionally skips the slope/rating conversion, so there is
+    // no Course Handicap to round — the raw index IS the basis the organizer
+    // asked for. Rounding it here would silently change that meaning.
     const idx = nine ? player.handicapIndex / 2 : player.handicapIndex;
     return idx * (allowance / 100);
   }
   const tee = getPlayerTee(player, course);
-  if (!tee) return player.handicapIndex * (allowance / 100);
+  if (!tee) return withAllowance(player.handicapIndex);
 
   if (nine) {
     // 9-hole course handicap: (index/2) × (nineSlope/113) + (nineRating − ninePar).
@@ -435,22 +468,22 @@ export function getPoolPlayingHandicap(
       .reduce((sum, h) => sum + h.par, 0) || Math.round(tee.totalPar / 2);
     if (nineRating?.slopeRating && nineRating?.courseRating) {
       const ch = calcCourseHandicap(player.handicapIndex / 2, nineRating.slopeRating, nineRating.courseRating, ninePar);
-      return isNaN(ch) ? 0 : ch * (allowance / 100);
+      return isNaN(ch) ? 0 : withAllowance(ch);
     }
     // No 9-hole rating on the tee: fall back to half the full-18 course handicap.
     const totalRating = tee.ratings?.find((r) => r.type === 'Total');
-    if (!totalRating?.slopeRating || !totalRating?.courseRating) return (player.handicapIndex / 2) * (allowance / 100);
+    if (!totalRating?.slopeRating || !totalRating?.courseRating) return withAllowance(player.handicapIndex / 2);
     const full = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, tee.totalPar);
-    return isNaN(full) ? 0 : (full / 2) * (allowance / 100);
+    return isNaN(full) ? 0 : withAllowance(full / 2);
   }
 
   const totalRating = tee.ratings?.find((r) => r.type === 'Total');
   if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) {
-    return player.handicapIndex * (allowance / 100);
+    return withAllowance(player.handicapIndex);
   }
   const courseHcap = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, tee.totalPar);
   if (isNaN(courseHcap)) return 0;
-  return courseHcap * (allowance / 100);
+  return withAllowance(courseHcap);
 }
 
 // The USGA nine to pass to getPoolPlayingHandicap for a game, or null when the

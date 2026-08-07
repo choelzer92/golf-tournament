@@ -88,7 +88,9 @@ function getPlayerTee(player: Player, round: TournamentRound): TeeSetOption | nu
 }
 
 export function getMoneyGamePlayingHandicap(player: Player, round: TournamentRound, allowance: number): number {
-  if (!player.handicapIndex) return 0;
+  // null = index unknown; 0 = genuine scratch, negative = plus golfer. Both have
+  // a real course handicap, so only a null/NaN index short-circuits to 0.
+  if (player.handicapIndex == null || Number.isNaN(player.handicapIndex)) return 0;
 
   const playerTee = getPlayerTee(player, round);
   if (!playerTee) {

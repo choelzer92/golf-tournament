@@ -59,7 +59,8 @@ function getPlayerTee(player: Player, course: CourseSelection | null): TeeSetOpt
 }
 
 function getPlayingHandicap(player: Player, course: CourseSelection | null, allowance: number): number {
-  if (!player.handicapIndex) return 0;
+  // null = index unknown; 0 = genuine scratch, negative = plus golfer.
+  if (player.handicapIndex == null || Number.isNaN(player.handicapIndex)) return 0;
   const tee = getPlayerTee(player, course);
   if (!tee) return player.handicapIndex * (allowance / 100);
   const totalRating = tee.ratings?.find((r) => r.type === 'Total');

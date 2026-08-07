@@ -84,7 +84,10 @@ function getPlayerTee(player: Player, round: TournamentRound): TeeSetOption | nu
 }
 
 function getPlayerEffectiveHcap(player: Player, round: TournamentRound, holes: HoleData[], holeNumber?: number): number {
-  if (!player.handicapIndex) return 0;
+  // null = index unknown; 0 = genuine scratch (and negatives = plus golfers).
+  // Treating 0 as "no handicap" skipped the slope/rating conversion for scratch
+  // and plus players, whose course handicap is a real (often negative) number.
+  if (player.handicapIndex == null || Number.isNaN(player.handicapIndex)) return 0;
   const allowance = getActiveAllowance(round, holeNumber);
   const is9 = round.holesPlaying === 'front9' || round.holesPlaying === 'back9' || !!round.splitFormat;
 
@@ -184,7 +187,8 @@ function getPlayerStrokesOnHole(player: Player, holeHandicap: number, round: Tou
 }
 
 function getPlayerRawCourseHandicap(player: Player, round: TournamentRound): number {
-  if (!player.handicapIndex) return 0;
+  // See getPlayerEffectiveHcap: only a null/NaN index means "unknown".
+  if (player.handicapIndex == null || Number.isNaN(player.handicapIndex)) return 0;
   const is9 = round.holesPlaying === 'front9' || round.holesPlaying === 'back9';
 
   if (round.handicapBasis === 'index') {
