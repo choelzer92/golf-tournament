@@ -1,6 +1,6 @@
 import type { Player, GameScore, TeeSetOption } from './game-state';
 import type { TournamentRound, RoundMatchup, Tournament, SplitPairing } from './tournament-state';
-import { calcCourseHandicap } from './game-state';
+import { calcCourseHandicap, applyAllowance } from './game-state';
 import type { TeamMode, StablefordScale, TwoBestBallsVariant } from './formats';
 import { resolveStablefordScale, STABLEFORD_SCALES } from './formats';
 
@@ -109,22 +109,31 @@ function getPlayerEffectiveHcap(player: Player, round: TournamentRound, holes: H
       const par = (playerTee.holes || [])
         .filter((h) => ratingType === 'Front' ? h.number <= 9 : h.number > 9)
         .reduce((sum, h) => sum + h.par, 0) || Math.round(playerTee.totalPar / 2);
-      const result = calcCourseHandicap(player.handicapIndex / 2, rating.slopeRating, rating.courseRating, par)
-        * (allowance / 100);
+      // USGA order: round the Course Handicap, THEN apply the allowance.
+      const result = applyAllowance(
+        calcCourseHandicap(player.handicapIndex / 2, rating.slopeRating, rating.courseRating, par),
+        allowance,
+      );
       return isNaN(result) ? 0 : result;
     }
 
     const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');
     if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return 0;
-    const full = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar)
-      * (allowance / 100);
-    return isNaN(full) ? 0 : full / 2;
+    // No 9-hole rating on this tee: halve the 18-hole COURSE handicap first, then
+    // apply the allowance to that (rounding the halved value, per USGA order).
+    const full = applyAllowance(
+      calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar) / 2,
+      allowance,
+    );
+    return isNaN(full) ? 0 : full;
   }
 
   const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');
   if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return 0;
-  const result = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar)
-    * (allowance / 100);
+  const result = applyAllowance(
+    calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar),
+    allowance,
+  );
   return isNaN(result) ? 0 : result;
 }
 

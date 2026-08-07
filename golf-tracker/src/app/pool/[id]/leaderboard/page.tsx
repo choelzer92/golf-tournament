@@ -290,12 +290,22 @@ export default function PoolLeaderboardPage() {
             <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Pots</p>
           </div>
           <div className="divide-y divide-gray-700/30">
-            {result.legs.map((leg) => {
+            {/* On a nine the front/back legs exist but hold no holes and no money
+                (computePoolResult puts the whole non-junk pot on 'overall'), so
+                hide them rather than showing rows that can never pay. */}
+            {result.legs
+              .filter((leg) =>
+                (game.holesPlaying ?? '18') === '18' || leg.leg === 'overall' || leg.leg === 'junk')
+              .map((leg) => {
               const winners = leg.standings.filter((s) => s.place === 1);
+              const label =
+                (game.holesPlaying ?? '18') !== '18' && leg.leg === 'overall'
+                  ? (game.holesPlaying === 'front9' ? 'Front 9' : 'Back 9')
+                  : LEG_LABELS[leg.leg];
               return (
                 <div key={leg.leg} className="px-4 py-2.5 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-200">{LEG_LABELS[leg.leg]}</p>
+                    <p className="text-sm font-medium text-gray-200">{label}</p>
                     <p className="text-[10px] text-gray-500">${Math.round(leg.subPot)} pot</p>
                   </div>
                   <div className="text-right">
@@ -316,41 +326,6 @@ export default function PoolLeaderboardPage() {
           </div>
         </div>
         )}
-
-        {/* Per-team junk breakdown */}
-        <div className="bg-gray-800 rounded-xl overflow-hidden">
-          <div className="px-4 py-2 border-b border-gray-700">
-            <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Junk Breakdown</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="text-xs w-full">
-              <thead>
-                <tr className="text-gray-500 border-b border-gray-700/50">
-                  <th className="text-left px-3 py-1.5 font-medium">Team</th>
-                  <th className="text-center px-2 py-1.5 font-medium">Bird</th>
-                  <th className="text-center px-2 py-1.5 font-medium">Eagle</th>
-                  <th className="text-center px-2 py-1.5 font-medium">Alb</th>
-                  <th className="text-center px-2 py-1.5 font-medium">Hug</th>
-                  <th className="text-center px-2 py-1.5 font-medium">CTP</th>
-                  <th className="text-center px-3 py-1.5 font-bold text-gray-400">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rankedJunk.map((j, idx) => (
-                  <tr key={j.teamId} className={`${idx > 0 ? 'border-t border-gray-700/30' : ''}`}>
-                    <td className="px-3 py-1.5 text-gray-300 font-medium whitespace-nowrap">{j.teamName}</td>
-                    <td className="text-center px-2 py-1.5 text-gray-300">{j.birdies || '-'}</td>
-                    <td className="text-center px-2 py-1.5 text-gray-300">{j.eagles || '-'}</td>
-                    <td className="text-center px-2 py-1.5 text-gray-300">{j.albatrosses || '-'}</td>
-                    <td className="text-center px-2 py-1.5 text-gray-300">{j.groupHugs || '-'}</td>
-                    <td className="text-center px-2 py-1.5 text-gray-300">{j.ctps || '-'}</td>
-                    <td className="text-center px-3 py-1.5 font-bold text-green-300">{j.total}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
 
         {/* Expandable: click a team for individual player gross scores */}
         <div className="bg-gray-800 rounded-xl overflow-hidden">
@@ -421,23 +396,29 @@ export default function PoolLeaderboardPage() {
                             </td>
                             {player.holes.filter((h) => h.holeNumber <= 9).map((h) => (
                               <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
-                                {h.gross != null ? (
-                                  <span>
-                                    {h.gross}
-                                    {h.strokes > 0 && <span className="text-[8px] text-blue-400 align-super">{'•'.repeat(h.strokes)}</span>}
-                                  </span>
-                                ) : '-'}
+                                {/* Stroke dots render whether or not a score is in
+                                    — the strokes a player GETS is known from the
+                                    handicap at setup, so hiding them until a score
+                                    was entered meant you couldn't see where your
+                                    shots fell before teeing off. */}
+                                <span>
+                                  {h.gross != null ? h.gross : <span className="text-gray-600">-</span>}
+                                  {h.strokes > 0 && <span className="text-[8px] text-blue-400 align-super">{'•'.repeat(h.strokes)}</span>}
+                                </span>
                               </td>
                             ))}
                             <td className="text-center px-1.5 py-1 font-bold text-gray-400 bg-gray-750">{outGross ?? '-'}</td>
                             {player.holes.filter((h) => h.holeNumber > 9).map((h) => (
                               <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
-                                {h.gross != null ? (
-                                  <span>
-                                    {h.gross}
-                                    {h.strokes > 0 && <span className="text-[8px] text-blue-400 align-super">{'•'.repeat(h.strokes)}</span>}
-                                  </span>
-                                ) : '-'}
+                                {/* Stroke dots render whether or not a score is in
+                                    — the strokes a player GETS is known from the
+                                    handicap at setup, so hiding them until a score
+                                    was entered meant you couldn't see where your
+                                    shots fell before teeing off. */}
+                                <span>
+                                  {h.gross != null ? h.gross : <span className="text-gray-600">-</span>}
+                                  {h.strokes > 0 && <span className="text-[8px] text-blue-400 align-super">{'•'.repeat(h.strokes)}</span>}
+                                </span>
                               </td>
                             ))}
                             <td className="text-center px-1.5 py-1 font-bold text-gray-400 bg-gray-750">{inGross ?? '-'}</td>
@@ -454,6 +435,41 @@ export default function PoolLeaderboardPage() {
               </div>
             );
           })}
+        </div>
+
+        {/* Per-team junk breakdown */}
+        <div className="bg-gray-800 rounded-xl overflow-hidden">
+          <div className="px-4 py-2 border-b border-gray-700">
+            <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Junk Breakdown</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="text-xs w-full">
+              <thead>
+                <tr className="text-gray-500 border-b border-gray-700/50">
+                  <th className="text-left px-3 py-1.5 font-medium">Team</th>
+                  <th className="text-center px-2 py-1.5 font-medium">Bird</th>
+                  <th className="text-center px-2 py-1.5 font-medium">Eagle</th>
+                  <th className="text-center px-2 py-1.5 font-medium">Alb</th>
+                  <th className="text-center px-2 py-1.5 font-medium">Hug</th>
+                  <th className="text-center px-2 py-1.5 font-medium">CTP</th>
+                  <th className="text-center px-3 py-1.5 font-bold text-gray-400">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rankedJunk.map((j, idx) => (
+                  <tr key={j.teamId} className={`${idx > 0 ? 'border-t border-gray-700/30' : ''}`}>
+                    <td className="px-3 py-1.5 text-gray-300 font-medium whitespace-nowrap">{j.teamName}</td>
+                    <td className="text-center px-2 py-1.5 text-gray-300">{j.birdies || '-'}</td>
+                    <td className="text-center px-2 py-1.5 text-gray-300">{j.eagles || '-'}</td>
+                    <td className="text-center px-2 py-1.5 text-gray-300">{j.albatrosses || '-'}</td>
+                    <td className="text-center px-2 py-1.5 text-gray-300">{j.groupHugs || '-'}</td>
+                    <td className="text-center px-2 py-1.5 text-gray-300">{j.ctps || '-'}</td>
+                    <td className="text-center px-3 py-1.5 font-bold text-green-300">{j.total}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Per-person payouts */}
@@ -579,11 +595,21 @@ function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult })
   const isHoleMatch = cfg.scoring === 'holes';
   const teamName = (id: string) => game.teams.find((t) => t.id === id)?.name ?? '?';
 
-  const scoreLegs: { key: PoolLegKey; label: string; dollars: number }[] = [
-    { key: 'front', label: 'Front 9', dollars: cfg.legDollars.front },
-    { key: 'back', label: 'Back 9', dollars: cfg.legDollars.back },
-    { key: 'overall', label: 'Overall 18', dollars: cfg.legDollars.overall },
-  ];
+  // A 9-hole game has ONE score leg. computePoolResult builds the front/back legs
+  // with no holes so they can never settle, but listing them here showed two
+  // permanently-empty rows plus an "Overall 18" label on a nine.
+  const nineOnly = (game.holesPlaying ?? '18') !== '18';
+  const scoreLegs: { key: PoolLegKey; label: string; dollars: number }[] = nineOnly
+    ? [{
+        key: 'overall',
+        label: game.holesPlaying === 'front9' ? 'Front 9' : 'Back 9',
+        dollars: cfg.legDollars.overall,
+      }]
+    : [
+        { key: 'front', label: 'Front 9', dollars: cfg.legDollars.front },
+        { key: 'back', label: 'Back 9', dollars: cfg.legDollars.back },
+        { key: 'overall', label: 'Overall 18', dollars: cfg.legDollars.overall },
+      ];
 
   // Winner of a leg. In hole-match scoring the winner is whoever won more holes
   // (standings carry holesWon); otherwise it's the lower toPar. null = push/halved.
@@ -1021,13 +1047,15 @@ function IndividualPlayerGrid({ players }: { players: PoolPlayerDetail[] }) {
                 </td>
                 {player.holes.filter((h) => h.holeNumber <= 9).map((h) => (
                   <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
-                    {h.gross != null ? (<span>{h.gross}{h.strokes > 0 && <span className="text-[8px] text-blue-400 align-super">{'•'.repeat(h.strokes)}</span>}</span>) : '-'}
+                    {/* Dots show even with no score entered — see the team grid. */}
+                    <span>{h.gross != null ? h.gross : <span className="text-gray-600">-</span>}{h.strokes > 0 && <span className="text-[8px] text-blue-400 align-super">{'•'.repeat(h.strokes)}</span>}</span>
                   </td>
                 ))}
                 <td className="text-center px-1.5 py-1 font-bold text-gray-400 bg-gray-750">{outGross ?? '-'}</td>
                 {player.holes.filter((h) => h.holeNumber > 9).map((h) => (
                   <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
-                    {h.gross != null ? (<span>{h.gross}{h.strokes > 0 && <span className="text-[8px] text-blue-400 align-super">{'•'.repeat(h.strokes)}</span>}</span>) : '-'}
+                    {/* Dots show even with no score entered — see the team grid. */}
+                    <span>{h.gross != null ? h.gross : <span className="text-gray-600">-</span>}{h.strokes > 0 && <span className="text-[8px] text-blue-400 align-super">{'•'.repeat(h.strokes)}</span>}</span>
                   </td>
                 ))}
                 <td className="text-center px-1.5 py-1 font-bold text-gray-400 bg-gray-750">{inGross ?? '-'}</td>

@@ -1,6 +1,6 @@
 import type { Player, GameScore, CourseSelection, TeeSetOption } from './game-state';
 import type { TwoBestBallsVariant } from './formats';
-import { calcCourseHandicap } from './game-state';
+import { calcCourseHandicap, applyAllowance } from './game-state';
 import { getMoneyStrokesOnHole } from './money-games';
 import { bestBallTeamHoleScore } from './live-scoring';
 import { supabase } from './supabase';
@@ -445,9 +445,9 @@ export function getPoolPlayingHandicap(
   // bug. Only a null/NaN index means "we don't know".
   if (player.handicapIndex == null || Number.isNaN(player.handicapIndex)) return 0;
   // Apply the allowance to the ROUNDED course handicap (see the note above).
-  // Kept as a single helper so every branch — per-tee, 9-hole, and the
-  // no-rating fallbacks — rounds in the same order.
-  const withAllowance = (courseHcap: number) => Math.round(courseHcap) * (allowance / 100);
+  // Shared with every other scoring path via applyAllowance so the order can't
+  // drift between screens.
+  const withAllowance = (courseHcap: number) => applyAllowance(courseHcap, allowance);
 
   if (basis === 'index') {
     // 'index' basis intentionally skips the slope/rating conversion, so there is
@@ -544,10 +544,14 @@ export interface FieldLowInfo {
 // off-the-low, everyone plays their course handicap minus this value.
 export function getFieldLow(game: PoolGame): FieldLowInfo | null {
   if (game.players.length === 0) return null;
+  // Use the game's USGA nine so the displayed low matches what buildHcapMap
+  // actually subtracts — on a 9-hole USGA game the 18-hole number is a different
+  // scale entirely.
+  const nine = gameNineBasis(game);
   let lowId = game.players[0].id;
   let lowH = Infinity;
   for (const p of game.players) {
-    const h = getPoolPlayingHandicap(p, game.course, game.handicapAllowance, game.handicapBasis);
+    const h = getPoolPlayingHandicap(p, game.course, game.handicapAllowance, game.handicapBasis, nine);
     if (h < lowH) { lowH = h; lowId = p.id; }
   }
   const player = game.players.find((p) => p.id === lowId);
@@ -643,12 +647,16 @@ export function rankPlayersForCaptain(
   players: Player[],
   course: CourseSelection | null,
   allowance: number,
-  basis: 'course' | 'index' = 'course'
+  basis: 'course' | 'index' = 'course',
+  // Pass the game's USGA nine so `courseHandicap` here is the same number the
+  // rest of the game shows. The ORDER is unaffected (halving is monotonic), but
+  // the value is surfaced in the UI, so it has to be on the game's scale.
+  nine?: 'front9' | 'back9' | null,
 ): CaptainRankEntry[] {
   const rows = players.map((p) => ({
     playerId: p.id,
     name: p.name,
-    precise: getPoolPlayingHandicap(p, course, allowance, basis),
+    precise: getPoolPlayingHandicap(p, course, allowance, basis, nine),
     diff: teeDifficulty(getPlayerTee(p, course)),
     eligible: p.handicapIndex != null,
   }));

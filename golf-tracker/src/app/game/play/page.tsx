@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { GameSetup, GameScore, Player } from '@/lib/game-state';
-import { calcCourseHandicap } from '@/lib/game-state';
+import { calcCourseHandicap, applyAllowance } from '@/lib/game-state';
 import { isOneBallFormat, isTeamMode, resolveStablefordScale } from '@/lib/formats';
 import type { TournamentGameContext, Tournament } from '@/lib/tournament-state';
 import { loadTournament, saveTournament, saveGameScores, cacheGameScores, loadGameScores, fetchGameScores, fetchTournament, computeStandings, computeBonuses, computeProjectedBonuses, subscribeToScores, onVisibilityRefetch } from '@/lib/tournament-state';
@@ -374,24 +374,32 @@ export default function PlayGamePage() {
         const par = (playerTee.holes || [])
           .filter((h) => ratingType === 'Front' ? h.number <= 9 : h.number > 9)
           .reduce((sum, h) => sum + h.par, 0) || Math.round(playerTee.totalPar / 2);
-        const result = calcCourseHandicap(player.handicapIndex / 2, rating.slopeRating, rating.courseRating, par)
-          * (allowance / 100);
+        // USGA order: round the Course Handicap, THEN apply the allowance.
+        const result = applyAllowance(
+          calcCourseHandicap(player.handicapIndex / 2, rating.slopeRating, rating.courseRating, par),
+          allowance,
+        );
         return isNaN(result) ? 0 : result;
       }
 
-      // Fallback: halve the 18-hole course handicap
+      // Fallback: halve the 18-hole COURSE handicap, then apply the allowance to
+      // that (halving after the allowance applied it to the wrong quantity).
       const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');
       if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return 0;
-      const full = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar)
-        * (allowance / 100);
-      return isNaN(full) ? 0 : full / 2;
+      const full = applyAllowance(
+        calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar) / 2,
+        allowance,
+      );
+      return isNaN(full) ? 0 : full;
     }
 
     // 18-hole course handicap
     const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');
     if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return 0;
-    const result = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar)
-      * (allowance / 100);
+    const result = applyAllowance(
+      calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar),
+      allowance,
+    );
     return isNaN(result) ? 0 : result;
   }
 

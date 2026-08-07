@@ -136,6 +136,11 @@ export default function NewPoolGamePage() {
   const [holesPlaying, setHolesPlaying] = useState<'18' | 'front9' | 'back9'>('18');
   // 9-hole handicap basis (default '18' = the common casual method; '9' = USGA-proper).
   const [nineHandicapBasis, setNineHandicapBasis] = useState<'18' | '9'>('18');
+  // The USGA nine in effect, mirroring gameNineBasis() for a game that doesn't
+  // exist yet. Every handicap the wizard DISPLAYS has to use this, or the numbers
+  // shown while building won't match what the game plays off once created.
+  const wizardNine: 'front9' | 'back9' | null =
+    holesPlaying !== '18' && nineHandicapBasis === '9' ? holesPlaying : null;
 
   // Field
   const [players, setPlayers] = useState<Player[]>([]);
@@ -436,6 +441,7 @@ export default function NewPoolGamePage() {
             setPlayers={setPlayers}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             handicapBasis={handicapBasis}
+            nine={wizardNine}
             getGroupDefaults={currentGroupDefaults}
             applyGroupDefaults={applyGroupDefaults}
             onGroupLoaded={setSourceGroupId}
@@ -452,6 +458,7 @@ export default function NewPoolGamePage() {
             setPlayers={setPlayers}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             handicapBasis={handicapBasis}
+            nine={wizardNine}
             onNext={() => {
               // Single-group games (individual + 2v2) run as ONE team holding every
               // player. Auto-build it now. Individual → straight to Create;
@@ -483,6 +490,7 @@ export default function NewPoolGamePage() {
             course={course}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             handicapBasis={handicapBasis}
+            nine={wizardNine}
             subTeams={subTeams}
             setSubTeams={setSubTeams}
             onNext={() => setStep('create')}
@@ -509,6 +517,7 @@ export default function NewPoolGamePage() {
             setTeamBuild={setTeamBuild}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             handicapBasis={handicapBasis}
+            nine={wizardNine}
             onNext={() => setStep('create')}
             onBack={() => setStep('tees')}
           />
@@ -529,6 +538,8 @@ export default function NewPoolGamePage() {
             moneyMode={moneyMode}
             matchConfig={buildMatchConfig()}
             handicapBasis={handicapBasis}
+            nine={wizardNine}
+            holesPlaying={holesPlaying}
             gameMode={gameMode}
             onCreate={createPoolGame}
             onBack={() => setStep(modeCategory === 'individual' ? 'tees' : 'teams')}
@@ -1194,12 +1205,13 @@ function CourseStep({
 }
 
 function FieldStep({
-  course, players, setPlayers, handicapAllowance, handicapBasis, getGroupDefaults, applyGroupDefaults, onGroupLoaded, formatSeedApplied, onNext, onBack,
+  course, players, setPlayers, handicapAllowance, handicapBasis, nine, getGroupDefaults, applyGroupDefaults, onGroupLoaded, formatSeedApplied, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
   handicapAllowance: number;
   handicapBasis: 'course' | 'index';
+  nine: 'front9' | 'back9' | null;
   getGroupDefaults: () => GroupDefaults;
   applyGroupDefaults: (d: GroupDefaults | null) => void;
   onGroupLoaded: (groupId: string) => void;
@@ -1858,7 +1870,7 @@ function FieldStep({
         <div className="bg-white rounded-lg shadow overflow-hidden mb-4">
           <ul className="divide-y divide-gray-200">
             {players.map((player) => {
-              const courseHcap = course ? Math.round(getPoolPlayingHandicap(player, course, handicapAllowance, handicapBasis)) : null;
+              const courseHcap = course ? Math.round(getPoolPlayingHandicap(player, course, handicapAllowance, handicapBasis, nine)) : null;
               return (
                 <li key={player.id} className="px-4 py-3">
                   <div className="flex items-center justify-between">
@@ -1928,12 +1940,13 @@ function makeTeam(index: number, playerIds: string[], captainId?: string): PoolT
 // tap a player to move them to a different (same-gender) tee. Purely for setting/
 // reviewing tees before forming teams — tees remain editable in the Teams step too.
 function TeesStep({
-  course, players, setPlayers, handicapAllowance, handicapBasis, onNext, onBack,
+  course, players, setPlayers, handicapAllowance, handicapBasis, nine, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
   handicapAllowance: number;
   handicapBasis: 'course' | 'index';
+  nine: 'front9' | 'back9' | null;
   onNext: () => void; onBack: () => void;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1982,7 +1995,7 @@ function TeesStep({
               </div>
               <ul className="space-y-1">
                 {members.map((p) => {
-                  const hcap = course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis)) : null;
+                  const hcap = course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine)) : null;
                   const g: 'M' | 'F' = p.gender === 'F' ? 'F' : 'M';
                   const genderTees = course.teeSets.filter((t) => (t.gender ?? 'M') === g);
                   const teeOptions = genderTees.length > 0 ? genderTees : course.teeSets;
@@ -2043,7 +2056,7 @@ function TeesStep({
 
 function TeamsStep({
   course, players, setPlayers, teams, setTeams, lockedGroups, setLockedGroups, captainIds, setCaptainIds,
-  excludeCaptains, setExcludeCaptains, useCaptains, setUseCaptains, teamBuild, setTeamBuild, handicapAllowance, handicapBasis, onNext, onBack,
+  excludeCaptains, setExcludeCaptains, useCaptains, setUseCaptains, teamBuild, setTeamBuild, handicapAllowance, handicapBasis, nine, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
@@ -2055,10 +2068,11 @@ function TeamsStep({
   teamBuild: PoolGame['teamBuild']; setTeamBuild: (b: PoolGame['teamBuild']) => void;
   handicapAllowance: number;
   handicapBasis: 'course' | 'index';
+  nine: 'front9' | 'back9' | null;
   onNext: () => void; onBack: () => void;
 }) {
   function hcapOf(p: Player): number {
-    return course ? getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis) : (p.handicapIndex ?? 0);
+    return course ? getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine) : (p.handicapIndex ?? 0);
   }
 
   const numTeams = Math.max(1, Math.ceil(players.length / 4));
@@ -2299,6 +2313,7 @@ function TeamsStep({
           course={course}
           handicapAllowance={handicapAllowance}
           handicapBasis={handicapBasis}
+          nine={nine}
           numTeams={numTeams}
           captainIds={captainIds}
           setCaptainIdsAction={setCaptainIds}
@@ -2505,12 +2520,13 @@ function TeamsStep({
 // 2v2 within-group: assign the group's players to Side A or Side B. Seeded from
 // a balanced default (low+high vs the two middle). Each player is exactly one side.
 function SubTeamsStep({
-  players, course, handicapAllowance, handicapBasis, subTeams, setSubTeams, onNext, onBack,
+  players, course, handicapAllowance, handicapBasis, nine, subTeams, setSubTeams, onNext, onBack,
 }: {
   players: Player[];
   course: CourseSelection | null;
   handicapAllowance: number;
   handicapBasis: 'course' | 'index';
+  nine: 'front9' | 'back9' | null;
   subTeams: { a: string[]; b: string[] } | undefined;
   setSubTeams: (v: { a: string[]; b: string[] }) => void;
   onNext: () => void;
@@ -2528,7 +2544,7 @@ function SubTeamsStep({
   }
 
   const balanced = effective.a.length === effective.b.length;
-  const chcp = (p: Player) => Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis));
+  const chcp = (p: Player) => Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine));
 
   return (
     <div>
@@ -2581,7 +2597,7 @@ function SubTeamsStep({
 
 function CreateStep({
   name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited,
-  moneyMode, matchConfig, handicapBasis, gameMode, onCreate, onBack,
+  moneyMode, matchConfig, handicapBasis, nine, holesPlaying, gameMode, onCreate, onBack,
 }: {
   name: string;
   entryPerPlayer: number;
@@ -2596,6 +2612,8 @@ function CreateStep({
   moneyMode: PoolMoneyMode;
   matchConfig: PoolMatchConfig;
   handicapBasis: 'course' | 'index';
+  nine: 'front9' | 'back9' | null;
+  holesPlaying: '18' | 'front9' | 'back9';
   gameMode: string | undefined;
   onCreate: () => void; onBack: () => void;
 }) {
@@ -2617,12 +2635,21 @@ function CreateStep({
   const splitTotal = potDollarsTotal(effective);
   const balanced = Math.abs(splitTotal - pot) < 0.01;
 
-  const potFields: { key: keyof PotDollars; label: string }[] = [
-    { key: 'front', label: 'Front 9' },
-    { key: 'back', label: 'Back 9' },
-    { key: 'overall', label: 'Overall' },
-    { key: 'junk', label: 'Junk' },
-  ];
+  // A 9-hole game has no front/back split — the whole non-junk pot rides on one
+  // leg over the nine played (computePoolResult collapses them the same way). So
+  // don't ASK for front/back amounts that can never pay out.
+  const nineOnly = holesPlaying !== '18';
+  const potFields: { key: keyof PotDollars; label: string }[] = nineOnly
+    ? [
+        { key: 'overall', label: holesPlaying === 'front9' ? 'Front 9' : 'Back 9' },
+        { key: 'junk', label: 'Junk' },
+      ]
+    : [
+        { key: 'front', label: 'Front 9' },
+        { key: 'back', label: 'Back 9' },
+        { key: 'overall', label: 'Overall' },
+        { key: 'junk', label: 'Junk' },
+      ];
 
   function setLeg(key: keyof PotDollars, value: string) {
     setPotEdited(true);
@@ -2717,10 +2744,21 @@ function CreateStep({
         {isMatch && !isIndividual && (
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-2">Match Payouts ($ / player)</p>
-          <div className="grid grid-cols-4 gap-2 text-center">
-            <div><p className="text-xs text-gray-500">Front 9</p><p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.front}</p></div>
-            <div><p className="text-xs text-gray-500">Back 9</p><p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.back}</p></div>
-            <div><p className="text-xs text-gray-500">Overall</p><p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.overall}</p></div>
+          {/* On a nine there is only one score leg (see potFields above), so show
+              that leg and junk rather than three legs, two of which never pay. */}
+          <div className={`grid ${nineOnly ? 'grid-cols-2' : 'grid-cols-4'} gap-2 text-center`}>
+            {nineOnly ? (
+              <div>
+                <p className="text-xs text-gray-500">{holesPlaying === 'front9' ? 'Front 9' : 'Back 9'}</p>
+                <p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.overall}</p>
+              </div>
+            ) : (
+              <>
+                <div><p className="text-xs text-gray-500">Front 9</p><p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.front}</p></div>
+                <div><p className="text-xs text-gray-500">Back 9</p><p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.back}</p></div>
+                <div><p className="text-xs text-gray-500">Overall</p><p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.overall}</p></div>
+              </>
+            )}
             <div><p className="text-xs text-gray-500">Junk / pt</p><p className="text-sm font-bold text-gray-900">${matchConfig.junkPerPoint}</p></div>
           </div>
           {teams.length !== 2 && (
@@ -2737,7 +2775,7 @@ function CreateStep({
             {teams.map((team) => {
               const combined = team.playerIds.reduce((s, pid) => {
                 const p = playerById.get(pid);
-                return p && course ? s + getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis) : s;
+                return p && course ? s + getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine) : s;
               }, 0);
               return (
                 <div key={team.id} className="rounded-lg border border-gray-200 p-2">
@@ -2751,7 +2789,7 @@ function CreateStep({
                   {team.playerIds.map((pid) => {
                     const p = playerById.get(pid);
                     if (!p) return null;
-                    const chcp = course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis)) : null;
+                    const chcp = course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine)) : null;
                     const tee = teeNameOf(p);
                     return (
                       <div key={pid} className="flex items-center gap-2 text-sm text-gray-600 py-0.5">

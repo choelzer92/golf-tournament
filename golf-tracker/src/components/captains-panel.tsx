@@ -14,7 +14,7 @@ import { getPoolPlayingHandicap, rankPlayersForCaptain } from '@/lib/pool-game';
 // on their own team and everyone else balanced evenly around them.
 export function CaptainsPanel({
   players, course, handicapAllowance, numTeams, captainIds, setCaptainIdsAction, onApplyAction,
-  excludeCaptains, setExcludeCaptainsAction, handicapBasis = 'course',
+  excludeCaptains, setExcludeCaptainsAction, handicapBasis = 'course', nine = null,
 }: {
   players: Player[];
   course: CourseSelection | null;
@@ -30,15 +30,18 @@ export function CaptainsPanel({
   excludeCaptains?: boolean;
   setExcludeCaptainsAction?: (v: boolean) => void;
   handicapBasis?: 'course' | 'index';
+  // The game's USGA nine, so the handicaps shown here match the rest of the game
+  // (a 9-hole USGA game plays off roughly half these numbers).
+  nine?: 'front9' | 'back9' | null;
 }) {
   const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? '';
   const chcpOf = (id: string) => {
     const p = players.find((x) => x.id === id);
-    return p && course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis)) : null;
+    return p && course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine)) : null;
   };
 
   // Field ordered best-first, for the "auto-pick" hint and dropdown ordering.
-  const ranked = rankPlayersForCaptain(players, course, handicapAllowance, handicapBasis);
+  const ranked = rankPlayersForCaptain(players, course, handicapAllowance, handicapBasis, nine);
   const orderedPlayers = ranked
     .map((r) => players.find((p) => p.id === r.playerId))
     .filter((p): p is Player => !!p);

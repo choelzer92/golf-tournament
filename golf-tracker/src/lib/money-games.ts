@@ -2,7 +2,7 @@ import type { Player, GameScore, TeeSetOption } from './game-state';
 import type { Tournament, TournamentRound, SkinsConfig, TeamNassauConfig } from './tournament-state';
 import { loadGameScores } from './tournament-state';
 import { getHoleDataForRound } from './live-scoring';
-import { calcCourseHandicap } from './game-state';
+import { calcCourseHandicap, applyAllowance } from './game-state';
 
 export interface NassauLegResult {
   teamATotal: number;
@@ -94,19 +94,20 @@ export function getMoneyGamePlayingHandicap(player: Player, round: TournamentRou
 
   const playerTee = getPlayerTee(player, round);
   if (!playerTee) {
-    // Fallback if no course data: apply allowance to index directly
-    return player.handicapIndex * (allowance / 100);
+    // Fallback if no course data: the index stands in for the course handicap.
+    return applyAllowance(player.handicapIndex, allowance);
   }
 
   const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');
   if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) {
-    return player.handicapIndex * (allowance / 100);
+    return applyAllowance(player.handicapIndex, allowance);
   }
 
   const courseHcap = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar);
   if (isNaN(courseHcap)) return 0;
 
-  return courseHcap * (allowance / 100);
+  // USGA order: round the Course Handicap, THEN apply the allowance.
+  return applyAllowance(courseHcap, allowance);
 }
 
 export function getMoneyStrokesOnHole(playingHcap: number, holeHandicap: number, numHoles: number): number {

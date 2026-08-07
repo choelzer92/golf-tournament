@@ -1,6 +1,6 @@
 import type { Player, GameScore, CourseSelection, TeeSetOption } from './game-state';
 import type { SideGame, SideGameTeam } from './tournament-state';
-import { calcCourseHandicap } from './game-state';
+import { calcCourseHandicap, applyAllowance } from './game-state';
 import { getMoneyStrokesOnHole } from './money-games';
 
 interface HoleData {
@@ -62,14 +62,15 @@ function getPlayingHandicap(player: Player, course: CourseSelection | null, allo
   // null = index unknown; 0 = genuine scratch, negative = plus golfer.
   if (player.handicapIndex == null || Number.isNaN(player.handicapIndex)) return 0;
   const tee = getPlayerTee(player, course);
-  if (!tee) return player.handicapIndex * (allowance / 100);
+  if (!tee) return applyAllowance(player.handicapIndex, allowance);
   const totalRating = tee.ratings?.find((r) => r.type === 'Total');
   if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) {
-    return player.handicapIndex * (allowance / 100);
+    return applyAllowance(player.handicapIndex, allowance);
   }
   const courseHcap = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, tee.totalPar);
   if (isNaN(courseHcap)) return 0;
-  return courseHcap * (allowance / 100);
+  // USGA order: round the Course Handicap, THEN apply the allowance.
+  return applyAllowance(courseHcap, allowance);
 }
 
 function computeLegPayout(rankings: { teamId: string; teamName: string; points: number }[], entryPerTeam: number, payoutSplit?: number[]): SideGameNassauLeg['rankings'] {

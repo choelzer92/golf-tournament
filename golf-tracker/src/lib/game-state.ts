@@ -99,6 +99,26 @@ export function calcCourseHandicap(
   return handicapIndex * (slopeRating / 113) + (courseRating - par);
 }
 
+// Apply a handicap allowance the way the USGA does (Rules of Handicapping 6.1 →
+// 6.2): Course Handicap is rounded to a whole number FIRST — that integer is
+// what GHIN displays and what a player writes on the card — and the allowance is
+// applied to THAT. Callers round the result when they need an integer.
+//
+// The order matters. round(CH × allowance) and round(CH) × allowance diverge
+// whenever the fractional course handicaps in a field round in different
+// directions, and under off-the-low that difference shows up as a whole stroke.
+// This lives here, next to calcCourseHandicap, because EVERY scoring path (pool,
+// tournament live scoring, money games, side games, the quick-game play page)
+// must apply the allowance identically or the same player gets different strokes
+// on different screens.
+//
+// NOTE: this is only for the 'course' handicap basis. The 'index' basis
+// deliberately skips the slope/rating conversion, so there is no Course Handicap
+// to round — applying this there would change what the organizer asked for.
+export function applyAllowance(courseHandicap: number, allowancePercent: number): number {
+  return Math.round(courseHandicap) * (allowancePercent / 100);
+}
+
 // Parse a GHIN handicap index into a number with the correct sign. GHIN sends
 // "plus" handicaps (better than scratch) as a "+"-prefixed string like "+0.4",
 // which must become NEGATIVE (-0.4) — a plus golfer ADDS strokes. parseFloat

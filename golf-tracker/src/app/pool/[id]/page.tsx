@@ -12,6 +12,7 @@ import {
   savePoolGame,
   subscribeToPoolGame,
   getPoolPlayingHandicap,
+  gameNineBasis,
   computePoolPlayerDetails,
   getFieldLow,
   getPar3Holes,
@@ -154,8 +155,16 @@ export default function PoolHubPage() {
     // match the pool leaderboard (which also subtracts the field low).
     let offTheLowBaseline: number | undefined;
     if (strokeMethod === 'off-the-low' && game!.players.length > 0) {
+      // Pass the game's USGA nine (null on 18 or the casual 18-hole basis) so the
+      // baseline is on the SAME SCALE as the handicaps the scorecard computes.
+      // Omitting it produced an 18-hole baseline subtracted from a 9-hole
+      // handicap, which is how the card came to show "Plays: −1.03" for the low
+      // man (his 9-hole 1.80 minus an 18-hole 2.70). Strokes were always right —
+      // buildHcapMap passes the nine — but the displayed number was not.
+      const nine = gameNineBasis(game!);
       offTheLowBaseline = Math.min(
-        ...game!.players.map((p) => getPoolPlayingHandicap(p, game!.course, game!.handicapAllowance, game!.handicapBasis))
+        ...game!.players.map((p) =>
+          getPoolPlayingHandicap(p, game!.course, game!.handicapAllowance, game!.handicapBasis, nine))
       );
     }
 
@@ -636,6 +645,34 @@ function NumberField({
 // Details step, gated by money mode, and saves every change straight onto the
 // game so the leaderboard/scorecards recompute live. Team building, tees, and
 // the field are edited elsewhere (EditFoursomes) — this is money + scoring only.
+// How a 9-hole game figures handicaps. This was settable in the create wizard
+// but nowhere afterward, so a game created with the wrong basis couldn't be
+// corrected — and the two bases give materially different strokes, so it's not a
+// setting you want frozen at creation.
+function NineBasisField({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
+  if (!game.holesPlaying || game.holesPlaying === '18') return null;
+  const basis = game.nineHandicapBasis ?? '18';
+  const nine = game.holesPlaying === 'front9' ? 'front' : 'back';
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-800 mb-1">9-hole handicap</label>
+      <select
+        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+        value={basis}
+        onChange={(e) => onSave({ ...game, nineHandicapBasis: e.target.value as '18' | '9' })}
+      >
+        <option value="18">Half of 18-hole (casual)</option>
+        <option value="9">9-hole USGA</option>
+      </select>
+      <p className="text-xs text-gray-500 mt-1">
+        {basis === '18'
+          ? `Full 18-hole course handicap, with strokes falling on the ${nine} nine by the regular 18-hole stroke index — so each player gets roughly half their strokes.`
+          : `The tee's ${nine}-nine rating with each handicap halved, and the stroke index re-ranked 1–9. Technically correct, less common casually.`}
+      </p>
+    </div>
+  );
+}
+
 function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
   const isMatch = (game.moneyMode ?? 'pot') === 'match';
   const junk = game.junkValues ?? DEFAULT_JUNK_VALUES;
@@ -758,6 +795,7 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
               <option value="index">Player handicap index</option>
             </select>
           </div>
+          <NineBasisField game={game} onSave={onSave} />
           <div className="pt-2 border-t">
             <p className="text-sm font-semibold text-gray-800 mb-2">{indMode.name} options</p>
             <ModeSettingsEditor schema={indMode.settings} values={modeSettings} onChangeAction={setModeSetting} />
@@ -863,6 +901,8 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
               : 'Strokes use each player’s course handicap off their tee (slope/rating adjusted).'}
           </p>
         </div>
+
+        <NineBasisField game={game} onSave={onSave} />
 
         {isMatch ? (
           <div className="border-t pt-3">
@@ -1565,7 +1605,9 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
       const groups = balanceTeamsWithLocks(
         game.players,
         numTeams,
-        (p) => getPoolPlayingHandicap(p, course, game.handicapAllowance, game.handicapBasis),
+        // Balance on the SAME scale the game actually plays off (9-hole handicaps
+        // on a USGA nine), or teams are balanced against numbers nobody uses.
+        (p) => getPoolPlayingHandicap(p, course, game.handicapAllowance, game.handicapBasis, gameNineBasis(game)),
         game.lockedGroups ?? []
       );
       applyReshuffle(groups, [], {
@@ -1581,7 +1623,9 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
     const groups = balanceTeamsWithCaptains(
       game.players,
       numTeams,
-      (p) => getPoolPlayingHandicap(p, course, game.handicapAllowance),
+      // Also pass the basis (it was omitted here, so an 'index'-basis game
+      // balanced off course handicaps) and the game's nine.
+      (p) => getPoolPlayingHandicap(p, course, game.handicapAllowance, game.handicapBasis, gameNineBasis(game)),
       captainByTeam,
       game.lockedGroups ?? [],
       excludeCaptains
@@ -1658,6 +1702,7 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
           course={course}
           handicapAllowance={game.handicapAllowance}
           handicapBasis={game.handicapBasis}
+          nine={gameNineBasis(game)}
           numTeams={numTeams}
           captainIds={captainIds}
           setCaptainIdsAction={setCaptainIds}
