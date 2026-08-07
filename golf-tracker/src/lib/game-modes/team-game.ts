@@ -3,7 +3,7 @@ import type { HoleData } from '../pool-game';
 import { teamHandicapForFormat } from '../pool-game';
 import { getMoneyStrokesOnHole } from '../money-games';
 import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding, TeamLegLine } from './types';
-import { numberSetting, stringSetting } from './settings';
+import { numberSetting, stringSetting, JUNK_SETTINGS, settleJunkForSides } from './settings';
 
 // 2-vs-2 within one foursome. The group's players are split into two SIDES
 // (ctx.subTeams). Each hole yields one team score per side by the chosen FORMAT;
@@ -64,6 +64,7 @@ const SETTINGS: FormatSetting[] = [
   { key: 'altShotAllowance', label: 'Alt-shot allowance (%)', type: 'number', defaultValue: 50, hint: 'Alternate shot only: % of the 60/40 combined handicap. USGA default 50.', showIf: { key: 'format', in: ['alternate-shot'] } },
   { key: 'sideAName', label: 'Side A name', type: 'text', defaultValue: '', hint: 'Optional — leave blank to name it after its players.' },
   { key: 'sideBName', label: 'Side B name', type: 'text', defaultValue: '', hint: 'Optional — leave blank to name it after its players.' },
+  ...JUNK_SETTINGS,
 ];
 
 type Side = 'a' | 'b';
@@ -257,6 +258,10 @@ function compute(ctx: GameModeContext): IndividualResult {
   stand.a.moneyNet = aMoney;
   stand.b.moneyNet = -aMoney;
 
+  // Birdie/eagle bonuses. Earned by individuals but settled between the two
+  // SIDES, since a 2v2 game's money is head-to-head, not a free-for-all.
+  const junkLines = settleJunkForSides(SETTINGS, ctx.settings, ctx, [stand.a, stand.b], sides);
+
   const metricLabel = result === 'match' ? 'match pts' : scoring === 'stableford' ? 'pts' : 'net';
   // Order the two sides by who's winning (place 1 first). Unscored (place 0) sinks
   // last. Without this the board always listed A then B regardless of the lead.
@@ -268,7 +273,7 @@ function compute(ctx: GameModeContext): IndividualResult {
   return {
     kind: 'individual', gameModeId: 'team-2v2', metricLabel,
     standings, pot: 0, thruHole, moneyModel: 'per-point',
-    teamLegs, sideNames: { a: nameA, b: nameB },
+    teamLegs, sideNames: { a: nameA, b: nameB }, junkLines: junkLines ?? undefined,
   };
 }
 

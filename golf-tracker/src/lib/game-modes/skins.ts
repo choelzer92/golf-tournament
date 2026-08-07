@@ -2,7 +2,7 @@ import type { FormatSetting } from '../formats';
 import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding } from './types';
 import { rankByPointsDesc } from './types';
 import type { NassauLegLine } from './types';
-import { numberSetting, stringSetting, boolSetting, NASSAU_SETTINGS, settleNassauFromSettings } from './settings';
+import { numberSetting, stringSetting, boolSetting, NASSAU_SETTINGS, settleNassauFromSettings, JUNK_SETTINGS, settleJunkFromSettings } from './settings';
 
 // Skins. Each hole is a skin; the outright low score wins it. A tie carries the
 // skin (and any carried skins) to the next hole when carryover is on; with
@@ -29,6 +29,7 @@ const SETTINGS: FormatSetting[] = [
     showIf: { key: 'moneyModel', in: ['per-skin'] },
   },
   ...NASSAU_SETTINGS,
+  ...JUNK_SETTINGS,
 ];
 
 function compute(ctx: GameModeContext): IndividualResult {
@@ -92,11 +93,14 @@ function compute(ctx: GameModeContext): IndividualResult {
     }
   }
 
+  // Birdie/eagle bonuses, on top of this game's own money model.
+  const junkLines = settleJunkFromSettings(SETTINGS, ctx.settings, ctx, standings);
+
   return {
     kind: 'individual', gameModeId: 'skins', metricLabel: 'skins',
     standings, pot: 0, thruHole,
     moneyModel: moneyModel === 'nassau' ? 'pot' : 'per-point',
-    nassauLegs,
+    nassauLegs, junkLines: junkLines ?? undefined,
   };
 }
 

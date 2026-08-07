@@ -126,6 +126,20 @@ export interface IndividualResult {
   // for the leaderboard. Present when moneyModel is 'pot' and the game used a
   // Nassau (buy-in, split-by-segment) settlement.
   nassauLegs?: NassauLegLine[];
+  // Birdie/eagle bonus breakdown, when the junk layer is on (any mode). Already
+  // settled into standings.moneyNet — this is for display only.
+  junkLines?: JunkLine[];
+}
+
+// One player's birdie/eagle bonus tally. Mirrors settings.ts's JunkLine; declared
+// there because that's where the settlement lives.
+export interface JunkLine {
+  playerId: string;
+  playerName: string;
+  birdies: number;
+  eagles: number;
+  albatrosses: number;
+  dollars: number;
 }
 
 // One Nassau segment's pot result for the leaderboard. `value` a winner needed

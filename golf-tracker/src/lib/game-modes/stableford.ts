@@ -2,7 +2,7 @@ import type { FormatSetting } from '../formats';
 import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding } from './types';
 import { rankByPointsDesc, settlePerPoint } from './types';
 import type { NassauLegLine } from './types';
-import { numberSetting, stringSetting, parseVector, NASSAU_SETTINGS, settleNassauFromSettings } from './settings';
+import { numberSetting, stringSetting, parseVector, NASSAU_SETTINGS, settleNassauFromSettings, JUNK_SETTINGS, settleJunkFromSettings } from './settings';
 
 // Stableford (individual). Points per hole vs par off the net (or gross) score.
 // Highest total wins. The scale is selectable: Standard (5/4/3/2/1/0 for
@@ -51,6 +51,7 @@ const SETTINGS: FormatSetting[] = [
   },
   { key: 'dollarsPerPoint', label: '$ per point', type: 'number', defaultValue: 1, hint: 'Settle (points − group avg) × this. Zero-sum.', showIf: { key: 'moneyModel', in: ['per-point'] } },
   ...NASSAU_SETTINGS,
+  ...JUNK_SETTINGS,
 ];
 
 function compute(ctx: GameModeContext): IndividualResult {
@@ -94,11 +95,14 @@ function compute(ctx: GameModeContext): IndividualResult {
     settlePerPoint(standings, dollarsPerPoint);
   }
 
+  // Birdie/eagle bonuses, on top of this game's own money model.
+  const junkLines = settleJunkFromSettings(SETTINGS, ctx.settings, ctx, standings);
+
   return {
     kind: 'individual', gameModeId: 'stableford-ind', metricLabel: 'pts',
     standings, pot: 0, thruHole,
     moneyModel: moneyModel === 'nassau' ? 'pot' : 'per-point',
-    nassauLegs,
+    nassauLegs, junkLines: junkLines ?? undefined,
   };
 }
 

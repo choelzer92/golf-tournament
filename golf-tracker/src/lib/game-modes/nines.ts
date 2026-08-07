@@ -2,7 +2,7 @@ import type { FormatSetting } from '../formats';
 import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding } from './types';
 import { rankByPointsDesc, settlePerPoint, settlePot } from './types';
 import type { NassauLegLine } from './types';
-import { numberSetting, stringSetting, parseVector, NASSAU_SETTINGS, settleNassauFromSettings } from './settings';
+import { numberSetting, stringSetting, parseVector, NASSAU_SETTINGS, settleNassauFromSettings, JUNK_SETTINGS, settleJunkFromSettings } from './settings';
 
 // Nines (a.k.a. 9s / 5-3-1). On each hole a fixed pool of points (default 9,
 // split 5/3/1) is divided among the group by score — best score takes the top
@@ -36,6 +36,7 @@ const SETTINGS: FormatSetting[] = [
     showIf: { key: 'moneyModel', in: ['per-point'] },
   },
   ...NASSAU_SETTINGS,
+  ...JUNK_SETTINGS,
 ];
 
 // Distribute a point vector across N ranked players with tie-averaging. `order`
@@ -107,11 +108,14 @@ function compute(ctx: GameModeContext): IndividualResult {
   }
 
   const resultMoneyModel: 'per-point' | 'pot' = moneyModel === 'per-point' ? 'per-point' : 'pot';
+  // Birdie/eagle bonuses, on top of this game's own money model.
+  const junkLines = settleJunkFromSettings(SETTINGS, ctx.settings, ctx, standings);
+
   return {
     kind: 'individual', gameModeId: 'nines', metricLabel: 'pts',
     standings, pot: moneyModel === 'pot' ? ctx.pot : 0, thruHole,
     moneyModel: resultMoneyModel,
-    nassauLegs,
+    nassauLegs, junkLines: junkLines ?? undefined,
   };
 }
 

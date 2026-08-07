@@ -15,7 +15,7 @@ import {
   DEFAULT_MATCH_CONFIG,
 } from '@/lib/pool-game';
 import { getGameMode, type IndividualResult } from '@/lib/game-modes';
-import type { WolfHoleLine, NassauLegLine } from '@/lib/game-modes/types';
+import type { WolfHoleLine, NassauLegLine, JunkLine } from '@/lib/game-modes/types';
 import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
 
 const LEG_LABELS: Record<PoolLegKey, string> = {
@@ -870,6 +870,12 @@ function IndividualLeaderboard({ id }: { id: string }) {
               <NassauPayoutBoard legs={result.nassauLegs} />
             )}
 
+            {/* Birdie / eagle bonus breakdown (any mode with the junk layer on).
+                Already settled into moneyNet above — this shows who earned what. */}
+            {result.junkLines && result.junkLines.some((l) => l.birdies || l.eagles || l.albatrosses) && (
+              <JunkBonusBoard lines={result.junkLines} />
+            )}
+
             {/* Wolf hole-by-hole matchup breakdown — who was Wolf, their call,
                 both sides' best net, and who took the points. */}
             {result.wolfHoles && result.wolfHoles.length > 0 && (
@@ -1125,4 +1131,49 @@ function countAtScore(teamScores: Record<string, number | null>, score: number |
   let n = 0;
   for (const s of Object.values(teamScores)) if (s === score) n++;
   return n;
+}
+
+// Who earned birdie/eagle bonuses. The dollars column is what a player EARNED
+// gross; the actual signed settlement is already folded into the standings' money
+// column (each earner collects from the others), so this is a breakdown, not a
+// second payout.
+function JunkBonusBoard({ lines }: { lines: JunkLine[] }) {
+  const rows = [...lines]
+    .filter((l) => l.birdies || l.eagles || l.albatrosses)
+    .sort((a, b) => b.dollars - a.dollars);
+  if (rows.length === 0) return null;
+  return (
+    <div className="bg-gray-800 rounded-xl overflow-hidden">
+      <div className="px-4 py-2 border-b border-gray-700">
+        <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Birdie / Eagle Bonuses</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="text-xs w-full">
+          <thead>
+            <tr className="text-gray-500 border-b border-gray-700/50">
+              <th className="text-left px-3 py-1.5 font-medium">Player</th>
+              <th className="text-center px-2 py-1.5 font-medium">Bird</th>
+              <th className="text-center px-2 py-1.5 font-medium">Eagle</th>
+              <th className="text-center px-2 py-1.5 font-medium">Alb</th>
+              <th className="text-center px-3 py-1.5 font-bold text-gray-400">Earned</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((l, idx) => (
+              <tr key={l.playerId} className={idx > 0 ? 'border-t border-gray-700/30' : ''}>
+                <td className="px-3 py-1.5 text-gray-300 font-medium whitespace-nowrap">{l.playerName.split(' ')[0]}</td>
+                <td className="text-center px-2 py-1.5 text-gray-300">{l.birdies || '-'}</td>
+                <td className="text-center px-2 py-1.5 text-gray-300">{l.eagles || '-'}</td>
+                <td className="text-center px-2 py-1.5 text-gray-300">{l.albatrosses || '-'}</td>
+                <td className="text-center px-3 py-1.5 font-bold text-green-300">${l.dollars}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="px-3 py-1.5 text-[10px] text-gray-500 border-t border-gray-700">
+        Already included in the money column — each earner collects from the rest of the group.
+      </p>
+    </div>
+  );
 }

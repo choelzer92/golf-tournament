@@ -1,6 +1,6 @@
 import type { FormatSetting } from '../formats';
 import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding, NassauLegLine } from './types';
-import { numberSetting, stringSetting, NASSAU_SETTINGS, settleNassauFromSettings } from './settings';
+import { numberSetting, stringSetting, NASSAU_SETTINGS, settleNassauFromSettings, JUNK_SETTINGS, settleJunkFromSettings } from './settings';
 
 // Low total pool. Lowest NET (or gross) total over the round wins. Unlike the
 // points games, LOWER is better — so ranking and money are handled directly here
@@ -24,6 +24,7 @@ const SETTINGS: FormatSetting[] = [
   { key: 'dollarsPerStroke', label: '$ per stroke', type: 'number', defaultValue: 1, hint: 'Settle (field avg − your total) × this. Zero-sum.', showIf: { key: 'moneyModel', in: ['per-stroke'] } },
   { key: 'entryPerPlayer', label: 'Buy-in ($ / player)', type: 'number', defaultValue: 20, hint: 'Lowest total wins the pot; ties split.', showIf: { key: 'moneyModel', in: ['pot'] } },
   ...NASSAU_SETTINGS,
+  ...JUNK_SETTINGS,
 ];
 
 function compute(ctx: GameModeContext): IndividualResult {
@@ -87,10 +88,13 @@ function compute(ctx: GameModeContext): IndividualResult {
     }
   }
 
+  // Birdie/eagle bonuses, on top of this game's own money model.
+  const junkLines = settleJunkFromSettings(SETTINGS, ctx.settings, ctx, standings);
+
   return {
     kind: 'individual', gameModeId: 'low-total', metricLabel: basis === 'gross' ? 'gross' : 'net',
     standings, pot: moneyModel === 'pot' ? played.length * entry : 0, thruHole, moneyModel: 'per-point',
-    nassauLegs,
+    nassauLegs, junkLines: junkLines ?? undefined,
   };
 }
 

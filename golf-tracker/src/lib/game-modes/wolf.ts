@@ -3,7 +3,7 @@ import type { HoleData } from '../pool-game';
 import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding, WolfHoleLine } from './types';
 import { rankByPointsDesc, settlePerPoint } from './types';
 import type { NassauLegLine } from './types';
-import { numberSetting, stringSetting, NASSAU_SETTINGS, settleNassauFromSettings } from './settings';
+import { numberSetting, stringSetting, NASSAU_SETTINGS, settleNassauFromSettings, JUNK_SETTINGS, settleJunkFromSettings } from './settings';
 
 // Wolf. Each hole one player is the "Wolf" (rotating by tee order). The Wolf
 // either takes a PARTNER (2v2, best net of the pair vs best net of the other
@@ -35,6 +35,7 @@ const SETTINGS: FormatSetting[] = [
   },
   { key: 'dollarsPerPoint', label: '$ per point', type: 'number', defaultValue: 1, hint: 'Settle (points − group avg) × this. Zero-sum.', showIf: { key: 'moneyModel', in: ['per-point'] } },
   ...NASSAU_SETTINGS,
+  ...JUNK_SETTINGS,
 ];
 
 // Best score (lower = better) among a set of players on a hole; null if none scored.
@@ -138,11 +139,14 @@ function compute(ctx: GameModeContext): IndividualResult {
     settlePerPoint(standings, dollarsPerPoint);
   }
 
+  // Birdie/eagle bonuses, on top of this game's own money model.
+  const junkLines = settleJunkFromSettings(SETTINGS, ctx.settings, ctx, standings);
+
   return {
     kind: 'individual', gameModeId: 'wolf', metricLabel: 'pts',
     standings, pot: 0, thruHole,
     moneyModel: moneyModel === 'nassau' ? 'pot' : 'per-point',
-    wolfHoles, nassauLegs,
+    wolfHoles, nassauLegs, junkLines: junkLines ?? undefined,
   };
 }
 
