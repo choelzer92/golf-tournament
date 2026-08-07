@@ -216,7 +216,19 @@ function compute(ctx: GameModeContext): IndividualResult {
     const status = va === vb ? 'Tied' : `${aBetter ? nameA : nameB} by ${margin % 1 === 0 ? margin : margin.toFixed(1)}`;
     return { key, label: legLabel(key), status, winner, thru };
   };
-  const teamLegs: TeamLegLine[] = [legLine('front'), legLine('back'), legLine('overall')];
+  // A 9-hole game has ONE leg. Every hole in ctx.holes belongs to the played
+  // nine, so the other nine's leg is permanently empty while 'overall' covers
+  // exactly the same holes as the played leg — under the 'legs' money model that
+  // paid the SAME nine twice (front + overall) and showed two dead rows on the
+  // leaderboard. Collapse to a single leg labelled for the nine actually played.
+  const nineOnly = ctx.holes.length > 0 && ctx.holes.every((h) => h.number > 9)
+    ? 'back'
+    : ctx.holes.length > 0 && ctx.holes.every((h) => h.number <= 9) && ctx.holes.length <= 9
+      ? 'front'
+      : null;
+  const teamLegs: TeamLegLine[] = nineOnly
+    ? [{ ...legLine('overall'), key: nineOnly, label: nineOnly === 'front' ? 'Front 9' : 'Back 9' }]
+    : [legLine('front'), legLine('back'), legLine('overall')];
 
   // Money — zero-sum head-to-head. Positive to A means B owes it.
   let aMoney = 0;
@@ -230,11 +242,17 @@ function compute(ctx: GameModeContext): IndividualResult {
       : scoring === 'stableford' ? totalA - totalB : totalB - totalA;
     aMoney = marginA * dollarsPerPoint;
   } else {
-    // legs: each leg's winner collects that leg's dollars.
+    // legs: each leg's winner collects that leg's dollars. On a nine there is a
+    // single leg, paid at the 'overall' rate — paying front AND overall would
+    // settle the same nine holes twice.
     const legSign = (l: TeamLegLine) => (l.winner === 'a' ? 1 : l.winner === 'b' ? -1 : 0);
-    aMoney += legSign(teamLegs[0]) * legDollars.front;
-    aMoney += legSign(teamLegs[1]) * legDollars.back;
-    aMoney += legSign(teamLegs[2]) * legDollars.overall;
+    if (nineOnly) {
+      aMoney += legSign(teamLegs[0]) * legDollars.overall;
+    } else {
+      aMoney += legSign(teamLegs[0]) * legDollars.front;
+      aMoney += legSign(teamLegs[1]) * legDollars.back;
+      aMoney += legSign(teamLegs[2]) * legDollars.overall;
+    }
   }
   stand.a.moneyNet = aMoney;
   stand.b.moneyNet = -aMoney;
