@@ -1756,6 +1756,39 @@ export function computePoolPlayerDetails(
 }
 
 // ---------------------------------------------------------------------------
+// Completion
+// ---------------------------------------------------------------------------
+
+// Is every player in every foursome scored on every hole this game plays?
+//
+// This is the gate for status:'completed', which is what the stats/money ledger
+// (lib/stats-ledger.ts) selects on. It has to be a WHOLE-GAME check: one
+// foursome tapping "Finish Game" must not complete a multi-foursome pool, since
+// the other groups are still out there and the payouts aren't final.
+//
+// `scoresByMatchup` is the same map the leaderboard builds (matchupId -> scores),
+// so callers pass what they already fetched — this stays pure.
+export function isPoolGameFullyScored(
+  game: PoolGame,
+  scoresByMatchup: Map<string, GameScore[]>,
+): boolean {
+  const holes = getGameHoles(game);
+  if (holes.length === 0 || game.teams.length === 0) return false;
+  for (const team of game.teams) {
+    if (team.playerIds.length === 0) return false;
+    const scores = scoresByMatchup.get(team.matchupId);
+    if (!scores || scores.length === 0) return false;
+    for (const pid of team.playerIds) {
+      const scored = new Set(
+        scores.filter((s) => s.playerId === pid && s.grossScore != null).map((s) => s.hole),
+      );
+      if (holes.some((h) => !scored.has(h.number))) return false;
+    }
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Persistence — mirrors tournament-state.ts (in-memory cache + Supabase).
 // Per-foursome scores reuse the existing game_scores table (keyed by matchupId)
 // via the helpers in tournament-state.ts, so nothing is duplicated here.
