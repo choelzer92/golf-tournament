@@ -3,3 +3,101 @@
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
+
+# This project
+
+**Goal: an intuitive UI that makes starting, tracking, and continuing a golf game
+as easy as possible — with more possibilities than any other app on the market.**
+
+The central tension is **maximum possibility, minimum exposed complexity**.
+Configurable ≠ complicated: every option needs a sane default, `showIf` hides it
+until relevant, and "just the usual game" must never require touching one. If a
+new capability demands a bespoke screen, that's a design smell.
+
+All three verbs matter. **"Continuing" is the most neglected and most valuable** —
+state surviving a sleeping phone, a guest joining at the turn, a score fixed after
+the fact, and a season-long money ledger. Bias effort there.
+
+## Read before touching UI
+
+- **`UI_CONVENTIONS.md`** — money formatting, vocabulary, labels, empty states,
+  layout, and the setup-flow rules. Read it before changing any screen.
+- **`UI_MODE_AUDIT.md`** — the surface × game-mode audit method, plus findings.
+  Use its grep probes when hunting for cross-mode drift.
+
+## The one rule that prevents most bugs
+
+Two parallel presentation axes exist: the classic **team** pool (N foursomes) and
+**single-group** games (`individual` + `team-within-group`, i.e. 2v2). Both render
+from `pool/[id]/leaderboard/page.tsx`, branching on `isSingleGroupGame(game)`
+(`lib/game-modes/result.ts`).
+
+> Touching a shared surface? Check **both** sides of that branch.
+
+Most findings in the audit were one axis drifting from the other — each screen
+individually fine, only wrong when compared.
+
+## Architecture worth preserving
+
+- **The compute layer is pure.** Nothing in `lib/game-modes/*` or
+  `money-games.ts` touches Supabase, fetch, storage, `Date.now()`, or randomness.
+  Keep it that way — it's what makes the money math testable.
+- **All persistence is contained.** Every Supabase call lives in 5 lib files
+  (`pool-game`, `tournament-state`, `roster`, `roster-groups`, `solo-round`).
+  Pages never talk to the DB directly. Don't add a call site in `app/`.
+- **Adding a game mode = one file + one registry line.** Settings render
+  generically from each mode's `FormatSetting[]`; no bespoke settings screens.
+- **The money engine is the source of truth for strokes.** The scorecard defers
+  to it (`getMoneyStrokesOnHole`) so on-screen dots always match payouts.
+
+## How to work here
+
+**Document first, change on request.** Investigate, analyze, and report freely —
+reading, grepping, typecheck/build/tests risk nothing. But changing app code
+happens when Craig asks for it, not on your own judgment. Write findings down
+(see `UI_MODE_AUDIT.md` for the format) and propose; don't fix on sight.
+
+**Stop and ask** before anything that:
+- changes money, handicap, or scoring math
+- alters a rule mid-round (e.g. how a scorecard computes team rows)
+- is irreversible or touches live data
+- has more than one defensible answer
+
+Small mechanical fixes inside already-authorized work (a typo, a missing import)
+don't need a check-in — just mention them.
+
+**Never commit or push** unless explicitly asked.
+
+## Testing
+
+`npm test` (vitest) covers the **pure compute layer** — every game mode's money
+math, handicap strokes, Nassau/junk settlement, both leaderboard axes.
+`src/test/fixtures.ts` builds a `PoolGame` in one line; `fixtures.test.ts`
+verifies the two assumptions every other assertion rests on (Course Handicap ==
+Handicap Index, stroke index == hole number).
+
+Rules that keep this valuable:
+
+- **Never change app code to make it testable.** The compute layer is already
+  pure — that's why no production code needed touching to add these tests. If a
+  test seems to need a hook in `src/`, the test is wrong.
+- **Assert money is zero-sum.** Every mode, every money model. It's the invariant
+  that catches real bugs.
+- **Exercise `playersMin`, not just a foursome**, and both 9-hole handicap bases.
+  Several real bugs lived exactly there.
+
+## Safety
+
+`.env.local` points at the **live** Supabase holding real games — the app is
+deployed and publicly reachable. Never run scripts that write to it for testing.
+
+Tests are isolated by two independent mechanisms, both verified:
+
+1. Vitest doesn't load `.env.local` (that's a Next.js behavior), so the
+   credentials simply aren't present in a test process.
+2. `src/test/setup.ts` stubs `@/lib/supabase` so every persistence method throws,
+   hard-fails the run if those env vars ever appear, and makes any network call
+   an error.
+
+Anything needing real persistence (e.g. future Playwright work) must use an
+injected in-memory store, not the live client.
