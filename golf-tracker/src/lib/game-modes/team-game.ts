@@ -1,6 +1,7 @@
 import type { FormatSetting } from '../formats';
-import type { HoleData } from '../pool-game';
+import type { HoleData, PoolGame } from '../pool-game';
 import { teamHandicapForFormat } from '../pool-game';
+import type { Player } from '../game-state';
 import { getMoneyStrokesOnHole } from '../money-games';
 import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding, TeamLegLine } from './types';
 import { numberSetting, stringSetting, JUNK_SETTINGS, settleJunkForSides } from './settings';
@@ -69,6 +70,37 @@ const SETTINGS: FormatSetting[] = [
 
 type Side = 'a' | 'b';
 
+// The ONE place a 2v2 side gets its display name. Custom name if set, else the
+// side's players' first names ("Craig & Jym"), else "Side A"/"Side B".
+// Exported so the SCORECARD (play page) labels sides identically to the
+// leaderboard — it previously fell back to "Team A"/"Team B", so the same game
+// read two different ways on two screens.
+export function sideNameFrom(
+  players: Pick<Player, 'id' | 'name'>[],
+  ids: string[],
+  side: Side,
+  customName?: string,
+): string {
+  const custom = (customName ?? '').trim();
+  if (custom) return custom;
+  const names = ids
+    .map((id) => players.find((p) => p.id === id)?.name.split(' ')[0])
+    .filter(Boolean);
+  return names.length ? names.join(' & ') : `Side ${side.toUpperCase()}`;
+}
+
+// Both sides' display names for a saved 2v2 game. Used by the play page (which
+// has a PoolGame, not a GameModeContext) so scorecard labels match the board.
+export function sideNamesForGame(
+  game: PoolGame,
+  sides: { a: string[]; b: string[] },
+): { A: string; B: string } {
+  return {
+    A: sideNameFrom(game.players, sides.a, 'a', String(game.modeSettings?.sideAName ?? '')),
+    B: sideNameFrom(game.players, sides.b, 'b', String(game.modeSettings?.sideBName ?? '')),
+  };
+}
+
 function compute(ctx: GameModeContext): IndividualResult {
   const format = stringSetting(SETTINGS, ctx.settings, 'format');
   const scoring = stringSetting(SETTINGS, ctx.settings, 'scoring');  // 'stableford' | 'stroke'
@@ -92,11 +124,8 @@ function compute(ctx: GameModeContext): IndividualResult {
     a: stringSetting(SETTINGS, ctx.settings, 'sideAName').trim(),
     b: stringSetting(SETTINGS, ctx.settings, 'sideBName').trim(),
   };
-  const nameFor = (side: Side): string => {
-    if (customName[side]) return customName[side];
-    const names = sideIds(side).map((id) => ctx.players.find((p) => p.id === id)?.name.split(' ')[0]).filter(Boolean);
-    return names.length ? names.join(' & ') : `Side ${side.toUpperCase()}`;
-  };
+  const nameFor = (side: Side): string =>
+    sideNameFrom(ctx.players, sideIds(side), side, customName[side]);
 
   // Team handicap for the single-ball formats (undefined for best-ball/combined).
   const isSingleBall = format === 'scramble' || format === 'alternate-shot';

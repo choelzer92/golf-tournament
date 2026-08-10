@@ -34,7 +34,9 @@ import {
   DEFAULT_JUNK_VALUES,
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
+  isPoolGameFullyScored,
 } from '@/lib/pool-game';
+import type { GameScore } from '@/lib/game-state';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
@@ -173,23 +175,34 @@ export default function PoolHubPage() {
     let teamMode: GameSetup['teamMode'] = 'two-best-balls';
     let handicapAllowance = game!.handicapAllowance;
 
-    // Scramble / alternate-shot (2v2 within group) enter ONE ball per side. We
-    // reuse the existing play-page oneBall entry by tagging each player with their
-    // side (.team) and setting teamMode; the format-specific allowance makes the
-    // play page's team-handicap DISPLAY match the leaderboard compute (scramble
-    // uses -1 for USGA tiered; alt-shot uses its % of the 60/40 combined).
+    // 2v2 within group: ALWAYS tag each player with their side (.team) so the
+    // scorecard shows who's on which side. Previously only the one-ball formats
+    // were tagged, so a 2v2 best-ball/combined round gave no on-card indication
+    // of the sides at all — you had to open the leaderboard to find out.
+    //
+    // teamMode is set to the side-scoring rule that MATCHES the leaderboard's
+    // compute (team-game.ts sideNet): best-ball = low net of the side, combined =
+    // both nets added. Getting this right matters — leaving it at the default
+    // 'two-best-balls' would have drawn a 1-net-1-gross team row that no 2v2
+    // format actually uses. Scramble / alternate-shot additionally enter ONE ball
+    // per side, and their format-specific allowance makes the play page's
+    // team-handicap DISPLAY match the leaderboard (scramble uses -1 for USGA
+    // tiered; alt-shot uses its % of the 60/40 combined).
     const mode = getGameMode(game!.gameMode);
     if (mode?.category === 'team-within-group') {
       const fmt = String(game!.modeSettings?.format ?? 'best-ball');
+      const sides = game!.subTeams
+        ?? defaultSubTeams(game!.players.map((p) => p.id), game!.players, game!.course, game!.handicapAllowance, game!.handicapBasis);
+      players = players.map((p) => ({
+        ...p,
+        team: sides.a.includes(p.id) ? 'A' : sides.b.includes(p.id) ? 'B' : undefined,
+      }));
       if (fmt === 'scramble' || fmt === 'alternate-shot') {
-        const sides = game!.subTeams
-          ?? defaultSubTeams(game!.players.map((p) => p.id), game!.players, game!.course, game!.handicapAllowance, game!.handicapBasis);
-        players = players.map((p) => ({
-          ...p,
-          team: sides.a.includes(p.id) ? 'A' : sides.b.includes(p.id) ? 'B' : undefined,
-        }));
         teamMode = fmt;
         handicapAllowance = fmt === 'scramble' ? -1 : Number(game!.modeSettings?.altShotAllowance ?? 50);
+      } else {
+        // Per-player entry; the side's hole score folds at display/compute time.
+        teamMode = fmt === 'combined' ? 'combined' : 'best-ball';
       }
     }
 
@@ -222,13 +235,26 @@ export default function PoolHubPage() {
 
   const pot = game.players.length * game.entryPerPlayer;
 
+  // A single-group game (2v2 / skins / Wolf / …) is ONE foursome named "Group",
+  // so the classic "Pool Money Game · N foursomes" subtitle read
+  // "Pool Money Game · 1 foursomes" — mislabeled AND unpluralized. Name the game
+  // mode instead, and pluralize the foursome count for the real pool.
+  const hubMode = getGameMode(game.gameMode);
+  const isSingleGroupHub = hubMode
+    ? hubMode.category === 'individual' || hubMode.category === 'team-within-group'
+    : false;
+  const teamCount = game.teams.length;
+  const hubSubtitle = isSingleGroupHub
+    ? `${hubMode!.name} · ${game.players.length} player${game.players.length === 1 ? '' : 's'}`
+    : `Pool Money Game · ${teamCount} foursome${teamCount === 1 ? '' : 's'}`;
+
   return (
     <div className="min-h-full bg-gray-50">
       <header className="bg-green-800 text-white shadow">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold">{game.name}</h1>
-            <p className="text-xs text-green-200">Pool Money Game · {game.teams.length} foursomes</p>
+            <p className="text-xs text-green-200">{hubSubtitle}</p>
           </div>
           <div className="flex items-center gap-4">
             <button
@@ -299,14 +325,17 @@ export default function PoolHubPage() {
         {/* Money summary — becomes an editor while in edit mode */}
         {editing ? <GameSettingsEditor game={game} onSave={persist} /> : <MoneySummary game={game} pot={pot} />}
 
-        {/* Foursome cards */}
+        {/* Foursome cards — a single-group game has just the one "Group" card, so
+            "Foursomes" over it reads wrong. */}
         <section>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Foursomes</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-3">{isSingleGroupHub ? 'Players' : 'Foursomes'}</h2>
           {editing ? (
             <EditFoursomes game={game} onSave={persist} />
           ) : (
             <div className="space-y-3">
-              {game.teams.length > 0 && <TeamBuildSummaryCard game={game} />}
+              {/* "How these teams were built" is about balancing N foursomes —
+                  nothing to explain when the game IS one group. */}
+              {game.teams.length > 0 && !isSingleGroupHub && <TeamBuildSummaryCard game={game} />}
               {game.teams.map((team) => (
                 <FoursomeCard
                   key={team.id}
@@ -318,7 +347,9 @@ export default function PoolHubPage() {
                 />
               ))}
               {game.teams.length === 0 && (
-                <p className="text-center text-gray-500 py-8">No foursomes configured yet.</p>
+                <p className="text-center text-gray-500 py-8">
+                  {isSingleGroupHub ? 'No players configured yet.' : 'No foursomes configured yet.'}
+                </p>
               )}
             </div>
           )}
@@ -329,6 +360,9 @@ export default function PoolHubPage() {
 
         {/* CTP editor / finalize surface */}
         <CtpEditor game={game} onSave={persist} />
+
+        {/* Close out / reopen — the explicit lifecycle control. */}
+        <GameCloseOut game={game} onSave={persist} />
       </main>
     </div>
   );
@@ -2337,6 +2371,64 @@ function WolfRotationEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
         ))}
       </div>
       <p className="text-[11px] text-gray-400 mt-2">Wraps after hole {orderIds.length} · you can still override any single hole while scoring.</p>
+    </section>
+  );
+}
+
+// Close out / reopen a game — the explicit lifecycle control.
+//
+// status:'completed' is what the stats & money ledger selects on, and until now
+// nothing ever set it, so no game ever reached Stats & money. Finish Game now
+// auto-completes when the LAST foursome finishes, but that only fires if someone
+// taps it on the final card — the organizer needs a way to close the game out
+// regardless (and to reopen it if a score needs fixing).
+function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
+  const [fullyScored, setFullyScored] = useState<boolean | null>(null);
+
+  // Fetch every foursome's scores to report whether the game is fully scored.
+  useEffect(() => {
+    let cancelled = false;
+    const ids = Array.from(new Set(game.teams.map((t) => t.matchupId)));
+    Promise.all(ids.map(async (mid) => [mid, await fetchGameScores(mid)] as const)).then((pairs) => {
+      if (cancelled) return;
+      const byMatchup = new Map<string, GameScore[]>();
+      for (const [mid, s] of pairs) if (s && Array.isArray(s)) byMatchup.set(mid, s as GameScore[]);
+      setFullyScored(isPoolGameFullyScored(game, byMatchup));
+    });
+    return () => { cancelled = true; };
+  }, [game]);
+
+  const isDone = game.status === 'completed';
+
+  return (
+    <section className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="px-4 py-3 bg-gray-100 border-b">
+        <h2 className="font-semibold text-gray-900">{isDone ? 'Game closed out' : 'Close out game'}</h2>
+        <p className="text-xs text-gray-500">
+          {isDone
+            ? 'Final — this game now counts in Stats & money. Reopen it if a score needs fixing.'
+            : 'Marks the game final and includes it in Stats & money. Scores stay editable if you reopen it.'}
+        </p>
+      </div>
+      <div className="p-4 flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-xs text-gray-600">
+          {fullyScored === null
+            ? 'Checking scores…'
+            : fullyScored
+              ? 'Every player is scored on every hole.'
+              : 'Some holes are still missing scores — you can close out anyway.'}
+        </p>
+        <button
+          onClick={() => onSave({ ...game, status: isDone ? 'active' : 'completed' })}
+          className={`text-sm font-semibold rounded-md px-4 py-2 ${
+            isDone
+              ? 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              : 'bg-green-700 text-white hover:bg-green-800'
+          }`}
+        >
+          {isDone ? 'Reopen game' : 'Close out game'}
+        </button>
+      </div>
     </section>
   );
 }

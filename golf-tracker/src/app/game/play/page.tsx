@@ -11,10 +11,11 @@ import { computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, comp
 import { computeSideGameResult } from '@/lib/side-game';
 import type { SideGameResult } from '@/lib/side-game';
 import type { PoolGame, PoolResult, PoolLeg } from '@/lib/pool-game';
-import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores, buildHcapMap, playerHoleStrokeIndexForGame, numHolesForStrokes } from '@/lib/pool-game';
+import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores, buildHcapMap, playerHoleStrokeIndexForGame, numHolesForStrokes, defaultSubTeams, isPoolGameFullyScored } from '@/lib/pool-game';
 import { getMoneyStrokesOnHole } from '@/lib/money-games';
 import { isSingleGroupGame } from '@/lib/game-modes/result';
 import { getGameMode } from '@/lib/game-modes';
+import { sideNamesForGame } from '@/lib/game-modes/team-game';
 import { wolfForHole } from '@/lib/game-modes/wolf';
 import type { WolfHoleDecision } from '@/lib/pool-game';
 
@@ -70,9 +71,20 @@ export default function PlayGamePage() {
     if (poolRaw) {
       const pctx = JSON.parse(poolRaw) as PoolGameContext;
       setPoolCtx(pctx);
+      // A 2v2 game's SIDE names ("Craig & Jym") must match the leaderboard —
+      // teamNames only got populated from a tournament before, so a pool 2v2
+      // scored under the generic "Team A"/"Team B" while its own leaderboard
+      // showed the real side names.
+      const applySideNames = (g: PoolGame) => {
+        if (getGameMode(g.gameMode)?.category !== 'team-within-group') return;
+        const sides = g.subTeams ?? defaultSubTeams(
+          g.players.map((p) => p.id), g.players, g.course, g.handicapAllowance, g.handicapBasis,
+        );
+        setTeamNames(sideNamesForGame(g, sides));
+      };
       const cached = loadPoolGame(pctx.poolGameId);
-      if (cached) setPoolGame(cached);
-      fetchPoolGame(pctx.poolGameId).then((g) => { if (g) setPoolGame(g); });
+      if (cached) { setPoolGame(cached); applySideNames(cached); }
+      fetchPoolGame(pctx.poolGameId).then((g) => { if (g) { setPoolGame(g); applySideNames(g); } });
     }
 
     // Load previously saved scores for this matchup
@@ -1883,10 +1895,31 @@ export default function PlayGamePage() {
   async function finishGame() {
     if (!confirm('Finish this game and lock scores? This cannot be undone.')) return;
 
-    // Pool money game: just persist this foursome's scores and return to the hub.
+    // Pool money game: persist this foursome's scores and return to the hub.
     // Pool standings/payouts are computed on the leaderboard from all foursomes.
     if (poolCtx) {
       saveGameScores(poolCtx.matchupId, scores);
+      // Mark the WHOLE game completed once every foursome is fully scored — this
+      // foursome may be the last one in. status:'completed' is what the stats &
+      // money ledger selects on, and nothing used to set it, so finished games
+      // never appeared there. Deliberately a whole-game check: one group
+      // finishing must not close out a pool whose other groups are still playing.
+      const latest = loadPoolGame(poolCtx.poolGameId) ?? poolGame;
+      if (latest && latest.status !== 'completed') {
+        const byMatchup = new Map<string, GameScore[]>();
+        await Promise.all(
+          Array.from(new Set(latest.teams.map((t) => t.matchupId))).map(async (mid) => {
+            // This foursome's scores are the in-memory ones we just saved; the
+            // others come from the server (they may have finished on their own
+            // device since this screen loaded).
+            const s = mid === poolCtx.matchupId ? scores : await fetchGameScores(mid);
+            if (s && Array.isArray(s)) byMatchup.set(mid, s as GameScore[]);
+          }),
+        );
+        if (isPoolGameFullyScored(latest, byMatchup)) {
+          savePoolGame({ ...latest, status: 'completed' });
+        }
+      }
       sessionStorage.removeItem('game_setup');
       sessionStorage.removeItem('game_pool_context');
       router.push(`/pool/${poolCtx.poolGameId}`);
@@ -2106,6 +2139,14 @@ export default function PlayGamePage() {
                 b.type === 'match-winner' ? b : { ...b, result: undefined }
               );
               round.bonuses = computeBonuses(round, tournament);
+            }
+
+            // Roll the ROUND completion up to the TOURNAMENT. Only round.status was
+            // ever set, so tournament.status stayed 'active' forever and the stats
+            // & money ledger (which selects status === 'completed') never saw a
+            // finished event. Same predicate the recap page already uses.
+            if (tournament.rounds.length > 0 && tournament.rounds.every((r) => r.status === 'completed')) {
+              tournament.status = 'completed';
             }
 
             saveTournament(tournament);

@@ -25,6 +25,12 @@ const LEG_LABELS: Record<PoolLegKey, string> = {
   junk: 'Junk',
 };
 
+// THE money formatter for this page. Both leaderboard branches render dollars, and
+// they used to disagree: the single-group board showed a loss as "−$12" while the
+// team board inlined `${n > 0 ? '+' : ''}$${Math.round(n)}` and produced "$-12"
+// (sign inside the amount). One helper, one rendering.
+const money = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}$${Math.abs(Math.round(n))}`;
+
 export default function PoolLeaderboardPage() {
   const router = useRouter();
   const params = useParams();
@@ -148,7 +154,12 @@ export default function PoolLeaderboardPage() {
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold">{game.name}</h1>
-            <p className="text-xs text-gray-400">Thru hole {result.thruHole}</p>
+            {/* Name the format, like the single-group board does — the header used
+                to read only "Thru hole N", so a pot pool and a head-to-head match
+                pool were indistinguishable from the leaderboard. */}
+            <p className="text-xs text-gray-400">
+              {isMatch ? 'Head-to-head match' : 'Pot pool'} · thru hole {result.thruHole}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -357,7 +368,7 @@ export default function PoolLeaderboardPage() {
                   <div className="flex items-center gap-2">
                     {payout && payout.net !== 0 && (
                       <span className={`text-xs font-medium ${payout.net > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {payout.net > 0 ? '+' : ''}${Math.round(payout.net)}
+                        {money(payout.net)}
                       </span>
                     )}
                     <span className="text-gray-600 text-xs">{isTeamExpanded ? '▾' : '▸'}</span>
@@ -490,7 +501,7 @@ export default function PoolLeaderboardPage() {
               });
             }).sort((a, b) => b.amount - a.amount).map((p) => (
               <span key={p.id} className={`text-sm ${p.amount > 0 ? 'text-green-400 font-medium' : p.amount < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                {p.name}: {p.amount > 0 ? '+' : ''}${Math.round(p.amount)}
+                {p.name}: {money(p.amount)}
               </span>
             ))}
           </div>
@@ -772,7 +783,6 @@ function IndividualLeaderboard({ id }: { id: string }) {
   const isWithinGroup = mode?.category === 'team-within-group';
   const players = teamDetails[0]?.players ?? [];
 
-  const money = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}$${Math.abs(Math.round(n))}`;
   // Signed points (9s/quota, match pts) read better with a leading +. But a
   // stroke-total metric is a raw net/gross (e.g. 72) that must NOT be +-prefixed.
   const isStrokeMetric = result?.metricLabel === 'net' || result?.metricLabel === 'gross';
@@ -784,6 +794,19 @@ function IndividualLeaderboard({ id }: { id: string }) {
   // Side labels ("Alice & Bob") aren't personal names — don't truncate to a first
   // word. Per-player individual games still show first names.
   const displayName = (n: string) => (isWithinGroup ? n : n.split(' ')[0]);
+
+  // 2v2 only: which side a player is on, for the Player Details grid. Every other
+  // panel on this page is side-oriented, but the grid listed all four players flat
+  // with no indication of the sides. Undefined for individual games.
+  const sideOf = isWithinGroup && result?.sideNames
+    ? (playerId: string): { label: string; tone: 'a' | 'b' } | null => {
+        const sides = game.subTeams;
+        if (!sides) return null;
+        if (sides.a.includes(playerId)) return { label: result.sideNames!.a, tone: 'a' };
+        if (sides.b.includes(playerId)) return { label: result.sideNames!.b, tone: 'b' };
+        return null;
+      }
+    : undefined;
 
   return (
     <div className="min-h-full bg-gray-900">
@@ -865,15 +888,17 @@ function IndividualLeaderboard({ id }: { id: string }) {
               )}
             </div>
 
-            {/* Nassau-pot payout board — front / back / total segment winners. */}
+            {/* Nassau-pot payout board — front / back / total segment winners.
+                fieldSize lets it tell "everyone tied" from "someone leads" in a
+                2- or 3-player game (several modes allow playersMin: 2). */}
             {result.nassauLegs && result.nassauLegs.length > 0 && (
-              <NassauPayoutBoard legs={result.nassauLegs} />
+              <NassauPayoutBoard legs={result.nassauLegs} fieldSize={result.standings.length} />
             )}
 
             {/* Birdie / eagle bonus breakdown (any mode with the junk layer on).
                 Already settled into moneyNet above — this shows who earned what. */}
             {result.junkLines && result.junkLines.some((l) => l.birdies || l.eagles || l.albatrosses) && (
-              <JunkBonusBoard lines={result.junkLines} />
+              <JunkBonusBoard lines={result.junkLines} bySide={isWithinGroup} />
             )}
 
             {/* Wolf hole-by-hole matchup breakdown — who was Wolf, their call,
@@ -882,11 +907,18 @@ function IndividualLeaderboard({ id }: { id: string }) {
               <WolfBreakdown lines={result.wolfHoles} />
             )}
 
-            {/* Front / Back / Overall breakdown (2v2 team games) — Nassau-style. */}
+            {/* Front / Back / Overall breakdown (2v2 team games) — Nassau-style.
+                A 9-hole game collapses to ONE leg (team-game.ts), so derive the
+                caption from the legs actually present instead of hardcoding
+                "Front · Back · Overall" above a lone "Back 9" row. */}
             {result.teamLegs && result.teamLegs.length > 0 && (
               <div className="bg-gray-800 rounded-xl overflow-hidden">
                 <div className="px-4 py-2 border-b border-gray-700">
-                  <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Front · Back · Overall</p>
+                  <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">
+                    {result.teamLegs.length === 1
+                      ? result.teamLegs[0].label
+                      : result.teamLegs.map((l) => l.label.replace(/ (9|18)$/, '')).join(' · ')}
+                  </p>
                 </div>
                 <div className="divide-y divide-gray-700/30">
                   {result.teamLegs.map((leg) => (
@@ -910,9 +942,13 @@ function IndividualLeaderboard({ id }: { id: string }) {
                 <div className="px-4 py-2 border-b border-gray-700">
                   <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Player Details</p>
                 </div>
-                <IndividualPlayerGrid players={players} />
+                <IndividualPlayerGrid players={players} sideOf={sideOf} />
               </div>
             )}
+
+            {/* Score-change audit — was only on the classic board, so a 2v2 /
+                skins / Wolf game had no way to see who edited what. */}
+            <ScoreHistory game={game} />
           </>
         )}
       </main>
@@ -922,7 +958,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
 
 // Nassau-pot payout board. Shows each segment's pot and who's winning it (ties
 // share). A segment not yet started (e.g. the back 9 early on) reads "TBD".
-function NassauPayoutBoard({ legs }: { legs: NassauLegLine[] }) {
+function NassauPayoutBoard({ legs, fieldSize }: { legs: NassauLegLine[]; fieldSize: number }) {
   const first = (n: string) => n.split(' ')[0];
   return (
     <div className="bg-gray-800 rounded-xl overflow-hidden">
@@ -934,7 +970,9 @@ function NassauPayoutBoard({ legs }: { legs: NassauLegLine[] }) {
           // Not-started segment = dead heat, pot splits evenly (antes returned).
           const notStarted = leg.thru === 0;
           // A split among everyone (all players lead) reads as "tied" not a winner.
-          const allSplit = leg.winnerNames.length >= 4;
+          // Compare to the ACTUAL field size — hardcoding 4 meant a 2- or 3-player
+          // game's dead heat was announced as "Alice & Bob (leading, split)".
+          const allSplit = fieldSize > 0 && leg.winnerNames.length >= fieldSize;
           return (
             <div key={leg.key} className="px-4 py-2.5 flex items-center justify-between">
               <div>
@@ -1019,7 +1057,12 @@ function WolfBreakdown({ lines }: { lines: WolfHoleLine[] }) {
 // The per-player scorecard grid for individual games — same Out/In/Gross/Net
 // columns and strokes-given box as the team leaderboard's Player Details, but for
 // the single group. Extracted so both paths share the presentation.
-function IndividualPlayerGrid({ players }: { players: PoolPlayerDetail[] }) {
+function IndividualPlayerGrid({ players, sideOf }: {
+  players: PoolPlayerDetail[];
+  // 2v2 only: resolves a player to their side label, so the grid shows the sides
+  // like every other panel on the page. Absent for individual games.
+  sideOf?: (playerId: string) => { label: string; tone: 'a' | 'b' } | null;
+}) {
   const allHoles = players[0]?.holes ?? [];
   const frontHoles = allHoles.filter((h) => h.holeNumber <= 9);
   const backHoles = allHoles.filter((h) => h.holeNumber > 9);
@@ -1027,6 +1070,14 @@ function IndividualPlayerGrid({ players }: { players: PoolPlayerDetail[] }) {
     const played = p.holes.filter((h) => pred(h) && h.gross != null);
     return played.length ? played.reduce((s, h) => s + (h.gross ?? 0), 0) : null;
   };
+  // For a 2v2, group the rows by side (side A first) so the two partnerships read
+  // as blocks. Individual games keep their given order.
+  const ordered = sideOf
+    ? [...players].sort((a, b) => {
+        const rank = (pid: string) => (sideOf(pid)?.tone === 'a' ? 0 : sideOf(pid)?.tone === 'b' ? 1 : 2);
+        return rank(a.playerId) - rank(b.playerId);
+      })
+    : players;
   return (
     <div className="px-2 pb-3 pt-1 overflow-x-auto">
       <table className="text-xs w-full">
@@ -1042,14 +1093,24 @@ function IndividualPlayerGrid({ players }: { players: PoolPlayerDetail[] }) {
           </tr>
         </thead>
         <tbody>
-          {players.map((player) => {
+          {ordered.map((player, idx) => {
             const outGross = sumGross(player, (h) => h.holeNumber <= 9);
             const inGross = sumGross(player, (h) => h.holeNumber > 9);
+            // Label the first player of each side (the rows are grouped by side),
+            // mirroring how the team grid heads each foursome.
+            const side = sideOf?.(player.playerId) ?? null;
+            const prevSide = idx > 0 ? sideOf?.(ordered[idx - 1].playerId) ?? null : null;
+            const showSide = !!side && side.label !== prevSide?.label;
             return (
-              <tr key={player.playerId} className="border-t border-gray-700/30">
+              <tr key={player.playerId} className={showSide && idx > 0 ? 'border-t-2 border-gray-600' : 'border-t border-gray-700/30'}>
                 <td className="px-1 py-1 text-gray-300 font-medium whitespace-nowrap sticky left-0 bg-gray-800">
                   {player.playerName.split(' ')[0]}
                   <span className="text-[10px] text-gray-500 ml-0.5">({Math.round(player.playingHcap)})</span>
+                  {showSide && (
+                    <span className={`ml-1 text-[9px] font-normal ${side!.tone === 'a' ? 'text-blue-300' : 'text-red-300'}`}>
+                      {side!.label}
+                    </span>
+                  )}
                 </td>
                 {player.holes.filter((h) => h.holeNumber <= 9).map((h) => (
                   <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
@@ -1137,7 +1198,10 @@ function countAtScore(teamScores: Record<string, number | null>, score: number |
 // gross; the actual signed settlement is already folded into the standings' money
 // column (each earner collects from the others), so this is a breakdown, not a
 // second payout.
-function JunkBonusBoard({ lines }: { lines: JunkLine[] }) {
+// `bySide` = a 2v2 game, where junk settles SIDE vs SIDE (settleJunkForSides nets
+// each side's total and moves only the difference), not earner-vs-group. The
+// footer said the latter for both, telling 2v2 players the wrong rule.
+function JunkBonusBoard({ lines, bySide = false }: { lines: JunkLine[]; bySide?: boolean }) {
   const rows = [...lines]
     .filter((l) => l.birdies || l.eagles || l.albatrosses)
     .sort((a, b) => b.dollars - a.dollars);
@@ -1172,7 +1236,9 @@ function JunkBonusBoard({ lines }: { lines: JunkLine[] }) {
         </table>
       </div>
       <p className="px-3 py-1.5 text-[10px] text-gray-500 border-t border-gray-700">
-        Already included in the money column — each earner collects from the rest of the group.
+        {bySide
+          ? 'Already included in the money column — the two sides are netted, so only the difference changes hands.'
+          : 'Already included in the money column — each earner collects from the rest of the group.'}
       </p>
     </div>
   );
