@@ -623,29 +623,32 @@ function DetailsStep({
       setMoneyMode('pot');
     }
   }
-  const junkFields: { key: keyof PoolJunkValues; label: string }[] = [
-    { key: 'birdie', label: 'Birdie' },
-    { key: 'eagle', label: 'Eagle' },
-    { key: 'albatross', label: 'Albatross' },
-    { key: 'groupHug', label: 'Group Hug' },
-    { key: 'ctp', label: 'CTP' },
+  // Labels spell out what each bonus IS. "Group Hug" and "CTP" are insider terms —
+  // a first-time user can't act on them, and a label you can't understand is worse
+  // than one you can't find. `hint` shows under the input.
+  const junkFields: { key: keyof PoolJunkValues; label: string; hint: string }[] = [
+    { key: 'birdie', label: 'Birdie', hint: '1 under' },
+    { key: 'eagle', label: 'Eagle', hint: '2 under' },
+    { key: 'albatross', label: 'Albatross', hint: '3 under' },
+    { key: 'groupHug', label: 'All par', hint: 'whole team' },
+    { key: 'ctp', label: 'Closest', hint: 'on par 3s' },
   ];
 
   const ballOptions: { value: TwoBestBallsVariant; label: string }[] = [
-    { value: '1-net-1-gross', label: '1 Net + 1 Gross (different players)' },
-    { value: '2-best-net', label: '2 Best Net' },
-    { value: '2-best-gross', label: '2 Best Gross' },
+    { value: '1-net-1-gross', label: 'Best net + best gross (from two different players)' },
+    { value: '2-best-net', label: 'Two best net scores' },
+    { value: '2-best-gross', label: 'Two best gross scores' },
   ];
 
   const canProceed = name.trim().length > 0;
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Pool Game Details</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">What are you playing?</h2>
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-800 mb-1">Game Name</label>
+          <label className="block text-sm font-medium text-gray-800 mb-1">What should we call it?</label>
           <input
             type="text"
             value={name}
@@ -658,7 +661,7 @@ function DetailsStep({
         {/* Game picker: classic team pool, or a registered individual game.
             Choosing an individual game reveals only that game's options below. */}
         <div className="pt-2 border-t">
-          <label className="block text-sm font-medium text-gray-800 mb-1">Game</label>
+          <label className="block text-sm font-medium text-gray-800 mb-1">Which game are you playing?</label>
           <select
             value={gameMode ?? 'pool'}
             onChange={(e) => pickGame(e.target.value === 'pool' ? undefined : e.target.value)}
@@ -691,11 +694,11 @@ function DetailsStep({
 
         {!isRegisteredMode && (
         <div className="pt-2 border-t">
-          <label className="block text-sm font-medium text-gray-800 mb-1">Game Type</label>
+          <label className="block text-sm font-medium text-gray-800 mb-1">How does the money work?</label>
           <div className="flex gap-2">
             {([
-              { v: 'pot', label: 'Pool (pot split)' },
-              { v: 'match', label: 'Head-to-head match' },
+              { v: 'pot', label: 'Everyone buys in' },
+              { v: 'match', label: 'Two teams, head-to-head' },
             ] as const).map(({ v, label }) => (
               <button
                 key={v}
@@ -722,7 +725,7 @@ function DetailsStep({
         <div className="grid grid-cols-2 gap-3 pt-2 border-t">
           {moneyMode === 'pot' && !isRegisteredMode && (
           <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1">Entry ($ / player)</label>
+            <label className="block text-sm font-medium text-gray-800 mb-1">Buy-in per player ($)</label>
             <input
               type="number"
               inputMode="decimal"
@@ -733,7 +736,7 @@ function DetailsStep({
           </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1">Handicap Allowance (%)</label>
+            <label className="block text-sm font-medium text-gray-800 mb-1">% of handicap used</label>
             <input
               type="number"
               inputMode="decimal"
@@ -745,11 +748,11 @@ function DetailsStep({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-800 mb-1">Handicap Strokes</label>
+          <label className="block text-sm font-medium text-gray-800 mb-1">Who gets strokes?</label>
           <div className="flex gap-2">
             {([
-              { v: 'full', label: 'Full handicap' },
-              { v: 'off-the-low', label: 'Off the low' },
+              { v: 'full', label: 'Everyone, in full' },
+              { v: 'off-the-low', label: 'Only above the best player' },
             ] as const).map(({ v, label }) => (
               <button
                 key={v}
@@ -773,11 +776,11 @@ function DetailsStep({
         </div>
 
         <div className="pt-2 border-t">
-          <label className="block text-sm font-medium text-gray-800 mb-1">Handicap Basis</label>
+          <label className="block text-sm font-medium text-gray-800 mb-1">Adjust handicaps for tee difficulty?</label>
           <div className="flex gap-2">
             {([
-              { v: 'course', label: 'Course handicap' },
-              { v: 'index', label: 'Player index' },
+              { v: 'course', label: 'Yes — use course handicap' },
+              { v: 'index', label: 'No — use raw index' },
             ] as const).map(({ v, label }) => (
               <button
                 key={v}
@@ -808,7 +811,7 @@ function DetailsStep({
 
         {moneyMode === 'pot' && !isRegisteredMode && (
         <div className="pt-2 border-t">
-          <label className="block text-sm font-medium text-gray-800 mb-1">Position Split</label>
+          <label className="block text-sm font-medium text-gray-800 mb-1">Who gets paid?</label>
           <input
             type="text"
             value={positionSplitText}
@@ -817,14 +820,14 @@ function DetailsStep({
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
           />
           <p className="text-xs text-gray-500 mt-1">
-            Percent of each sub-pot per finishing place. &quot;100&quot; = winner-take-all; &quot;70, 30&quot; = 1st/2nd.
+            Share of each pot by finishing place. <span className="font-medium">100</span> = winner takes all · <span className="font-medium">70, 30</span> = 1st and 2nd split it.
           </p>
         </div>
         )}
 
         {moneyMode === 'match' && (
         <div className="pt-2 border-t">
-          <p className="text-sm font-semibold text-gray-800 mb-2">Match Payouts ($ / player)</p>
+          <p className="text-sm font-semibold text-gray-800 mb-2">What each leg is worth ($ / player)</p>
           <div className="grid grid-cols-3 gap-2">
             {([
               { key: 'front' as const, label: 'Front 9' },
@@ -844,7 +847,7 @@ function DetailsStep({
             ))}
           </div>
           <div className="mt-3">
-            <label className="block text-xs text-gray-600 font-medium mb-1">Junk ($ / point of margin)</label>
+            <label className="block text-xs text-gray-600 font-medium mb-1">Bonus points ($ each)</label>
             <input
               type="number"
               inputMode="decimal"
@@ -862,11 +865,13 @@ function DetailsStep({
 
         {!isRegisteredMode && (
         <div className="pt-2 border-t">
-          <p className="text-sm font-semibold text-gray-800 mb-2">Junk Values (points)</p>
+          <p className="text-sm font-semibold text-gray-800 mb-1">Bonus points for good holes</p>
+          <p className="text-xs text-gray-500 mb-2">These add to a team&apos;s bonus total. Set any to 0 to skip it.</p>
           <div className="grid grid-cols-5 gap-2">
-            {junkFields.map(({ key, label }) => (
+            {junkFields.map(({ key, label, hint }) => (
               <div key={key}>
-                <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
+                <label className="block text-xs text-gray-600 font-medium">{label}</label>
+                <span className="block text-[10px] text-gray-400 mb-1">{hint}</span>
                 <input
                   type="number"
                   inputMode="numeric"
@@ -882,7 +887,7 @@ function DetailsStep({
 
         {!isRegisteredMode && (
         <div className="pt-2 border-t">
-          <label className="block text-sm font-medium text-gray-800 mb-1">Team Ball Selection</label>
+          <label className="block text-sm font-medium text-gray-800 mb-1">Which scores count for the team?</label>
           <select
             value={ballSelection}
             onChange={(e) => setBallSelection(e.target.value as TwoBestBallsVariant)}
@@ -892,7 +897,7 @@ function DetailsStep({
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <p className="text-xs text-gray-500 mt-1">Per-hole team score for each foursome.</p>
+          <p className="text-xs text-gray-500 mt-1">On each hole, this is how the foursome&apos;s single team score is worked out.</p>
         </div>
         )}
       </div>

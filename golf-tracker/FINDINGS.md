@@ -259,6 +259,87 @@ done independently of which option is chosen.
 
 ---
 
+### F-006 — A pool of foursomes can only ever be best-ball; no scramble or Stableford  [P1] [start]
+
+**Screens:** `src/lib/formats.ts:32`, `src/lib/pool-game.ts:1264-1278`,
+`src/app/pool/new/page.tsx` ("Which scores count for the team?")
+**Violates:** north star — *more possibilities than any other app on the market*
+
+Craig: *"what if people are doing more than just 2 best net, 1 net 1 gross, or 2 best
+gross? what if it is a scramble against another foursome, or stableford, or any other
+version of the game. does this work?"*
+
+**No, it doesn't. And this is a real ceiling, not a UI problem.**
+
+A classic pool's per-hole team score is hard-typed to three options:
+
+```ts
+export type TwoBestBallsVariant = '1-net-1-gross' | '2-best-net' | '2-best-gross';
+```
+
+`teamHoleScore()` (`pool-game.ts:1278`) delegates to `bestBallTeamHoleScore(scores,
+variant)` and nothing else. So **every** N-foursome pool ever created is some flavour
+of best-ball on net strokes. A group that plays a scramble against another foursome,
+or scores Stableford points instead of strokes, cannot express it.
+
+**The asymmetry that makes this worth fixing.** The 2v2 within-group mode
+(`game-modes/team-game.ts`) *already* computes all of it — for one foursome split into
+two sides:
+
+| Capability | 2v2 mode | Classic pool (N foursomes) |
+|---|---|---|
+| Best ball (low net) | ✅ | ✅ |
+| Combined (both scores added) | ✅ | ❌ |
+| Scramble (one ball + USGA team handicap) | ✅ | ❌ |
+| Alternate shot | ✅ | ❌ |
+| Stableford points per hole | ✅ (`sidePts`) | ❌ strokes only |
+| Match play, hole by hole | ✅ | ⚠️ only in 2-team `moneyMode: 'match'` |
+| Front/back/overall legs | ✅ | ✅ |
+
+So the engine for scramble, alt-shot, combined, and Stableford **exists and is
+tested** — it's just wired only to the 2-sides-in-one-group case. `sideNet`/`sidePts`
+take a list of player ids and a hole; a foursome is also a list of player ids.
+`teamHandicapForFormat()` is already exported and generic.
+
+**Why this matters most for scaling.** A pool of N foursomes is the format a club or
+a 20-person outing uses — exactly the audience Craig is aiming at. "Four foursomes,
+scramble, most Stableford points wins" is an extremely common outing format and the
+app cannot do it.
+
+**Options**
+- **A. Extend the pool's team-score rule to reuse the 2v2 engine.** Replace the
+  `TwoBestBallsVariant` field with a `teamFormat` (best-ball / combined / scramble /
+  alt-shot / two-best-net / …) plus a `scoreBasis` (strokes / Stableford), and have
+  `teamHoleScore` dispatch to the same functions `team-game.ts` uses. Biggest payoff.
+  Cost: touches the money engine's hot path, so it needs the compute tests extended
+  first — and every existing game must keep computing identically (a legacy
+  `ballSelection` maps to the equivalent new pair).
+- **B. Add a "team pool" game MODE instead.** Leave the classic pool alone; add a
+  registered mode that competes N teams with the full format set. Zero risk to
+  existing games, but it splits the codebase into two overlapping team engines and
+  duplicates the leg/junk/payout logic — the design smell called out in
+  `UI_CONVENTIONS.md`.
+- **C. Generalise the existing engine to N sides.** `team-game.ts` currently assumes
+  exactly two sides (`{a, b}`). Widening it to N and pointing the pool at it unifies
+  both paths. Cleanest end state, largest change, and it touches Wolf too.
+- **D. Leave it, document the limit.** Groups wanting a scramble pool use the
+  tournament side (which supports scramble/alt-shot per round) — but that's two-team
+  only, so it doesn't actually cover a 4-foursome outing.
+
+**Recommendation:** **A**, sequenced carefully — extend the compute tests to pin every
+current `ballSelection` result first, then add the dispatch, then the UI. It reuses
+proven code, keeps one team engine, and the legacy mapping makes existing games
+provably unchanged. **C** is the better architecture if a 3+ side within-group game is
+ever wanted; worth deciding that before committing to A.
+
+**Note on this being a type change:** like the fixed 5-key bonus list, this is one of
+only two findings so far that needs a schema decision rather than a UI fix. Both are
+about the same thing — the app's *possibility* ceiling.
+
+**Status:** open — needs Craig's decision on scope
+
+---
+
 ### F-001 — Nassau segment "thru" reads as a hole number  [P3] [track]
 
 **Screen:** `/pool/[id]/leaderboard`, 2-player skins w/ Nassau ·
