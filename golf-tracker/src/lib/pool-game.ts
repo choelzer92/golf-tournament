@@ -4,6 +4,7 @@ import { calcCourseHandicap, applyAllowance } from './game-state';
 import { getMoneyStrokesOnHole } from './money-games';
 import { bestBallTeamHoleScore } from './live-scoring';
 import { supabase } from './supabase';
+import { ORGANIZER_TOKEN, generateShareToken } from './invite-gate';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -141,6 +142,12 @@ export interface PoolGame {
   // (hole N → wolfOrder[(N-1) % len]). Absent = fall back to game.players order
   // (today's behavior). Set via the Wolf draw (mini-game / randomize / manual).
   wolfOrder?: string[];
+  // Per-game player-share token. The link sent to the other foursomes is
+  // /pool/<id>?key=<shareToken>, so each game's link is individually shareable and
+  // revocable (regenerate to kill it) instead of one constant for every game ever.
+  // ABSENT on games created before this existed — those still work via the legacy
+  // ORGANIZER_TOKEN, and get a token lazily the first time the Share panel opens.
+  shareToken?: string;
 }
 
 // One hole's Wolf decision. `mode`: 'partner' = Wolf + partnerId vs the other two
@@ -1753,6 +1760,29 @@ export function computePoolPlayerDetails(
     }
     return { teamId: team.id, teamName: team.name, players };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Share tokens
+// ---------------------------------------------------------------------------
+
+// Is `key` a valid share key for this game? Accepts the game's own token OR the
+// legacy shared constant, so links already sent to friends keep working.
+//
+// This gates the UI, not the database — RLS is open by decision (DECISIONS.md §5c).
+// Don't mistake this for an access boundary.
+export function shareTokenMatches(game: PoolGame, key: string | null | undefined): boolean {
+  if (!key) return false;
+  if (key === ORGANIZER_TOKEN) return true;         // legacy links
+  return !!game.shareToken && key === game.shareToken;
+}
+
+// The game's token, creating and persisting one if it doesn't have it yet (older
+// games). Returns the token and whether it had to be created, so callers can
+// decide whether to save.
+export function ensureShareToken(game: PoolGame): { token: string; created: boolean } {
+  if (game.shareToken) return { token: game.shareToken, created: false };
+  return { token: generateShareToken(), created: true };
 }
 
 // ---------------------------------------------------------------------------

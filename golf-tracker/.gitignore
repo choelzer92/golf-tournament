@@ -45,3 +45,4 @@ next-env.d.ts
 e2e/screenshots/
 test-results/
 playwright-report/
+backups/

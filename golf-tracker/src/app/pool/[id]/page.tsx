@@ -35,6 +35,7 @@ import {
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
   isPoolGameFullyScored,
+  ensureShareToken,
 } from '@/lib/pool-game';
 import type { GameScore } from '@/lib/game-state';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
@@ -282,7 +283,7 @@ export default function PoolHubPage() {
         </div>
       </header>
 
-      {sharing && <SharePanel gameId={id} gameName={game.name} onClose={() => setSharing(false)} />}
+      {sharing && <SharePanel game={game} onSave={persist} onClose={() => setSharing(false)} />}
 
       {savingFormat && <SaveFormatModal game={game} onClose={() => setSavingFormat(false)} />}
 
@@ -571,16 +572,36 @@ function SaveFormatModal({ game, onClose }: { game: PoolGame; onClose: () => voi
   );
 }
 
-function SharePanel({ gameId, gameName, onClose }: { gameId: string; gameName: string; onClose: () => void }) {
+function SharePanel({ game, onSave, onClose }: { game: PoolGame; onSave: (g: PoolGame) => void; onClose: () => void }) {
   const [copiedKey, setCopiedKey] = useState<'player' | 'organizer' | null>(null);
+  const gameId = game.id;
+  const gameName = game.name;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
+  // This game's OWN share token. Older games have none, so mint one on first open
+  // and persist it — that makes every game's link individually revocable instead of
+  // sharing one constant across every game ever created.
+  useEffect(() => {
+    const { token, created } = ensureShareToken(game);
+    if (created) onSave({ ...game, shareToken: token });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game.id]);
+
+  // NOTE: no "replace link" UI on purpose. Regenerating game.shareToken is all a
+  // revoke needs (see generateShareToken), but exposing a red button on the screen
+  // whose whole job is "send this to your group" solves a problem this app's users
+  // don't have yet — and adds exposed complexity, which the north star treats as
+  // the enemy. Add it when someone actually needs to kill a leaked link.
+
   // Player scoring link: opens THIS game's hub with 'pool' access (the token
   // skips the invite code). The other foursome opens it, taps "Enter scores"
   // for their team, and scores with NO GHIN login. This is what lets each group
   // post their own foursome's scores to the shared leaderboard.
-  const playerLink = `${origin}/pool/${gameId}?key=${ORGANIZER_TOKEN}`;
+  const playerLink = `${origin}/pool/${gameId}?key=${game.shareToken ?? ORGANIZER_TOKEN}`;
   // Organizer link: opens pool setup to create/manage games (a different job —
-  // for a co-organizer, not for players joining THIS game).
+  // for a co-organizer, not for players joining THIS game). Still the shared
+  // constant: it grants a ROLE and exists before any game does, so it can't be
+  // per-game. Goes to co-organizers you trust, not a whole group chat.
   const organizerLink = `${origin}/pool/new?key=${ORGANIZER_TOKEN}`;
   const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(playerLink)}`;
 

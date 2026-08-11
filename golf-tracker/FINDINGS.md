@@ -135,6 +135,53 @@ critique pass for the three `/home` routes first.
 
 ---
 
+### F-004 — A share-link guest gets the ORGANIZER's controls  [P2] [continue]
+
+**Screen:** `/pool/{id}?key=…` on a fresh device ·
+`e2e/screenshots/guest-share-link.png`
+**Violates:** north star (minimum exposed complexity); `UI_CONVENTIONS.md` §6c
+
+**Observed:** verified the share flow on a simulated fresh device (new browser
+context, no cookies, no storage). The good news: it works exactly as intended — no
+invite code, no login, straight to the game with "Enter Scores" per foursome.
+
+But the guest sees **every organizer control**:
+
+- **Edit** — can rename the game, reassign tees, rebuild teams
+- **Close out game** — can mark the whole game final for everyone
+- **Save format**, **Share**
+- **CTP setters** for all 4 par 3s
+- **Refresh from GHIN** (they have no GHIN token, so it will fail)
+- **How these teams were built**
+
+A visiting player only needs: see the leaderboard, tap their own foursome, enter
+scores. Everything else is either noise or actively dangerous — a guest tapping
+"Close out game" ends the round for all four foursomes.
+
+**Why it matters:** this is the highest-traffic entry point in the app (most users
+arrive via a share link, not as the organizer) and it's the app's first impression.
+It's also the "continuing" phase, where a guest joining at the turn is a normal
+case.
+
+**Options**
+- **A. Hide organizer-only controls at `pool` access level.** `getAccessLevel()`
+  already distinguishes `full` from `pool`; gate Edit / Close out / Save format /
+  CTP / GHIN-refresh on it. Small, targeted change — the mechanism already exists
+  and is simply not used here.
+- **B. A dedicated read-plus-score guest view.** Cleanest for the guest, but a new
+  screen — which the north star flags as a design smell.
+- **C. Leave it.** Everyone's a trusted friend today, and an organizer sometimes
+  *wants* a co-organizer to edit.
+
+**Recommendation:** **A**. It's the smallest change, uses the access level that
+already exists, and directly serves "minimum exposed complexity." The one judgement
+call is Close out — arguably a captain should be able to. Suggest hiding it for
+`pool` and revisiting if that proves annoying.
+
+**Status:** open
+
+---
+
 ### F-001 — Nassau segment "thru" reads as a hole number  [P3] [track]
 
 **Screen:** `/pool/[id]/leaderboard`, 2-player skins w/ Nassau ·

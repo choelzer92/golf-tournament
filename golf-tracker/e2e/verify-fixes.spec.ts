@@ -171,3 +171,40 @@ test.describe('phone viewport', () => {
     await page.screenshot({ path: 'e2e/screenshots/phone-scorecard.png', fullPage: true });
   });
 });
+
+test.describe('share link on another device', () => {
+  // Craig's question: "how do the organizer links / share links work on other
+  // people's devices?" Simulate a genuinely fresh device: a NEW browser context
+  // with no cookies and no localStorage, opening only the link.
+  test('a per-game link opens the game with no login and no invite code', async ({ browser, page }) => {
+    // Organizer seeds a game and reads its share link.
+    const id = await seed(page, 'Classic pool — 2 foursomes, FULLY scored');
+    await goToGame(page, id);
+    // The hub header's Share button (not the leaderboard's).
+    await page.getByRole('button', { name: 'Share' }).first().click();
+    await expect(page.getByText(/Player scoring link/i)).toBeVisible();
+    const link = await page.locator('input[readonly]').first().inputValue();
+    expect(link).toContain(`/pool/${id}?key=`);
+    // It must be a PER-GAME token, not the legacy shared constant.
+    expect(link).not.toContain('poolparty2026');
+
+    // A different device: fresh context, no cookies, no storage.
+    const guestCtx = await browser.newContext();
+    const guest = await guestCtx.newPage();
+    // Carry the seeded in-memory data over (the sandbox store is per-tab).
+    await guest.goto(`${BASE}/sandbox`);
+    await guest.evaluate((data) => sessionStorage.setItem('__sandbox_supabase__', data),
+      await page.evaluate(() => sessionStorage.getItem('__sandbox_supabase__') ?? ''));
+
+    await guest.goto(link);
+    await guest.waitForLoadState('networkidle');
+
+    const body = await guest.locator('body').innerText();
+    // Must NOT be stopped by the invite gate...
+    expect(body).not.toContain('Enter your invite code');
+    // ...and must land on the game itself.
+    expect(body).toContain('Closeout Test Pool');
+    await guest.screenshot({ path: 'e2e/screenshots/guest-share-link.png', fullPage: true });
+    await guestCtx.close();
+  });
+});
