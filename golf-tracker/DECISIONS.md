@@ -216,6 +216,54 @@ product work):
 
 Real RLS policies (and possibly auth) are the genuinely deferred part.
 
+## 5d. Configurability over defaults (2026-08-11)
+
+> *"i dont want to base the entire app on these 44 games… certain users may want to
+> use player index and not course handicap, or adjust their junk values, or possibly
+> add other sorts of bonuses. we need to be able to configure this and store
+> group/game versions within groups that people use, and have a baseline universal
+> default to iterate off"*
+>
+> *"we shouldnt be super worried about hardcoding defaults, but we should make it so
+> users can configure their own stuff per group once, and then have this editable in
+> the future, or easily imported"*
+
+**Do not tune shipped defaults from Craig's own usage data.** I analyzed 44 real
+games and started proposing default changes; he stopped it. 44 games from one
+organizer is a sample of one social circle, not evidence about golfers. A setting his
+group never touches (`handicapBasis`, `positionSplit`) is one another group lives in.
+
+**The model instead — three layers:**
+
+```
+LAYER 1  UNIVERSAL BASELINE   shipped, never group-specific, never removed
+LAYER 2  GROUP DEFAULTS       configure ONCE per group, editable forever, importable
+LAYER 3  THIS GAME            today's tweak; doesn't write back unless asked
+```
+
+**How to apply:** settings get *relocated* and *relabeled*, never removed or
+hard-coded. The wizard gets short because layer 2 already answered the questions —
+not because options were hidden. Full write-up in `WIZARD_REDESIGN.md`; most of the
+mechanism already exists (`GroupDefaults`, Format Library, `duplicateFormat`,
+`setFormatShared`), so it's mostly a surfacing problem. Real gaps: no single named
+baseline constant, no "save settings back to my group", no import/export, no
+provenance in the UI, and `PoolJunkValues` is a fixed 5 keys so extra bonuses
+(sandies, greenies, barkies, longest drive) can't be expressed.
+
+## 5e. Keep the step-by-step interview (2026-08-11)
+
+> *"i do like the process of setting up a game, and having the questions asked to you
+> regarding what you want to do."*
+
+The wizard's interview shape is RIGHT and should not collapse into one dense form.
+The problem with today's step 1 is that it asks ~12 questions at once, breaking the
+interview — not that there are too many steps.
+
+**How to apply:** one clear question per step. A group's saved setup turns
+*questions* into *confirmations* (summary line + `[Change]`), which is how both
+halves of the north star hold at once: everything still configurable, almost nothing
+asked twice.
+
 ## 6. Focus areas Craig has named
 
 Requested, in his stated order of interest:
