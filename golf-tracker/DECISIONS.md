@@ -149,6 +149,28 @@ SVG-DoS advisory **does** apply to the live deployment.
 
 ---
 
+## 5b. Stated intent (not yet executed)
+
+**`/home` should become the baseline.** (2026-08-11)
+> "I want to eventually make the new home the baseline."
+
+`HOME_V2 = false` today, so login lands on `/dashboard`, which has no link to
+`/home/stats` at all. Tracked as F-003 with options; recommendation is to flip the
+flag while keeping the "Classic dashboard" escape hatch, after a critique pass on
+the three `/home` routes.
+
+**Share links on other people's devices are an open worry.** (2026-08-11)
+> "I am not sure about how the organizer links, or share links work on other
+> peoples devices."
+
+Investigated → **F-002**, and it's more serious than a UX question: RLS is
+`FOR ALL USING (true)` on all 7 tables, so the public anon key grants full
+read/write to every game and the whole roster; the organizer token is one shared
+constant that can't be revoked; and guest identity is self-asserted via
+localStorage. The *flow* is well designed — the trust model underneath isn't.
+Needs Craig's decision on scope. **The sandbox harness cannot test this class at
+all** (the fake models no RLS), so the green e2e suite says nothing about it.
+
 ## 6. Focus areas Craig has named
 
 Requested, in his stated order of interest:

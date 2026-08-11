@@ -13,11 +13,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { IS_SANDBOX } from '@/lib/supabase';
+import { IS_SANDBOX, supabase } from '@/lib/supabase';
 import { savePoolGame, type PoolGame } from '@/lib/pool-game';
 import { saveGameScores } from '@/lib/tournament-state';
 import { setAccessCookie } from '@/lib/invite-gate';
+import { saveGhinIdentity } from '@/lib/pool-identity';
 import type { GameScore, Player, CourseSelection } from '@/lib/game-state';
+import {
+  SANDBOX_GHIN, groupRows, groups as makeGroups, ledgerSeason,
+  rosterPlayers, rosterRows,
+} from '@/test/fixtures-domain';
 
 // --- fixture data (mirrors src/test/fixtures.ts, kept standalone so the app
 // never imports test code) --------------------------------------------------
@@ -104,7 +109,25 @@ interface Scenario {
   key: string;
   label: string;
   detail: string;
-  build: () => { game: PoolGame; goTo: (id: string) => string };
+  // Pool-game scenarios return a game to save + where to open it.
+  build?: () => { game: PoolGame; goTo: (id: string) => string };
+  // Domain scenarios (roster/groups/ledger) seed several tables directly and
+  // return a fixed destination.
+  buildDomain?: () => { goTo: string };
+}
+
+// Seed rows straight into the fake backend's tables. The roster/groups libs read
+// via hydrate*(), which selects from these tables — so the app populates itself
+// exactly as it would from Supabase.
+async function seedTable(table: string, rows: Record<string, unknown>[]) {
+  if (rows.length > 0) await supabase.from(table).upsert(rows as never);
+}
+
+// Make the app believe an organizer is logged in: the /home routes gate on a GHIN
+// token, and roster/group visibility is scoped to the viewer's GHIN.
+function signInAsOrganizer() {
+  sessionStorage.setItem('ghin_token', 'sandbox-token');
+  saveGhinIdentity({ golfer_id: SANDBOX_GHIN, first_name: 'Craig', last_name: 'Hoelzer' });
 }
 
 const SCENARIOS: Scenario[] = [
@@ -215,6 +238,53 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'ledger-season',
+    label: 'Season ledger — 5 completed games, 61-player roster',
+    detail: 'The "continuing" payoff surface. /home/stats was structurally dead until the completion fix, so its settle-up math and four lenses have never been seen with real data.',
+    buildDomain: () => {
+      signInAsOrganizer();
+      const roster = rosterPlayers(61);
+      const gs = makeGroups(roster);
+      void seedTable('players', rosterRows(roster));
+      void seedTable('roster_groups', groupRows(gs));
+      for (const { game, scoresByMatchup } of ledgerSeason(roster)) {
+        savePoolGame(game);
+        for (const [mid, scores] of scoresByMatchup) saveGameScores(mid, scores);
+      }
+      return { goTo: '/home/stats' };
+    },
+  },
+  {
+    key: 'groups-large',
+    label: 'Groups — 61-member standing group + small crew + saved format',
+    detail: 'The reuse mechanism behind "config is a one-time cost". List UIs behave very differently at 61 members than at 4.',
+    buildDomain: () => {
+      signInAsOrganizer();
+      const roster = rosterPlayers(61);
+      const gs = makeGroups(roster);
+      void seedTable('players', rosterRows(roster));
+      void seedTable('roster_groups', groupRows(gs));
+      return { goTo: '/home/groups/g-weekend-warriors' };
+    },
+  },
+  {
+    key: 'home-hub',
+    label: 'Home hub — games + groups populated',
+    detail: 'The user-centric hub (HOME_V2). Verifies the merged game list, status pills, and recency sort.',
+    buildDomain: () => {
+      signInAsOrganizer();
+      const roster = rosterPlayers(61);
+      const gs = makeGroups(roster);
+      void seedTable('players', rosterRows(roster));
+      void seedTable('roster_groups', groupRows(gs));
+      for (const { game, scoresByMatchup } of ledgerSeason(roster)) {
+        savePoolGame(game);
+        for (const [mid, scores] of scoresByMatchup) saveGameScores(mid, scores);
+      }
+      return { goTo: '/home' };
+    },
+  },
+  {
     key: 'wolf-partial',
     label: 'Wolf — 4 players, thru 5',
     detail: 'Decision-input game: per-hole Wolf breakdown + expandable standings.',
@@ -265,7 +335,12 @@ export default function SandboxPage() {
 
   function seed(s: Scenario) {
     setAccessCookie('full');            // skip the invite gate
-    const { game, goTo } = s.build();
+    if (s.buildDomain) {
+      const { goTo } = s.buildDomain();
+      setSeeded({ key: s.key, id: '', goTo });
+      return;
+    }
+    const { game, goTo } = s.build!();
     savePoolGame(game);
     setSeeded({ key: s.key, id: game.id, goTo: goTo(game.id) });
   }
