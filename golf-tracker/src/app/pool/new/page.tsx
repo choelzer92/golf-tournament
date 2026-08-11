@@ -52,6 +52,7 @@ import {
   getGroupById,
   upsertGroup,
 } from '@/lib/roster-groups';
+import { getPlayerGroups } from '@/lib/pool-formats';
 import { POOL_GROUP_SEED_KEY } from '@/lib/group-seed';
 import { GAME_MODES, getGameMode, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
@@ -417,6 +418,9 @@ export default function NewPoolGamePage() {
             setMatchLegs={setMatchLegs}
             matchJunkPerPoint={matchJunkPerPoint}
             setMatchJunkPerPoint={setMatchJunkPerPoint}
+            applyGroupDefaults={applyGroupDefaults}
+            onGroupChosen={setSourceGroupId}
+            chosenGroupId={sourceGroupId}
             onNext={() => setStep('course')}
           />
         )}
@@ -445,6 +449,7 @@ export default function NewPoolGamePage() {
             getGroupDefaults={currentGroupDefaults}
             applyGroupDefaults={applyGroupDefaults}
             onGroupLoaded={setSourceGroupId}
+            preselectedGroupId={sourceGroupId}
             formatSeedApplied={formatSeedApplied}
             onNext={() => setStep('tees')}
             onBack={() => setStep('course')}
@@ -586,6 +591,7 @@ function DetailsStep({
   positionSplitText, setPositionSplitText,
   junkValues, setJunkValues, ballSelection, setBallSelection,
   moneyMode, setMoneyMode, matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
+  applyGroupDefaults, onGroupChosen, chosenGroupId,
   onNext,
 }: {
   name: string; setName: (s: string) => void;
@@ -602,9 +608,33 @@ function DetailsStep({
   matchLegs: { front: string; back: string; overall: string };
   setMatchLegs: (v: { front: string; back: string; overall: string }) => void;
   matchJunkPerPoint: string; setMatchJunkPerPoint: (s: string) => void;
+  applyGroupDefaults: (d: GroupDefaults | null) => void;
+  onGroupChosen: (groupId: string) => void;
+  chosenGroupId: string | undefined;
   onNext: () => void;
 }) {
   const selectedMode = getGameMode(gameMode);
+
+  // GROUPS FIRST. The picker already existed, but buried on step 3 (Build Field) as
+  // a "Groups" dropdown plus a separate Load button — which is why only 7 of 44 real
+  // games carried a sourceGroupId. Picking the group is the highest-value control in
+  // the wizard: it answers "who plays", "how we play", and "what games we play" at
+  // once, and it turns later questions into confirmations.
+  const [groups, setGroups] = useState<RosterGroup[]>([]);
+  useEffect(() => {
+    hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' })
+      .then(() => setGroups(getPlayerGroups()))
+      .catch(() => {});
+  }, []);
+
+  // Choosing a group applies its saved settings now and stamps the game, so the
+  // money/handicap answers below arrive pre-filled. Members load on the Field step,
+  // which is where the roster + tees are resolved.
+  function chooseGroup(g: RosterGroup) {
+    onGroupChosen(g.id);
+    applyGroupDefaults(g.defaults);
+    if (!name.trim()) setName(g.name);
+  }
   // Any registered game mode (individual OR 2v2 within-group) is a single-group
   // game: it renders ITS OWN options (via the mode's settings schema) and does
   // NOT use the classic team-pool "Game Type / pot / match / junk / ball" block.
@@ -671,6 +701,56 @@ function DetailsStep({
   return (
     <div>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">What are you playing?</h2>
+
+      {/* WHO ARE YOU PLAYING WITH — asked first, because a group answers three
+          questions at once (its people, its stakes, its formats) and turns the
+          questions below into confirmations. */}
+      {groups.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-4 mb-4">
+          <label className="block text-sm font-medium text-gray-800 mb-1">Who&apos;s playing?</label>
+          <p className="text-xs text-gray-500 mb-2">
+            Pick a group to start from its usual setup. You can change anything below.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {groups.map((g) => {
+              const active = chosenGroupId === g.id;
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => chooseGroup(g)}
+                  className={`rounded-lg border px-3 py-2.5 text-sm font-medium min-h-[44px] ${
+                    active
+                      ? 'border-green-600 bg-green-600 text-white'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                  }`}
+                >
+                  {g.name}
+                  <span className={`ml-1.5 text-xs ${active ? 'text-green-100' : 'text-gray-400'}`}>
+                    {g.playerIds.length}
+                  </span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => onGroupChosen('')}
+              className={`rounded-lg border px-3 py-2.5 text-sm font-medium min-h-[44px] ${
+                !chosenGroupId
+                  ? 'border-green-600 bg-green-600 text-white'
+                  : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+              }`}
+            >
+              Someone else
+            </button>
+          </div>
+          {chosenGroupId && (
+            <p className="text-xs text-green-700 mt-2">
+              Using this group&apos;s usual setup — its players load on the next-but-one step.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
         <div>
@@ -1266,7 +1346,7 @@ function CourseStep({
 }
 
 function FieldStep({
-  course, players, setPlayers, handicapAllowance, handicapBasis, nine, getGroupDefaults, applyGroupDefaults, onGroupLoaded, formatSeedApplied, onNext, onBack,
+  course, players, setPlayers, handicapAllowance, handicapBasis, nine, getGroupDefaults, applyGroupDefaults, onGroupLoaded, preselectedGroupId, formatSeedApplied, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
@@ -1276,6 +1356,9 @@ function FieldStep({
   getGroupDefaults: () => GroupDefaults;
   applyGroupDefaults: (d: GroupDefaults | null) => void;
   onGroupLoaded: (groupId: string) => void;
+  /** Group chosen on step 1 — its members load automatically so the question
+      isn't asked twice. */
+  preselectedGroupId?: string;
   formatSeedApplied: boolean;
   onNext: () => void; onBack: () => void;
 }) {
@@ -1307,7 +1390,7 @@ function FieldStep({
 
   // Saved groups (organizer's "home base" rosters + format defaults).
   const [groups, setGroups] = useState<RosterGroup[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState(preselectedGroupId ?? '');
   const [saveGroupName, setSaveGroupName] = useState('');
   const [groupNote, setGroupNote] = useState('');
   // The group currently loaded as today's roster context. When set, the player
@@ -1337,6 +1420,12 @@ function FieldStep({
               // format seed already set the settings; don't clobber with the
               // group's own default.
               loadGroup(seededGroupId, { skipDefaults: formatSeedApplied });
+            } else if (preselectedGroupId && players.length === 0) {
+              // Chosen on step 1: load its members now so the group question isn't
+              // asked twice. Settings already applied at step 1, so skip them here.
+              // Guarded on an empty field so a user who came Back and edited their
+              // player list doesn't get it silently replaced.
+              loadGroup(preselectedGroupId, { skipDefaults: true });
             }
           } catch {}
         })

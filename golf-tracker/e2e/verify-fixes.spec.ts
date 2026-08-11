@@ -295,3 +295,63 @@ test.describe('USGA allowance recommendation', () => {
     await expect(page.getByText(/USGA suggests 90% for four-ball match play/)).toBeVisible();
   });
 });
+
+test.describe('group picker on wizard step 1', () => {
+  // The picker existed but was buried on step 3 (Build Field) behind a "Groups"
+  // dropdown + Load button — which is why only 7 of 44 real games carried a
+  // sourceGroupId. A group answers who plays / how we play / what we play at once,
+  // so it belongs first.
+  test('choosing a group applies its settings and names the game', async ({ page }) => {
+    // Seed a roster + groups into the sandbox backend.
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Groups — 61-member' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+
+    // The question is asked FIRST, above the game name.
+    await expect(page.getByText("Who's playing?")).toBeVisible();
+    const warriors = page.getByRole('button', { name: /Weekend Warriors/ });
+    await expect(warriors).toBeVisible();
+
+    await warriors.click();
+
+    // Its saved settings land (Warriors default: off-the-low, 100%).
+    await expect(page.getByText(/Using this group's usual setup/)).toBeVisible();
+    // And the game gets a sensible name without typing.
+    await expect(page.locator('input[type="text"]').first()).toHaveValue('Weekend Warriors');
+    await page.screenshot({ path: 'e2e/screenshots/wizard-group-picker.png', fullPage: true });
+  });
+
+  test('"Someone else" leaves the wizard ungrouped', async ({ page }) => {
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Groups — 61-member' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: /Weekend Warriors/ }).click();
+    await expect(page.getByText(/Using this group's usual setup/)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Someone else' }).click();
+    await expect(page.getByText(/Using this group's usual setup/)).toHaveCount(0);
+  });
+
+  test('a user with no groups never sees the picker', async ({ page }) => {
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    // First-timer: no empty dropdown, no dead control.
+    await expect(page.getByText("Who's playing?")).toHaveCount(0);
+    await expect(page.getByText('What should we call it?')).toBeVisible();
+  });
+});

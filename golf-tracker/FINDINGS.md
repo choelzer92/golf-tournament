@@ -255,7 +255,23 @@ far enough.
 Tap-target sizing is a separate, mechanical fix (raise toggles to 44px) and can be
 done independently of which option is chosen.
 
-**Status:** open — needs Craig's pick
+**Status: PARTIALLY ADDRESSED (2026-08-11).** Craig chose to start with clarity
+rather than collapsing, which turned out to be the better order — a hidden control
+with a bad label is worse than a visible one.
+
+Done so far:
+- **Every option relabelled as a question** with its consequence stated in strokes or
+  dollars, not in mechanism. Craig's rule: *a label must state what CHANGES for the
+  players, not what the code does.*
+- **USGA allowance recommendations per format**, with one-tap apply. The tables were
+  already in `lib/formats.ts` but never surfaced.
+- **Group picker moved to step 1** (option C, ahead of schedule) — it answers who
+  plays / how we play / what we play at once, and its members auto-load on the Field
+  step so the question isn't asked twice. First-timers with no groups see no picker
+  at all rather than an empty dropdown.
+
+Still open from this finding: the 20-controls-on-one-screen count (option A's
+collapse), moving money to its own step after teams, and tap-target sizing.
 
 ---
 
