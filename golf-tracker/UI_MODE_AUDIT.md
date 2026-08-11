@@ -196,6 +196,28 @@ Worth deciding deliberately, since it's money display: split-evenly matches the
 Nassau precedent, but pro-rating `entryPaid` against started legs may read more
 honestly ("you've only anted for what's being played").
 
+### P3 — Nassau "Back 9 · thru 9" reads like hole 9, not "9 holes played"
+
+**Found by looking at the rendered UI (2026-08-11), `e2e/screenshots/skins-2p.png`.
+Not yet fixed.**
+
+On a completed 18-hole round the Nassau board shows:
+
+```
+Front 9   $10 pot · thru 9     All tied · splits
+Back 9    $10 pot · thru 9     ← reads as "thru hole 9" on the BACK nine
+Total     $20 pot · thru 18
+```
+
+`settleNassau` sets `thru: segThru` where `segThru` is *holes played within the
+segment* (`types.ts:257`), so a finished back nine is correctly 9-of-9 — but the
+label "thru 9" collides with the app's dominant use of "thru" meaning *hole
+number* (the header on the same screen says "thru hole 18"). A golfer reads "Back
+9 · thru 9" as the back nine having stopped at hole 9.
+
+Fix options: label it `9 of 9 holes`, or convert to a hole number per segment
+(back-nine 9-played → "thru 18"). The second matches the header's vocabulary.
+
 ### P2 — 2v2 best-ball/combined shows no side information during play at all
 
 Only the one-ball formats get `.team` tagging (`pool/[id]/page.tsx:183-195`).
