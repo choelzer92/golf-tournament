@@ -257,25 +257,37 @@ export default function PoolHubPage() {
             <h1 className="text-xl font-bold">{game.name}</h1>
             <p className="text-xs text-green-200">{hubSubtitle}</p>
           </div>
+          {/* THE LINE IS READ-ONLY vs MUTATING, not organizer vs guest.
+              A share-link player is in a money game: they're entitled to SEE
+              everything — the money structure, the handicap basis, how the teams
+              were built. So MoneySummary, FieldLowBanner and TeamBuildSummaryCard
+              all stay visible below.
+              What they must not do is CHANGE it for everyone else: Edit rebuilds
+              teams, Close out ends the round for all four foursomes, GHIN refresh
+              needs a token they don't have. Those are hidden. */}
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setSharing(true)}
-              className="text-sm font-medium text-green-200 hover:text-white"
-            >
-              Share
-            </button>
-            <button
-              onClick={() => setSavingFormat(true)}
-              className="text-sm font-medium text-green-200 hover:text-white"
-            >
-              Save format
-            </button>
-            <button
-              onClick={() => setEditing((e) => !e)}
-              className={`text-sm font-medium ${editing ? 'text-white' : 'text-green-200 hover:text-white'}`}
-            >
-              {editing ? 'Done editing' : 'Edit'}
-            </button>
+            {!poolOnly && (
+              <>
+                <button
+                  onClick={() => setSharing(true)}
+                  className="text-sm font-medium text-green-200 hover:text-white"
+                >
+                  Share
+                </button>
+                <button
+                  onClick={() => setSavingFormat(true)}
+                  className="text-sm font-medium text-green-200 hover:text-white"
+                >
+                  Save format
+                </button>
+                <button
+                  onClick={() => setEditing((e) => !e)}
+                  className={`text-sm font-medium ${editing ? 'text-white' : 'text-green-200 hover:text-white'}`}
+                >
+                  {editing ? 'Done editing' : 'Edit'}
+                </button>
+              </>
+            )}
             <button onClick={() => router.push(poolOnly ? '/pool' : '/dashboard')} className="text-sm text-green-200 hover:text-white">
               {poolOnly ? 'My Games' : 'Dashboard'}
             </button>
@@ -317,8 +329,12 @@ export default function PoolHubPage() {
         </div>
 
         {/* Handicap refresh — re-pull from GHIN (e.g. teams set up the night
-            before, indexes changed overnight) and offer to re-balance. */}
-        <HandicapRefresh game={game} onRefresh={refreshGameHandicaps} onRebalance={() => setEditing(true)} onNeedsLogin={() => setShowLogin(true)} />
+            before, indexes changed overnight) and offer to re-balance. Organizer
+            only: a share-link guest has no GHIN token, so it could only ever fail
+            for them. */}
+        {!poolOnly && (
+          <HandicapRefresh game={game} onRefresh={refreshGameHandicaps} onRebalance={() => setEditing(true)} onNeedsLogin={() => setShowLogin(true)} />
+        )}
 
         {/* Field-low banner — explains how the low man sets everyone's strokes */}
         <FieldLowBanner game={game} />
@@ -356,14 +372,20 @@ export default function PoolHubPage() {
           )}
         </section>
 
-        {/* Wolf rotation editor — only for Wolf games. */}
-        {game.gameMode === 'wolf' && <WolfRotationEditor game={game} onSave={persist} />}
+        {/* Organizer-only surfaces. A guest tapping "Close out game" would end the
+            round for every foursome, and CTP/Wolf setup is the organizer's job. */}
+        {!poolOnly && (
+          <>
+            {/* Wolf rotation editor — only for Wolf games. */}
+            {game.gameMode === 'wolf' && <WolfRotationEditor game={game} onSave={persist} />}
 
-        {/* CTP editor / finalize surface */}
-        <CtpEditor game={game} onSave={persist} />
+            {/* CTP editor / finalize surface */}
+            <CtpEditor game={game} onSave={persist} />
 
-        {/* Close out / reopen — the explicit lifecycle control. */}
-        <GameCloseOut game={game} onSave={persist} />
+            {/* Close out / reopen — the explicit lifecycle control. */}
+            <GameCloseOut game={game} onSave={persist} />
+          </>
+        )}
       </main>
     </div>
   );

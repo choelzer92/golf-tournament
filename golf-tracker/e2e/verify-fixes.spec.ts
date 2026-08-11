@@ -29,6 +29,11 @@ test.beforeEach(async ({ context, page }) => {
 // Returns the seeded game's id so tests can navigate to a specific sub-page.
 async function seed(page: import('@playwright/test').Page, label: string): Promise<string> {
   await page.goto(`${BASE}/sandbox`);
+  // Start from an empty backend every time. The fake persists to sessionStorage so
+  // seeded games survive navigation, which means a previous test in this file can
+  // leave a dirty store behind.
+  await page.evaluate(() => sessionStorage.clear());
+  await page.reload();
   const card = page.locator('div.bg-white', { hasText: label });
   await card.getByRole('button', { name: 'Seed' }).click();
   await expect(card.getByText('Seeded ✓')).toBeVisible();
@@ -206,5 +211,56 @@ test.describe('share link on another device', () => {
     expect(body).toContain('Closeout Test Pool');
     await guest.screenshot({ path: 'e2e/screenshots/guest-share-link.png', fullPage: true });
     await guestCtx.close();
+  });
+});
+
+test.describe('F-004: guest sees scores + info, not organizer controls', () => {
+  // Craig's spec: "The share a game link should just allow someone to enter scores
+  // for their foursome if they want, or to view the leaderboard." Plus his
+  // correction: players in a money game SHOULD see the settings and how teams were
+  // built — the line is read-only vs mutating, not organizer vs guest.
+  test('a pool-access visitor can score and read, but not mutate', async ({ browser, page }) => {
+    const id = await seed(page, 'Classic pool — 2 foursomes, FULLY scored');
+    await goToGame(page, id);
+    await page.getByRole('button', { name: 'Share' }).first().click();
+    const link = await page.locator('input[readonly]').first().inputValue();
+    const store = await page.evaluate(() => sessionStorage.getItem('__sandbox_supabase__') ?? '');
+
+    const guestCtx = await browser.newContext();
+    const guest = await guestCtx.newPage();
+    await guest.goto(`${BASE}/sandbox`);
+    await guest.evaluate((d) => sessionStorage.setItem('__sandbox_supabase__', d), store);
+    await guest.goto(link);
+    await guest.waitForLoadState('networkidle');
+
+    const body = await guest.locator('body').innerText();
+
+    // CAN do their two jobs.
+    await expect(guest.getByRole('button', { name: /enter scores/i }).first()).toBeVisible();
+    await expect(guest.getByRole('button', { name: /leaderboard/i }).first()).toBeVisible();
+
+    // CAN see the information a player in a money game is entitled to.
+    expect(body).toContain('Pot');                        // money structure
+    expect(body).toContain('Full handicap');              // how strokes are set
+    expect(body).toContain('HOW THESE TEAMS WERE BUILT');  // team construction
+
+    // CANNOT mutate the game for everyone.
+    expect(body).not.toContain('Close out game');
+    expect(body).not.toContain('Save format');
+    expect(body).not.toContain('Refresh from GHIN');
+    expect(body).not.toContain('Closest to the Pin');
+    await expect(guest.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0);
+
+    await guest.screenshot({ path: 'e2e/screenshots/guest-scoped.png', fullPage: true });
+    await guestCtx.close();
+  });
+
+  test('the ORGANIZER still sees every control', async ({ page }) => {
+    const id = await seed(page, 'Classic pool — 2 foursomes, FULLY scored');
+    await goToGame(page, id);
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('Close out game');
+    expect(body).toContain('Closest to the Pin');
+    await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
   });
 });

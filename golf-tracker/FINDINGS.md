@@ -174,11 +174,26 @@ case.
   *wants* a co-organizer to edit.
 
 **Recommendation:** **A**. It's the smallest change, uses the access level that
-already exists, and directly serves "minimum exposed complexity." The one judgement
-call is Close out — arguably a captain should be able to. Suggest hiding it for
-`pool` and revisiting if that proves annoying.
+already exists, and directly serves "minimum exposed complexity."
 
-**Status:** open
+**Status: FIXED + VERIFIED** (option A, 2026-08-11).
+
+Craig specified the target: *"The share a game link should just allow someone to
+enter scores for their foursome if they want, or to view the leaderboard."*
+
+He then corrected my first attempt — I had also hidden "How these teams were
+built", and he asked: *"wouldnt players in the game want to see the settings? or
+understand how they were built?"* He's right, and it sharpened the principle:
+
+> **The line is READ-ONLY vs MUTATING, not organizer vs guest.**
+
+A player in a money game is entitled to see everything — the money structure, the
+handicap basis, how teams were built. What they must not do is change it for
+everyone. So `MoneySummary`, `FieldLowBanner` and `TeamBuildSummaryCard` stay
+visible to guests; Edit / Close out / Save format / CTP / GHIN-refresh are hidden.
+
+Guarded by two e2e tests (guest is scoped; organizer still sees everything) —
+`e2e/screenshots/guest-scoped.png`.
 
 ---
 
