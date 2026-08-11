@@ -640,6 +640,32 @@ function DetailsStep({
     { value: '2-best-gross', label: 'Two best gross scores' },
   ];
 
+  // USGA recommended handicap allowance for the format being played. The tables
+  // already live in lib/formats.ts (TEAM_MODES.usgaAllowance, plus per-format
+  // overrides) but the wizard never surfaced them — so an organizer had to know
+  // that four-ball is 85% and a scramble is tiered. Craig asked for these to be
+  // shown per format.
+  //
+  // Returns null when there's no single recommended number (scramble is tiered by
+  // team size, so quoting one figure would be wrong).
+  const usgaRec: { pct: number; note: string } | null = (() => {
+    if (isRegisteredMode && selectedMode) {
+      // 2v2 modes carry their own allowance semantics in modeSettings; the classic
+      // per-format table doesn't apply cleanly, so stay silent rather than guess.
+      if (selectedMode.category === 'team-within-group') return null;
+      return { pct: 95, note: 'USGA suggests 95% for individual stroke play' };
+    }
+    if (moneyMode === 'match') {
+      return { pct: 90, note: 'USGA suggests 90% for four-ball match play' };
+    }
+    // Classic pool = two-best-balls of four, which the USGA treats as four-ball
+    // stroke play.
+    return ballSelection === '1-net-1-gross'
+      ? { pct: 85, note: 'USGA suggests 85% for four-ball stroke play (two scores counting)' }
+      : { pct: 85, note: 'USGA suggests 85% for four-ball stroke play' };
+  })();
+  const usgaApplied = usgaRec !== null && Math.round(parseFloat(handicapAllowance)) === usgaRec.pct;
+
   const canProceed = name.trim().length > 0;
 
   return (
@@ -716,8 +742,8 @@ function DetailsStep({
           </div>
           <p className="text-xs text-gray-500 mt-1">
             {moneyMode === 'match'
-              ? 'Two foursomes head-to-head. Each leg pays a fixed amount per player; junk pays a set amount per point of margin. No buy-in.'
-              : 'Everyone buys in to one pot, split into front / back / overall / junk and paid out by finishing place.'}
+              ? 'Two foursomes only. Nobody buys in — the losing side pays the winners a set amount for each leg and each bonus point.'
+              : 'Every player pays in. The pot is split across the front nine, back nine, overall, and bonuses, and paid out by finishing place.'}
           </p>
         </div>
         )}
@@ -736,7 +762,7 @@ function DetailsStep({
           </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1">% of handicap used</label>
+            <label className="block text-sm font-medium text-gray-800 mb-1">How much handicap counts?</label>
             <input
               type="number"
               inputMode="decimal"
@@ -744,6 +770,36 @@ function DetailsStep({
               onChange={(e) => setHandicapAllowance(e.target.value)}
               className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
             />
+            {/* State the CONSEQUENCE in strokes, not the percentage — anything under
+                100 also narrows the gap between players, which is the real reason
+                groups use it. */}
+            <p className="text-xs text-gray-500 mt-1">
+              {(() => {
+                const pct = parseFloat(handicapAllowance);
+                if (isNaN(pct) || pct === 100) return '100% — everyone plays their full handicap.';
+                return `${pct}% — an 18 handicap plays off ${Math.round(18 * pct / 100)}, an 8 off ${Math.round(8 * pct / 100)}. Lower percentages pull players closer together.`;
+              })()}
+            </p>
+            {/* The USGA's recommendation for THIS format. Advisory, never forced —
+                plenty of groups deliberately play 100%. */}
+            {usgaRec && (
+              <p className="text-xs mt-1">
+                {usgaApplied ? (
+                  <span className="text-green-700">✓ {usgaRec.note}.</span>
+                ) : (
+                  <>
+                    <span className="text-gray-500">{usgaRec.note}. </span>
+                    <button
+                      type="button"
+                      onClick={() => setHandicapAllowance(String(usgaRec.pct))}
+                      className="font-medium text-green-700 underline hover:text-green-900"
+                    >
+                      Use {usgaRec.pct}%
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
           </div>
         </div>
 
@@ -770,8 +826,8 @@ function DetailsStep({
           </div>
           <p className="text-xs text-gray-500 mt-1">
             {strokeMethod === 'off-the-low'
-              ? 'Lowest-handicap player in the field plays to scratch; everyone else plays the difference.'
-              : 'Every player uses their full course handicap × allowance.'}
+              ? 'The best player in the field plays off scratch and everyone else plays the difference — so a 12 facing a 4 gets 8 strokes, not 12.'
+              : 'Everyone keeps their own strokes — a 12 gets 12 and a 4 gets 4, regardless of who else is playing.'}
           </p>
         </div>
 

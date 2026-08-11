@@ -264,3 +264,34 @@ test.describe('F-004: guest sees scores + info, not organizer controls', () => {
     await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
   });
 });
+
+test.describe('USGA allowance recommendation', () => {
+  // Craig: "showing the usga recommendations per different formats would be good for
+  // allowances". Advisory only — never forced, since groups deliberately play 100%.
+  test('suggests the format allowance and applies it in one tap', async ({ page }) => {
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+
+    // Default 100% -> a suggestion is offered for four-ball stroke play.
+    await expect(page.getByText(/USGA suggests 85%/)).toBeVisible();
+    const apply = page.getByRole('button', { name: 'Use 85%' });
+    await expect(apply).toBeVisible();
+
+    await apply.click();
+    // The field takes the value, and the note flips to confirmed.
+    await expect(page.locator('input[type="number"]').nth(1)).toHaveValue('85');
+    await expect(page.getByText(/✓ USGA suggests 85%/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Use 85%' })).toHaveCount(0);
+
+    // And the stroke consequence updates with it.
+    await expect(page.getByText(/an 18 handicap plays off 15/)).toBeVisible();
+  });
+
+  test('the recommendation changes with the format', async ({ page }) => {
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    // Head-to-head is four-ball MATCH play -> 90%.
+    await page.getByRole('button', { name: 'Two teams, head-to-head' }).click();
+    await expect(page.getByText(/USGA suggests 90% for four-ball match play/)).toBeVisible();
+  });
+});
