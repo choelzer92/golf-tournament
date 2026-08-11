@@ -76,6 +76,33 @@ don't need a check-in — just mention them.
 
 **Never commit or push** unless explicitly asked.
 
+## Working through the todo list
+
+`npm run verify` is the gate: unit tests → typecheck → production build → e2e, all
+unattended. **A todo is not done until it exits 0.**
+
+The loop per todo:
+
+1. Mark it `in_progress` (TaskUpdate) so the list shows where you are.
+2. Read the todo's description — it carries the constraints and the recommended
+   approach, so you don't re-derive them.
+3. Implement, following the working rules below (ask before money/handicap/scoring
+   math, or where more than one answer is defensible).
+4. `npm run verify`.
+5. Add an e2e assertion for anything user-visible, tagged with the finding id where
+   there is one (`test('F-012: …')`).
+6. Commit — one focused commit per todo, so any single change is revertible.
+7. Mark it `completed` and move to the next.
+
+**What NOT to do unattended:** anything the todo flags as needing Craig's decision.
+Tasks #3 (format ceiling scope) and #4 (bonus type shape) are blocked on him by
+design — don't pick a schema and build on it. Skip to the next actionable todo and
+say what's waiting.
+
+**Why the branch matters:** work lands on a feature branch, never `main`, so Craig
+reviews the whole flow before anything reaches the friends using the live app. Don't
+merge or push unless asked.
+
 ## Seeing the UI
 
 `NEXT_PUBLIC_SANDBOX=1 npx next dev --port 3200` runs the app against an

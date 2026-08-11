@@ -9,7 +9,9 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev:sandbox": "next dev"
+    "dev:sandbox": "next dev",
+    "e2e": "playwright test",
+    "verify": "npm run test && tsc --noEmit && next build && playwright test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.107.0",

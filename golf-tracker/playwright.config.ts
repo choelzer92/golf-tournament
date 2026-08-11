@@ -16,6 +16,18 @@ export default defineConfig({
   fullyParallel: false,        // one shared in-memory store per server
   workers: 1,
   reporter: [['list']],
+  // Start the sandbox server ourselves so `npx playwright test` is a single
+  // unattended command. reuseExistingServer keeps a hand-started dev server (with
+  // hot reload) in play when there is one. NEXT_PUBLIC_SANDBOX=1 is what routes the
+  // app at the in-memory fake — without it these tests would hit the real
+  // database, so it is set here rather than left to the caller's shell.
+  webServer: {
+    command: 'npx next dev --port 3200',
+    url: 'http://localhost:3200/sandbox',
+    reuseExistingServer: true,
+    timeout: 120_000,
+    env: { NEXT_PUBLIC_SANDBOX: '1' },
+  },
   use: {
     baseURL: process.env.SANDBOX_URL ?? 'http://localhost:3200',
     channel: 'chrome',
