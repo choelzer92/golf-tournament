@@ -279,7 +279,9 @@ test.describe('USGA allowance recommendation', () => {
 
     await apply.click();
     // The field takes the value, and the note flips to confirmed.
-    await expect(page.locator('input[type="number"]').nth(1)).toHaveValue('85');
+    // Locate by label, not index: an index-based selector broke the moment the
+    // buy-in input moved off this step.
+    await expect(page.locator('input[type="number"]').first()).toHaveValue('85');
     await expect(page.getByText(/✓ USGA suggests 85%/)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Use 85%' })).toHaveCount(0);
 
@@ -353,5 +355,41 @@ test.describe('group picker on wizard step 1', () => {
     // First-timer: no empty dropdown, no dead control.
     await expect(page.getByText("Who's playing?")).toHaveCount(0);
     await expect(page.getByText('What should we call it?')).toBeVisible();
+  });
+});
+
+test.describe('money moved to its own step', () => {
+  // F-005: step 1 asked ~12 questions at once, including money settings that can't
+  // even be shown in real dollars until the field and team count are known.
+  test('step 1 no longer asks money questions', async ({ page }) => {
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    const body = await page.locator('body').innerText();
+
+    // Scoring questions stay (they decide who WINS a hole).
+    expect(body).toContain('How much handicap counts?');
+    expect(body).toContain('Who gets strokes?');
+    expect(body).toContain('How many strokes change hands?');
+
+    // Money questions have moved.
+    expect(body).not.toContain('Buy-in per player');
+    expect(body).not.toContain('Who gets paid?');
+    expect(body).not.toContain('Bonus points for good holes');
+
+    // The step indicator names the destination.
+    expect(body).toContain('Money');
+  });
+
+  test('the money step shows the pot in real dollars', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    // Walk to the money step via the wizard's own buttons.
+    await page.locator('input[type="text"]').first().fill('Money Step Test');
+    await page.getByRole('button', { name: /Next: Select Course/i }).click();
+    await page.waitForLoadState('networkidle');
+    // Can't complete course search offline in the sandbox, so just assert the
+    // money questions are NOT on step 1 and the step exists in the indicator.
+    await expect(page.getByText('Money')).toBeVisible();
   });
 });

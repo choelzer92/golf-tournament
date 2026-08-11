@@ -546,6 +546,16 @@ export default function NewPoolGamePage() {
             nine={wizardNine}
             holesPlaying={holesPlaying}
             gameMode={gameMode}
+            entryPerPlayerText={entryPerPlayer}
+            setEntryPerPlayer={setEntryPerPlayer}
+            positionSplitText={positionSplitText}
+            setPositionSplitText={setPositionSplitText}
+            junkValues={junkValues}
+            setJunkValues={setJunkValues}
+            matchLegs={matchLegs}
+            setMatchLegs={setMatchLegs}
+            matchJunkPerPoint={matchJunkPerPoint}
+            setMatchJunkPerPoint={setMatchJunkPerPoint}
             onCreate={createPoolGame}
             onBack={() => setStep(modeCategory === 'individual' ? 'tees' : 'teams')}
           />
@@ -564,7 +574,7 @@ function StepIndicator({ current, course, individualGame, withinGroup }: { curre
     // Individual games skip team-building entirely; 2v2 within-group replaces it
     // with a "Sides" step; classic pool keeps "Teams".
     ...(individualGame ? [] : [{ key: 'teams', label: withinGroup ? 'Sides' : 'Teams' }]),
-    { key: 'create', label: 'Create' },
+    { key: 'create', label: 'Money' },
   ];
   const currentIdx = steps.findIndex((s) => s.key === current);
 
@@ -581,6 +591,17 @@ function StepIndicator({ current, course, individualGame, withinGroup }: { curre
     </div>
   );
 }
+
+// Bonus (junk) fields, shared by the wizard steps that render them. Labels spell out
+// what each bonus IS — "Group Hug" and "CTP" are insider terms a first-time user
+// can't act on, and a label you can't understand is worse than one you can't find.
+const JUNK_FIELDS: { key: keyof PoolJunkValues; label: string; hint: string }[] = [
+  { key: 'birdie', label: 'Birdie', hint: '1 under' },
+  { key: 'eagle', label: 'Eagle', hint: '2 under' },
+  { key: 'albatross', label: 'Albatross', hint: '3 under' },
+  { key: 'groupHug', label: 'All par', hint: 'whole team' },
+  { key: 'ctp', label: 'Closest', hint: 'on par 3s' },
+];
 
 function DetailsStep({
   name, setName,
@@ -653,17 +674,6 @@ function DetailsStep({
       setMoneyMode('pot');
     }
   }
-  // Labels spell out what each bonus IS. "Group Hug" and "CTP" are insider terms —
-  // a first-time user can't act on them, and a label you can't understand is worse
-  // than one you can't find. `hint` shows under the input.
-  const junkFields: { key: keyof PoolJunkValues; label: string; hint: string }[] = [
-    { key: 'birdie', label: 'Birdie', hint: '1 under' },
-    { key: 'eagle', label: 'Eagle', hint: '2 under' },
-    { key: 'albatross', label: 'Albatross', hint: '3 under' },
-    { key: 'groupHug', label: 'All par', hint: 'whole team' },
-    { key: 'ctp', label: 'Closest', hint: 'on par 3s' },
-  ];
-
   const ballOptions: { value: TwoBestBallsVariant; label: string }[] = [
     { value: '1-net-1-gross', label: 'Best net + best gross (from two different players)' },
     { value: '2-best-net', label: 'Two best net scores' },
@@ -810,7 +820,7 @@ function DetailsStep({
                 key={v}
                 type="button"
                 onClick={() => setMoneyMode(v)}
-                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
                   moneyMode === v
                     ? 'border-green-600 bg-green-600 text-white'
                     : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
@@ -829,18 +839,6 @@ function DetailsStep({
         )}
 
         <div className="grid grid-cols-2 gap-3 pt-2 border-t">
-          {moneyMode === 'pot' && !isRegisteredMode && (
-          <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1">Buy-in per player ($)</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              value={entryPerPlayer}
-              onChange={(e) => setEntryPerPlayer(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-          </div>
-          )}
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1">How much handicap counts?</label>
             <input
@@ -894,7 +892,7 @@ function DetailsStep({
                 key={v}
                 type="button"
                 onClick={() => setStrokeMethod(v)}
-                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
                   strokeMethod === v
                     ? 'border-green-600 bg-green-600 text-white'
                     : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
@@ -922,7 +920,7 @@ function DetailsStep({
                 key={v}
                 type="button"
                 onClick={() => setHandicapBasis(v)}
-                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
                   handicapBasis === v
                     ? 'border-green-600 bg-green-600 text-white'
                     : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
@@ -939,87 +937,9 @@ function DetailsStep({
           </p>
         </div>
 
-        {moneyMode === 'pot' && !isRegisteredMode && (
-        <div className="pt-2 border-t">
-          <p className="text-xs text-gray-500">Pot split (front / back / overall / junk) is set on the final step — it fills in automatically from the number of teams.</p>
-        </div>
-        )}
 
-        {moneyMode === 'pot' && !isRegisteredMode && (
-        <div className="pt-2 border-t">
-          <label className="block text-sm font-medium text-gray-800 mb-1">Who gets paid?</label>
-          <input
-            type="text"
-            value={positionSplitText}
-            onChange={(e) => setPositionSplitText(e.target.value)}
-            placeholder="e.g. 100 or 70, 30"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Share of each pot by finishing place. <span className="font-medium">100</span> = winner takes all · <span className="font-medium">70, 30</span> = 1st and 2nd split it.
-          </p>
-        </div>
-        )}
 
-        {moneyMode === 'match' && (
-        <div className="pt-2 border-t">
-          <p className="text-sm font-semibold text-gray-800 mb-2">What each leg is worth ($ / player)</p>
-          <div className="grid grid-cols-3 gap-2">
-            {([
-              { key: 'front' as const, label: 'Front 9' },
-              { key: 'back' as const, label: 'Back 9' },
-              { key: 'overall' as const, label: 'Overall' },
-            ]).map(({ key, label }) => (
-              <div key={key}>
-                <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={matchLegs[key]}
-                  onChange={(e) => setMatchLegs({ ...matchLegs, [key]: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
-              </div>
-            ))}
-          </div>
-          <div className="mt-3">
-            <label className="block text-xs text-gray-600 font-medium mb-1">Bonus points ($ each)</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              value={matchJunkPerPoint}
-              onChange={(e) => setMatchJunkPerPoint(e.target.value)}
-              className="w-40 rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Each player on the losing side pays this per junk point of difference. With ${matchJunkPerPoint || '5'}/point, a birdie is worth ${(parseFloat(matchJunkPerPoint) || 5) * (junkValues.birdie || 1)}, an eagle ${(parseFloat(matchJunkPerPoint) || 5) * (junkValues.eagle || 2)}.
-            </p>
-          </div>
-          <p className="text-xs text-amber-700 mt-2">Head-to-head is for exactly two foursomes. For three or more teams, use Pool (pot split).</p>
-        </div>
-        )}
 
-        {!isRegisteredMode && (
-        <div className="pt-2 border-t">
-          <p className="text-sm font-semibold text-gray-800 mb-1">Bonus points for good holes</p>
-          <p className="text-xs text-gray-500 mb-2">These add to a team&apos;s bonus total. Set any to 0 to skip it.</p>
-          <div className="grid grid-cols-5 gap-2">
-            {junkFields.map(({ key, label, hint }) => (
-              <div key={key}>
-                <label className="block text-xs text-gray-600 font-medium">{label}</label>
-                <span className="block text-[10px] text-gray-400 mb-1">{hint}</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={junkValues[key]}
-                  onChange={(e) => setJunkValues({ ...junkValues, [key]: Number(e.target.value) })}
-                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-        )}
 
         {!isRegisteredMode && (
         <div className="pt-2 border-t">
@@ -1294,7 +1214,7 @@ function CourseStep({
                   key={v}
                   type="button"
                   onClick={() => setHolesPlaying(v)}
-                  className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                  className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
                     holesPlaying === v ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
                   }`}
                 >
@@ -1315,7 +1235,7 @@ function CourseStep({
                       key={v}
                       type="button"
                       onClick={() => setNineHandicapBasis(v)}
-                      className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                      className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
                         nineHandicapBasis === v ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
                       }`}
                     >
@@ -2436,7 +2356,7 @@ function TeamsStep({
               key={String(v)}
               type="button"
               onClick={() => setUseCaptains(v)}
-              className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+              className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
                 useCaptains === v
                   ? 'border-green-600 bg-green-600 text-white'
                   : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
@@ -2747,7 +2667,10 @@ function SubTeamsStep({
 
 function CreateStep({
   name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited,
-  moneyMode, matchConfig, handicapBasis, nine, holesPlaying, gameMode, onCreate, onBack,
+  moneyMode, matchConfig, handicapBasis, nine, holesPlaying, gameMode,
+  entryPerPlayerText, setEntryPerPlayer, positionSplitText, setPositionSplitText,
+  junkValues, setJunkValues, matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
+  onCreate, onBack,
 }: {
   name: string;
   entryPerPlayer: number;
@@ -2765,6 +2688,18 @@ function CreateStep({
   nine: 'front9' | 'back9' | null;
   holesPlaying: '18' | 'front9' | 'back9';
   gameMode: string | undefined;
+  // Money questions moved here from step 1: the pot can only be shown in real
+  // dollars once the team count is known, so this is where they belong.
+  entryPerPlayerText: string;
+  setEntryPerPlayer: (v: string) => void;
+  positionSplitText: string;
+  setPositionSplitText: (v: string) => void;
+  junkValues: PoolJunkValues;
+  setJunkValues: (v: PoolJunkValues) => void;
+  matchLegs: { front: string; back: string; overall: string };
+  setMatchLegs: (v: { front: string; back: string; overall: string }) => void;
+  matchJunkPerPoint: string;
+  setMatchJunkPerPoint: (v: string) => void;
   onCreate: () => void; onBack: () => void;
 }) {
   const mode = getGameMode(gameMode);
@@ -2809,7 +2744,9 @@ function CreateStep({
   return (
     <div>
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Review &amp; Create</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        {isIndividual ? 'Review &amp; create' : "What's it worth?"}
+      </h2>
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
         <div>
@@ -2853,6 +2790,61 @@ function CreateStep({
         </div>
         )}
 
+        {/* WHAT'S IT WORTH — the money questions live here, not on step 1, because
+            the pot can only be shown in real dollars once the field and team count
+            are known. */}
+        {!isMatch && !isIndividual && (
+        <div className="pt-2 border-t">
+          <label className="block text-sm font-medium text-gray-800 mb-1">Buy-in per player ($)</label>
+          <input
+            type="number"
+            inputMode="decimal"
+            value={entryPerPlayerText}
+            onChange={(e) => setEntryPerPlayer(e.target.value)}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            {players.length} player{players.length === 1 ? '' : 's'} × ${entryPerPlayerText || 0} = <span className="font-semibold text-green-700">${pot}</span> in the pot.
+          </p>
+        </div>
+        )}
+
+        {!isMatch && !isIndividual && (
+        <div className="pt-2 border-t">
+          <label className="block text-sm font-medium text-gray-800 mb-1">Who gets paid?</label>
+          <input
+            type="text"
+            value={positionSplitText}
+            onChange={(e) => setPositionSplitText(e.target.value)}
+            placeholder="e.g. 100 or 70, 30"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Share of each pot by finishing place. <span className="font-medium">100</span> = winner takes all · <span className="font-medium">70, 30</span> = 1st and 2nd split it.
+          </p>
+        </div>
+        )}
+        {!isIndividual && (
+        <div className="pt-2 border-t">
+          <p className="text-sm font-semibold text-gray-800 mb-1">Bonus points for good holes</p>
+          <p className="text-xs text-gray-500 mb-2">These add to a team&apos;s bonus total. Set any to 0 to skip it.</p>
+          <div className="grid grid-cols-5 gap-2">
+            {JUNK_FIELDS.map(({ key, label, hint }) => (
+              <div key={key}>
+                <label className="block text-xs text-gray-600 font-medium">{label}</label>
+                <span className="block text-[10px] text-gray-400 mb-1">{hint}</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={junkValues[key]}
+                  onChange={(e) => setJunkValues({ ...junkValues, [key]: Number(e.target.value) })}
+                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+        )}
         {!isMatch && !isIndividual && (
         <div className="pt-2 border-t">
           <div className="flex items-center justify-between mb-2">

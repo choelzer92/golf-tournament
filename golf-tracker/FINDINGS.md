@@ -270,8 +270,22 @@ Done so far:
   step so the question isn't asked twice. First-timers with no groups see no picker
   at all rather than an empty dropdown.
 
-Still open from this finding: the 20-controls-on-one-screen count (option A's
-collapse), moving money to its own step after teams, and tap-target sizing.
+**Money moved to its own step (option B) + tap targets, 2026-08-11.** Step 1 measured
+**20 controls (9 buttons + 11 inputs)** at the start of this work; it now measures
+**14 (10 buttons + 4 inputs)** — inputs down from 11 to 4. Buy-in, who-gets-paid,
+bonus points and match payouts moved to the final step, renamed **"What's it worth?"**,
+where the pot can finally be shown in real dollars (`8 players × $25 = $200`) because
+the field and team count are known. Scoring questions (allowance, who gets strokes,
+strokes exchanged) stayed on step 1 — they decide who *wins* a hole, which is a
+different question from who *pays*.
+
+Tap targets: the six toggle pairs went from 38px to 44px. Undersized elements dropped
+**8 → 3**, and the remaining three are inline text links (Share, Cancel, "Use 85%"),
+which are correctly not tap-targets.
+
+**Status: F-005 ADDRESSED.** Remaining wizard work is tracked separately: the
+multi-day fork, group-defaults-as-confirmations on each step, and F-006's format
+ceiling.
 
 ---
 
