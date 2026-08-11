@@ -1,0 +1,173 @@
+// UI verification against the SANDBOX server (in-memory backend).
+//
+// Purpose: verify the committed UI fixes actually render correctly — the thing
+// typecheck and unit tests cannot do. Each test seeds a game state via /sandbox,
+// then asserts on what a golfer would actually see.
+//
+// WHAT THIS PROVES: rendering, labels, vocabulary, flow.
+// WHAT IT DOES NOT: persistence, RLS, real realtime, multi-device merge. The
+// backend here is a Map. See src/test/fake-supabase.ts.
+//
+// Requires a sandbox server:  NEXT_PUBLIC_SANDBOX=1 npx next dev --port 3200
+// Uses system Chrome (channel: 'chrome') so no browser download is needed.
+
+import { expect, test } from '@playwright/test';
+
+const BASE = process.env.SANDBOX_URL ?? 'http://localhost:3200';
+
+// The invite gate wraps the whole app, so grant access before the first paint.
+// (The gate reads a plain cookie — see src/lib/invite-gate.ts.)
+test.beforeEach(async ({ context, page }) => {
+  await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
+  // The fake backend persists to sessionStorage so seeded games survive page
+  // reloads. Clear it per test so each starts from an empty backend.
+  await page.goto(`${BASE}/sandbox`);
+  await page.evaluate(() => sessionStorage.clear());
+});
+
+// Seed a scenario from the sandbox page and follow its "Open" link.
+// Returns the seeded game's id so tests can navigate to a specific sub-page.
+async function seed(page: import('@playwright/test').Page, label: string): Promise<string> {
+  await page.goto(`${BASE}/sandbox`);
+  const card = page.locator('div.bg-white', { hasText: label });
+  await card.getByRole('button', { name: 'Seed' }).click();
+  await expect(card.getByText('Seeded ✓')).toBeVisible();
+  await card.getByRole('button', { name: 'Open →' }).click();
+  await page.waitForLoadState('networkidle');
+  // /pool/<id> or /pool/<id>/leaderboard
+  const m = new URL(page.url()).pathname.match(/\/pool\/([^/]+)/);
+  if (!m) throw new Error(`seed("${label}") did not land on a pool page: ${page.url()}`);
+  return m[1];
+}
+
+// Navigate within the seeded game. The in-memory store lives in this tab's JS
+// heap, so use client-side routing (goto would reload and wipe it).
+async function goToGame(page: import('@playwright/test').Page, id: string, sub = '') {
+  await page.goto(`${BASE}/pool/${id}${sub}`);
+  await page.waitForLoadState('networkidle');
+}
+
+test.describe('2v2 side names (the "Team A" bug)', () => {
+  test('leaderboard shows real side names, not Team A/B', async ({ page }) => {
+    const id = await seed(page, '2v2 best ball — mid-round');
+    await goToGame(page, id, '/leaderboard');
+
+    const body = await page.locator('body').innerText();
+    // Sides are named after their players.
+    expect(body).toContain('Craig & Jym');
+    expect(body).toContain('Dave & Rick');
+    // The generic labels must NOT appear.
+    expect(body).not.toContain('Team A');
+    expect(body).not.toContain('Team B');
+    await page.screenshot({ path: 'e2e/screenshots/2v2-leaderboard.png', fullPage: true });
+  });
+
+  test('SCORECARD shows side names too (was the actual defect)', async ({ page }) => {
+    await seed(page, '2v2 best ball — mid-round');
+    await page.getByRole('button', { name: /enter scores/i }).first().click();
+
+    // MUST confirm we actually reached the scorecard. Without this the test passes
+    // vacuously on the hub (which never contained "Team A" to begin with) — it did
+    // exactly that before this guard was added.
+    await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+
+    const body = await page.locator('body').innerText();
+    expect(body).not.toContain('Team A');
+    expect(body).not.toContain('Team B');
+    // And the real side names ARE present.
+    expect(body).toMatch(/Craig & Jym|Dave & Rick/);
+    await page.screenshot({ path: 'e2e/screenshots/2v2-scorecard.png', fullPage: true });
+  });
+});
+
+test.describe('9-hole 2v2 leg collapse', () => {
+  test('shows ONE leg with a matching caption', async ({ page }) => {
+    await seed(page, '2v2 on a nine');
+    const body = await page.locator('body').innerText();
+    // Custom side names are honored.
+    expect(body).toContain('The Hogs');
+    // The caption must not promise three legs when only one exists.
+    expect(body).not.toContain('Front · Back · Overall');
+    expect(body).toContain('Back 9');
+    await page.screenshot({ path: 'e2e/screenshots/2v2-nine-leg.png', fullPage: true });
+  });
+});
+
+test.describe('field-size fix (2-player game)', () => {
+  test('a dead heat reads as tied, not as someone leading', async ({ page }) => {
+    await seed(page, 'Skins — 2 players');
+    const body = await page.locator('body').innerText();
+    // Identical rounds => every Nassau segment is a true tie.
+    expect(body).toContain('All tied');
+    expect(body).not.toMatch(/\(leading, split\)/);
+    await page.screenshot({ path: 'e2e/screenshots/skins-2p.png', fullPage: true });
+  });
+});
+
+test.describe('single-group vocabulary', () => {
+  test('hub does not say "1 foursomes" for a one-group game', async ({ page }) => {
+    await seed(page, '2v2 best ball — mid-round');
+    const body = await page.locator('body').innerText();
+    expect(body).not.toContain('1 foursomes');
+    expect(body).not.toContain('Pool Money Game · 1');
+    // Names the mode instead.
+    expect(body).toMatch(/2 vs 2/i);
+    await page.screenshot({ path: 'e2e/screenshots/hub-2v2.png', fullPage: true });
+  });
+
+  test('classic pool still says foursomes, pluralized', async ({ page }) => {
+    const id = await seed(page, 'Classic pool — 2 foursomes, mid-round');
+    await goToGame(page, id);
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('2 foursomes');
+  });
+});
+
+test.describe('money formatting', () => {
+  test('a loss never renders as $-N', async ({ page }) => {
+    await seed(page, 'Classic pool — 2 foursomes, mid-round');
+    const body = await page.locator('body').innerText();
+    expect(body).not.toMatch(/\$-\d/);      // the old team-path bug
+    await page.screenshot({ path: 'e2e/screenshots/pool-leaderboard.png', fullPage: true });
+  });
+});
+
+test.describe('close out a game (the completion bug)', () => {
+  test('closing out marks the game completed', async ({ page }) => {
+    await seed(page, 'Classic pool — 2 foursomes, FULLY scored');
+    const body = await page.locator('body').innerText();
+    // The gate should report a fully-scored game.
+    expect(body).toContain('Every player is scored on every hole');
+
+    await page.getByRole('button', { name: /close out game/i }).click();
+    await expect(page.getByText(/Game closed out/i)).toBeVisible();
+    await page.screenshot({ path: 'e2e/screenshots/closed-out.png', fullPage: true });
+
+    // And the list should show it as completed.
+    await page.goto(`${BASE}/pool`);
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByText('completed').first()).toBeVisible();
+  });
+});
+
+test.describe('phone viewport', () => {
+  test.use({ viewport: { width: 390, height: 844 } });   // iPhone 14 class
+
+  test('leaderboard is usable one-handed', async ({ page }) => {
+    const id = await seed(page, '2v2 best ball — mid-round');
+    await goToGame(page, id, '/leaderboard');
+    await page.screenshot({ path: 'e2e/screenshots/phone-leaderboard.png', fullPage: true });
+    // No horizontal overflow of the page itself (tables may scroll internally).
+    const overflow = await page.evaluate(() =>
+      document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
+  test('scorecard is usable one-handed', async ({ page }) => {
+    await seed(page, '2v2 best ball — mid-round');
+    await page.getByRole('button', { name: /enter scores/i }).first().click();
+    await page.waitForLoadState('networkidle');
+    await page.screenshot({ path: 'e2e/screenshots/phone-scorecard.png', fullPage: true });
+  });
+});

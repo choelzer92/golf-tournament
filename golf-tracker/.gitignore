@@ -42,3 +42,6 @@ next-env.d.ts
 
 # local database
 /data
+e2e/screenshots/
+test-results/
+playwright-report/

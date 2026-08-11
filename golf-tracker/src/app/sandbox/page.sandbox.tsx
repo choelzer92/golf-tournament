@@ -1,0 +1,316 @@
+'use client';
+
+// SANDBOX SEED PAGE — reachable only when NEXT_PUBLIC_SANDBOX=1.
+//
+// Why this exists: reaching an interesting game state through the UI means a
+// 6-step wizard plus 72 score entries. That's fine once; it's prohibitive when
+// iterating on the UI. This page seeds a fully-formed game into the in-memory
+// store in one click, so any state is one hop away.
+//
+// It renders NOTHING outside sandbox mode (see the IS_SANDBOX guard), and because
+// the sandbox flag is compile-time false in a production build, the seeding code
+// is dead-code-eliminated there. See src/lib/supabase.ts.
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { IS_SANDBOX } from '@/lib/supabase';
+import { savePoolGame, type PoolGame } from '@/lib/pool-game';
+import { saveGameScores } from '@/lib/tournament-state';
+import { setAccessCookie } from '@/lib/invite-gate';
+import type { GameScore, Player, CourseSelection } from '@/lib/game-state';
+
+// --- fixture data (mirrors src/test/fixtures.ts, kept standalone so the app
+// never imports test code) --------------------------------------------------
+
+const PARS = [4, 5, 3, 4, 4, 4, 3, 5, 4, 4, 4, 3, 5, 4, 4, 3, 5, 4];
+
+function course(): CourseSelection {
+  const holes = PARS.map((par, i) => ({
+    number: i + 1,
+    par,
+    yardage: par === 3 ? 165 : par === 5 ? 520 : 400,
+    handicap: i + 1,
+  }));
+  return {
+    courseId: 1,
+    courseName: 'Sandbox National',
+    city: 'Denver',
+    state: 'CO',
+    teeSets: [{
+      id: 1,
+      name: 'Blue',
+      gender: 'M',
+      totalYardage: 6500,
+      totalPar: 72,
+      ratings: [
+        { type: 'Total', courseRating: 72.0, slopeRating: 113 },
+        { type: 'Front', courseRating: 36.0, slopeRating: 113 },
+        { type: 'Back', courseRating: 36.0, slopeRating: 113 },
+      ],
+      holes,
+    }],
+    selectedTeeId: 1,
+  };
+}
+
+const NAMES = ['Craig Hoelzer', 'Jym Youngberg', 'Dave Miller', 'Rick Tanaka',
+  'Sam Ortiz', 'Tony Belmont', 'Will Chen', 'Gary Fox'];
+
+function players(indexes: number[]): Player[] {
+  return indexes.map((handicapIndex, i) => ({
+    id: `sp${i + 1}`,
+    name: NAMES[i] ?? `Player ${i + 1}`,
+    handicapIndex,
+    gender: 'M' as const,
+    teeSetId: 1,
+  }));
+}
+
+function baseGame(over: Partial<PoolGame> & { players: Player[] }): PoolGame {
+  return {
+    id: over.id ?? crypto.randomUUID(),
+    name: 'Sandbox Game',
+    createdAt: new Date().toISOString(),
+    course: course(),
+    teams: [],
+    ballSelection: '1-net-1-gross',
+    moneyMode: 'pot',
+    entryPerPlayer: 25,
+    handicapAllowance: 100,
+    handicapBasis: 'course',
+    strokeMethod: 'full',
+    potSplit: { front: 0.25, back: 0.25, overall: 0.25, junk: 0.25 },
+    positionSplit: [100],
+    junkValues: { birdie: 1, eagle: 2, albatross: 3, groupHug: 1, ctp: 1 },
+    ctpWinners: {},
+    status: 'active',
+    ...over,
+  };
+}
+
+// gross scores relative to par, per player
+function scores(ids: string[], offsets: number[], holeNums: number[]): GameScore[] {
+  return ids.flatMap((id, pi) =>
+    holeNums.map((h) => ({ playerId: id, hole: h, grossScore: PARS[h - 1] + (offsets[pi] ?? 0) })),
+  );
+}
+
+const ALL18 = Array.from({ length: 18 }, (_, i) => i + 1);
+const BACK9 = [10, 11, 12, 13, 14, 15, 16, 17, 18];
+
+// --- scenarios --------------------------------------------------------------
+
+interface Scenario {
+  key: string;
+  label: string;
+  detail: string;
+  build: () => { game: PoolGame; goTo: (id: string) => string };
+}
+
+const SCENARIOS: Scenario[] = [
+  {
+    key: '2v2-bestball-partial',
+    label: '2v2 best ball — mid-round (thru 7)',
+    detail: 'Verifies side names on the SCORECARD (the "Team A" bug) and side labels while scoring.',
+    build: () => {
+      const ps = players([4, 12, 8, 16]);
+      const game = baseGame({
+        players: ps,
+        name: '2v2 Best Ball',
+        gameMode: 'team-2v2',
+        subTeams: { a: ['sp1', 'sp2'], b: ['sp3', 'sp4'] },
+        modeSettings: {
+          format: 'best-ball', scoring: 'stableford', result: 'match',
+          moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 10,
+          junkEnabled: true, junkBirdie: 2, junkEagle: 5, junkAlbatross: 10, junkBasis: 'gross',
+        },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1' }],
+      });
+      saveGameScores('sm1', scores(ps.map((p) => p.id), [0, 1, 1, 2], [1, 2, 3, 4, 5, 6, 7]));
+      return { game, goTo: (id) => `/pool/${id}` };
+    },
+  },
+  {
+    key: '2v2-nine-complete',
+    label: '2v2 on a nine — complete',
+    detail: 'Verifies the ONE-leg collapse + caption (was "Front · Back · Overall" over a lone row).',
+    build: () => {
+      const ps = players([2, 10, 6, 14]);
+      const game = baseGame({
+        players: ps,
+        name: '2v2 Back Nine',
+        gameMode: 'team-2v2',
+        holesPlaying: 'back9',
+        subTeams: { a: ['sp1', 'sp2'], b: ['sp3', 'sp4'] },
+        modeSettings: {
+          format: 'best-ball', scoring: 'stableford', result: 'match',
+          moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 10,
+          sideAName: 'The Hogs', sideBName: 'The Dawgs',
+        },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1' }],
+      });
+      saveGameScores('sm1', scores(ps.map((p) => p.id), [0, 1, 1, 1], BACK9));
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+  {
+    key: 'skins-2p',
+    label: 'Skins — 2 players, complete',
+    detail: 'Verifies the field-size fix (hardcoded >= 4 called a 2-player dead heat "leading").',
+    build: () => {
+      const ps = players([6, 6]);
+      const game = baseGame({
+        players: ps,
+        name: 'Two-Man Skins',
+        gameMode: 'skins',
+        entryPerPlayer: 0,
+        modeSettings: {
+          scoreBasis: 'net', carryover: true, moneyModel: 'nassau',
+          nassauSplit: 'three', nassauFront: 5, nassauBack: 5, nassauTotal: 10,
+        },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1' }],
+      });
+      // Identical rounds → a true dead heat on every segment.
+      saveGameScores('sm1', scores(ps.map((p) => p.id), [0, 0], ALL18));
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+  {
+    key: 'pool-2x4-partial',
+    label: 'Classic pool — 2 foursomes, mid-round (thru 6)',
+    detail: 'The known mid-round zero-sum bug: board shows more lost than won.',
+    build: () => {
+      const ps = players([0, 6, 12, 18, 3, 9, 15, 21]);
+      const game = baseGame({
+        players: ps,
+        name: 'Saturday Pool',
+        teams: [
+          { id: 'st1', name: 'Team 1', playerIds: ['sp1', 'sp2', 'sp3', 'sp4'], matchupId: 'sm1', captainId: 'sp1' },
+          { id: 'st2', name: 'Team 2', playerIds: ['sp5', 'sp6', 'sp7', 'sp8'], matchupId: 'sm2', captainId: 'sp5' },
+        ],
+      });
+      const six = [1, 2, 3, 4, 5, 6];
+      saveGameScores('sm1', scores(['sp1', 'sp2', 'sp3', 'sp4'], [0, 1, 1, 2], six));
+      saveGameScores('sm2', scores(['sp5', 'sp6', 'sp7', 'sp8'], [1, 1, 2, 2], six));
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+  {
+    key: 'pool-2x4-complete',
+    label: 'Classic pool — 2 foursomes, FULLY scored',
+    detail: 'Verifies close-out → Stats & money (the completion bug). Ready to close out.',
+    build: () => {
+      const ps = players([0, 6, 12, 18, 3, 9, 15, 21]);
+      const game = baseGame({
+        players: ps,
+        name: 'Closeout Test Pool',
+        teams: [
+          { id: 'st1', name: 'Team 1', playerIds: ['sp1', 'sp2', 'sp3', 'sp4'], matchupId: 'sm1', captainId: 'sp1' },
+          { id: 'st2', name: 'Team 2', playerIds: ['sp5', 'sp6', 'sp7', 'sp8'], matchupId: 'sm2', captainId: 'sp5' },
+        ],
+      });
+      saveGameScores('sm1', scores(['sp1', 'sp2', 'sp3', 'sp4'], [0, 1, 1, 2], ALL18));
+      saveGameScores('sm2', scores(['sp5', 'sp6', 'sp7', 'sp8'], [1, 1, 2, 2], ALL18));
+      return { game, goTo: (id) => `/pool/${id}` };
+    },
+  },
+  {
+    key: 'wolf-partial',
+    label: 'Wolf — 4 players, thru 5',
+    detail: 'Decision-input game: per-hole Wolf breakdown + expandable standings.',
+    build: () => {
+      const ps = players([5, 11, 8, 14]);
+      const game = baseGame({
+        players: ps,
+        name: 'Wolf Game',
+        gameMode: 'wolf',
+        modeSettings: {
+          scoreBasis: 'net', basePoints: 1, loneMultiplier: 2, blindMultiplier: 3,
+          moneyModel: 'per-point', dollarsPerPoint: 2,
+        },
+        wolfOrder: ['sp1', 'sp2', 'sp3', 'sp4'],
+        wolfDecisions: {
+          1: { wolfId: 'sp1', mode: 'partner', partnerId: 'sp3' },
+          2: { wolfId: 'sp2', mode: 'lone', partnerId: null },
+          3: { wolfId: 'sp3', mode: 'blind', partnerId: null },
+          4: { wolfId: 'sp4', mode: 'partner', partnerId: 'sp1' },
+          5: { wolfId: 'sp1', mode: 'lone', partnerId: null },
+        },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1' }],
+      });
+      saveGameScores('sm1', [
+        ...scores(['sp1'], [-1], [1, 2, 3, 4, 5]),
+        ...scores(['sp2'], [0], [1, 2, 3, 4, 5]),
+        ...scores(['sp3'], [1], [1, 2, 3, 4, 5]),
+        ...scores(['sp4'], [0], [1, 2, 3, 4, 5]),
+      ]);
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+];
+
+export default function SandboxPage() {
+  const router = useRouter();
+  const [seeded, setSeeded] = useState<{ key: string; id: string; goTo: string } | null>(null);
+
+  if (!IS_SANDBOX) {
+    return (
+      <div className="min-h-full bg-gray-50 p-8">
+        <p className="text-sm text-gray-600">
+          Sandbox mode is off. Start the server with <code className="bg-gray-200 px-1">NEXT_PUBLIC_SANDBOX=1</code>.
+        </p>
+      </div>
+    );
+  }
+
+  function seed(s: Scenario) {
+    setAccessCookie('full');            // skip the invite gate
+    const { game, goTo } = s.build();
+    savePoolGame(game);
+    setSeeded({ key: s.key, id: game.id, goTo: goTo(game.id) });
+  }
+
+  return (
+    <div className="min-h-full bg-gray-50">
+      <header className="bg-purple-900 text-white shadow">
+        <div className="max-w-3xl mx-auto px-4 py-4">
+          <h1 className="text-xl font-bold">Sandbox — seed a game state</h1>
+          <p className="text-xs text-purple-200">
+            In-memory data only. Nothing here touches a real database.
+          </p>
+        </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-4 py-6 space-y-3">
+        {SCENARIOS.map((s) => (
+          <div key={s.key} className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="font-semibold text-gray-900">{s.label}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{s.detail}</p>
+              </div>
+              <button
+                onClick={() => seed(s)}
+                className="shrink-0 rounded-md bg-purple-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-purple-800"
+              >
+                Seed
+              </button>
+            </div>
+            {seeded?.key === s.key && (
+              <div className="mt-3 flex items-center gap-3 border-t pt-3">
+                <span className="text-xs text-green-700 font-medium">Seeded ✓</span>
+                <button
+                  onClick={() => router.push(seeded.goTo)}
+                  className="text-sm font-semibold text-purple-700 hover:text-purple-900 underline"
+                >
+                  Open →
+                </button>
+                <code className="text-[10px] text-gray-400 truncate">{seeded.goTo}</code>
+              </div>
+            )}
+          </div>
+        ))}
+      </main>
+    </div>
+  );
+}
