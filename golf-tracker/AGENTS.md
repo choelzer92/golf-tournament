@@ -18,12 +18,20 @@ All three verbs matter. **"Continuing" is the most neglected and most valuable**
 state surviving a sleeping phone, a guest joining at the turn, a score fixed after
 the fact, and a season-long money ledger. Bias effort there.
 
-## Read before touching UI
+## Read these first
 
+- **`DECISIONS.md`** — Craig's decisions, corrections, and preferences *with the
+  reasoning*. Read before proposing anything about product direction, process, or
+  safety. Append to it in-session whenever he decides something; a decision that
+  lives only in a chat transcript is lost. Its §7 lists open questions — don't
+  re-ask what's already settled, and don't guess where it says his call.
 - **`UI_CONVENTIONS.md`** — money formatting, vocabulary, labels, empty states,
-  layout, and the setup-flow rules. Read it before changing any screen.
-- **`UI_MODE_AUDIT.md`** — the surface × game-mode audit method, plus findings.
-  Use its grep probes when hunting for cross-mode drift.
+  layout, and the lifecycle rules. Read before changing any screen.
+- **`UI_CRITIQUE_PROCESS.md`** — the loop for seeing the UI, recording findings,
+  and proposing options. Follow it rather than critiquing ad hoc.
+- **`FINDINGS.md`** — the running findings log (observation + options + status).
+- **`UI_MODE_AUDIT.md`** — the surface × game-mode audit method and the original
+  code sweep. Use its grep probes when hunting for cross-mode drift.
 
 ## The one rule that prevents most bugs
 
@@ -67,6 +75,24 @@ Small mechanical fixes inside already-authorized work (a typo, a missing import)
 don't need a check-in — just mention them.
 
 **Never commit or push** unless explicitly asked.
+
+## Seeing the UI
+
+`NEXT_PUBLIC_SANDBOX=1 npx next dev --port 3200` runs the app against an
+in-memory backend (`src/test/fake-supabase.ts`) — no credentials, no network, no
+Docker, and structurally unable to reach the live database. `/sandbox` seeds any
+game state in one click; `npx playwright test` drives it and writes screenshots to
+`e2e/screenshots/`.
+
+Two hard-won rules:
+
+- **Dev-only code must be ABSENT from production builds, not just unreachable.**
+  Guarding a render with a flag still shipped the sandbox seed logic into
+  production JS. `next.config.ts` `pageExtensions` excludes the route entirely;
+  `src/test/no-sandbox-in-build.test.ts` greps the build to prove it.
+- **Every e2e test must assert it reached the right screen** (`waitForURL` or a
+  positive assertion on something only that screen has). One early test passed
+  vacuously on the wrong page — green and meaningless.
 
 ## Testing
 
