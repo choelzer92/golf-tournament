@@ -77,3 +77,41 @@ test.describe('continuing — the neglected phase', () => {
     await capture(page, 'home-hub');
   });
 });
+
+test.describe('start — the wizard (the scale path)', () => {
+  // Craig: "the wizard is more important since that is what people will use if i
+  // actually can scale the app." This is the parking-lot critical path: a golfer
+  // with their group waiting, on a phone, one hand.
+  //
+  // Capture every step at phone width and count the taps.
+  test('walk /pool/new at phone width, counting taps', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+
+    // Step 1 — Details (game name, mode, money)
+    await expect(page.getByText(/Details/i).first()).toBeVisible();
+    await capture(page, 'wizard-1-details-phone');
+
+    // How many interactive controls are on screen before anything is chosen?
+    const controls = await page.evaluate(() => ({
+      buttons: document.querySelectorAll('button').length,
+      inputs: document.querySelectorAll('input, select, textarea').length,
+    }));
+    console.log(`STEP 1 controls: ${controls.buttons} buttons, ${controls.inputs} inputs`);
+
+    // Tap targets under 44px are a known mobile-ergonomics problem.
+    const small = await page.evaluate(() =>
+      [...document.querySelectorAll('button')]
+        .map((b) => ({ t: (b.textContent ?? '').trim().slice(0, 24), h: Math.round(b.getBoundingClientRect().height) }))
+        .filter((x) => x.h > 0 && x.h < 44));
+    console.log(`STEP 1 tap targets under 44px: ${small.length}`);
+    if (small.length) console.log(JSON.stringify(small.slice(0, 12)));
+  });
+
+  test('capture the wizard at desktop width', async ({ page }) => {
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    await capture(page, 'wizard-1-details-desktop');
+  });
+});

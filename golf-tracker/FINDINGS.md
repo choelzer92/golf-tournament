@@ -197,6 +197,68 @@ Guarded by two e2e tests (guest is scoped; organizer still sees everything) —
 
 ---
 
+### F-005 — Wizard step 1 exposes every money setting before the course is chosen  [P1] [start]
+
+**Screen:** `/pool/new` step `details`, 390px viewport ·
+`e2e/screenshots/wizard-1-details-phone.png`
+**Violates:** the north star's central tension — *maximum possibility, **minimum
+exposed complexity***
+
+Craig: *"the wizard is more important since that is what people will use if i
+actually can scale the app."* This is the first screen a new user sees, and the
+parking-lot critical path.
+
+**Observed.** Measured at phone width: **9 buttons + 11 inputs = 20 controls**, on
+one scrolling screen, before a course is even chosen. In order: Game Name, Game,
+Game Type, Entry $, Handicap Allowance %, Handicap Strokes, Handicap Basis,
+Position Split, Junk Values (5 separate number inputs), Team Ball Selection.
+
+**The decisive measurement:** every game *mode* uses `showIf` progressive
+disclosure — 21 usages across `game-modes/*.ts`. The classic pool wizard, which is
+**the default path**, has **zero**. So the app's own mechanism for "depth costs
+nothing until asked for" is not applied to the screen that needs it most.
+
+**Why it matters most of all the findings:** a new user's first impression is a
+tax form. It asks them to decide "Position Split" and "Albatross = 3 points"
+before they've picked a course. Every one of these already has a sensible default —
+so a golfer who wants "the usual Saturday game" should be able to type a name and
+tap Next, and never see any of it.
+
+Also observed at 390px:
+- **8 tap targets under 44px** — the six toggle pairs are 38px; Share/Cancel in the
+  header are 20px. Apple's minimum is 44; Material's is 48.
+- The step indicator (`Details → Course → Field → Tees → Teams → Create`) renders 6
+  chips across a 390px screen, so it's cramped and can't show progress well.
+
+**Options**
+- **A. Collapse advanced settings behind "Money & handicap options".** Step 1
+  becomes Game Name + Game + Game Type; everything else lives in one expandable
+  section, closed by default, with a one-line summary of the current defaults
+  ("$25 · off the low · winner-take-all"). Uses the pattern the modes already use.
+  Cost: one more tap for organizers who *do* tune settings every time.
+- **B. Move money to the last step.** Step 1 becomes purely "what game, what's it
+  called"; money is decided at Create, where the team count is known (the pot-split
+  hint already says it fills in from the number of teams). Better information order,
+  bigger restructure.
+- **C. Defaults from the group.** A game started from a saved group already carries
+  its defaults — so show a summary line and a single "Change" link instead of the
+  full form. Highest leverage for recurring games (the common case), but only helps
+  when a group is chosen.
+- **D. Leave it.** Organizers who play weekly may *want* every dial visible.
+
+**Recommendation:** **A now, C next.** A is contained, reuses the established
+pattern, and directly serves the north star. C then makes the recurring case nearly
+zero-config, which is where the real "seamless" win is. B is the most correct
+information architecture but the largest change — worth considering if A doesn't go
+far enough.
+
+Tap-target sizing is a separate, mechanical fix (raise toggles to 44px) and can be
+done independently of which option is chosen.
+
+**Status:** open — needs Craig's pick
+
+---
+
 ### F-001 — Nassau segment "thru" reads as a hole number  [P3] [track]
 
 **Screen:** `/pool/[id]/leaderboard`, 2-player skins w/ Nassau ·
