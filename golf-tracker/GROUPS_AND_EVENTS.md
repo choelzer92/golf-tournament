@@ -35,24 +35,52 @@ Facts worth knowing before designing anything:
 - **Groups are already the ledger's grouping key** — `gameBelongsToGroup()` uses an
   exact `sourceGroupId` tag, falling back to player-majority overlap for older games.
 
-### The conceptual problem: a group is overloaded
+### A group bundling people + settings + formats is CORRECT
 
-"Weekend Warriors" answers three different questions:
+I first wrote this up as a group being "overloaded" — three responsibilities in one
+object. Craig corrected that:
 
-| Question | Today's answer |
-|---|---|
-| *Who plays?* | `playerIds` |
-| *How do we play?* | `defaults` |
-| *What games do we play?* | `defaults.formatIds` |
+> *"When an organizer looks at making a game, they click the group and then make a
+> game from that group, and the formats people play are based typically on the group,
+> not just random."*
 
-That works while the answers line up 1:1. It strains when they don't:
+He's right, and the correction matters. A group holding all three answers isn't a
+smell — **it's the domain model**:
 
-- One roster, several formats — Warriors play a pot pool most weeks, a 2v2 sometimes.
-  **Already handled** by `formatIds[]`.
-- Several rosters, one format — "the usual game" played with different people.
-  **Already handled**, since formats are separate rows.
-- **Overlapping rosters** — Tuesday Crew is 8 of the Warriors' 61. Today that's two
-  independent lists, and adding a player to both is manual. This is the real gap.
+| Question | Where it lives | Why bundling is right |
+|---|---|---|
+| *Who plays?* | `playerIds` | — |
+| *How do we play?* | `defaults` | a group's stakes and handicap rules are group traits |
+| *What games do we play?* | `defaults.formatIds` | **formats belong to a group** — the Warriors' repertoire isn't a global list |
+
+This is how golf is actually organized: a standing group has its people, its stakes,
+and its handful of games. So the flow is exactly what Craig described —
+
+```
+pick the group  →  create a game from it  →  choose from THAT GROUP'S formats
+```
+
+Consequences for the design:
+
+1. **The group picker belongs first**, before the game name. It's the highest-value
+   control in the wizard because it answers three questions at once.
+2. **The format list shown must be the group's**, not the global registry. A Warriors
+   game offers Warriors formats; "something else" is an escape hatch, not the default.
+3. **Nothing needs restructuring.** `formatIds[]` already models this. The gap is
+   purely that the wizard doesn't lead with it — which is why only 7 of 44 games were
+   created from a group.
+
+### Overlap is normal and already works — not a gap
+
+Craig: *"adding someone to a group isnt that big of a deal, a group is just (these
+are the people that play in this group). I play in multiple 'groups' here anyways."*
+
+I'd written this up as "the real gap." It isn't. A group is simply the set of people
+who play in it, overlap between groups is the normal state of golf, and one person
+being in several groups is the expected case — not an edge case to engineer around.
+
+It already works correctly: `playerIds` are references to roster rows, so a player
+sits in any number of groups carrying one handicap. Nothing to build.
 
 ### What multiple groups should look like
 
@@ -76,8 +104,8 @@ Design principles I'd argue for:
 1. **A group is a starting point, never a constraint.** Picking a group pre-fills the
    field and settings; you can still add a guest or change anything for that game.
    (True today — `applyGroupDefaults` seeds, doesn't lock.)
-2. **Groups may overlap freely.** Adding someone to Tuesday Crew must not remove them
-   from Warriors. Also true today, but the *UI* doesn't make it obvious.
+2. **Groups overlap freely, and that's unremarkable.** A group is just the people who
+   play in it; being in several is normal. Already true and already correct.
 3. **One group is "usual."** With several groups, most users have a default. A
    `lastUsedGroupId` or an explicit pin removes a tap from every game.
 4. **Group membership should be derivable from play.** After a game, "add these 3
@@ -93,7 +121,6 @@ Design principles I'd argue for:
 |---|---|---|
 | No group picker on the wizard's first step | Groups are the whole point of layer 2, yet only **7 of 44** games used one | small |
 | No "usual group" / last-used | With 2+ groups it's a tap every time | small |
-| Adding a player to 2 groups is manual | Overlapping rosters are the normal case | small |
 | No "save settings back to group" | Layer 2 never learns (also in `WIZARD_REDESIGN.md`) | small |
 | No import/export of a group's setup | Craig asked for it; also the growth mechanism | medium |
 | No group-level history view | `/home/groups/[id]` exists but shows members, not "our last 10 games" | medium |
@@ -164,21 +191,48 @@ and tournament, with flights as a later phase. That's the *correct* long-term
 architecture and would make multi-day uniform across both systems. It's also the
 largest change, and it would touch code that currently handles real money.
 
+### Craig's framing: it's a question in the interview
+
+> *"i think there would be multi day money pools perhaps, but i think thats where the
+> selection of one day round, or multi day round comes in to play."*
+
+This is better than treating multi-day as a separate feature to bolt on. It becomes
+**one early question in the wizard**, which fits the interview shape he already said
+he likes:
+
+```
+1  Which group?          Weekend Warriors ▾
+2  How long?             ( ● One round )   ( Multi-day )
+3  What are you playing?  …from this group's formats
+```
+
+Answering "One round" gives today's flow, unchanged. Answering "Multi-day" asks how
+many days and then repeats the course/format questions per day — reusing the same
+questions rather than inventing a second wizard.
+
+Why this framing is the right one:
+
+- **It's a fork in one interview, not a separate product.** No "tournament vs pool"
+  decision forced on the user; they just say how long they're playing.
+- **It sets the expectation early**, when it's cheap. Discovering on day 2 that you
+  needed a series is the bad outcome.
+- **It reuses every downstream question.** Course, field, tees, teams, money are the
+  same questions — asked once for a single round, or per day for a series.
+- **Most users pick "One round" and never see the rest.** Depth costs nothing until
+  asked for, which is the north star's whole mechanism.
+
+Note the asymmetry worth designing around: a trip usually keeps **one roster** for
+the whole event but **re-draws teams and changes course each day**. So the series
+should ask group/field once, and course/teams/format per day.
+
 ### Recommendation
 
-**A, then C.** A Series wrapper gets multi-day pools working without touching the
-money engine, and it doubles as a discovery mechanism: what people actually do with
-a series tells you what the Event model should look like before you commit to it.
+**Option A (Series), surfaced as the "how long?" question.** A thin wrapper needs no
+changes to the money engine, composes with all 7 game modes, and keeps each day's
+teams independent — which matters precisely because trips re-draw partners daily.
 
-Two things a Series needs to get right from day one:
-
-1. **Cumulative money is the point.** "Craig is +$65 over three days" is the whole
-   reason someone wants this. `stats-ledger.ts` already computes per-player nets
-   across games — a series rollup is largely `rollupByPlayer()` scoped to
-   `gameIds`, so most of it exists.
-2. **Teams change daily.** Trips re-draw partners each day. A series must NOT assume
-   fixed teams — which is another argument for A over B, since each day's `PoolGame`
-   already owns its own teams.
+Sequencing: build the "how long?" fork and the series rollup, then let real trip usage
+tell us whether the full Event model (Option C) is worth it.
 
 ### And the group connection
 
