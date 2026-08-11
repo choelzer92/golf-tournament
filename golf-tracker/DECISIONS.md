@@ -264,6 +264,32 @@ interview — not that there are too many steps.
 halves of the north star hold at once: everything still configurable, almost nothing
 asked twice.
 
+## 5f. First-time onboarding: play first, save the group after (2026-08-11)
+
+I asked whether a brand-new user (no group yet, so nothing to pre-fill from) should
+be walked through creating a group first, or play immediately and be offered
+"save this as a group?" afterward.
+
+Craig: *"yea, the second is probably right, as long as players can be added to that
+group later."*
+
+**Decision: let them play first, then offer to save the group.** Don't put setup
+between a new user and their first round.
+
+**Why it's the better choice beyond being gentler:** saving *after* captures the
+settings and players they actually used, rather than asking them to predict their
+stakes and handicap rules before they've played once.
+
+**His condition is already satisfied** — verified, not assumed: `addGroupMember` /
+`removeGroupMember` (`lib/roster-groups.ts:154-164`) persist membership changes, and
+`/home/groups/[id]` already exposes add/remove. A group is editable forever after
+creation. Nothing to build for this.
+
+**Terminology note:** I'd been saying "layer 2" in conversation for group defaults.
+Craig asked what that meant. The numbering is fine inside `WIZARD_REDESIGN.md` where
+it's defined, but it's jargon in conversation — exactly the trap we flagged about the
+app's own UI labels. Say "group defaults."
+
 ## 6. Focus areas Craig has named
 
 Requested, in his stated order of interest:
