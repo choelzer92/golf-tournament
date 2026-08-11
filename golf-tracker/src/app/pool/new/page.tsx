@@ -776,11 +776,11 @@ function DetailsStep({
         </div>
 
         <div className="pt-2 border-t">
-          <label className="block text-sm font-medium text-gray-800 mb-1">Adjust handicaps for tee difficulty?</label>
+          <label className="block text-sm font-medium text-gray-800 mb-1">How many strokes change hands?</label>
           <div className="flex gap-2">
             {([
-              { v: 'course', label: 'Yes — use course handicap' },
-              { v: 'index', label: 'No — use raw index' },
+              { v: 'course', label: 'Course handicap' },
+              { v: 'index', label: 'Handicap index' },
             ] as const).map(({ v, label }) => (
               <button
                 key={v}
@@ -798,8 +798,8 @@ function DetailsStep({
           </div>
           <p className="text-xs text-gray-500 mt-1">
             {handicapBasis === 'index'
-              ? 'Play off each player’s raw handicap index × allowance (no slope/rating conversion).'
-              : 'Play off each player’s course handicap from their tee (slope/rating adjusted).'}
+              ? 'Strokes come straight from the difference in index — an 8 gives a 2 exactly 6 strokes, on any course.'
+              : 'Slope-adjusted, so a harder course spreads players further apart — an 8 vs a 2 might play off 7 or 8 strokes instead of 6.'}
           </p>
         </div>
 

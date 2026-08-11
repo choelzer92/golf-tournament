@@ -129,6 +129,35 @@ of 84/85/86 → differentials 11.6/12.5/13.4 → **Index 12.5** → Course Handi
 
 ---
 
+**Handicap basis is about STROKES EXCHANGED, not tees.** (2026-08-11)
+> "sometimes people want to use course handicap or player index in terms of the
+> overall strokes received. for example, an 8 handicap playing a 2 handicap at spring
+> creek from the 3 stars would receive more than 6 strokes on the same tees with
+> course handicap, and just 6 with player index"
+
+I had labelled this setting *"Adjust handicaps for tee difficulty?"* with Yes/No
+answers. Wrong on both counts: it implies the setting is about tees, and "No" reads
+as switching off something correct.
+
+The real mechanism — verified: Course Handicap = `index × slope/113 + (CR − par)`.
+On the SAME tees the `(CR − par)` term cancels, but slope multiplies the *gap*:
+
+| Slope | 8-index | 2-index | Strokes given |
+|---|---|---|---|
+| 113 | 8 | 2 | **6** |
+| 131 | 9 | 2 | **7** |
+| 140 | 12 | 4 | **8** |
+
+Index basis always gives exactly 6. So it's a **competitive fairness choice** — does
+a harder course spread players further apart, or should the gap be fixed?
+
+Relabelled to **"How many strokes change hands?"** with answers *Course handicap* /
+*Handicap index*, and helper text stating the consequence in strokes rather than
+describing the math.
+
+**How to apply:** neither option is "correct" — don't mark one recommended. A label
+must state what CHANGES for the players, not what the code does.
+
 ## 5. Technical direction
 
 **Testing sequence** (2026-08-10): conventions doc → pure compute tests → fixture
