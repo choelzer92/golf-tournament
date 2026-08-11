@@ -82,7 +82,22 @@ B alone and consider it solved.
 test — the fake models no RLS at all. It needs a real Supabase instance, ideally
 local. Worth flagging that our green e2e suite says nothing about it.
 
-**Status:** open — needs Craig's decision on scope
+**Status: DEFERRED by decision (2026-08-11) — see `DECISIONS.md` §5c.**
+
+Craig is optimizing the product first while testing with close friends, and will
+harden before the audience widens. That's a defensible call: no credentials are
+stored in the DB (the GHIN token never leaves sessionStorage), the PII is limited
+to name/GHIN/index/gender, and exploiting this needs a targeted actor who wants
+golf scores. **Do not re-raise this as a blocker on product work.**
+
+**Re-raise immediately if:** anyone outside his circle gets a link · the app is
+listed or indexed · anything sensitive is stored (payments, contact details,
+location) · the roster grows past people he personally knows.
+
+**Still in scope now**, because the nearer-term risk to his friends' data is *our
+bugs*, not attackers (`FOR ALL USING (true)` means any bad code path can wipe real
+games): (1) backups / periodic JSON export, (2) per-game share tokens — filed here
+as security but really a feature, and it makes the eventual RLS work easier.
 
 ---
 

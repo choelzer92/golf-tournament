@@ -171,6 +171,51 @@ localStorage. The *flow* is well designed — the trust model underneath isn't.
 Needs Craig's decision on scope. **The sandbox harness cannot test this class at
 all** (the fake models no RLS), so the green e2e suite says nothing about it.
 
+## 5c. Security is deliberately deferred until pre-scale (2026-08-11)
+
+Craig:
+> "is it unrealistic to make the app optimal, and then deal with security after the
+> fact? in this case i can keep testing with my close friends, and then when its
+> ready to scale we can prepare the security?"
+
+**Decision: yes — optimize the product now, harden before the audience widens.**
+This is a considered call, not an oversight. Don't re-raise F-002 as a blocker on
+product work; do re-raise it the moment the audience changes.
+
+**Why it's defensible.** Verified facts behind the call:
+- **No credentials are stored in the database.** The GHIN bearer token lives in
+  sessionStorage only and is never persisted (`pool-identity.ts` is explicit about
+  this). Only the lightweight identity is mirrored to localStorage.
+- Stored PII is limited to name, GHIN number, handicap index, gender — no
+  passwords, no payment data, no contact details.
+- Exploiting it takes a *targeted* actor: know the unlisted URL, extract the anon
+  key from the bundle, and care enough to query golf scores.
+- Hardening before product-fit is a known way to build a well-defended app nobody
+  wants.
+
+**THE TRIGGER — revisit F-002 before any of these:**
+- anyone outside Craig's circle of trust gets a link
+- the app is listed, indexed, or shared publicly
+- anything sensitive is stored (payments, contact details, precise location)
+- the roster grows past people he personally knows
+
+**Nuance worth keeping in view.** Craig's stated worry is *"I don't want to mess up
+one of my few friends currently using it."* Today the larger risk to those friends
+isn't an attacker — it's **us**: `FOR ALL USING (true)` means any buggy code path
+can wipe or corrupt real games. That's the argument for the sandbox harness, and
+why the fake refuses `delete` without an `.eq()` filter.
+
+**Therefore two cheap items stay in scope now** (hours, not days; neither blocks
+product work):
+1. **Backups / periodic JSON export.** Protects against *our* bugs and bad
+   migrations, not attackers. Confirm what retention the Supabase plan actually
+   gives.
+2. **Per-game share tokens.** Filed under security but really a FEATURE —
+   revocable, individually shareable links. Serves "continuing" and makes the
+   later RLS work easier because the tokens will already exist.
+
+Real RLS policies (and possibly auth) are the genuinely deferred part.
+
 ## 6. Focus areas Craig has named
 
 Requested, in his stated order of interest:
