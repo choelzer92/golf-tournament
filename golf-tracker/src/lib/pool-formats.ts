@@ -53,6 +53,7 @@ export function formatFromGame(game: PoolGame): GroupDefaults {
     subTeams: game.subTeams,
     moneyMode: game.moneyMode,
     junkValues: game.junkValues,
+    customBonuses: game.customBonuses,
     entryPerPlayer: game.entryPerPlayer,
     ballSelection: game.ballSelection,
     handicapAllowance: game.handicapAllowance,

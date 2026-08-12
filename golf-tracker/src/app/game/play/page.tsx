@@ -302,6 +302,31 @@ export default function PlayGamePage() {
   const poolHcapMap = poolGame ? buildHcapMap(poolGame) : null;
   const poolNumHoles = poolGame ? numHolesForStrokes(poolGame) : 18;
 
+  // Manual bonuses (sandies, barkies, …) the app can't read off a scorecard. The SCORER
+  // taps them for any player in their foursome — Craig: "the scorer can enter any for
+  // anyone in the group". Stored on the pool game (bonusMarks) rather than on GameScore,
+  // which flows through the merge RPC and the audit.
+  const poolBonuses = poolGame?.customBonuses ?? [];
+  function hasBonus(playerId: string, bonusId: string, hole: number): boolean {
+    return !!poolGame?.bonusMarks?.[hole]?.[playerId]?.includes(bonusId);
+  }
+  function toggleBonus(playerId: string, bonusId: string, hole: number) {
+    if (!poolGame) return;
+    const marks = { ...(poolGame.bonusMarks ?? {}) };
+    const atHole = { ...(marks[hole] ?? {}) };
+    const current = atHole[playerId] ?? [];
+    const next = current.includes(bonusId)
+      ? current.filter((b) => b !== bonusId)
+      : [...current, bonusId];
+    if (next.length === 0) delete atHole[playerId];
+    else atHole[playerId] = next;
+    if (Object.keys(atHole).length === 0) delete marks[hole];
+    else marks[hole] = atHole;
+    const updated: PoolGame = { ...poolGame, bonusMarks: marks };
+    setPoolGame(updated);
+    savePoolGame(updated);
+  }
+
   const sortedPlayers = [...setup.players].sort((a, b) => {
     const teamOrder = (t?: 'A' | 'B') => t === 'A' ? 0 : t === 'B' ? 1 : 2;
     return teamOrder(a.team) - teamOrder(b.team);
@@ -1218,6 +1243,29 @@ export default function PlayGamePage() {
                       </button>
                     ))}
                   </div>
+                  {/* Bonus toggles — only for games whose group plays them, so a group
+                      that doesn't costs zero taps and sees nothing. */}
+                  {poolBonuses.length > 0 && (
+                    <div className="mt-2 flex gap-1.5 flex-wrap">
+                      {poolBonuses.map((b) => {
+                        const on = hasBonus(player.id, b.id, currentHole);
+                        return (
+                          <button
+                            key={b.id}
+                            onClick={() => toggleBonus(player.id, b.id, currentHole)}
+                            title={b.hint}
+                            className={`min-h-[32px] rounded-full border px-2.5 py-1 text-xs font-medium ${
+                              on
+                                ? 'border-amber-600 bg-amber-500 text-white'
+                                : 'border-gray-300 bg-white text-gray-600 hover:border-amber-400'
+                            }`}
+                          >
+                            {on ? '✓ ' : ''}{b.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })

@@ -26,6 +26,8 @@ import {
   dollarsToPotSplit,
   getRecentCourses,
   hydratePoolGames,
+  COMMON_BONUSES,
+  type CustomBonus,
   balanceTeamsWithCaptains,
   serpentineTeams,
   balanceTeamsWithLocks,
@@ -126,6 +128,10 @@ export default function NewPoolGamePage() {
   const [potEdited, setPotEdited] = useState(false);
   const [positionSplitText, setPositionSplitText] = useState('100');
   const [junkValues, setJunkValues] = useState<PoolJunkValues>({ ...DEFAULT_JUNK_VALUES });
+  // Manual bonuses this game plays (sandies, barkies, …) — the ones the app can't read off
+  // a scorecard, so a scorer taps them per hole. Empty = the game plays none, which is
+  // every game today. Seeded from a group's saved set when one is chosen.
+  const [customBonuses, setCustomBonuses] = useState<CustomBonus[]>([]);
   const [ballSelection, setBallSelection] = useState<TwoBestBallsVariant>('1-net-1-gross');
   // Money mode: 'pot' = classic buy-in pool (JY); 'match' = 2-foursome head-to-head.
   const [moneyMode, setMoneyMode] = useState<PoolMoneyMode>('pot');
@@ -279,6 +285,7 @@ export default function NewPoolGamePage() {
       setMatchJunkPerPoint(String(d.matchConfig.junkPerPoint));
     }
     if (typeof d.handicapAllowance === 'number') setHandicapAllowance(String(d.handicapAllowance));
+    if (d.customBonuses) setCustomBonuses(d.customBonuses);
     if (d.strokeMethod === 'full' || d.strokeMethod === 'off-the-low') setStrokeMethod(d.strokeMethod);
     if (d.handicapBasis === 'course' || d.handicapBasis === 'index') setHandicapBasis(d.handicapBasis);
     if (d.ballSelection) setBallSelection(d.ballSelection);
@@ -331,6 +338,7 @@ export default function NewPoolGamePage() {
       potSplit: dollarsToPotSplit(effectiveDollars),
       positionSplit: parsePositionSplit(positionSplitText),
       junkValues,
+      customBonuses: customBonuses.length > 0 ? customBonuses : undefined,
       ctpWinners: {},
       // Individual game mode + its chosen option values (absent for classic pool).
       gameMode,
@@ -555,6 +563,8 @@ export default function NewPoolGamePage() {
             setPositionSplitText={setPositionSplitText}
             junkValues={junkValues}
             setJunkValues={setJunkValues}
+            customBonuses={customBonuses}
+            setCustomBonuses={setCustomBonuses}
             matchLegs={matchLegs}
             setMatchLegs={setMatchLegs}
             matchJunkPerPoint={matchJunkPerPoint}
@@ -2781,7 +2791,8 @@ function CreateStep({
   name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited,
   moneyMode, matchConfig, handicapBasis, nine, holesPlaying, gameMode,
   entryPerPlayerText, setEntryPerPlayer, positionSplitText, setPositionSplitText,
-  junkValues, setJunkValues, matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
+  junkValues, setJunkValues, customBonuses, setCustomBonuses,
+  matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
   onCreate, onBack,
 }: {
   name: string;
@@ -2808,6 +2819,8 @@ function CreateStep({
   setPositionSplitText: (v: string) => void;
   junkValues: PoolJunkValues;
   setJunkValues: (v: PoolJunkValues) => void;
+  customBonuses: CustomBonus[];
+  setCustomBonuses: (v: CustomBonus[]) => void;
   matchLegs: { front: string; back: string; overall: string };
   setMatchLegs: (v: { front: string; back: string; overall: string }) => void;
   matchJunkPerPoint: string;
@@ -2936,6 +2949,63 @@ function CreateStep({
           </p>
         </div>
         )}
+        {/* MANUAL bonuses — the ones no scorecard can reveal, so a scorer taps them per
+            hole while playing. Off unless chosen: a group that doesn't play barkies gets
+            no extra taps and no extra chrome on the scoring screen. */}
+        {!isIndividual && (
+        <div className="pt-2 border-t">
+          <p className="text-sm font-semibold text-gray-800 mb-1">Extra bonuses to track by hand</p>
+          <p className="text-xs text-gray-500 mb-2">
+            These can&apos;t be worked out from a score, so whoever&apos;s scoring taps them on the hole.
+            Skip them entirely if your group doesn&apos;t play them.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {COMMON_BONUSES.map((b) => {
+              const chosen = customBonuses.find((c) => c.id === b.id);
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() =>
+                    setCustomBonuses(chosen
+                      ? customBonuses.filter((c) => c.id !== b.id)
+                      : [...customBonuses, { ...b }])
+                  }
+                  title={b.hint}
+                  className={`min-h-[44px] rounded-lg border px-3 py-2 text-sm font-medium ${
+                    chosen
+                      ? 'border-green-600 bg-green-600 text-white'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                  }`}
+                >
+                  {chosen ? '✓ ' : ''}{b.label}
+                  <span className={`ml-1 text-xs ${chosen ? 'text-green-100' : 'text-gray-400'}`}>{b.hint}</span>
+                </button>
+              );
+            })}
+          </div>
+          {customBonuses.length > 0 && (
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {customBonuses.map((b) => (
+                <div key={b.id}>
+                  <label className="block text-xs text-gray-600 font-medium mb-1">{b.label} (points)</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={b.points}
+                    onChange={(e) =>
+                      setCustomBonuses(customBonuses.map((c) =>
+                        c.id === b.id ? { ...c, points: Number(e.target.value) } : c))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        )}
+
         {!isIndividual && (
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-1">Bonus points for good holes</p>

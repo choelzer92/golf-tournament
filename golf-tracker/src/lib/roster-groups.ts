@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { PoolJunkValues, PoolMoneyMode, PoolMatchConfig } from './pool-game';
+import type { PoolJunkValues, PoolMoneyMode, PoolMatchConfig, CustomBonus } from './pool-game';
 import type { TwoBestBallsVariant } from './formats';
 
 // A saved group = an organizer's "home base": a named set of roster player IDs
@@ -9,6 +9,10 @@ import type { TwoBestBallsVariant } from './formats';
 export interface GroupDefaults {
   moneyMode?: PoolMoneyMode;
   junkValues?: PoolJunkValues;
+  // Manual bonuses this group plays (sandies, barkies, …) and what they're worth. Craig:
+  // "values are per group configurable" — Warriors play barkies, Tuesday Crew don't. Absent
+  // = the group plays none, which is every existing group.
+  customBonuses?: CustomBonus[];
   entryPerPlayer?: number;
   positionSplitText?: string;
   matchConfig?: PoolMatchConfig;

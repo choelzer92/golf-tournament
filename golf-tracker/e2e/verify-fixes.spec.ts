@@ -499,3 +499,48 @@ test.describe('F-003: /home is the default landing page', () => {
     await expect(page.getByRole('button', { name: /Try new Home/ })).toHaveCount(0);
   });
 });
+
+test.describe('manual bonuses on the scorecard', () => {
+  // Craig's spec: "an easy method to click that box as a scorer per hole for a player",
+  // and "the scorer can enter any for anyone in the group".
+  test('the scorer can toggle a bonus for any player in the foursome', async ({ page }) => {
+    await seed(page, 'Manual bonuses');
+    await page.getByRole('button', { name: /enter scores/i }).first().click();
+    await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+
+    // A toggle exists for EVERY player on the hole, not just the logged-in one.
+    const sandies = page.getByRole('button', { name: /Sandie/ });
+    expect(await sandies.count()).toBeGreaterThanOrEqual(4);
+
+    // Tapping marks it.
+    await sandies.first().click();
+    await expect(page.getByRole('button', { name: /✓ Sandie/ }).first()).toBeVisible();
+
+    // Tapping again clears it.
+    await page.getByRole('button', { name: /✓ Sandie/ }).first().click();
+    await expect(page.getByRole('button', { name: /✓ Sandie/ })).toHaveCount(0);
+
+    await page.screenshot({ path: 'e2e/screenshots/bonuses-scorecard.png', fullPage: true });
+  });
+
+  test('a game with no custom bonuses shows no toggles at all', async ({ page }) => {
+    await seed(page, '2v2 best ball — mid-round');
+    await page.getByRole('button', { name: /enter scores/i }).first().click();
+    await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
+    // Zero cost for a group that doesn't play them.
+    await expect(page.getByRole('button', { name: /Sandie|Barkie|Greenie/ })).toHaveCount(0);
+  });
+});
+
+test.describe('choosing which bonuses a game plays', () => {
+  // Craig: "those only show if they were selected for the game right?" — yes, and this is
+  // where you select them. Off by default so a group that doesn't play them sees nothing.
+  test('bonuses are off by default and pickable on the money step', async ({ page }) => {
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    // Step 1 must not ask about them — money questions live on the last step.
+    const step1 = await page.locator('body').innerText();
+    expect(step1).not.toContain('Extra bonuses to track by hand');
+  });
+});

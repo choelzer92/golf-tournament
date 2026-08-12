@@ -27,6 +27,71 @@ export interface PoolJunkValues {
   ctp: number;
 }
 
+// A bonus the app CANNOT derive from a scorecard. Nothing in a gross score says the ball
+// was in a bunker, so sandies/barkies/greenies/longest drive need someone to tap them per
+// hole — the way ctpWinners already works. Craig: "an easy method to click that box as a
+// scorer per hole for a player", and the scorer may mark any player in their foursome.
+//
+// `id` is stable and stored; `label` is what a golfer taps. Groups define their own set
+// (GroupDefaults), so one group's barkie doesn't impose on another's.
+export interface CustomBonus {
+  id: string;
+  label: string;
+  points: number;
+  hint?: string;
+}
+
+// The bonuses most groups actually play, offered as a starting point. Deliberately NOT
+// applied by default — a group that doesn't play barkies shouldn't see them.
+export const COMMON_BONUSES: CustomBonus[] = [
+  { id: 'sandie', label: 'Sandie', points: 1, hint: 'up and down from a bunker' },
+  { id: 'greenie', label: 'Greenie', points: 1, hint: 'on in regulation on a par 3' },
+  { id: 'barkie', label: 'Barkie', points: 1, hint: 'hit a tree and still made par' },
+  { id: 'chip-in', label: 'Chip-in', points: 1, hint: 'holed from off the green' },
+  { id: 'long-drive', label: 'Long drive', points: 1, hint: 'longest in the group' },
+];
+
+// Manual bonus marks: hole number -> player id -> the bonus ids they earned there.
+// Stored on the game like ctpWinners rather than on GameScore, because GameScore flows
+// through the merge RPC, the score audit, and every mode's compute — and because a hole
+// can have SEVERAL players earning the same bonus, which ctpWinners' one-winner shape
+// can't express.
+export type BonusMarks = Record<number, Record<string, string[]>>;
+
+/** Total manual-bonus points a team earned, using this game's bonus definitions. */
+export function customBonusPointsForTeam(game: PoolGame, playerIds: string[]): number {
+  const defs = game.customBonuses ?? [];
+  if (defs.length === 0) return 0;
+  const pointsById = new Map(defs.map((b) => [b.id, b.points]));
+  let total = 0;
+  for (const byPlayer of Object.values(game.bonusMarks ?? {})) {
+    for (const [pid, ids] of Object.entries(byPlayer)) {
+      if (!playerIds.includes(pid)) continue;
+      for (const id of ids) total += pointsById.get(id) ?? 0;
+    }
+  }
+  return total;
+}
+
+/** Per-bonus counts for a team, for display. */
+export function customBonusCountsForTeam(
+  game: PoolGame,
+  playerIds: string[],
+): { id: string; label: string; count: number; points: number }[] {
+  const defs = game.customBonuses ?? [];
+  if (defs.length === 0) return [];
+  const counts = new Map<string, number>();
+  for (const byPlayer of Object.values(game.bonusMarks ?? {})) {
+    for (const [pid, ids] of Object.entries(byPlayer)) {
+      if (!playerIds.includes(pid)) continue;
+      for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  }
+  return defs
+    .map((b) => ({ id: b.id, label: b.label, count: counts.get(b.id) ?? 0, points: (counts.get(b.id) ?? 0) * b.points }))
+    .filter((x) => x.count > 0);
+}
+
 // A record of HOW the current teams were built, so the read-only view can show
 // the organizer exactly what produced these foursomes. Captured at build time —
 // crucially, `excludeCaptains` is the value that was in effect WHEN teams were
@@ -142,6 +207,11 @@ export interface PoolGame {
   // (hole N → wolfOrder[(N-1) % len]). Absent = fall back to game.players order
   // (today's behavior). Set via the Wolf draw (mini-game / randomize / manual).
   wolfOrder?: string[];
+  // Manual bonuses this game plays, and the marks scorers have tapped. Both ABSENT on
+  // every existing game, which keeps them computing identically — the fixed five in
+  // junkValues are unaffected. See CustomBonus / BonusMarks.
+  customBonuses?: CustomBonus[];
+  bonusMarks?: BonusMarks;
   // Per-game player-share token. The link sent to the other foursomes is
   // /pool/<id>?key=<shareToken>, so each game's link is individually shareable and
   // revocable (regenerate to kill it) instead of one constant for every game ever.
@@ -249,6 +319,7 @@ export interface PoolTeamJunk {
   albatrosses: number;
   groupHugs: number;
   ctps: number;
+  custom: number;  // points from manual bonuses (sandies, barkies, …); 0 when none defined
   total: number;   // total junk points
 }
 
@@ -1496,14 +1567,19 @@ function computeJunk(
       if (teamId === team.id) ctps++;
     }
 
+    // Manual bonuses (sandies, barkies, …) add on top of the computed five. Zero for any
+    // game that doesn't define them, so existing games are unchanged.
+    const custom = customBonusPointsForTeam(game, team.playerIds);
+
     const total =
       birdies * v.birdie +
       eagles * v.eagle +
       albatrosses * v.albatross +
       groupHugs * v.groupHug +
-      ctps * v.ctp;
+      ctps * v.ctp +
+      custom;
 
-    return { teamId: team.id, teamName: team.name, birdies, eagles, albatrosses, groupHugs, ctps, total };
+    return { teamId: team.id, teamName: team.name, birdies, eagles, albatrosses, groupHugs, ctps, custom, total };
   });
 }
 

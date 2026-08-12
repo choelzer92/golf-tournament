@@ -21,6 +21,7 @@ import {
   getGameHoles,
   isPoolGameFullyScored,
   serpentineTeams,
+  customBonusCountsForTeam,
   balanceTeamsWithCaptains,
   type PoolGame,
 } from '@/lib/pool-game';
@@ -563,6 +564,110 @@ describe('junk leg with nobody scoring (F-007 regression)', () => {
     const winner = junk.standings.find((s) => s.place === 1)!;
     expect(winner.teamId).toBe('t1');
     expect(winner.payout).toBeCloseTo(junk.subPot, 6);   // winner-take-all
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Manual bonuses (sandies, barkies, …) — the ones a scorecard can't reveal
+// ---------------------------------------------------------------------------
+
+describe('manual bonuses', () => {
+  const SANDIE = { id: 'sandie', label: 'Sandie', points: 2 };
+  const BARKIE = { id: 'barkie', label: 'Barkie', points: 3 };
+
+  // The property that matters most: nothing changes for a game that doesn't use them.
+  it('a game with no custom bonuses computes exactly as before', () => {
+    const plain = twoFoursomes();
+    const withEmpty = twoFoursomes({ customBonuses: [], bonusMarks: {} });
+    const scores = new Map([['m1', flatRound(team1, 0)], ['m2', flatRound(team2, 1)]]);
+    const a = computePoolResult(plain, scores);
+    const b = computePoolResult(withEmpty, scores);
+    expect(b.junkDetails.map((j) => j.total)).toEqual(a.junkDetails.map((j) => j.total));
+    expect(b.payouts.map((p) => p.net)).toEqual(a.payouts.map((p) => p.net));
+  });
+
+  it('adds marked bonus points to the junk total', () => {
+    const game = twoFoursomes({
+      customBonuses: [SANDIE, BARKIE],
+      // p1 got a sandie on 4 and a barkie on 7; p5 (other team) a sandie on 4.
+      bonusMarks: { 4: { p1: ['sandie'], p5: ['sandie'] }, 7: { p1: ['barkie'] } },
+      junkValues: { birdie: 0, eagle: 0, albatross: 0, groupHug: 0, ctp: 0 },
+    });
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, 1)],
+      ['m2', flatRound(team2, 1)],
+    ]));
+    const j1 = r.junkDetails.find((j) => j.teamId === 't1')!;
+    const j2 = r.junkDetails.find((j) => j.teamId === 't2')!;
+    expect(j1.custom).toBe(5);   // sandie 2 + barkie 3
+    expect(j2.custom).toBe(2);   // sandie 2
+    expect(j1.total).toBe(5);
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+
+  // ctpWinners is Record<hole, playerId> — one winner per hole. Sandies aren't like
+  // that, which is why they needed their own shape.
+  it('lets SEVERAL players earn the same bonus on one hole', () => {
+    const game = twoFoursomes({
+      customBonuses: [SANDIE],
+      bonusMarks: { 9: { p1: ['sandie'], p2: ['sandie'], p3: ['sandie'] } },
+      junkValues: { birdie: 0, eagle: 0, albatross: 0, groupHug: 0, ctp: 0 },
+    });
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, 1)], ['m2', flatRound(team2, 1)],
+    ]));
+    expect(r.junkDetails.find((j) => j.teamId === 't1')!.custom).toBe(6);
+  });
+
+  it('lets one player earn SEVERAL bonuses on one hole', () => {
+    const game = twoFoursomes({
+      customBonuses: [SANDIE, BARKIE],
+      bonusMarks: { 2: { p1: ['sandie', 'barkie'] } },
+      junkValues: { birdie: 0, eagle: 0, albatross: 0, groupHug: 0, ctp: 0 },
+    });
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, 1)], ['m2', flatRound(team2, 1)],
+    ]));
+    expect(r.junkDetails.find((j) => j.teamId === 't1')!.custom).toBe(5);
+  });
+
+  it('ignores a mark whose bonus this game does not define', () => {
+    // A group removed "barkie" after a game was scored — the stale mark must not crash
+    // or silently score as some other bonus.
+    const game = twoFoursomes({
+      customBonuses: [SANDIE],
+      bonusMarks: { 3: { p1: ['sandie', 'barkie'] } },
+      junkValues: { birdie: 0, eagle: 0, albatross: 0, groupHug: 0, ctp: 0 },
+    });
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, 1)], ['m2', flatRound(team2, 1)],
+    ]));
+    expect(r.junkDetails.find((j) => j.teamId === 't1')!.custom).toBe(2);
+  });
+
+  it('reports per-bonus counts for display', () => {
+    const game = twoFoursomes({
+      customBonuses: [SANDIE, BARKIE],
+      bonusMarks: { 1: { p1: ['sandie'] }, 5: { p2: ['sandie'], p1: ['barkie'] } },
+    });
+    const counts = customBonusCountsForTeam(game, team1);
+    expect(counts).toEqual([
+      { id: 'sandie', label: 'Sandie', count: 2, points: 4 },
+      { id: 'barkie', label: 'Barkie', count: 1, points: 3 },
+    ]);
+    // A bonus nobody earned isn't listed.
+    expect(customBonusCountsForTeam(game, team2)).toEqual([]);
+  });
+
+  it('stays zero-sum when only one team earns bonuses', () => {
+    const game = twoFoursomes({
+      customBonuses: [SANDIE],
+      bonusMarks: { 1: { p1: ['sandie'] } },
+    });
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, 1)], ['m2', flatRound(team2, 1)],
+    ]));
     expect(netSum(r.payouts)).toBeCloseTo(0, 6);
   });
 });

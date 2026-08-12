@@ -291,6 +291,27 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'bonuses-manual',
+    label: 'Manual bonuses — sandies & barkies on the scorecard',
+    detail: "Craig's spec: the scorer taps a bonus for any player in their foursome, per hole. Open, then Enter Scores.",
+    build: () => {
+      const ps = players([4, 10, 14, 20]);
+      const game = baseGame({
+        players: ps,
+        name: 'Sandies & Barkies',
+        customBonuses: [
+          { id: 'sandie', label: 'Sandie', points: 2, hint: 'up and down from a bunker' },
+          { id: 'barkie', label: 'Barkie', points: 2, hint: 'hit a tree and still made par' },
+          { id: 'greenie', label: 'Greenie', points: 1, hint: 'on in regulation on a par 3' },
+        ],
+        bonusMarks: { 3: { sp1: ['greenie'] }, 5: { sp2: ['sandie'], sp1: ['barkie'] } },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1' }],
+      });
+      saveGameScores('sm1', scores(ps.map((p) => p.id), [0, 1, 1, 2], [1, 2, 3, 4, 5]));
+      return { game, goTo: (id) => `/pool/${id}` };
+    },
+  },
+  {
     key: 'recent-courses',
     label: 'Past games (for recent-course chips)',
     detail: "JY's request: seeds completed games so /pool/new can offer their courses without retyping.",
