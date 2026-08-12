@@ -49,6 +49,36 @@ test.describe('continuing — the neglected phase', () => {
     }
   });
 
+  // F-007 guard, at the UI level: the money a group reads off this screen must
+  // balance. Before the fix, four players owed money that appeared in NO transfer,
+  // because settleUp() matches debtors to creditors and silently drops unmatched debt.
+  test('F-007: the season ledger balances and settles fully', async ({ page }) => {
+    await seedAndOpen(page, 'Season ledger');
+    await expect(page.getByRole('heading', { name: /Stats & money/i })).toBeVisible();
+
+    // Scope to the STANDINGS section only. The Settle-up list below it is all
+    // positive amounts, so scraping the whole page can never balance — an earlier
+    // version of this test did exactly that and failed on its own arithmetic.
+    const text = await page.locator('body').innerText();
+    const standings = text.slice(
+      text.indexOf('STANDINGS'),
+      text.indexOf('SETTLE UP') > -1 ? text.indexOf('SETTLE UP') : undefined,
+    );
+
+    // Signed dollar figures (− is U+2212, per UI_CONVENTIONS.md).
+    const nets = [...standings.matchAll(/(−|-)?\$([\d,]+\.\d{2})/g)]
+      .map((m) => (m[1] ? -1 : 1) * parseFloat(m[2].replace(/,/g, '')));
+    expect(nets.length).toBeGreaterThan(0);
+
+    // Money owed must equal money due — a quarter of the pot used to vanish.
+    const owed = nets.filter((n) => n < 0).reduce((s, n) => s + n, 0);
+    const due = nets.filter((n) => n > 0).reduce((s, n) => s + n, 0);
+    expect(Math.abs(owed + due)).toBeLessThan(0.05);
+
+    expect(text).toContain('SETTLE UP');
+    expect(text).toMatch(/pays/);
+  });
+
   test('capture /home/stats on a phone', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await seedAndOpen(page, 'Season ledger');

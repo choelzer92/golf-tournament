@@ -386,6 +386,74 @@ describe('junk', () => {
 });
 
 // ---------------------------------------------------------------------------
+// REGRESSION: an unscored junk leg is a TIE, not a void (FINDINGS.md F-007)
+// ---------------------------------------------------------------------------
+
+describe('junk leg with nobody scoring (F-007 regression)', () => {
+  // The whole compute suite missed this bug because every fixture scored junk. With
+  // all bonus values at 0, no team can earn a junk point — every team is tied at
+  // zero, which must still pay the junk sub-pot out.
+  const noJunkValues = { birdie: 0, eagle: 0, albatross: 0, groupHug: 0, ctp: 0 };
+
+  it('pays out the junk sub-pot when every team is tied at zero', () => {
+    const game = twoFoursomes({ junkValues: { ...noJunkValues } });
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, 1)],
+      ['m2', flatRound(team2, 2)],
+    ]));
+    const junk = r.legs.find((l) => l.leg === 'junk')!;
+    expect(junk.subPot).toBeGreaterThan(0);
+    // Every dollar of the sub-pot is distributed...
+    expect(junk.standings.reduce((s, x) => s + x.payout, 0)).toBeCloseTo(junk.subPot, 6);
+    // ...evenly, since it's a dead heat.
+    for (const s of junk.standings) {
+      expect(s.payout).toBeCloseTo(junk.subPot / junk.standings.length, 6);
+      // A paid team must not render as unplaced.
+      expect(s.place).toBe(1);
+    }
+  });
+
+  it('keeps the WHOLE game zero-sum with no junk scored', () => {
+    const game = twoFoursomes({ junkValues: { ...noJunkValues } });
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, 1)],
+      ['m2', flatRound(team2, 2)],
+    ]));
+    // This summed to -$50 before the fix — a quarter of the pot vanished.
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+
+  it('stays zero-sum with 3 foursomes and a position split', () => {
+    const game = makeGame({
+      teamCount: 3, indexes: Array(12).fill(0), entryPerPlayer: 25,
+      positionSplit: [70, 30], junkValues: { ...noJunkValues },
+    });
+    const ids = (n: number) => game.teams[n].playerIds;
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(ids(0), 0)],
+      ['m2', flatRound(ids(1), 1)],
+      ['m3', flatRound(ids(2), 2)],
+    ]));
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+
+  it('still ranks junk normally when someone DOES score it', () => {
+    const game = twoFoursomes();   // default junk values
+    const p1 = TEST_PARS.slice();
+    p1[0] -= 1;                    // one birdie for team 1
+    const r = computePoolResult(game, new Map([
+      ['m1', [...scoresFor('p1', p1), ...flatRound(['p2', 'p3', 'p4'], 0)]],
+      ['m2', flatRound(team2, 0)],
+    ]));
+    const junk = r.legs.find((l) => l.leg === 'junk')!;
+    const winner = junk.standings.find((s) => s.place === 1)!;
+    expect(winner.teamId).toBe('t1');
+    expect(winner.payout).toBeCloseTo(junk.subPot, 6);   // winner-take-all
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Match mode — head-to-head between exactly two foursomes
 // ---------------------------------------------------------------------------
 

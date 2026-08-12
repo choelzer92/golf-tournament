@@ -438,11 +438,32 @@ the codebase and keeps each leg's stake meaning what the organizer set. **Fix th
 mid-round case in the same change** — they're one bug with two symptoms, and a shared
 "unwon sub-pot" rule solves both.
 
-**Craig's call needed:** this is money math, so per `DECISIONS.md` §2 I'm not choosing
-unilaterally. Worth noting the compute tests didn't catch it because every fixture
-scored junk; a regression test for "nobody scores junk" comes with the fix.
+**Status: FIXED + VERIFIED (2026-08-12).**
 
-**Status:** open — needs Craig's decision (money math)
+Craig's answer was better than all four of my options:
+
+> *"If no junk is scored by any team, this would be considered a tie, right?"*
+
+Exactly right — and it means the fix is **deleting the special case**, not adding a
+refund rule. `distributePot` already handles a tied field correctly: verified it
+splits the full sub-pot evenly and distributes 100% of it, at 2 teams and 3 teams,
+under both `[100]` and `[70,30]`. The `junkHasPoints` guard was preventing that logic
+from ever running by passing `[]`.
+
+Also had to align `place`: it was `junkHasPoints ? junkPlace : 0`, which would now pay
+a team while rendering it unplaced. All tied teams are joint 1st.
+
+Verified: the seeded season went from `Untagged Saturday: teamNetSum=-50.00` to
+`0.00`, and the settle-up list went from 10 transfers leaving four players unsettled
+to **8 clean transfers with nothing left over**.
+
+Guarded by 4 compute tests (unscored junk pays out evenly · whole game zero-sum · 3
+foursomes with a position split · normal ranking still works when junk IS scored) plus
+a UI-level e2e assertion that the standings balance.
+
+**The mid-round variant in `UI_MODE_AUDIT.md` is a DIFFERENT cause** and still open:
+there, a leg has no *eligible* team because the nine hasn't started, so there's nobody
+to tie with. Craig's tie reasoning doesn't extend to it.
 
 ---
 

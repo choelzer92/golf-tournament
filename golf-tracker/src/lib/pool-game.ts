@@ -1640,9 +1640,15 @@ export function computePoolResult(
   const junkDetails = computeJunk(game, holes, scoresByMatchup);
   const junkSubPot = pot * game.potSplit.junk;
   const junkRanked = [...junkDetails].sort((a, b) => b.total - a.total);
-  const junkHasPoints = junkRanked.some((j) => j.total > 0);
+  // If NOBODY scored junk, every team is tied at zero — which is a tie, not a void.
+  // distributePot already splits a tied field's pot evenly and distributes all of it,
+  // so it just needs to be allowed to run. Passing [] here (the old behavior) paid
+  // nothing while every team's entryPaid was still deducted in full, so the junk
+  // sub-pot — a quarter of the pot by default — silently disappeared. That also broke
+  // the season ledger: settleUp() matches debtors to creditors, so the unmatched debt
+  // was never listed at all and a group would under-collect. See FINDINGS.md F-007.
   const junkPayouts = distributePot(
-    junkHasPoints ? junkRanked.map((j) => ({ teamId: j.teamId, metric: -j.total })) : [],
+    junkRanked.map((j) => ({ teamId: j.teamId, metric: -j.total })),
     junkSubPot,
     game.positionSplit
   );
@@ -1657,7 +1663,9 @@ export function computePoolResult(
       total: j.total,
       toPar: j.total,
       thru: thruHole,
-      place: junkHasPoints ? junkPlace : 0,
+      // Everyone tied at zero still HAS a place (joint 1st) — it must match the
+      // payout, or the leaderboard pays a team while showing it unplaced.
+      place: junkPlace,
       payout: junkPayouts[j.teamId] ?? 0,
     });
   }
