@@ -18,6 +18,7 @@ import {
   getPar3Holes,
   distinctRankingsForPlayers,
   balanceTeamsWithCaptains,
+  serpentineTeams,
   balanceTeamsWithLocks,
   pickCaptains,
   sortPlayerIdsByHcap,
@@ -1718,6 +1719,27 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
     });
   }
 
+  // Snake draft on an EXISTING game. The wizard had this but the hub didn't, so an
+  // organizer who wanted to re-draft after a late arrival had no way to.
+  function autoSerpentine() {
+    const captainByTeam = Array.from({ length: numTeams }, (_, i) =>
+      useCaptains ? (captainIds[i] || undefined) : undefined);
+    const groups = serpentineTeams(
+      game.players,
+      numTeams,
+      (p) => getPoolPlayingHandicap(p, course, game.handicapAllowance, game.handicapBasis, gameNineBasis(game)),
+      captainByTeam,
+      game.lockedGroups ?? [],
+    );
+    applyReshuffle(groups, captainByTeam, {
+      method: 'serpentine',
+      excludeCaptains: false,
+      hadCaptains: captainByTeam.some(Boolean),
+      hadLocks: (game.lockedGroups ?? []).some((g) => g.length >= 2),
+      adjustedAfter: false,
+    });
+  }
+
   function autoGenerate() {
     const groups: string[][] = [];
     for (let i = 0; i < game.players.length; i += 4) {
@@ -1804,11 +1826,18 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
               onClick={autoBalance}
               className="rounded-md border border-green-700 px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50"
             >
-              {useCaptains ? 'Balance around captains' : 'Balance teams by handicap'}
+              {useCaptains ? 'Even out around captains' : 'Even out by handicap'}
+            </button>
+            <button
+              onClick={autoSerpentine}
+              className="min-h-[44px] rounded-md border border-green-700 px-3 py-2.5 text-sm text-green-700 font-medium hover:bg-green-50"
+              title="Best available player to the highest-handicap captain each round, alternating direction"
+            >
+              Snake draft
             </button>
             <button
               onClick={autoGenerate}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 font-medium hover:bg-gray-100"
+              className="min-h-[44px] rounded-md border border-gray-300 px-3 py-2.5 text-sm text-gray-700 font-medium hover:bg-gray-100"
             >
               Auto-generate foursomes
             </button>

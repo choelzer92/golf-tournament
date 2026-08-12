@@ -13,8 +13,11 @@
 // WHAT THIS CANNOT PROVE — always state this alongside any sandbox result:
 //   - RLS policies / auth rules (none are modelled)
 //   - the real `merge_game_scores` RPC semantics. That's SQL doing concurrent
-//     multi-device write reconciliation; see mergeGameScores() below, which
-//     THROWS rather than pretending. Multi-device scoring cannot be validated here.
+//     multi-device write reconciliation; see mergeGameScores() below, which THROWS
+//     rather than pretending. NOTE this affects only the TOURNAMENT split-scoring path
+//     (two teams scoring one matchup from separate devices). POOL games never take that
+//     branch — each foursome owns its own matchupId, so pool multi-device scoring is
+//     partitioned by row and needs no merge. Don't describe pool scoring as unverified.
 //   - Postgres constraints, type coercion, or error shapes
 //   - genuine realtime delivery, reconnection, or ordering across clients
 // It is a UI harness: rendering, layout, vocabulary, and flow. Nothing more.

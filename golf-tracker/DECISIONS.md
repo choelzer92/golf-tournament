@@ -468,6 +468,37 @@ feature in a money game.
 `summarizeTeamBuild()` already surfaces the method in "How these teams were built" — each
 new method needs an honest headline there.
 
+## 5l. Pool live scoring does NOT use the merge RPC — I overstated the risk (2026-08-12)
+
+I repeatedly warned that "multi-device scoring is untested because it goes through
+`merge_game_scores`, which the fake backend can't verify." Craig pushed back:
+
+> "i also thought pool games format for live scoring worked well, so is that changed? the
+> tournament stuff was with RPC, but the pool was working i thought"
+
+**He's right.** Traced it: `saveGameScores(matchupId, scores, ownedPlayerIds)` only takes
+the RPC branch when `ownedPlayerIds` is passed, and that only happens when
+`setup.scoringTeam` is set (`game/play/page.tsx:212`). **A pool game never sets
+`scoringTeam`** — each foursome has its own `matchupId`, so pool scores go through the
+plain `upsert` and the RPC is never involved.
+
+**Why pool multi-device is safe by design:** scoring is *partitioned by matchup*. Two
+phones scoring different foursomes write to different rows, so there is no conflict to
+reconcile. The merge RPC exists for the TOURNAMENT split-scoring case, where two teams
+score the same matchup from separate devices.
+
+**The accurate statement of the gap:**
+- Pool multi-foursome scoring — safe by construction, and proven in real use.
+- `merge_game_scores` — only the tournament split-scoring path; still unverified by the
+  sandbox.
+- Realtime *delivery* between devices — untested for both, since the fake fires local
+  callbacks rather than crossing a socket. But that's "does the other group's score show
+  up on my leaderboard", not "does data get corrupted." Much lower severity.
+
+**How to apply:** don't describe pool live scoring as risky. When flagging sandbox limits,
+name the specific path — over-broad warnings about working features cost trust and
+misdirect effort.
+
 ## 6. Focus areas Craig has named
 
 Requested, in his stated order of interest:

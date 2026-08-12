@@ -2485,28 +2485,52 @@ function TeamsStep({
         />
       </div>
 
+      {/* ONE QUESTION, not three rival buttons. Each method is a different GOAL, so the
+          consequence is spelled out rather than the mechanism — "evens out the totals"
+          vs "you can check it by eye". The captains toggle stays separate above: it's
+          orthogonal (any method runs with or without captains), and folding it in would
+          multiply the options. */}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <p className="text-sm font-medium text-gray-800 mb-1">How should teams be built?</p>
+        <p className="text-xs text-gray-500 mb-3">Pick one to build them now — you can still move anyone by hand afterwards.</p>
+        <div className="space-y-2">
+          {([
+            {
+              key: 'optimal',
+              label: useCaptains ? 'Even them out around the captains' : 'Even them out by handicap',
+              detail: 'Searches for the closest possible team totals. The fairest result, but the assignment is hard to explain.',
+              run: autoBalance,
+            },
+            {
+              key: 'snake',
+              label: 'Snake draft',
+              detail: 'Best available player to the highest-handicap captain, then back the other way each round. Slightly less even, but your group can watch it happen.',
+              run: autoSerpentine,
+            },
+            {
+              key: 'sequential',
+              label: 'Straight down the list',
+              detail: 'Foursomes in the order players were added. No balancing at all — for when the groups are already decided.',
+              run: autoGenerate,
+            },
+          ] as const).map(({ key, label, detail, run }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={run}
+              className="w-full min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-left hover:border-green-400"
+            >
+              <span className="block text-sm font-medium text-gray-800">{label}</span>
+              <span className="block text-xs text-gray-500 mt-0.5">{detail}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-gray-400 mt-2">
+          Or drag nobody at all — assign every player by hand below.
+        </p>
+      </div>
+
       <div className="flex gap-2 flex-wrap mb-4">
-        <button
-          onClick={autoBalance}
-          className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800"
-        >
-          {useCaptains ? 'Even out around captains' : 'Even out by handicap'}
-        </button>
-        {/* Snake draft — an alternative to Balance, not a replacement. Balance evens the
-            totals; this one is explicable, which is what JY asked for. */}
-        <button
-          onClick={autoSerpentine}
-          className="min-h-[44px] rounded-md border border-green-700 px-3 py-2.5 text-sm text-green-700 font-medium hover:bg-green-50"
-          title="Best available player to the weakest captain each round, alternating direction"
-        >
-          Snake draft
-        </button>
-        <button
-          onClick={autoGenerate}
-          className="min-h-[44px] rounded-md border border-gray-300 px-3 py-2.5 text-sm text-gray-700 font-medium hover:bg-gray-100"
-        >
-          Auto-generate foursomes
-        </button>
         <button
           onClick={addTeam}
           className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 font-medium hover:bg-gray-100"
