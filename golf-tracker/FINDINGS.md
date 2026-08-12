@@ -536,11 +536,38 @@ their record, and their running total. That data already exists in
 - **C. Rename to "Totals"** and let it be "standings without the settlement noise."
   Honest about what it is, but still nearly a duplicate.
 
-**Recommendation:** **A** if per-player history is wanted (it's the natural question
-after "who owes whom"), **B** today if not. Either is better than shipping a tab that
-takes information away. Needs Craig's call on which.
+**DECIDED (2026-08-12) — and Craig reframed it past all three options.**
 
-**Status:** open — needs Craig's decision (product scope)
+"By player" isn't a fourth peer lens; the current tabs conflate two independent axes —
+*whose* money, and *what slice* of games:
+
+|  | **Everyone** | **Just me** |
+|---|---|---|
+| **All games** | ~~today's "Overall"~~ → **removed** (leaks cross-group money) | my total + per-group breakdown |
+| **One group** | every member's money *from that group's games* | my total in that group |
+| **One game** | today's "By game" | my result in that game |
+
+**Scope of the change:**
+- **Overall becomes option B** — the viewer's own total plus a per-group breakdown of
+  their own money ("+$65 — Warriors +$80, Tuesday −$15"). No other player's cross-group
+  money appears anywhere.
+- **Field-wide money only exists INSIDE a group.** That's the privacy rule: money is
+  private to the group that played for it (`DECISIONS.md` §5h).
+- **Today's Overall is removed as-is** because it shows every player's money across
+  every game the viewer can load — a Warriors organizer currently sees Tuesday Crew
+  results for anyone in both groups.
+- Non-money stats (scoring average, handicap trend) may stay global.
+
+Feasible: `getRosterPlayerByGhin()` maps the logged-in GHIN to a roster player, and
+`GameLedger.playerNets` is already keyed by `playerId` — no new computation.
+
+**Caveat to carry:** this is a DISPLAY rule while RLS is open (`DECISIONS.md` §5c), so
+it's a courtesy boundary, not enforced. It must become a real policy when RLS lands.
+
+**Edge case needing a fallback:** an organizer who isn't a player in their own games has
+no matching roster GHIN, so "just me" would be empty for them. Needs a graceful state.
+
+**Status:** decided, not built — needs a todo
 
 ---
 

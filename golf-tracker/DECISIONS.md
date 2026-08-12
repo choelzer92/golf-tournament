@@ -339,6 +339,41 @@ hot path — pin every current `ballSelection` result in the compute tests FIRST
 generalize behind those tests, then map legacy values, then the UI. Full scope in
 `FINDINGS.md` F-006.
 
+## 5h. Money visibility is GROUP-SCOPED; stats may be global (2026-08-12)
+
+Asked what the "By player" lens should be, Craig reframed it from a fourth tab into two
+independent axes — *whose* money, and *what slice* of games:
+
+> "the just me is the logged in user, but then within groups you can see all
+> participants in the group and their money won/lost in games from that group. you
+> shouldnt be able to look up peoples win/loss rates in other groups in terms of money,
+> but maybe in terms of overall stats that is fine"
+
+**The privacy rule — three parts:**
+
+1. **Money is private to the group that played for it.** Inside Weekend Warriors you see
+   every member's won/lost *from Warriors games*. You may NOT see what they did in
+   Tuesday Crew, even though you share a group with them.
+2. **"Just me" crosses groups**, because it's your own money.
+3. **Non-money stats (scoring average, handicap trend, birdies) may be global** — not
+   the same sensitivity.
+
+**Overall = option B:** the viewer's own total, plus a per-group breakdown of their own
+money ("+$65 — Warriors +$80, Tuesday −$15"). Never anyone else's cross-group money.
+
+**This is a CHANGE, not a clarification.** Today `/home/stats` "Overall" shows every
+player's money across every game the viewer can load — so a Warriors organizer already
+sees Tuesday Crew results for anyone in both groups. That's the behavior Craig is ruling
+out.
+
+**How to apply:** it's a real social boundary — what someone lost on a Tuesday isn't the
+Saturday group's business. But note it's a DISPLAY rule while RLS is open by decision
+(§5c), so it's a courtesy boundary, not enforced; anyone reading the JS could still
+query it. **Written down as intentional so it gets enforced for real when RLS lands.**
+
+Feasible as specced: `getRosterPlayerByGhin()` already maps the logged-in GHIN to a
+roster player, and ledger nets are keyed by `playerId`.
+
 ## 6. Focus areas Craig has named
 
 Requested, in his stated order of interest:
