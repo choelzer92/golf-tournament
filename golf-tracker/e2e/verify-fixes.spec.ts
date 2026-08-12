@@ -472,3 +472,30 @@ test.describe('JY feedback: recent courses', () => {
 // (exact deal order, locks, uneven fields, and that the optimizer is never worse on
 // spread). An e2e test would need a real course search, which the sandbox can't do — and
 // a test that only asserts "the wizard loaded" is the vacuous kind we removed earlier.
+
+test.describe('F-003: /home is the default landing page', () => {
+  // The flag was off while /home was unfinished, which made the entire "continuing"
+  // feature set invisible — /dashboard has no link to /home/stats at all.
+  test('the two landing screens work and link to each other', async ({ page }) => {
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Home hub' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+    await card.getByRole('button', { name: 'Open →' }).click();
+    await page.waitForLoadState('networkidle');
+
+    // /home renders with content, and offers the escape hatch back.
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('Start something');
+    expect(body).toContain('Stats & money');
+    expect(body).toContain('Classic dashboard');
+
+    // And the dashboard's link back reads as a destination, not an experiment.
+    await page.getByRole('button', { name: 'Classic dashboard' }).click();
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Try new Home/ })).toHaveCount(0);
+  });
+});

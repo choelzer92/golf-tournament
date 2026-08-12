@@ -216,7 +216,9 @@ export default function DashboardPage() {
               onClick={() => router.push('/home')}
               className="text-sm text-green-200 hover:text-white"
             >
-              Try new Home
+              {/* Home is the default landing page now (HOME_V2), so "Try new Home" read
+                  backwards — this is the way BACK, not an experiment. */}
+              Home
             </button>
             <button onClick={logout} className="text-sm text-green-200 hover:text-white">
               Sign Out

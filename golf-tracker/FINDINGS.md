@@ -131,7 +131,18 @@ means **the season-money feature has never been usable by anyone**: unreachable
 means a confused user is one tap from the familiar screen. Gate it on finishing the
 critique pass for the three `/home` routes first.
 
-**Status:** open — Craig has stated the intent; needs sequencing
+**Status: DONE (option B, 2026-08-12).** `HOME_V2 = true`.
+
+The gate held: flipped only after both landing screens were fixed and verified —
+**F-009** (money group-scoped, "My money" crosses groups) and **F-010** (the group page is
+a dashboard, 5,249px → 1,562px). Flipping before those would have made a leaky money view
+and a 13-screen member list the first thing every user saw.
+
+Also caught while flipping: the dashboard's link read **"Try new Home"**, which is
+backwards once Home is the default — it's the way back, not an experiment. Now just "Home".
+
+e2e guard covers both directions: `/home` renders with content and offers "Classic
+dashboard", and the dashboard links back without the stale wording.
 
 ---
 
