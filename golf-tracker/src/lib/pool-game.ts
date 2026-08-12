@@ -34,7 +34,7 @@ export interface PoolJunkValues {
 // what made teams look like they "changed under the same parameters"). Older
 // games predate this field and render an honest "unknown" fallback.
 export interface PoolTeamBuild {
-  method: 'balanced' | 'sequential' | 'manual';  // balanced = around-captains; sequential = plain foursomes; manual = built by hand
+  method: 'balanced' | 'serpentine' | 'sequential' | 'manual';  // balanced = optimizer (min spread); serpentine = snake draft; sequential = plain foursomes; manual = built by hand
   excludeCaptains?: boolean;   // for 'balanced': whether captains were left out of the balance (snapshot at build time)
   hadCaptains?: boolean;       // for 'balanced': at least one captain slot was set
   hadLocks?: boolean;          // pairing locks were in effect at build time
@@ -966,6 +966,108 @@ export function balanceTeamsWithCaptains(
   return filled.map((ids, i) => [...seeded[i], ...ids]);
 }
 
+// Serpentine (snake draft) team building.
+//
+// Requested by JY, a real organizer: "after the captains are chosen … a straight
+// serpentine sort that takes the next lowest player, using course handicap and put them
+// on the highest captains team and work your way across then back."
+//
+// WHY THIS EXISTS ALONGSIDE balanceTeamsWithCaptains, which already provably minimizes
+// team-handicap spread (greedy LPT -> 2-swap -> exact branch-and-bound): the optimizer
+// answers "make the totals as even as possible", but its assignment is not something an
+// organizer can explain or check by eye. Serpentine is strictly POSITIONAL — deal the
+// best remaining player to the weakest captain, then reverse each round — so a group can
+// watch it happen and agree it was fair. In a money game, explicability is its own
+// feature. JY asked for it while the optimizer already existed.
+//
+// Captains are ordered WEAKEST FIRST (highest handicap), so the best available player
+// joins the team that needs them most. Locks ride along with their first-drafted member,
+// consuming that team's seats.
+export function serpentineTeams(
+  players: Player[],
+  numTeams: number,
+  hcapOf: (p: Player) => number,
+  captainByTeam: (string | undefined)[],
+  locks: string[][] = [],
+): string[][] {
+  const nt = Math.max(1, numTeams);
+  const byId = new Map(players.map((p) => [p.id, p]));
+  const lockByMember = new Map<string, string[]>();
+  for (const g of locks) {
+    const present = g.filter((id) => byId.has(id));
+    for (const id of present) lockByMember.set(id, present);
+  }
+
+  const teams: string[][] = Array.from({ length: nt }, () => []);
+  const claimed = new Set<string>();
+
+  // Seed captains, then order the SLOTS weakest-captain-first. A slot with no captain
+  // sorts last (it has no anchor to compensate for).
+  for (let i = 0; i < nt; i++) {
+    const capId = captainByTeam[i];
+    if (!capId || !byId.has(capId) || claimed.has(capId)) continue;
+    claimed.add(capId);
+    teams[i].push(capId);
+  }
+  const draftOrder = [...Array(nt).keys()].sort((a, b) => {
+    const ca = teams[a][0], cb = teams[b][0];
+    const ha = ca ? hcapOf(byId.get(ca)!) : -Infinity;
+    const hb = cb ? hcapOf(byId.get(cb)!) : -Infinity;
+    return hb - ha;                       // weakest (highest handicap) captain drafts first
+  });
+
+  // Remaining players, best (lowest handicap) first.
+  const pool = players
+    .filter((p) => !claimed.has(p.id))
+    .sort((a, b) => hcapOf(a) - hcapOf(b));
+
+  // Even seat caps, never below what a slot is already seeded with.
+  const total = players.length;
+  const base = Math.floor(total / nt);
+  const extra = total % nt;
+  const caps = Array.from({ length: nt }, (_, i) => {
+    const idx = draftOrder.indexOf(i);
+    return Math.max(base + (idx < extra ? 1 : 0), teams[i].length);
+  });
+
+  let pi = 0;
+  let round = 0;
+  // Deal in alternating directions until the pool is exhausted. The guard is a
+  // belt-and-braces bound: each pass places at least one player unless every slot is
+  // full, in which case the loop exits on `pi`.
+  while (pi < pool.length && round < total + nt) {
+    const order = round % 2 === 0 ? draftOrder : [...draftOrder].reverse();
+    for (const t of order) {
+      if (pi >= pool.length) break;
+      if (teams[t].length >= caps[t]) continue;
+      const p = pool[pi];
+      // A locked group joins together, as far as this slot's seats allow.
+      const lock = lockByMember.get(p.id);
+      const group = lock && lock.length >= 2
+        ? lock.filter((id) => !claimed.has(id))
+        : [p.id];
+      const room = caps[t] - teams[t].length;
+      const take = group.slice(0, Math.max(1, room));
+      for (const id of take) { claimed.add(id); teams[t].push(id); }
+      // Advance past everyone just placed.
+      while (pi < pool.length && claimed.has(pool[pi].id)) pi++;
+    }
+    round++;
+  }
+
+  // Anyone left over (seat caps exhausted by an oversized lock) goes to the emptiest slot.
+  for (; pi < pool.length; pi++) {
+    const p = pool[pi];
+    if (claimed.has(p.id)) continue;
+    let best = 0;
+    for (let t = 1; t < nt; t++) if (teams[t].length < teams[best].length) best = t;
+    claimed.add(p.id);
+    teams[best].push(p.id);
+  }
+
+  return teams;
+}
+
 // --- Fair player swaps -----------------------------------------------------
 
 // The per-player STROKES-THIS-GAME map — the exact same off-the-low-adjusted
@@ -1188,6 +1290,9 @@ export function summarizeTeamBuild(game: PoolGame): TeamBuildSummary {
     detail = tb.excludeCaptains
       ? 'Evened out the non-captain players; each captain’s own strokes ride as the edge.'
       : 'Evened out each whole team, captains included.';
+  } else if (tb.method === 'serpentine') {
+    headline = 'Snake draft off the captains';
+    detail = 'Best available player to the weakest captain each round, alternating direction — so the order is checkable by eye.';
   } else if (tb.method === 'sequential') {
     headline = 'Auto-generated foursomes (in list order)';
   } else {

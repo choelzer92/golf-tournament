@@ -20,11 +20,13 @@ import {
   getFieldLow,
   getGameHoles,
   isPoolGameFullyScored,
+  serpentineTeams,
+  balanceTeamsWithCaptains,
   type PoolGame,
 } from '@/lib/pool-game';
 import type { GameScore } from '@/lib/game-state';
 import {
-  backNine, frontNine, makeGame, makePlayer, parScores, scoresFor, TEST_PARS,
+  backNine, frontNine, makeGame, makePlayer, makePlayers, parScores, scoresFor, TEST_PARS,
   type GameOpts,
 } from './fixtures';
 
@@ -354,6 +356,77 @@ describe('computePoolResult — pot mode', () => {
     // Best foursome wins the overall leg.
     const overall = r.legs.find((l) => l.leg === 'overall')!;
     expect(overall.standings.find((s) => s.place === 1)!.teamId).toBe('t1');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Serpentine (snake draft) team building — JY's request
+// ---------------------------------------------------------------------------
+
+describe('serpentineTeams', () => {
+  // hcapOf is identity on index here, so the expected draft order is readable.
+  const mk = (n: number) => makePlayers(Array.from({ length: n }, (_, i) => i + 1));
+  const h = (p: { handicapIndex: number | null }) => p.handicapIndex ?? 0;
+
+  it('deals best-available to the WEAKEST captain, then reverses', () => {
+    // 8 players, indexes 1..8. Captains: p8 (worst) on team 0, p7 on team 1.
+    const players = mk(8);
+    const teams = serpentineTeams(players, 2, h, ['p8', 'p7']);
+
+    // Draft order is weakest captain first => team 0 (p8), then team 1 (p7).
+    // Pool best-first: p1 p2 p3 p4 p5 p6.
+    //   round 0 (0,1): p1 -> t0, p2 -> t1
+    //   round 1 (1,0): p3 -> t1, p4 -> t0
+    //   round 2 (0,1): p5 -> t0, p6 -> t1
+    expect(teams[0]).toEqual(['p8', 'p1', 'p4', 'p5']);
+    expect(teams[1]).toEqual(['p7', 'p2', 'p3', 'p6']);
+  });
+
+  it('gives every team the same number of seats', () => {
+    const players = mk(12);
+    const teams = serpentineTeams(players, 3, h, ['p12', 'p11', 'p10']);
+    expect(teams.map((t) => t.length)).toEqual([4, 4, 4]);
+    // Every player placed exactly once.
+    const all = teams.flat();
+    expect(new Set(all).size).toBe(12);
+  });
+
+  it('keeps a locked pair together', () => {
+    const players = mk(8);
+    const teams = serpentineTeams(players, 2, h, ['p8', 'p7'], [['p1', 'p6']]);
+    const withP1 = teams.find((t) => t.includes('p1'))!;
+    expect(withP1).toContain('p6');
+  });
+
+  it('handles an uneven field without dropping anyone', () => {
+    const players = mk(7);
+    const teams = serpentineTeams(players, 2, h, ['p7', 'p6']);
+    expect(teams.flat().sort()).toEqual(players.map((p) => p.id).sort());
+    // Sizes differ by at most one.
+    const sizes = teams.map((t) => t.length).sort();
+    expect(sizes[sizes.length - 1] - sizes[0]).toBeLessThanOrEqual(1);
+  });
+
+  it('works with no captains at all', () => {
+    const players = mk(8);
+    const teams = serpentineTeams(players, 2, h, [undefined, undefined]);
+    expect(teams.flat().sort()).toEqual(players.map((p) => p.id).sort());
+    expect(teams.map((t) => t.length)).toEqual([4, 4]);
+  });
+
+  // The reason BOTH methods exist: the optimizer minimizes spread, serpentine is
+  // explicable. Optimal should never be WORSE on its own metric.
+  it('the optimizer is at least as even as serpentine on the same field', () => {
+    const players = makePlayers([2, 5, 8, 11, 14, 17, 20, 23]);
+    const hc = (p: { handicapIndex: number | null }) => p.handicapIndex ?? 0;
+    const spread = (teams: string[][]) => {
+      const totals = teams.map((t) =>
+        t.reduce((s, id) => s + hc(players.find((p) => p.id === id)!), 0));
+      return Math.max(...totals) - Math.min(...totals);
+    };
+    const snake = serpentineTeams(players, 2, hc, ['p8', 'p7']);
+    const opt = balanceTeamsWithCaptains(players, 2, hc, ['p8', 'p7']);
+    expect(spread(opt)).toBeLessThanOrEqual(spread(snake));
   });
 });
 

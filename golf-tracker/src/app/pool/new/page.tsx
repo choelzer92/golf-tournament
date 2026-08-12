@@ -27,6 +27,7 @@ import {
   getRecentCourses,
   hydratePoolGames,
   balanceTeamsWithCaptains,
+  serpentineTeams,
   balanceTeamsWithLocks,
   pickCaptains,
   sortPlayerIdsByHcap,
@@ -2263,6 +2264,29 @@ function TeamsStep({
   // With captains ON: each captain anchors a slot and the rest balance around
   // them (captain-first ordering). With captains OFF: plain even balance, no
   // captain role at all — each team just listed low->high.
+  // Snake draft — JY's request. Kept separate from autoBalance() rather than folded in
+  // behind a flag, because the two answer different questions: autoBalance minimizes
+  // team-handicap spread (exact branch-and-bound), while this deals positionally so an
+  // organizer can explain and verify it. Both are legitimate; neither replaces the other.
+  function autoSerpentine() {
+    const captainByTeam = Array.from({ length: numTeams }, (_, i) =>
+      useCaptains ? (captainIds[i] || undefined) : undefined);
+    const groups = serpentineTeams(players, numTeams, hcapOf, captainByTeam, lockedGroups);
+    setTeams(groups.map((ids, i) => {
+      const capId = captainByTeam[i] && ids.includes(captainByTeam[i]!) ? captainByTeam[i] : undefined;
+      // Keep the DRAFT order — reordering by handicap would hide the very thing that
+      // makes a snake draft checkable.
+      return makeTeam(i, ids, capId);
+    }));
+    setTeamBuild({
+      method: 'serpentine',
+      excludeCaptains: false,
+      hadCaptains: useCaptains,
+      hadLocks: lockedGroups.some((g) => g.length >= 2),
+      adjustedAfter: false,
+    });
+  }
+
   function autoBalance() {
     if (!useCaptains) {
       const groups = balanceTeamsWithLocks(players, numTeams, hcapOf, lockedGroups);
@@ -2462,11 +2486,20 @@ function TeamsStep({
           onClick={autoBalance}
           className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800"
         >
-          {useCaptains ? 'Balance around captains' : 'Balance teams by handicap'}
+          {useCaptains ? 'Even out around captains' : 'Even out by handicap'}
+        </button>
+        {/* Snake draft — an alternative to Balance, not a replacement. Balance evens the
+            totals; this one is explicable, which is what JY asked for. */}
+        <button
+          onClick={autoSerpentine}
+          className="min-h-[44px] rounded-md border border-green-700 px-3 py-2.5 text-sm text-green-700 font-medium hover:bg-green-50"
+          title="Best available player to the weakest captain each round, alternating direction"
+        >
+          Snake draft
         </button>
         <button
           onClick={autoGenerate}
-          className="rounded-md border border-green-700 px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50"
+          className="min-h-[44px] rounded-md border border-gray-300 px-3 py-2.5 text-sm text-gray-700 font-medium hover:bg-gray-100"
         >
           Auto-generate foursomes
         </button>

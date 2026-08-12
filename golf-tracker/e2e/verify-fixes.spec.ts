@@ -467,3 +467,8 @@ test.describe('JY feedback: recent courses', () => {
     await page.screenshot({ path: 'e2e/screenshots/jy-recent-courses.png', fullPage: true });
   });
 });
+
+// NOTE: snake-draft correctness is covered by compute tests in src/test/pool-game.test.ts
+// (exact deal order, locks, uneven fields, and that the optimizer is never worse on
+// spread). An e2e test would need a real course search, which the sandbox can't do — and
+// a test that only asserts "the wizard loaded" is the vacuous kind we removed earlier.
