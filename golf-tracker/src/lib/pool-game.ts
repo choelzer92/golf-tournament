@@ -980,9 +980,12 @@ export function balanceTeamsWithCaptains(
 // watch it happen and agree it was fair. In a money game, explicability is its own
 // feature. JY asked for it while the optimizer already existed.
 //
-// Captains are ordered WEAKEST FIRST (highest handicap), so the best available player
-// joins the team that needs them most. Locks ride along with their first-drafted member,
-// consuming that team's seats.
+// Captains draft in order of HIGHEST HANDICAP AMONG THE CAPTAINS first — which is what
+// JY means by "the highest captains team". Note captains are normally the LOWEST
+// handicaps in the field (see pickCaptains), so this is a relative ordering between
+// already-strong players, not a claim that any captain is weak. Drafting in that order
+// means the captain with the least edge gets first pick, which is what evens the teams
+// out. Locks ride along with their first-drafted member, consuming that team's seats.
 export function serpentineTeams(
   players: Player[],
   numTeams: number,
@@ -1013,7 +1016,7 @@ export function serpentineTeams(
     const ca = teams[a][0], cb = teams[b][0];
     const ha = ca ? hcapOf(byId.get(ca)!) : -Infinity;
     const hb = cb ? hcapOf(byId.get(cb)!) : -Infinity;
-    return hb - ha;                       // weakest (highest handicap) captain drafts first
+    return hb - ha;                       // highest-handicap captain drafts first
   });
 
   // Remaining players, best (lowest handicap) first.
@@ -1054,6 +1057,11 @@ export function serpentineTeams(
     }
     round++;
   }
+
+  // NOTE ON ORDER: the returned arrays are in DRAFT sequence. Callers should re-order for
+  // display (orderPlayerIdsWithCaptain / sortPlayerIdsByHcap) so a snake-drafted team
+  // reads lowest-to-highest handicap like every other team in the app — being the one
+  // list that reads differently is more confusing than the draft order is useful.
 
   // Anyone left over (seat caps exhausted by an oversized lock) goes to the emptiest slot.
   for (; pi < pool.length; pi++) {

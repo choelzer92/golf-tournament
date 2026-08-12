@@ -2274,9 +2274,13 @@ function TeamsStep({
     const groups = serpentineTeams(players, numTeams, hcapOf, captainByTeam, lockedGroups);
     setTeams(groups.map((ids, i) => {
       const capId = captainByTeam[i] && ids.includes(captainByTeam[i]!) ? captainByTeam[i] : undefined;
-      // Keep the DRAFT order — reordering by handicap would hide the very thing that
-      // makes a snake draft checkable.
-      return makeTeam(i, ids, capId);
+      // Display lowest-to-highest handicap, same as every other build method. I'd first
+      // kept the raw draft order to make the snake verifiable, but being the one team
+      // list in the app that reads differently is more confusing than that is useful.
+      const ordered = capId
+        ? orderPlayerIdsWithCaptain(ids, capId, players, course, handicapAllowance, handicapBasis)
+        : sortPlayerIdsByHcap(ids, players, course, handicapAllowance, handicapBasis);
+      return makeTeam(i, ordered, capId);
     }));
     setTeamBuild({
       method: 'serpentine',

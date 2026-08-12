@@ -368,18 +368,34 @@ describe('serpentineTeams', () => {
   const mk = (n: number) => makePlayers(Array.from({ length: n }, (_, i) => i + 1));
   const h = (p: { handicapIndex: number | null }) => p.handicapIndex ?? 0;
 
-  it('deals best-available to the WEAKEST captain, then reverses', () => {
-    // 8 players, indexes 1..8. Captains: p8 (worst) on team 0, p7 on team 1.
+  it('the higher-handicap captain picks first, then the order reverses', () => {
+    // 8 players, indexes 1..8. Captains here are p8 and p7 purely so the arithmetic is
+    // readable — in the real app pickCaptains() chooses the LOWEST handicaps, so this
+    // ordering is between already-strong players, not a claim that captains are weak.
     const players = mk(8);
     const teams = serpentineTeams(players, 2, h, ['p8', 'p7']);
 
-    // Draft order is weakest captain first => team 0 (p8), then team 1 (p7).
+    // Higher-handicap captain drafts first => team 0 (p8), then team 1 (p7).
     // Pool best-first: p1 p2 p3 p4 p5 p6.
     //   round 0 (0,1): p1 -> t0, p2 -> t1
     //   round 1 (1,0): p3 -> t1, p4 -> t0
     //   round 2 (0,1): p5 -> t0, p6 -> t1
     expect(teams[0]).toEqual(['p8', 'p1', 'p4', 'p5']);
     expect(teams[1]).toEqual(['p7', 'p2', 'p3', 'p6']);
+  });
+
+  it('works with realistic captains — the LOWEST handicaps in the field', () => {
+    // How the app actually does it: pickCaptains() takes the best players. With p1 (1)
+    // and p2 (2) as captains, p2 has the higher handicap OF THE TWO, so p2 picks first.
+    const players = mk(8);
+    const teams = serpentineTeams(players, 2, h, ['p1', 'p2']);
+    const t1 = teams.find((t) => t[0] === 'p1')!;
+    const t2 = teams.find((t) => t[0] === 'p2')!;
+    // p2's team drafts first, so it gets the best remaining player (p3).
+    expect(t2).toContain('p3');
+    expect(t1).toContain('p4');
+    expect(t1).toHaveLength(4);
+    expect(t2).toHaveLength(4);
   });
 
   it('gives every team the same number of seats', () => {
