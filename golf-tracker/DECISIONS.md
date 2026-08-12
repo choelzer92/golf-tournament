@@ -431,6 +431,43 @@ hole; sandies don't (two players can both get up-and-down). And `GameScore` is
   `merge_game_scores`, the score audit, and every mode's compute. Multi-device merging of
   score rows is also precisely what the fake backend cannot verify.
 
+## 5k. Team building needs SEVERAL named methods (2026-08-12)
+
+Craig, correcting me:
+> "i thought the current was actually optimizing? we need to have different options for
+> choosing teams, manually assign, snake draft, optimal, with/without captains, etc"
+
+**He's right and I mis-described it.** I called the existing `balanceTeamsWithCaptains`
+"greedy load-balancing" after reading only its first stage. `balanceUnitsIntoTeams`
+(`pool-game.ts:728`) is a real three-stage optimizer:
+
+1. **Greedy LPT** — heaviest unit onto the least-loaded team, as a starting point
+2. **2-swap local improvement** — up to 300 passes, minimizing team-handicap spread
+3. **Exact branch-and-bound** — seeded from stage 2, with an average-based bound, a
+   symmetry prune on identical (load, seats) teams, and an 800ms deadline
+
+So it **provably minimizes spread** when it doesn't hit the deadline. That's genuinely
+"optimal", not greedy.
+
+**The product decision:** team building becomes an explicit CHOICE of method, not one
+algorithm. Named options:
+- **Optimal** — the existing balancer (keep, and label it honestly)
+- **Snake draft / serpentine** — JY's request; positional and predictable
+- **Manual** — assign by hand (exists via EditFoursomes)
+- **Sequential** — plain foursomes in list order (exists)
+- each **with or without captains** (`useCaptains` and `balanceExcludeCaptains` already
+  exist as separate toggles)
+
+**Why both optimal AND snake matter — they're different goals, not rival
+implementations.** Optimal makes team TOTALS as even as possible. Snake is strictly
+positional, so an organizer can explain it to the group and verify it by eye. JY asked
+for snake while the optimizer already existed, which tells you explicability is its own
+feature in a money game.
+
+**How to apply:** don't replace the optimizer, and don't describe it as greedy.
+`summarizeTeamBuild()` already surfaces the method in "How these teams were built" — each
+new method needs an honest headline there.
+
 ## 6. Focus areas Craig has named
 
 Requested, in his stated order of interest:
