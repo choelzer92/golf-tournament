@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { hydratePoolGames, loadPoolGame, getPoolGameList, getPoolGameListForGhin, type PoolGameListItem } from '@/lib/pool-game';
 import { hydrateTournaments, loadTournament, getTournamentList } from '@/lib/tournament-state';
-import { hydrateGroups, getGroups, type RosterGroup } from '@/lib/roster-groups';
+import { hydrateGroups, type RosterGroup } from '@/lib/roster-groups';
+import { getPlayerGroups } from '@/lib/pool-formats';
 import { getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import {
@@ -62,7 +63,10 @@ export default function StatsPage() {
 
       const built = await buildGameLedgers(poolGames, tournaments);
       setLedgers(built);
-      setGroups(getGroups());
+      // getPlayerGroups() excludes Format Library entries — formats live in the same
+      // roster_groups table tagged kind:'format' and have no players by design, so a
+      // format in this picker is a dead option that can only render an empty ledger.
+      setGroups(getPlayerGroups());
       setReady(true);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -89,6 +89,18 @@ test.describe('continuing — the neglected phase', () => {
     console.log(`horizontal overflow: ${overflow}px`);
   });
 
+  // F-008 guard: formats share the roster_groups table (kind:'format') and have no
+  // players by design, so one in this picker is a dead option.
+  test('F-008: the group picker excludes saved formats', async ({ page }) => {
+    await seedAndOpen(page, 'Season ledger');
+    await page.getByRole('button', { name: 'By group', exact: true }).click();
+    const options = await page.locator('select option').allInnerTexts();
+    expect(options.join(' | ')).toContain('Weekend Warriors');
+    expect(options.join(' | ')).toContain('Tuesday Crew');
+    // The seeded fixture includes a format named "2v2 Best Ball (Stableford)".
+    expect(options.join(' | ')).not.toContain('Best Ball (Stableford)');
+  });
+
   test('capture a 61-member group', async ({ page }) => {
     await seedAndOpen(page, 'Groups — 61-member');
     await expect(page.getByText(/Weekend Warriors/i).first()).toBeVisible();

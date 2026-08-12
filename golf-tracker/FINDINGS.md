@@ -467,6 +467,110 @@ to tie with. Craig's tie reasoning doesn't extend to it.
 
 ---
 
+### F-008 — Stats "By group" offers saved FORMATS, which can never have a ledger  [P2] [continue]
+
+**Screen:** `/home/stats`, By group lens · `src/app/home/stats/page.tsx:65`
+**Violates:** north star (minimum exposed complexity) — a dead option in a picker
+
+The group dropdown lists **"2v2 Best Ball (Stableford)"** alongside Weekend Warriors
+and Tuesday Crew. That's a **Format Library entry**, not a player group: formats are
+stored in the same `roster_groups` table tagged `defaults.kind === 'format'`, and they
+have **no players by design**. Selecting one can only ever render an empty ledger.
+
+The codebase already has the right helper — `getPlayerGroups()` in
+`lib/pool-formats.ts` exists precisely to filter formats out, and the wizard's new
+group picker uses it. `/home/stats` calls raw `getGroups()`.
+
+**Options**
+- **A. Use `getPlayerGroups()`.** One-line change, uses the helper written for this.
+- **B. Leave it, but label formats.** Pointless — a format can't have a ledger.
+
+**Recommendation:** A. This is a straightforward bug, not a design decision.
+
+**Status:** open (trivial fix)
+
+---
+
+### F-009 — The "By player" lens shows exactly the same thing as "Overall"  [P2] [continue]
+
+**Screen:** `/home/stats` · `src/app/home/stats/page.tsx:109,182`
+**Violates:** north star — a control that promises a view and delivers none
+
+Comparing the captures, `stats-overall` and `stats-by-player` are **byte-identical
+apart from the active tab**. The `player` lens appears exactly twice in the file: once
+to render its button, and once as `lens !== 'player'` to *hide* the Settle-up section.
+
+So a golfer taps "By player" expecting a per-player view and gets the same list with
+**less** information. It's the only lens that adds nothing.
+
+What it plausibly should be — a lens for *one* player: pick a golfer, see their
+per-game history (which of the 5 games they played, what they won or lost in each),
+their record, and their running total. That data already exists in
+`GameLedger.playerNets`; nothing new needs computing.
+
+**Options**
+- **A. Make it a real per-player drill-down.** Player selector + their game-by-game
+  history. Uses data already present; the genuinely useful version.
+- **B. Drop the lens.** Three lenses that each do something beats four where one is a
+  decoy. Smallest change, immediate clarity win.
+- **C. Rename to "Totals"** and let it be "standings without the settlement noise."
+  Honest about what it is, but still nearly a duplicate.
+
+**Recommendation:** **A** if per-player history is wanted (it's the natural question
+after "who owes whom"), **B** today if not. Either is better than shipping a tab that
+takes information away. Needs Craig's call on which.
+
+**Status:** open — needs Craig's decision (product scope)
+
+---
+
+### F-010 — A 61-member group is an unsearchable wall of 61 "Remove" buttons  [P2] [continue]
+
+**Screen:** `/home/groups/[id]` at 61 members ·
+`e2e/screenshots/phone-group-large.png` (the phone capture is **5,249px tall**)
+**Violates:** north star — this is the reuse mechanism that makes "config is a
+one-time cost" true, and it collapses at real size
+
+**Observed.** Rendered with a realistic 61-member roster (Craig's actual Weekend
+Warriors size), the page is one flat `members.map()` — 61 cards, each with a full-width
+`Remove`. On a 390px phone that's a **5,249px scroll**, roughly 13 screens.
+
+Consequences at this size:
+- **No search or filter over members.** There's a search box for *adding* players, but
+  none for the 61 already in the group. Finding "Rick Tanaka" means scrolling.
+- **`Remove` appears 61 times** and is the only action, so the dominant visual element
+  of the group page is a column of destructive buttons.
+- **No confirmation on remove** — one mis-tap while scrolling silently drops a member.
+- Everything below the list (Add players, full roster manager) is 13 screens down.
+- The genuinely useful things — *who plays most*, *our last 10 games*, *money* — aren't
+  here at all. The Money link is a single line at the top.
+
+This is exactly what the 61-member fixture was built to expose. At 4–8 members the
+page is fine, which is why it has never looked broken.
+
+**Options**
+- **A. Search + collapse the list.** A filter box over members, and show ~10 with
+  "Show all 61". Smallest change, fixes the scroll and the find-a-member problem.
+- **B. Demote `Remove` behind an Edit mode.** The default view becomes read-only
+  (name + index, maybe games played); `Remove` only appears once you tap Edit. Removes
+  61 destructive buttons from the default view — matches the read-only-vs-mutating line
+  established in F-004.
+- **C. Make the page about the GROUP, not the member list.** Lead with what a group is
+  for: recent games, money, formats, "start a round". Members become a collapsed
+  section. Most aligned with the north star; largest change.
+- **D. Leave it.** Fine at 8 members; only breaks at scale.
+
+**Recommendation:** **A + B together** — they're small, complementary, and fix the two
+real problems (can't find anyone, 61 destructive buttons). **C** is the better
+long-term answer and should be considered alongside F-003's decision about making
+`/home` the baseline, since that's when this page starts getting real traffic.
+
+Also worth fixing regardless of option: **`Remove` has no confirmation.**
+
+**Status:** open — needs Craig's pick
+
+---
+
 ### F-001 — Nassau segment "thru" reads as a hole number  [P3] [track]
 
 **Screen:** `/pool/[id]/leaderboard`, 2-player skins w/ Nassau ·
