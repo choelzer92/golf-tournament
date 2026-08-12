@@ -370,6 +370,82 @@ about the same thing — the app's *possibility* ceiling.
 
 ---
 
+### F-007 — The junk sub-pot VANISHES when nobody scores junk  [P1 MONEY] [continue]
+
+**Where:** `src/lib/pool-game.ts:1643-1648` · surfaced on `/home/stats`
+(`e2e/screenshots/phone-stats.png`)
+**Violates:** the invariant every other mode holds — money is zero-sum
+
+**Found by looking at `/home/stats` with a real season for the first time.** Four
+players showed as owing money that the settle-up list never collects, and the
+standings summed to **−$50** instead of 0.
+
+**The cause.** `computePoolResult` skips the junk payout entirely when no team has any
+junk points:
+
+```ts
+const junkHasPoints = junkRanked.some((j) => j.total > 0);
+const junkPayouts = distributePot(
+  junkHasPoints ? junkRanked.map(...) : [],   // <- nobody paid
+  junkSubPot, game.positionSplit,
+);
+```
+
+But every team's `entryPaid` is still deducted in full (`playerCount ×
+entryPerPlayer`). So with the default 25% junk split, **a quarter of the pot
+disappears** on any game where nobody makes a birdie, eagle, albatross, group hug, or
+CTP — and CTPs are entered by hand, so a game where the organizer never sets them can
+lose the junk pot even with birdies elsewhere.
+
+Reproduced exactly (2 foursomes, $25 each, $200 pot, no junk scored):
+
+```
+leg front:   subPot=50  paid=50
+leg back:    subPot=50  paid=50
+leg overall: subPot=50  paid=50
+leg junk:    subPot=50  paid=0     <-- $50 gone
+Team 1: gross=55  entry=100  net=-45
+Team 2: gross=95  entry=100  net=-5     => sum -50, not 0
+```
+
+**Blast radius.** Real-money display for every classic pool with an unscored junk
+category. It also silently corrupts the **season ledger and settle-up**: `settleUp()`
+matches debtors to creditors, so unmatched debt is simply never listed — four players
+in the fixture owed money that appears in no transfer at all. A group reading that
+board would under-collect and not know why.
+
+**This is the same class as the mid-round bug already logged in `UI_MODE_AUDIT.md`**
+("mid-round pot payouts are not zero-sum"): a leg with no eligible winner leaves its
+sub-pot undistributed while the antes are already taken. That one self-corrects at 18
+holes; **this one is permanent.**
+
+**Options**
+- **A. Refund an unwon sub-pot.** If a leg has no winner, credit each team its share
+  of that sub-pot back (`subPot × playerCount / totalPlayers`). Mirrors
+  `settleNassau`'s treatment of an un-started segment — a dead heat returns antes —
+  which is the precedent already in the codebase.
+- **B. Redistribute it into the contested legs.** Fold the junk share into
+  front/back/overall when junk is unscored, so the whole pot still pays out. Changes
+  what the other legs are worth, which organizers may not expect.
+- **C. Split it evenly among all teams.** Simplest; equivalent to A in effect but
+  expressed as a payout rather than a refund, so the board reads "$50 returned".
+- **D. Don't collect it.** Reduce `entryPaid` by the unwon share instead of paying it
+  out. Cleanest arithmetic, but the pot total shown at setup would no longer match
+  what's collected.
+
+**Recommendation:** **A**, because it matches the `settleNassau` precedent already in
+the codebase and keeps each leg's stake meaning what the organizer set. **Fix the
+mid-round case in the same change** — they're one bug with two symptoms, and a shared
+"unwon sub-pot" rule solves both.
+
+**Craig's call needed:** this is money math, so per `DECISIONS.md` §2 I'm not choosing
+unilaterally. Worth noting the compute tests didn't catch it because every fixture
+scored junk; a regression test for "nobody scores junk" comes with the fix.
+
+**Status:** open — needs Craig's decision (money math)
+
+---
+
 ### F-001 — Nassau segment "thru" reads as a hole number  [P3] [track]
 
 **Screen:** `/pool/[id]/leaderboard`, 2-player skins w/ Nassau ·
