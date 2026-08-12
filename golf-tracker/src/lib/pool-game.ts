@@ -1890,6 +1890,34 @@ export interface PoolGameListItem {
 }
 
 // All pool games (newest first). Owner/dashboard view.
+// Courses this organizer has already played, most recent first.
+//
+// JY (real user): "if it could save previously selected courses so you don't have to
+// type it in every time." No new storage needed — every PoolGame already carries its
+// full CourseSelection (tees, ratings, hole data), so a past game IS a saved course.
+// Returning the whole CourseSelection means picking one skips the GHIN lookup entirely,
+// which also means it works with no GHIN token at all.
+//
+// Scoped to one organizer when `ghin` is given (mirrors getPoolGameListForGhin), so a
+// share-link organizer sees their own courses rather than everyone's. Deduped by
+// courseId, keeping the most recently played copy — that's the one whose tee data is
+// freshest.
+export function getRecentCourses(ghin?: number | null, limit = 5): CourseSelection[] {
+  const games = [...poolGameCache.values()]
+    .filter((g) => g.course != null && (ghin == null || g.createdByGhin === ghin))
+    .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+  const seen = new Set<number>();
+  const out: CourseSelection[] = [];
+  for (const g of games) {
+    const c = g.course!;
+    if (seen.has(c.courseId)) continue;
+    seen.add(c.courseId);
+    out.push(c);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 export function getPoolGameList(): PoolGameListItem[] {
   const list: PoolGameListItem[] = [];
   for (const g of poolGameCache.values()) {

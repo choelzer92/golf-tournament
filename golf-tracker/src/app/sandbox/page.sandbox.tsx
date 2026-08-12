@@ -285,6 +285,20 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'recent-courses',
+    label: 'Past games (for recent-course chips)',
+    detail: "JY's request: seeds completed games so /pool/new can offer their courses without retyping.",
+    buildDomain: () => {
+      signInAsOrganizer();
+      const roster = rosterPlayers(61);
+      for (const { game, scoresByMatchup } of ledgerSeason(roster)) {
+        savePoolGame(game);
+        for (const [mid, scores] of scoresByMatchup) saveGameScores(mid, scores);
+      }
+      return { goTo: '/pool/new' };
+    },
+  },
+  {
     key: 'wolf-partial',
     label: 'Wolf — 4 players, thru 5',
     detail: 'Decision-input game: per-hole Wolf breakdown + expandable standings.',

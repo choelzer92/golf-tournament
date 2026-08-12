@@ -417,3 +417,53 @@ test.describe('F-001: segment progress reads as a count, not a hole number', () 
     expect(body).not.toContain('of 18 holes');
   });
 });
+
+test.describe('JY feedback: GHIN sign-in prompt arrives before the search', () => {
+  // JY, a real organizer-link user: "I go to select course then it pops up and says
+  // sign in to GHIN." The prompt used to appear only AFTER submitting a search.
+  test('the course step prompts on arrival, not after a failed search', async ({ page }) => {
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    await page.locator('input[type="text"]').first().fill('GHIN Timing Test');
+    await page.getByRole('button', { name: /Next: Select Course/i }).click();
+    await page.waitForLoadState('networkidle');
+
+    // Visible immediately — no search submitted.
+    await expect(page.getByText(/Sign in to GHIN to search for a course/i)).toBeVisible();
+    await expect(page.getByText(/only needed to look up the course and tees/i)).toBeVisible();
+
+    // And it must NOT be a gate: the search box is still there to use.
+    await expect(page.getByPlaceholder(/GHIN email/i)).toBeVisible();
+    await page.screenshot({ path: 'e2e/screenshots/jy-ghin-prompt.png', fullPage: true });
+  });
+});
+
+test.describe('JY feedback: recent courses', () => {
+  // "if it could save previously selected courses so you don't have to type it in
+  // every time." Derived from games already played — no new storage.
+  test('offers a previously played course as one tap', async ({ page }) => {
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Past games (for recent-course' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+    await card.getByRole('button', { name: 'Open →' }).click();
+    await page.waitForLoadState('networkidle');
+
+    // Walk to the course step.
+    await page.locator('input[type="text"]').first().fill('Recent Course Test');
+    await page.getByRole('button', { name: /Next: Select Course/i }).click();
+    await page.waitForLoadState('networkidle');
+
+    // The seeded games were all at "Sandbox National".
+    await expect(page.getByText('Played recently')).toBeVisible();
+    const chip = page.getByRole('button', { name: /Sandbox National/ });
+    await expect(chip).toBeVisible();
+
+    // One tap selects it — no GHIN call, no typing.
+    await chip.click();
+    await expect(page.getByText('Played recently')).toHaveCount(0);
+    await page.screenshot({ path: 'e2e/screenshots/jy-recent-courses.png', fullPage: true });
+  });
+});

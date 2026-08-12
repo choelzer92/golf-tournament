@@ -24,6 +24,8 @@ import {
   getPoolPlayingHandicap,
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
+  getRecentCourses,
+  hydratePoolGames,
   balanceTeamsWithCaptains,
   balanceTeamsWithLocks,
   pickCaptains,
@@ -991,6 +993,28 @@ function CourseStep({
   const [ghinPass, setGhinPass] = useState('');
   const [authError, setAuthError] = useState('');
 
+  // JY (real user, via the organizer link): "Once you create a game it goes to select
+  // course. Can it check to see if you are signed into GHIN before that? I go to select
+  // course then it pops up and says sign in to GHIN."
+  //
+  // `noToken` used to be set only INSIDE search(), i.e. after typing a course name and
+  // submitting — so the login prompt arrived as an interruption after wasted effort.
+  // Check on mount instead: the sign-in card renders immediately, above the search box,
+  // so it's the first thing on the step rather than a reaction to a failed action.
+  useEffect(() => {
+    if (!getToken()) setNoToken(true);
+  }, []);
+
+  // Recent courses — JY: "if it could save previously selected courses so you don't have
+  // to type it in every time." Derived from games already played (no new storage), and
+  // each carries its full tee/rating data, so picking one needs no GHIN call at all.
+  const [recent, setRecent] = useState<CourseSelection[]>([]);
+  useEffect(() => {
+    hydratePoolGames()
+      .then(() => setRecent(getRecentCourses(getCreatorGhin())))
+      .catch(() => {});
+  }, []);
+
   async function quickAuth(e: React.FormEvent) {
     e.preventDefault();
     setAuthError('');
@@ -1107,9 +1131,36 @@ function CourseStep({
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Select Course</h2>
 
+      {/* One tap to reuse a course you've already played — shown ABOVE the GHIN prompt,
+          because this path needs no login at all. */}
+      {recent.length > 0 && !course && (
+        <div className="rounded-lg bg-white shadow p-4 mb-4">
+          <p className="text-sm font-medium text-gray-800 mb-1">Played recently</p>
+          <p className="text-xs text-gray-500 mb-2">Pick one to skip the search — tees and ratings are already saved.</p>
+          <div className="flex flex-wrap gap-2">
+            {recent.map((c) => (
+              <button
+                key={c.courseId}
+                type="button"
+                onClick={() => setCourse(c)}
+                className="min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-green-400"
+              >
+                {c.courseName}
+                {c.city ? <span className="ml-1 text-xs text-gray-400">{c.city}</span> : null}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {noToken && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 mb-4 space-y-2">
-          <p className="text-sm text-amber-800 font-medium">Log in to GHIN to search courses</p>
+          {/* Shown on arrival now, not after a failed search — so it reads as a
+              heads-up, not an error. Deliberately NOT a gate: the step still works
+              without it (a saved course or manual entry), and a share-link organizer
+              may have no GHIN at all. */}
+          <p className="text-sm text-amber-800 font-medium">Sign in to GHIN to search for a course</p>
+          <p className="text-xs text-amber-700">Course search uses your GHIN login. It&apos;s only needed to look up the course and tees.</p>
           <form onSubmit={quickAuth} className="flex gap-2 flex-wrap">
             <input
               type="text"
