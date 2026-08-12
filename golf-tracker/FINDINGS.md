@@ -607,14 +607,30 @@ page is fine, which is why it has never looked broken.
   section. Most aligned with the north star; largest change.
 - **D. Leave it.** Fine at 8 members; only breaks at scale.
 
-**Recommendation:** **A + B together** — they're small, complementary, and fix the two
-real problems (can't find anyone, 61 destructive buttons). **C** is the better
-long-term answer and should be considered alongside F-003's decision about making
-`/home` the baseline, since that's when this page starts getting real traffic.
+**DECIDED (2026-08-12): option C — make it a group dashboard.** Plus a confirmation on
+Remove.
 
-Also worth fixing regardless of option: **`Remove` has no confirmation.**
+> *"make it a group dashboard, and also remove should ask for confirmation"*
 
-**Status:** open — needs Craig's pick
+So the page leads with what a group is FOR, and the member list stops being the page:
+
+1. **Start a round** — the primary action (already there, keep it prominent)
+2. **Recent games** — the group's last N games with their results
+3. **Money** — the group-scoped ledger (which, per `DECISIONS.md` §5h, is the ONLY
+   place field-wide money appears)
+4. **Formats** — the group's saved games
+5. **Members (61)** — a COLLAPSED section, expandable, with a search box once expanded
+6. **Remove** — behind the expanded section, and it must confirm
+
+Notes for whoever builds it:
+- Members are currently one flat `members.map()` (`home/groups/[id]/page.tsx:290`)
+  producing 61 cards with 61 full-width destructive buttons. That inverts entirely.
+- The search box that exists today searches the roster for players to ADD; the
+  61 already in the group have no filter. Expanded members need their own.
+- This composes with **F-009**: "recent games" and "money" are the same group-scoped
+  ledger data, so build the two together rather than twice.
+
+**Status:** decided, not built — needs a todo (see #12)
 
 ---
 

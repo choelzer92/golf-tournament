@@ -374,6 +374,26 @@ query it. **Written down as intentional so it gets enforced for real when RLS la
 Feasible as specced: `getRosterPlayerByGhin()` already maps the logged-in GHIN to a
 roster player, and ledger nets are keyed by `playerId`.
 
+## 5i. The group page is a DASHBOARD, not a member manager (2026-08-12)
+
+Shown that `/home/groups/[id]` renders as a 5,249px phone scroll at his real 61-member
+Weekend Warriors size — 61 cards, 61 full-width `Remove` buttons, no search over
+existing members:
+
+> "make it a group dashboard, and also remove should ask for confirmation"
+
+**Lead with what a group is for** — start a round, recent games, money, formats — and
+make members a collapsed, searchable section. **Remove must confirm**; today one mis-tap
+while scrolling silently drops someone.
+
+**Why:** a group is the reuse mechanism that makes "config is a one-time cost" true, and
+it collapsed at real size. At 4–8 members the page looked fine, which is why this never
+surfaced — the 61-member fixture was built to expose exactly this.
+
+**How to apply:** build it together with the F-009 stats rework — "recent games" and
+"money" on this page are the same group-scoped ledger data, so doing them separately
+means building the same thing twice.
+
 ## 6. Focus areas Craig has named
 
 Requested, in his stated order of interest:
