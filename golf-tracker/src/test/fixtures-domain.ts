@@ -41,7 +41,11 @@ function idxFor(i: number): number {
 export function rosterPlayers(n = 61): RosterPlayer[] {
   return Array.from({ length: n }, (_, i) => ({
     id: `rp${i + 1}`,
-    ghinNumber: 2000000 + i,
+    // rp1 IS the sandbox organizer, so the "My money" lens has a real identity to match.
+    // Without this the roster had no player carrying SANDBOX_GHIN and the lens fell back
+    // to its "couldn't match your GHIN" state — which was the graceful path working, but
+    // it meant the interesting view was never exercised.
+    ghinNumber: i === 0 ? SANDBOX_GHIN : 2000000 + i,
     name: `${FIRST[i % FIRST.length]} ${LAST[i % LAST.length]}`,
     handicapIndex: idxFor(i),
     gender: i % 9 === 8 ? ('F' as const) : ('M' as const),   // a mixed field

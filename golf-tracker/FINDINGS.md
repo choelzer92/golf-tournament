@@ -567,7 +567,20 @@ it's a courtesy boundary, not enforced. It must become a real policy when RLS la
 **Edge case needing a fallback:** an organizer who isn't a player in their own games has
 no matching roster GHIN, so "just me" would be empty for them. Needs a graceful state.
 
-**Status:** decided, not built — needs a todo
+**Status: BUILT + VERIFIED (2026-08-12).**
+
+- `myMoney()` / `myGameHistory()` in `stats-ledger.ts` — 9 compute tests covering the
+  privacy boundary in both directions.
+- Lenses are now **My money / By group / By game**. The old cross-group "Overall" and the
+  duplicate "By player" are gone.
+- Field-wide money and settle-up exist **only** inside a group view.
+- Graceful state when the viewer's GHIN matches no roster player.
+- Two e2e guards: My money shows the viewer across groups and nobody else; a group view
+  shows every member scoped to that group.
+
+Fixture note: the seeded roster had no player carrying `SANDBOX_GHIN`, so the lens fell
+back to its "couldn't match your GHIN" state — the graceful path working, but it meant the
+interesting view was never exercised. `rp1` is now the organizer.
 
 ---
 

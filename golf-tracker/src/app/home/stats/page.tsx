@@ -11,17 +11,35 @@ import { getCreatorGhin } from '@/lib/pool-identity';
 import {
   buildGameLedgers,
   ledgersForGroup,
+  myGameHistory,
+  myMoney,
   rollupByPlayer,
   settleUp,
   type GameLedger,
+  type GamePlayerNet,
+  type MyMoney,
 } from '@/lib/stats-ledger';
+import { hydrateRoster, getRosterPlayerByGhin } from '@/lib/roster';
 
-// Stats & money (Phase 2, read-only). Four lenses over finished games: overall,
-// by group, by game, by player. Money is only DISPLAYED (who-owes-whom); settle
-// outside the app. Reachable from Home's "Stats & money" card and deep-linked
-// from a group page via ?group=<id>. Nothing here writes.
+// Stats & money (read-only). Money is only DISPLAYED (who-owes-whom); settle outside
+// the app. Reachable from Home's "Stats & money" card and deep-linked from a group page
+// via ?group=<id>. Nothing here writes.
+//
+// THE PRIVACY RULE (DECISIONS.md §5h): money is PRIVATE TO THE GROUP that played for it.
+//   - 'mine'  — the viewer's OWN money across every group, broken down by group. Their
+//               money crosses groups because it's theirs.
+//   - 'group' — field-wide money for ONE group, from that group's games only. This is
+//               the only lens that shows other players' money.
+//   - 'game'  — one game at a time.
+//
+// The old 'overall' lens is GONE: it showed every player's money across every game the
+// viewer could load, so a Warriors organizer saw Tuesday Crew results for anyone in both.
+// The old 'player' lens rendered identically to 'overall' with settle-up hidden.
+//
+// NOTE this is a DISPLAY boundary while RLS is open by decision (§5c) — not enforced, and
+// it must become a real policy when security work lands.
 
-type Lens = 'overall' | 'group' | 'game' | 'player';
+type Lens = 'mine' | 'group' | 'game';
 
 const money = (n: number) => `${n < 0 ? '−' : ''}$${Math.abs(n).toFixed(2)}`;
 const netClass = (n: number) => (n > 0.005 ? 'text-green-700' : n < -0.005 ? 'text-red-600' : 'text-gray-500');
@@ -34,7 +52,11 @@ export default function StatsPage() {
   const [ready, setReady] = useState(false);
   const [ledgers, setLedgers] = useState<GameLedger[]>([]);
   const [groups, setGroups] = useState<RosterGroup[]>([]);
-  const [lens, setLens] = useState<Lens>(deepLinkGroup ? 'group' : 'overall');
+  const [lens, setLens] = useState<Lens>(deepLinkGroup ? 'group' : 'mine');
+  // Which roster player the logged-in user IS — drives the "mine" lens. Null when their
+  // GHIN doesn't match a roster entry (e.g. an organizer who doesn't play in their own
+  // games), which the UI handles rather than showing a blank.
+  const [me, setMe] = useState<{ id: string; name: string } | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string>(deepLinkGroup ?? '');
 
   useEffect(() => {
@@ -47,7 +69,12 @@ export default function StatsPage() {
       hydratePoolGames(),
       hydrateTournaments(),
       hydrateGroups({ viewerGhin: ghin, isOwner }).catch(() => []),
+      hydrateRoster({ viewerGhin: ghin, isOwner }).catch(() => []),
     ]).then(async () => {
+      // Map the logged-in GHIN to a roster player. Game players carry the roster id
+      // (see the wizard's loadGroup), so this is what links "me" to my results.
+      const rp = ghin !== null ? getRosterPlayerByGhin(ghin) : null;
+      if (rp) setMe({ id: rp.id, name: rp.name });
       // Viewer-scoped pool games (owner sees all), plus tournaments (global — no
       // owner field yet). Resolve list items back to full game objects for the
       // ledger reducers, which need players/teams/config.
@@ -72,10 +99,14 @@ export default function StatsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
-  // Which games the current lens selects.
+  // Which games the current lens selects. 'group' narrows to that group's games — the
+  // only place another player's money is shown. 'mine' and 'game' see everything the
+  // viewer can load, but 'mine' filters down to the viewer's own rows.
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) ?? null;
   const scoped: GameLedger[] =
     lens === 'group' && selectedGroup ? ledgersForGroup(ledgers, selectedGroup) : ledgers;
+  const mine = me ? myMoney(ledgers, me.id, me.name, groups) : null;
+  const myHistory = me ? myGameHistory(ledgers, me.id) : [];
 
   const rollups = rollupByPlayer(scoped);
   const transfers = settleUp(rollups);
@@ -107,10 +138,9 @@ export default function StatsPage() {
         {/* Lens toggle */}
         <div className="flex flex-wrap gap-2">
           {([
-            ['overall', 'Overall'],
+            ['mine', 'My money'],
             ['group', 'By group'],
             ['game', 'By game'],
-            ['player', 'By player'],
           ] as [Lens, string][]).map(([key, label]) => (
             <button
               key={key}
@@ -156,14 +186,16 @@ export default function StatsPage() {
               </p>
             )}
 
-            {lens === 'game' ? (
+            {lens === 'mine' ? (
+              <MyMoneyView mine={mine} history={myHistory} />
+            ) : lens === 'game' ? (
               <GameBreakdown ledgers={scoped} />
             ) : (
               <>
-                {/* Standings (per-player net) — used by overall / group / player lenses. */}
+                {/* Field-wide standings — ONLY inside a group, per the privacy rule. */}
                 <section>
                   <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                    {lens === 'group' && selectedGroup ? `${selectedGroup.name} — standings` : 'Standings'}
+                    {selectedGroup ? `${selectedGroup.name} — standings` : 'Standings'}
                   </h2>
                   {rollups.length === 0 ? (
                     <p className="text-sm text-gray-500 bg-white rounded-lg shadow p-4">No money data in these games yet.</p>
@@ -182,8 +214,8 @@ export default function StatsPage() {
                   )}
                 </section>
 
-                {/* Who-owes-whom settlement (hidden on the by-player lens, which is just totals). */}
-                {lens !== 'player' && transfers.length > 0 && (
+                {/* Who-owes-whom, within this group. */}
+                {transfers.length > 0 && (
                   <section>
                     <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Settle up</h2>
                     <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
@@ -205,6 +237,100 @@ export default function StatsPage() {
         )}
       </main>
     </div>
+  );
+}
+
+// "My money" — the viewer's own total, where it came from, and their game history.
+//
+// This replaces the old "Overall" lens, which showed EVERY player's money across every
+// game the viewer could load. Per DECISIONS.md §5h, another player's money is only
+// visible inside a shared group, so a cross-group view can only ever be about yourself.
+function MyMoneyView({ mine, history }: { mine: MyMoney | null; history: GamePlayerNet[] }) {
+  // An organizer who doesn't play in their own games has no matching roster GHIN. Say so
+  // plainly instead of rendering an empty screen that looks broken.
+  if (!mine) {
+    return (
+      <p className="text-sm text-gray-500 bg-white rounded-lg shadow p-4">
+        We couldn&apos;t match your GHIN number to a player in these games, so there&apos;s no
+        personal total to show. Use <span className="font-medium">By group</span> to see a
+        group&apos;s money, or add yourself to the roster to track your own.
+      </p>
+    );
+  }
+
+  if (mine.gamesPlayed === 0) {
+    return (
+      <p className="text-sm text-gray-500 bg-white rounded-lg shadow p-4">
+        You haven&apos;t played in a finished game yet. Your running total appears here once
+        a game you played in is closed out.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <section>
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Your total</p>
+          <p className={`text-3xl font-bold ${netClass(mine.net)}`}>{money(mine.net)}</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            across {mine.gamesPlayed} game{mine.gamesPlayed !== 1 ? 's' : ''}
+          </p>
+        </div>
+      </section>
+
+      {/* Where it came from — the point of the lens. A big loss in one group can hide
+          inside a positive total, so the breakdown is ordered by biggest swing. */}
+      {(mine.byGroup.length > 0 || mine.ungroupedGames > 0) && (
+        <section>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Where it came from</h2>
+          <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
+            {mine.byGroup.map((g) => (
+              <div key={g.groupId} className="flex items-center justify-between px-4 py-3">
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900 truncate">{g.groupName}</p>
+                  <p className="text-xs text-gray-500">{g.gamesPlayed} game{g.gamesPlayed !== 1 ? 's' : ''}</p>
+                </div>
+                <span className={`font-semibold ${netClass(g.net)}`}>{money(g.net)}</span>
+              </div>
+            ))}
+            {mine.ungroupedGames > 0 && (
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900 truncate">Other games</p>
+                  <p className="text-xs text-gray-500">
+                    {mine.ungroupedGames} game{mine.ungroupedGames !== 1 ? 's' : ''} · not tied to a group
+                  </p>
+                </div>
+                <span className={`font-semibold ${netClass(mine.ungroupedNet)}`}>{money(mine.ungroupedNet)}</span>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      <section>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Your games</h2>
+        <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
+          {history.map((n) => (
+            <div key={n.gameId} className="flex items-center justify-between px-4 py-3">
+              <div className="min-w-0">
+                <p className="font-medium text-gray-900 truncate">{n.gameName}</p>
+                {n.playedAt && (
+                  <p className="text-xs text-gray-500">{new Date(n.playedAt).toLocaleDateString()}</p>
+                )}
+              </div>
+              <span className={`font-medium ${netClass(n.net)}`}>{money(n.net)}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <p className="text-xs text-gray-400">
+        Only your own money crosses groups. To see everyone&apos;s, open a group under{' '}
+        <span className="font-medium">By group</span>.
+      </p>
+    </>
   );
 }
 
