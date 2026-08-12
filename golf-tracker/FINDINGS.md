@@ -356,11 +356,31 @@ app cannot do it.
   tournament side (which supports scramble/alt-shot per round) — but that's two-team
   only, so it doesn't actually cover a 4-foursome outing.
 
-**Recommendation:** **A**, sequenced carefully — extend the compute tests to pin every
-current `ballSelection` result first, then add the dispatch, then the UI. It reuses
-proven code, keeps one team engine, and the legacy mapping makes existing games
-provably unchanged. **C** is the better architecture if a 3+ side within-group game is
-ever wanted; worth deciding that before committing to A.
+**DECIDED (2026-08-12): option C — generalize the engine to N sides.**
+
+Craig, asked directly whether he'd ever want more than two sides competing within one
+foursome: *"yes, eventually i do think that would be an important feature."*
+
+That settles it. Option A (extend the pool to dispatch into the existing two-side
+engine) would have to be redone the moment a 3-side game exists, so do the
+generalization once: widen `team-game.ts` from `{a, b}` to N sides, and point BOTH the
+classic pool and the 2v2 mode at it.
+
+Scope this brings in:
+- `subTeams: { a: string[]; b: string[] }` becomes N sides (array or keyed record),
+  with the current two-side shape read as a legacy case so saved games keep working
+- `TeamLegLine.winner: 'a' | 'b' | null` widens to a side id
+- `settleJunkForSides` currently nets side A against side B; N sides needs a
+  field-average settlement like `settlePerPoint`
+- Wolf builds a Wolf-side and a field-side, so it's a 2-side consumer of the same code
+- the money models (`per-hole`, `per-point`, `legs`) all assume a head-to-head margin
+
+Sequencing (unchanged, and non-negotiable given this is the money engine's hot path):
+1. Pin every current `ballSelection` result in the compute tests FIRST, so existing
+   games are provably unchanged.
+2. Generalize the engine behind those tests.
+3. Map legacy `ballSelection` to the equivalent format+basis pair.
+4. Only then the UI.
 
 **Note on this being a type change:** like the fixed 5-key bonus list, this is one of
 only two findings so far that needs a schema decision rather than a UI fix. Both are

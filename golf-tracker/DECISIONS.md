@@ -319,6 +319,26 @@ Craig asked what that meant. The numbering is fine inside `WIZARD_REDESIGN.md` w
 it's defined, but it's jargon in conversation — exactly the trap we flagged about the
 app's own UI labels. Say "group defaults."
 
+## 5g. Team formats: generalize to N sides (2026-08-12)
+
+Asked whether he'd ever want more than two sides competing within one foursome
+(3 pairs from 6, four players as their own sides, two pairs plus a solo):
+
+> "yes, eventually i do think that would be an important feature"
+
+**So generalize `team-game.ts` from two sides to N sides**, rather than extending the
+classic pool to dispatch into the existing two-side engine. The cheaper option would
+have to be redone the moment a 3-side game exists.
+
+**Why it matters:** this unblocks the north star's "more possibilities" half. Today a
+pool of N foursomes can ONLY play best-ball variants — a scramble or Stableford pool is
+impossible, even though the 2v2 engine already computes both.
+
+**How to apply:** the sequencing is non-negotiable, because this is the money engine's
+hot path — pin every current `ballSelection` result in the compute tests FIRST, then
+generalize behind those tests, then map legacy values, then the UI. Full scope in
+`FINDINGS.md` F-006.
+
 ## 6. Focus areas Craig has named
 
 Requested, in his stated order of interest:
