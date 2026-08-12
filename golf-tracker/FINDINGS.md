@@ -634,6 +634,44 @@ Notes for whoever builds it:
 
 ---
 
+### F-011 — Mid-round pot board wasn't zero-sum (un-started leg)  [P1 MONEY] [track]
+
+**Where:** `src/lib/pool-game.ts` `buildLeg()`
+**Status: FIXED + VERIFIED (2026-08-12)** — same diagnosis as F-007, from Craig again:
+
+> *"i mean technically, everyone is tied on the back nine though, right?"*
+
+Yes. Before any team tees off on the back nine, all teams are tied at zero holes, so
+that leg is a **dead heat**: the sub-pot splits evenly and each team gets its own ante
+back, netting zero on the leg. `buildLeg` instead filtered to `eligible` (teams with
+`thru > 0`) and passed `[]` when nobody qualified, leaving the sub-pot undistributed
+while every team's `entryPaid` was already deducted in full.
+
+Symptom, thru 6 holes of a $200 pool: front/overall/junk each paid their $50, back paid
+$0, and the two teams netted +$50 and −$100 — a **$50 phantom loss** on the board a
+golfer reads at the turn.
+
+`settleNassau` (`game-modes/types.ts:258`) already had this exact logic, with a comment
+saying "a segment nobody has played yet is a dead heat." The pool was the inconsistent
+one.
+
+**The distinction that matters:** *nobody* started the leg → everyone's tied. *Some*
+started it → only they contend. A team still on the front nine can't be tied for the
+back-nine pot, so `eligible` still governs once play begins. Both cases are tested.
+
+Also aligned `place`: an un-started leg now shows every team as jointly 1st rather than
+unplaced, since place must agree with payout.
+
+**Guarded by 3 tests:** un-started leg splits evenly and is zero-sum · once any team
+starts, only they contend (the other is `place: 0`, payout 0) · **zero-sum asserted at
+thru 1, 3, 6, 9, 12, 15, 18.**
+
+**Both money bugs found this session came from the same mistake** — treating "no
+eligible winner" as "pay nobody" instead of "everybody ties." Worth watching for
+elsewhere.
+
+---
+
 ### F-001 — Nassau segment "thru" reads as a hole number  [P3] [track]
 
 **Screen:** `/pool/[id]/leaderboard`, 2-player skins w/ Nassau ·

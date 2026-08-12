@@ -1311,16 +1311,28 @@ function buildLeg(
     return a.toPar - b.toPar;
   });
 
+  // A leg NOBODY has started yet is a dead heat — everyone is tied at zero holes, so
+  // the sub-pot splits evenly and each team gets its own ante back (net zero on that
+  // leg). Passing [] instead left the sub-pot undistributed while every team's
+  // entryPaid was already deducted in full, so a mid-round board showed more money
+  // lost than won (a $50 phantom loss on a $200 pot at the turn). settleNassau already
+  // treats an un-started segment this way — see game-modes/types.ts. Once ANY team has
+  // played the leg, only those teams are eligible: a team still on the front nine
+  // can't be tied for the back-nine pot. See FINDINGS.md F-011.
   const eligible = ranked.filter((s) => s.thru > 0);
+  const contenders = eligible.length > 0 ? eligible : ranked;
   const payouts = distributePot(
-    eligible.map((s) => ({ teamId: s.teamId, metric: s.toPar })),
+    contenders.map((s) => ({ teamId: s.teamId, metric: s.toPar })),
     subPot,
     positionSplit
   );
 
+  const legStarted = eligible.length > 0;
   let place = 1;
   for (let i = 0; i < ranked.length; i++) {
-    if (ranked[i].thru === 0) { ranked[i].place = 0; continue; }
+    // Before a leg starts, every team is jointly 1st (and paid) rather than unplaced —
+    // place must agree with the payout or the board pays a team it shows as ranked 0.
+    if (legStarted && ranked[i].thru === 0) { ranked[i].place = 0; continue; }
     if (i > 0 && ranked[i - 1].thru > 0 && ranked[i].toPar !== ranked[i - 1].toPar) place = i + 1;
     ranked[i].place = place;
     ranked[i].payout = payouts[ranked[i].teamId] ?? 0;

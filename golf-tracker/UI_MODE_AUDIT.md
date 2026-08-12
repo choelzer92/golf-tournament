@@ -152,10 +152,13 @@ while the leaderboard for the same game shows **"Craig & Jym"** (from
 noticed. Fix: populate `teamNames` from `game.subTeams` + the mode's `nameFor()`
 in the pool branch.
 
-### P1 — mid-round pot payouts are not zero-sum (found by the test suite, 2026-08-10)
+### P1 — mid-round pot payouts are not zero-sum — FIXED 2026-08-12 (see FINDINGS.md F-011)
 
-**Not yet fixed. Found by `src/test/pool-game.test.ts`, which asserts the current
-(wrong) behavior so a fix shows up as a deliberate test change.**
+**FIXED.** Craig's diagnosis, the same reasoning that fixed the junk sub-pot:
+*"everyone is tied on the back nine though, right?"* An un-started leg is a dead heat —
+the sub-pot splits evenly and each team gets its ante back. `settleNassau` already did
+exactly this; `buildLeg` passed `[]` instead. The test that documented the bug is now a
+regression test for the fix.
 
 In a classic **pot-mode** pool, the live leaderboard shows more money lost than
 won until all 18 holes are in. Two scratch foursomes, $25 each ($200 pot, four

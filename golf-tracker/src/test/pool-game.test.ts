@@ -255,19 +255,11 @@ describe('computePoolResult — pot mode', () => {
     expect(r.thruHole).toBe(6);
   });
 
-  // DOCUMENTS A KNOWN BUG (not the desired behavior) — see UI_MODE_AUDIT.md
-  // "mid-round pot payouts are not zero-sum".
-  //
-  // Mid-round, the back-9 leg has no scores, so its sub-pot goes undistributed
-  // while every team's `entryPaid` is already deducted in full. The result is a
-  // board that shows more money lost than won — here team 1 is +$50 and team 2 is
-  // −$100, a phantom −$50. The FINAL result is correct (all four legs pay out
-  // once 18 holes are in), so this is a live-display issue, not a settlement one.
-  //
-  // The individual-game Nassau model already solves this: an un-started segment
-  // splits evenly and returns antes (see settleNassau). Asserting the CURRENT
-  // behavior so the fix is a deliberate, visible change to this test.
-  it('mid-round: pot legs leave the un-started nine undistributed (known bug)', () => {
+  // REGRESSION (F-011): mid-round, the un-started back nine is a DEAD HEAT — every
+  // team is tied at zero holes, so its sub-pot splits evenly and each team gets its
+  // ante back. Before the fix the sub-pot went undistributed while entryPaid was
+  // deducted in full, so the live board showed a $50 phantom loss on a $200 pot.
+  it('mid-round: an un-started leg splits evenly, keeping the board zero-sum', () => {
     const game = twoFoursomes();
     const six = [1, 2, 3, 4, 5, 6];
     const r = computePoolResult(game, new Map([
@@ -276,9 +268,42 @@ describe('computePoolResult — pot mode', () => {
     ]));
     const back = r.legs.find((l) => l.leg === 'back')!;
     expect(back.subPot).toBe(50);
-    expect(back.standings.reduce((s, x) => s + x.payout, 0)).toBe(0); // nobody paid
-    // ...so the board is short by exactly that un-started sub-pot.
-    expect(netSum(r.payouts)).toBeCloseTo(-back.subPot, 6);
+    // The whole sub-pot is distributed, evenly, and every team is jointly 1st.
+    expect(back.standings.reduce((s, x) => s + x.payout, 0)).toBeCloseTo(back.subPot, 6);
+    for (const st of back.standings) {
+      expect(st.payout).toBeCloseTo(back.subPot / back.standings.length, 6);
+      expect(st.place).toBe(1);
+    }
+    // The board a golfer reads at the turn now balances.
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+
+  it('mid-round: once ANY team starts a leg, only those teams contend it', () => {
+    // Team 1 has played the back nine; team 2 has not. Team 2 cannot be "tied" for
+    // the back-nine pot just because it hasn't teed off there.
+    const game = twoFoursomes();
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, 0)],                       // all 18
+      ['m2', flatRound(team2, 1, frontNine())],          // front only
+    ]));
+    const back = r.legs.find((l) => l.leg === 'back')!;
+    const t1 = back.standings.find((s) => s.teamId === 't1')!;
+    const t2 = back.standings.find((s) => s.teamId === 't2')!;
+    expect(t1.payout).toBeCloseTo(back.subPot, 6);   // sole contender takes it
+    expect(t2.payout).toBe(0);
+    expect(t2.place).toBe(0);                        // unplaced, not jointly 1st
+  });
+
+  it('zero-sum at every point through a round', () => {
+    const game = twoFoursomes();
+    for (const thru of [1, 3, 6, 9, 12, 15, 18]) {
+      const holes = Array.from({ length: thru }, (_, i) => i + 1);
+      const r = computePoolResult(game, new Map([
+        ['m1', flatRound(team1, 0, holes)],
+        ['m2', flatRound(team2, 1, holes)],
+      ]));
+      expect(netSum(r.payouts), `thru ${thru}`).toBeCloseTo(0, 6);
+    }
   });
 
   it('IS zero-sum once the full round is in', () => {
