@@ -394,6 +394,43 @@ surfaced — the 61-member fixture was built to expose exactly this.
 "money" on this page are the same group-scoped ledger data, so doing them separately
 means building the same thing twice.
 
+## 5j. Manual bonuses: per-hole, per-player, scorer-entered, group-configurable (2026-08-12)
+
+Asked which bonuses he wants, given the split between computed (birdie/eagle/albatross/
+all-par — derivable from the scorecard) and manual (sandie/barkie/greenie/longest drive/
+chip-in — nothing in a score says you were in a bunker):
+
+> "i think it would be a situation where if you add them to a game, it would be an easy
+> method to click that box as a scorer per hole for a player"
+
+Then confirmed two follow-ups:
+> "the scorer can enter any for anyone in the group, and also values are per group
+> configurable"
+
+**So:**
+1. **Manual bonuses are in scope** — this is not just widening the computed set.
+2. **Entry is per-hole, per-player, by whoever is scoring** — the scorer can mark a
+   bonus for anyone in their foursome, not only themselves. No per-player login needed.
+3. **Which bonuses exist, and what they're worth, is per-group configurable** — Warriors
+   play barkies, Tuesday Crew don't. Rides in `GroupDefaults` alongside everything else
+   (see §5d's three-layer model).
+4. **The tap target lives on the scoring screen**, under each player's score row on the
+   current hole — the screen used one-handed, in sunlight, between shots. It must not
+   cost a tap to *ignore*.
+
+**Storage — recommended option B (needs confirmation before building):**
+`ctpWinners: Record<hole, playerId>` works only because CTP has exactly one winner per
+hole; sandies don't (two players can both get up-and-down). And `GameScore` is
+`{playerId, hole, grossScore}` with no room for flags.
+
+- **B (recommended):** `bonusMarks?: Record<hole, Record<playerId, string[]>>` on
+  `PoolGame`, following the existing `ctpWinners` precedent. Keeps the money engine's
+  hot path and the multi-device merge RPC untouched.
+- **A (rejected for now):** extend `GameScore` with `bonuses?: string[]`. Conceptually
+  tidier — a sandie IS a fact about that player's hole — but `GameScore` flows through
+  `merge_game_scores`, the score audit, and every mode's compute. Multi-device merging of
+  score rows is also precisely what the fake backend cannot verify.
+
 ## 6. Focus areas Craig has named
 
 Requested, in his stated order of interest:
