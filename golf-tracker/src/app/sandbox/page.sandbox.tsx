@@ -264,6 +264,12 @@ const SCENARIOS: Scenario[] = [
       const gs = makeGroups(roster);
       void seedTable('players', rosterRows(roster));
       void seedTable('roster_groups', groupRows(gs));
+      // Seed the season too, so the dashboard's Money and Recent games sections render.
+      // Without games they're correctly absent — which made the page look unfinished.
+      for (const { game, scoresByMatchup } of ledgerSeason(roster)) {
+        savePoolGame(game);
+        for (const [mid, scores] of scoresByMatchup) saveGameScores(mid, scores);
+      }
       return { goTo: '/home/groups/g-weekend-warriors' };
     },
   },

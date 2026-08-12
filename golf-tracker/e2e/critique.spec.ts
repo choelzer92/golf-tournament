@@ -154,6 +154,48 @@ test.describe('continuing — the neglected phase', () => {
     await capture(page, 'group-large');
   });
 
+  // F-010 guard: at 61 members this page was a 5,249px phone scroll of 61 cards, each
+  // with a full-width Remove, with recent games and money absent. Craig: "make it a group
+  // dashboard, and also remove should ask for confirmation."
+  test('F-010: the group page leads with the dashboard, members collapsed', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedAndOpen(page, 'Groups — 61-member');
+    await expect(page.getByText(/Weekend Warriors/i).first()).toBeVisible();
+
+    const text = await page.locator('body').innerText();
+
+    // What a group is FOR comes first.
+    expect(text).toContain('Start something with this group');
+    // Members are summarised, not enumerated.
+    expect(text).toMatch(/61 players — tap to view or edit/);
+
+    // The page is no longer a wall of scroll.
+    const height = await page.evaluate(() => document.body.scrollHeight);
+    console.log(`group page phone height: ${height}px (was 5249px)`);
+    expect(height).toBeLessThan(2000);
+
+    // Only ONE Remove is on screen (formats), not 61.
+    const removes = await page.getByRole('button', { name: 'Remove' }).count();
+    expect(removes).toBeLessThan(5);
+
+    await page.screenshot({ path: 'e2e/screenshots/f010-group-dashboard.png', fullPage: true });
+  });
+
+  test('F-010: members expand with a search box', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedAndOpen(page, 'Groups — 61-member');
+    await page.getByText(/61 players — tap to view or edit/).click();
+
+    // A filter over the members already IN the group — previously only the add-player
+    // search existed, so finding someone among 61 meant scrolling.
+    const search = page.getByPlaceholder(/Search 61 members/);
+    await expect(search).toBeVisible();
+    await search.fill('Tanaka');
+    const text = await page.locator('body').innerText();
+    expect(text).toContain('Tanaka');
+    expect(text).not.toContain('Abe Hoelzer');
+  });
+
   test('capture a 61-member group on a phone', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await seedAndOpen(page, 'Groups — 61-member');

@@ -643,7 +643,28 @@ Notes for whoever builds it:
 - This composes with **F-009**: "recent games" and "money" are the same group-scoped
   ledger data, so build the two together rather than twice.
 
-**Status:** decided, not built — needs a todo (see #12)
+**Status: BUILT + VERIFIED (2026-08-12).**
+
+**Phone height: 5,249px → 1,562px** with a full season of games loaded (851px without).
+
+The page now leads with what a group is for:
+1. **Start something** — casual round / multi-round event
+2. **Money** — top 5 with a "Full ledger →" drill-down. This is the group-scoped
+   field-wide money the F-009 privacy rule permits here and nowhere else.
+3. **Recent games** — last 5, each tappable through to the game
+4. **Game formats**
+5. **Members (61)** — collapsed to a summary line ("61 players — tap to view or edit",
+   with the first four names), expanding to a **searchable** list
+6. **Remove** — inside the expanded list, and it now **confirms**, naming the group and
+   noting past games and money are unaffected
+
+Two e2e guards: the dashboard leads and members are collapsed (asserting height < 2000px
+and fewer than 5 `Remove` buttons on screen, down from 61); and members expand with a
+working search.
+
+Fixture note: the 61-member scenario originally seeded no games, so Money and Recent games
+correctly rendered nothing — which made the new page look unfinished. It now seeds the
+season too.
 
 ---
 
