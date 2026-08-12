@@ -13,6 +13,7 @@ import {
   computePoolPlayerDetails,
   filterConcealedScores,
   DEFAULT_MATCH_CONFIG,
+  getGameHoles,
 } from '@/lib/pool-game';
 import { getGameMode, type IndividualResult } from '@/lib/game-modes';
 import type { WolfHoleLine, NassauLegLine, JunkLine } from '@/lib/game-modes/types';
@@ -791,6 +792,9 @@ function IndividualLeaderboard({ id }: { id: string }) {
     const s = r % 1 === 0 ? String(r) : r.toFixed(1);
     return isStrokeMetric ? s : (r > 0 ? '+' : '') + s;
   };
+  // Holes this game actually plays — the denominator for segment progress.
+  const holesInPlay = getGameHoles(game).length || 18;
+
   // Side labels ("Alice & Bob") aren't personal names — don't truncate to a first
   // word. Per-player individual games still show first names.
   const displayName = (n: string) => (isWithinGroup ? n : n.split(' ')[0]);
@@ -892,7 +896,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
                 fieldSize lets it tell "everyone tied" from "someone leads" in a
                 2- or 3-player game (several modes allow playersMin: 2). */}
             {result.nassauLegs && result.nassauLegs.length > 0 && (
-              <NassauPayoutBoard legs={result.nassauLegs} fieldSize={result.standings.length} />
+              <NassauPayoutBoard legs={result.nassauLegs} fieldSize={result.standings.length} holesInPlay={holesInPlay} />
             )}
 
             {/* Birdie / eagle bonus breakdown (any mode with the junk layer on).
@@ -925,7 +929,10 @@ function IndividualLeaderboard({ id }: { id: string }) {
                     <div key={leg.key} className="px-4 py-2.5 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-200">{leg.label}</p>
-                        {leg.thru > 0 && <p className="text-[10px] text-gray-500">thru {leg.thru}</p>}
+                        {/* Also a segment-scoped count (see NassauPayoutBoard). */}
+                        {leg.thru > 0 && (
+                          <p className="text-[10px] text-gray-500">{leg.thru} of {segmentHoles(leg.key, holesInPlay)} holes</p>
+                        )}
                       </div>
                       <span className={`text-sm font-medium ${leg.winner === 'a' ? 'text-blue-300' : leg.winner === 'b' ? 'text-red-300' : 'text-gray-400'}`}>
                         {leg.status}
@@ -956,9 +963,19 @@ function IndividualLeaderboard({ id }: { id: string }) {
   );
 }
 
+// How many holes a leg/segment spans. Both the Nassau board and the 2v2 leg board
+// report `thru` as holes played WITHIN the segment, so the denominator makes that
+// unambiguous ("9 of 9 holes") instead of colliding with the app's usual meaning of
+// "thru" as a hole number.
+function segmentHoles(key: 'front' | 'back' | 'overall' | 'total', holesInPlay: number): number {
+  // front/back are always a nine. 'overall'/'total' spans whatever the game plays —
+  // hardcoding 18 would render a finished 9-hole game as "9 of 18".
+  return key === 'front' || key === 'back' ? Math.min(9, holesInPlay) : holesInPlay;
+}
+
 // Nassau-pot payout board. Shows each segment's pot and who's winning it (ties
 // share). A segment not yet started (e.g. the back 9 early on) reads "TBD".
-function NassauPayoutBoard({ legs, fieldSize }: { legs: NassauLegLine[]; fieldSize: number }) {
+function NassauPayoutBoard({ legs, fieldSize, holesInPlay }: { legs: NassauLegLine[]; fieldSize: number; holesInPlay: number }) {
   const first = (n: string) => n.split(' ')[0];
   return (
     <div className="bg-gray-800 rounded-xl overflow-hidden">
@@ -977,7 +994,12 @@ function NassauPayoutBoard({ legs, fieldSize }: { legs: NassauLegLine[]; fieldSi
             <div key={leg.key} className="px-4 py-2.5 flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-200">{leg.label}</p>
-                <p className="text-[10px] text-gray-500">${Math.round(leg.pot)} pot{leg.thru > 0 ? ` · thru ${leg.thru}` : ''}</p>
+                {/* `thru` here is holes played WITHIN this segment, not a hole
+                    number — a finished back nine is 9, which read as "stopped at
+                    hole 9" next to the header's "thru hole 18". Say it as a count. */}
+                <p className="text-[10px] text-gray-500">
+                  ${Math.round(leg.pot)} pot{leg.thru > 0 ? ` · ${leg.thru} of ${segmentHoles(leg.key, holesInPlay)} holes` : ''}
+                </p>
               </div>
               <span className={`text-sm font-medium ${notStarted || allSplit ? 'text-gray-400' : 'text-green-400'}`}>
                 {notStarted

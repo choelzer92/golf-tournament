@@ -393,3 +393,27 @@ test.describe('money moved to its own step', () => {
     await expect(page.getByText('Money')).toBeVisible();
   });
 });
+
+test.describe('F-001: segment progress reads as a count, not a hole number', () => {
+  test('a finished back nine says "9 of 9 holes", never "thru 9"', async ({ page }) => {
+    await seed(page, 'Skins — 2 players');   // 18 holes, Nassau 3-way, complete
+    const body = await page.locator('body').innerText();
+
+    // The header still uses "thru" for a HOLE NUMBER — that meaning is unchanged.
+    expect(body).toContain('thru hole 18');
+
+    // But the Nassau segments now report a count with its denominator, so a
+    // finished back nine can't be misread as having stalled at hole 9.
+    expect(body).toContain('9 of 9 holes');
+    expect(body).toContain('18 of 18 holes');
+    expect(body).not.toMatch(/pot · thru \d/);
+    await page.screenshot({ path: 'e2e/screenshots/f001-nassau-thru.png', fullPage: true });
+  });
+
+  test('a 9-hole game does not say "9 of 18"', async ({ page }) => {
+    await seed(page, '2v2 on a nine');       // back nine only, one collapsed leg
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('9 of 9 holes');
+    expect(body).not.toContain('of 18 holes');
+  });
+});
