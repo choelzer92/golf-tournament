@@ -397,7 +397,193 @@ Sequencing (unchanged, and non-negotiable given this is the money engine's hot p
 only two findings so far that needs a schema decision rather than a UI fix. Both are
 about the same thing — the app's *possibility* ceiling.
 
-**Status:** open — needs Craig's decision on scope
+---
+
+#### F-006 implementation log (2026-08-13) — four bugs the first pass introduced
+
+Step 1 (pin every `ballSelection` in golden snapshots) and step 2 (the generalized
+engine, `lib/game-modes/team-scoring.ts`) are done, plus the pool wiring behind an
+opt-in `teamFormat` / `teamScoreBasis` pair (absent on every existing game → legacy
+path, byte-identical, snapshot-pinned).
+
+Getting there produced **four money/display bugs, all in the new opt-in path**. Worth
+recording because they share one root cause: *a points score routed through code that
+assumes strokes*. Every one of them was found by asking a question of the numbers,
+not by reading the code.
+
+**1. Ranking direction (found by reading the test's own output).** `buildLeg` ranked
+lower-is-better, so under Stableford the 54-point team lost to the 36-point team. My
+own test asserted `t1.total > t2.total` and passed while the wrong team was paid.
+*Lesson: assert the MONEY, never just the score.* The test now asserts `place` and
+signed `net`.
+
+**2. Three more consumers each re-derived their own comparison.** Fixing `buildLeg`
+left `matchLegOutcome`, `computeLegHoleMatch`, and the leaderboard's `legWinner` all
+sorting on `toPar` directly. Verified with a probe: in match mode the birdies-everything
+team was paid **−$160** and won **0 of 18** holes. Fix: `PoolTeamLegStanding` now
+carries `rankMetric`, always lower-is-better, and every consumer reads it. One field,
+one direction — four places deriving the same thing is how this got through.
+
+**3. `toPar` hard-coded `× 2` par per hole.** True of every legacy `ballSelection`
+(two balls: best net + best gross), false for scramble/best-ball (one) and combined
+(four). `toPar`'s only job is comparing a team thru 9 with one thru 18, and with the
+wrong ball count it ranked on holes played instead: two dead-even teams came out
+`-72` vs `-36`, place 1 vs place 2. Fix: `ballsPerHole(format, memberCount)` and
+`evenValueOnHole(hole, basis, balls)`.
+
+**4. Multi-ball Stableford scored 0 on nearly every hole.** `two-best-gross` and
+`net-and-gross` added two stroke scores into one number, then scored *that* against a
+single par — a double bogey by construction. Every team scored 0, everyone tied, and
+the pot split evenly regardless of play. `two-best-net` already had a per-ball special
+case, which is exactly why the other two *looked* like they worked.
+
+**The rule this settles (Craig's question, "is that net or gross for the pace?"):**
+points are scored **per ball, off that ball's own score**, then added. Net-or-gross is
+decided by the **format**, not by a setting — best-ball/combined/scramble/alt-shot are
+net, `two-best-gross` is gross, `net-and-gross` is one of each. So the points always
+come off the same score the money engine ranks, and display can't diverge from payout.
+
+**Junk is untouched by any of this** (Craig asked specifically about both junk models).
+Verified by test, both ways: the pot model (junk sub-pot split by junk total) and the
+match model ($/point over the opponent) produce *identical* junk money under `stroke`
+and `stableford`. Birdies are birdies whatever the leg's basis. `computeJunk` reads
+gross vs par and never consults `teamScoreBasis`.
+
+**Also confirmed in scope-checking:** the registry modes (9s, skins, Stableford-the-mode,
+quota, low-total, Wolf) never reach `buildLeg` — `game-modes/result.ts:21` routes any
+`gameMode` to `mode.compute()`, and only a game with *no* `gameMode` reaches
+`computePoolResult`. They rank via their own `rankByPointsDesc` and were never affected.
+
+**Decisions taken (2026-08-13):**
+- Stableford + head-to-head match mode is **allowed** (Craig): most points wins each
+  leg, and the hole-by-hole variant awards the hole to more points.
+- Leaderboard under points shows **PTS + PACE** (points better than steady pars, 2/hole
+  per ball). Craig hasn't confirmed the display shape — PACE is in as the column that
+  makes differing thru counts comparable, which is what the pot ranks on. Revisit.
+
+#### Step 4 done (2026-08-13) — the format picker, and an exhaustive sweep
+
+**The picker.** One control, not two: the legacy three-option "Which scores count for the
+team?" dropdown became the superset list (`TEAM_FORMAT_OPTIONS`), plus a Strokes /
+Stableford toggle. `ballSelection` is no longer wizard state — it's *derived* at save time.
+
+**The rule that keeps it safe (`persistedTeamScoring`, unit-tested):** choosing a format a
+legacy `ballSelection` already expresses, with stroke scoring, saves the game the OLD way —
+**no `teamFormat` at all**. Only a format that path can't express, or Stableford, opts in.
+Without this, shipping the picker would have quietly moved every new ordinary pool onto the
+new code, and "existing games settle identically" would hold only for games created before
+today. Proven twice: by the golden snapshots, and by a test computing the same field both
+ways and asserting the payouts are `toEqual`.
+
+Also wired, because each would otherwise silently drop the format: the hub's mid-round
+editor (it showed a ball-selection control that did nothing on a Stableford game —
+`teamFormat` takes precedence), `GroupDefaults`, `formatFromGame` (Format Library), the
+library's summary line, and the wizard draft. The USGA allowance recommendation now follows
+the *format*, read from the one table in `lib/formats.ts` rather than a second copy of the
+percentages — and stays silent for scramble, which is tiered by team size.
+
+**The sweep (`src/test/all-modes-sweep.test.ts`, ~860 cases).** Craig: *"you should try all
+the game types, settings/versions and see what happens. we need to make sure there arent any
+weird errors."* It drives the REAL registry, so a new mode or setting is covered without
+touching the file: every mode × every setting value × `playersMin` and a foursome; every mode
+on five partial-round shapes; the pool matrix of 7 formats × 2 bases × 2 money modes × 2 leg
+scorings × 3 hole ranges × 2/4 teams; threesomes, 8 foursomes, zero buy-in, an unstarted
+team, both nine-hole handicap bases, every stroke method × handicap basis × allowance.
+Asserts: never throws, money zero-sum, **no NaN/Infinity anywhere** (the failure that renders
+as "$NaN" rather than crashing), and place/payout consistent with an independent oracle.
+
+**No new product bugs found** — every combination already settled zero-sum with no NaN. What
+the sweep did find was **weakness in its own assertions**, which is the part worth recording.
+
+#### The lesson: a passing sweep is worthless until you prove it can fail
+
+The first version passed 804/804 immediately. Distrusting that, I re-introduced each of the
+four bugs from the earlier pass as a one-line mutation. **Three of four survived.** The sweep
+looked thorough and tested almost nothing.
+
+| Mutation (a real bug, reverted) | v1 | Why it survived |
+|---|---|---|
+| Points ranked lower-is-better | **survived** | Compared `place` against `rankMetric` — both from the same 3 lines. Tautology. |
+| `toPar` hard-codes 2 balls | **survived** | Nothing compared teams at *different* thru counts — `toPar`'s only job. |
+| Hole-match ignores basis | **survived** | Read `holesWon` back from the code under test. |
+| `matchLegOutcome` uses `toPar` | **survived** | Matrix only exercised match mode with `holes` scoring, never `stroke`. |
+
+Fixes: assert against an **independent oracle** (recount hole wins from the per-hole grid;
+rank by who actually scored better, derived from raw totals, not from the engine's metric);
+add the missing axis (`legScoring: 'holes' | 'stroke'`); add unequal-thru cases. All five
+mutations now fail loudly (10–34 cases each).
+
+**One assertion of mine was simply wrong**, and the sweep caught that too: I asserted equal
+scoring *rate* should give equal `toPar` at different thru counts. It shouldn't — `toPar` is
+cumulative, like a real leaderboard's "-5 thru 12". 14 formats failed, including legacy ones,
+which is the signal it was the test and not the code. The right invariant is the *zero point*:
+a team playing to expectation reads 0 whatever it has completed. That version catches the
+ball-count bug (an even-par team read -72 vs -36) while being true of every format.
+
+**How to apply:** for anything protecting money, write the test, then re-introduce the bug it
+claims to catch and watch it fail. An assertion that reads a value the code under test
+produced proves only that the code agrees with itself.
+
+#### The scorecard was still playing a different game (2026-08-13)
+
+Found by asking what the *scorecard* does with `teamFormat` — the answer was nothing. A classic
+pool hard-coded `teamMode: 'two-best-balls'` and passed only `ballSelection`, so the card was
+handed a rule the game wasn't playing. Three verified symptoms:
+
+**1. Scramble money depended on the ORDER of `team.playerIds`.** The worst bug in the whole
+F-006 pass. `teamNetOnHole` reads "the first member who has a score" — correct when ONE ball is
+entered (every member shares the gross), but the card did per-player entry, so members held
+different scores and the team's score became whoever happened to be listed first:
+
+```
+same scores, p1 listed first:  total 72,  net +$75
+same scores, p4 listed first:  total 126, net -$75
+```
+
+A $150 swing from reordering a roster. Not reachable through the UI *before* the picker
+shipped — which is exactly why it had to be fixed in the same pass.
+
+**2. The card's team row contradicted the payout.** Scramble hole 1: engine 4, card 9 (its
+hard-coded 1-net-1-gross row). `AGENTS.md` names this property as load-bearing — the scorecard
+defers to the money engine so on-screen numbers match payouts.
+
+**3. Stableford drew strokes where the money counted points.** `isStablefordFormat` keyed only
+on `formatId === 'stableford'`; a pool arrives as `'stroke-play'` with the basis in
+`formatSettings`. Same cell, two different units.
+
+**Craig's calls:** one-ball formats enter ONE shared team score (as the 2v2 mode already does —
+a proven pattern, not a new one), and the team row comes from the same engine the money uses.
+He explicitly rejected "treat scramble as gross best-ball", which would have fixed the
+order-dependence by silently changing the game.
+
+Three more display defects only visible in a screenshot, not in the code: the card said
+"Team A" where the hub and leaderboard said "Team 1"; the grid showed **no team row at all**
+(`hasTeams` requires both A *and* B, but a pool foursome is one side); and it rendered an
+A-vs-B match badge that means nothing when the other foursomes are on different devices.
+
+**Two mistakes of mine worth recording:**
+
+- I set `teamNames({ A: poolTeamName, B: 'Team B' })`, which leaked a placeholder AND fired for
+  2v2 games too — caught immediately by the *existing* `SCORECARD shows side names` e2e test.
+  That test earned its keep: it was written for an unrelated bug and caught a regression in a
+  path I wasn't thinking about.
+- I first tagged players only for one-ball formats, so multi-ball Stableford pools still got no
+  team row. Surfaced by writing the card-vs-leaderboard equality test, which is the assertion
+  that matters most here.
+
+**And one false alarm I nearly reported as a bug:** the card's team row read 3s where the
+leaderboard read 4s. Not a discrepancy — I was comparing the card's visible BACK-NINE tab
+against the leaderboard's full 18. They agree exactly (Out 35 = 4x8 + 3, since a team handicap
+of 8 puts strokes on SI 1-8, making a birdie there an eagle at 4 points). Verified with a probe
+before writing anything down.
+
+**Still open:** `subTeams` widening to N sides;
+`subTeams` widening to N sides; `TeamLegLine.winner` widening; `settleJunkForSides`
+field-average settlement; Wolf as a 2-side consumer. The play page's leg panel
+(`app/game/play/page.tsx:2490`) shows a raw leg total in its sub-line — honest, but not
+pace-normalized under points.
+
+**Status:** in progress — engine + pool wiring + tests done, format picker not built
 
 ---
 

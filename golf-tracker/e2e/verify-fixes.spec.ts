@@ -38,6 +38,11 @@ async function seed(page: import('@playwright/test').Page, label: string): Promi
   await card.getByRole('button', { name: 'Seed' }).click();
   await expect(card.getByText('Seeded ✓')).toBeVisible();
   await card.getByRole('button', { name: 'Open →' }).click();
+  // Wait for the URL, not networkidle. "Open" is a client-side router.push, so there may
+  // be no network activity to settle — networkidle could resolve while the URL was still
+  // /sandbox, which made the FIRST test in a describe block fail about 1 run in 3 with a
+  // successfully-seeded game it had simply never navigated to.
+  await page.waitForURL(/\/pool\/[^/]+/, { timeout: 15_000 });
   await page.waitForLoadState('networkidle');
   // /pool/<id> or /pool/<id>/leaderboard
   const m = new URL(page.url()).pathname.match(/\/pool\/([^/]+)/);
@@ -542,5 +547,312 @@ test.describe('choosing which bonuses a game plays', () => {
     // Step 1 must not ask about them — money questions live on the last step.
     const step1 = await page.locator('body').innerText();
     expect(step1).not.toContain('Extra bonuses to track by hand');
+  });
+});
+
+test.describe('F-006: a Stableford pool pays the team with the MOST points', () => {
+  // Every assertion here failed at some point during the F-006 pass. The engine ranked
+  // lower-is-better, so the 54-point team was shown 2nd and paid $0 while the 36-point
+  // team took the pot — and the per-hole grid painted the worst foursome green on all 18
+  // holes. Unit tests cover the money; this covers what a player actually sees.
+  test('the birdie team is 1st on the board, not last', async ({ page }) => {
+    await seed(page, 'Stableford pool');
+    await expect(page.getByText(/Stableford points/i).first()).toBeVisible();
+
+    // Team 1 birdied every hole: 3 pts x 18 = 54, and must be ranked 1st.
+    const rows = page.locator('tbody tr');
+    await expect(rows.first()).toContainText('Team 1');
+    await expect(rows.first()).toContainText('54');
+    // Team 4 doubled every hole: 0 points, and must be last.
+    await expect(rows.last()).toContainText('Team 4');
+
+    // The caption must say most points wins — "lowest total wins" is the stroke rule.
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('most points wins');
+    expect(body).not.toContain('lowest total wins');
+
+    await page.screenshot({ path: 'e2e/screenshots/pool-stableford.png', fullPage: true });
+  });
+
+  test('PACE makes a mid-round total comparable, and reads as points-over-pars', async ({ page }) => {
+    await seed(page, 'Stableford pool');
+    // 18 birdies = 54 pts = 18 better than steady pars (2/hole).
+    await expect(page.getByRole('columnheader', { name: 'PACE' })).toBeVisible();
+    await expect(page.locator('tbody tr').first()).toContainText('+18');
+    // Par team: 36 points, dead even on pace.
+    const parRow = page.locator('tbody tr', { hasText: 'Team 2' }).first();
+    await expect(parRow).toContainText('36');
+    await expect(parRow).toContainText('E');
+  });
+
+  test('the per-hole grid highlights the HIGHEST points, not the lowest', async ({ page }) => {
+    await seed(page, 'Stableford pool');
+    // Green = best on the hole. Under points that's the birdie team's 3, never Team 4's 0.
+    const best = page.locator('tbody tr', { hasText: 'Team 1' }).first().locator('.text-green-400');
+    expect(await best.count()).toBeGreaterThan(0);
+    // The worst foursome must have no green cells at all — it had 18 of them.
+    const worst = page.locator('tbody tr', { hasText: 'Team 4' }).first().locator('.text-green-400');
+    await expect(worst).toHaveCount(0);
+  });
+
+  test('head-to-head: the birdie team wins every leg and is paid', async ({ page }) => {
+    await seed(page, 'Scramble pool');
+    // Scramble + Stableford + hole-by-hole match: three ranking paths that each had the
+    // direction backwards, and each paid the losing team the full leg amount.
+    await expect(page.getByText('Match (per player)')).toBeVisible();
+
+    // Every leg to Team 1, at its configured dollar amount. Row-scoped, so a leg awarded
+    // to Team 2 can't be masked by a sibling row that happens to say Team 1.
+    for (const [label, dollars] of [['Front 9', '$10'], ['Back 9', '$10'], ['Overall 18', '$20']] as const) {
+      const row = page.locator('div.px-4', { hasText: new RegExp(`^${label}`) }).first();
+      await expect(row).toContainText('Team 1');
+      await expect(row).toContainText(`+${dollars}`);
+      await expect(row).not.toContainText('Push');
+    }
+
+    // Team 1 won all 18 holes: a hard-coded `a < b` on the hole tally gave it ZERO.
+    await expect(page.getByText('Team 1 18 – 0 Team 2 (holes won)')).toBeVisible();
+
+    // The caption must state the points rule for the hole, not the stroke rule.
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('most points wins the hole');
+    // And this board shows MATCH points (holes won), so the total column must not be
+    // headed PTS as though it held the Stableford total.
+    await expect(page.getByRole('columnheader', { name: 'PTS' })).toHaveCount(0);
+
+    await page.screenshot({ path: 'e2e/screenshots/pool-scramble-match.png', fullPage: true });
+  });
+});
+
+test.describe('F-006: choosing the team format in the wizard', () => {
+  // Step 4 of F-006's sequencing. Until now scramble/Stableford pools were only reachable
+  // from the sandbox or a hand-built game — the engine shipped with no way to ask for it.
+  test('the picker offers the formats the classic pool could not express', async ({ page }) => {
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    // Positive assertion that we're on step 1 of the wizard, not some redirect.
+    await expect(page.getByText('Which scores count for the team?')).toBeVisible();
+
+    const picker = page.locator('select').filter({ hasText: 'Two best net scores' }).first();
+    const options = await picker.locator('option').allInnerTexts();
+    // The three legacy ball selections are still here...
+    expect(options).toContain('Best net + best gross');
+    expect(options).toContain('Two best net scores');
+    expect(options).toContain('Two best gross scores');
+    // ...alongside the four that F-006 added.
+    expect(options).toContain('Best ball');
+    expect(options).toContain('Combined — every ball counts');
+    expect(options).toContain('Scramble');
+    expect(options).toContain('Alternate shot');
+  });
+
+  test('picking a format explains it, and Stableford changes the scoring line', async ({ page }) => {
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    const picker = page.locator('select').filter({ hasText: 'Two best net scores' }).first();
+
+    // The hint names net or gross, because the FORMAT decides it (not a setting).
+    await picker.selectOption('scramble');
+    await expect(page.getByText(/One ball for the team, played off a USGA tiered team handicap/)).toBeVisible();
+    await picker.selectOption('two-best-gross');
+    await expect(page.getByText(/two lowest gross scores, added — no handicaps/)).toBeVisible();
+
+    // Strokes is the default and says so; Stableford flips the rule.
+    await expect(page.getByText('Add the strokes. Lowest total wins, as usual.')).toBeVisible();
+    await page.getByRole('button', { name: 'Stableford points' }).click();
+    await expect(page.getByText(/birdie 3, par 2, bogey 1. Most points wins/)).toBeVisible();
+
+    await page.screenshot({ path: 'e2e/screenshots/wizard-team-format.png', fullPage: true });
+  });
+
+  test('the USGA allowance recommendation follows the FORMAT', async ({ page }) => {
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    const picker = page.locator('select').filter({ hasText: 'Two best net scores' }).first();
+
+    // Four-ball stroke play for a two-ball format.
+    await picker.selectOption('two-best-net');
+    await expect(page.getByText(/85% for four-ball stroke play/)).toBeVisible();
+
+    // Combined counts every ball, so the USGA number differs — a single hard-coded 85%
+    // would have quoted four-ball for a format that isn't four-ball.
+    await picker.selectOption('combined');
+    await expect(page.getByText(/85% for four-ball stroke play/)).toHaveCount(0);
+
+    // Scramble is TIERED by team size, so quoting one figure would be wrong: say nothing.
+    await picker.selectOption('scramble');
+    await expect(page.getByText(/USGA suggests/)).toHaveCount(0);
+  });
+});
+
+test.describe('F-006: what the wizard SAVES', () => {
+  // The safety rule, asserted on the stored game rather than on the picker: an ordinary
+  // stroke pool must save with NO teamFormat, so it computes down the legacy path pinned by
+  // the golden snapshots. Only a format that path can't express opts in. Without this, adding
+  // the picker would quietly move every new pool onto the new code, and "existing games
+  // settle identically" would only hold for games created before today.
+  async function saveDraftAndRead(page: import('@playwright/test').Page, format: string, basis: 'stroke' | 'stableford') {
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByText('Which scores count for the team?')).toBeVisible();
+    await page.locator('select').filter({ hasText: 'Two best net scores' }).first().selectOption(format);
+    if (basis === 'stableford') await page.getByRole('button', { name: 'Stableford points' }).click();
+    // The wizard auto-saves its draft; read what it recorded.
+    return await page.evaluate(() => {
+      const raw = sessionStorage.getItem('pool_wizard_draft');
+      return raw ? JSON.parse(raw) : null;
+    });
+  }
+
+  test('an ordinary stroke pool saves the LEGACY way (no teamFormat)', async ({ page }) => {
+    for (const [format, ballSelection] of [
+      ['net-and-gross', '1-net-1-gross'],
+      ['two-best-net', '2-best-net'],
+      ['two-best-gross', '2-best-gross'],
+    ]) {
+      const draft = await saveDraftAndRead(page, format, 'stroke');
+      expect(draft?.ballSelection, format).toBe(ballSelection);
+      expect(draft?.teamScoreBasis, format).toBe('stroke');
+    }
+  });
+
+  test('a scramble or Stableford pool opts IN', async ({ page }) => {
+    const scramble = await saveDraftAndRead(page, 'scramble', 'stroke');
+    expect(scramble?.teamFormat).toBe('scramble');
+
+    const points = await saveDraftAndRead(page, 'two-best-net', 'stableford');
+    expect(points?.teamFormat).toBe('two-best-net');
+    expect(points?.teamScoreBasis).toBe('stableford');
+  });
+
+  test('the format survives a reload — a phone that slept mid-setup', async ({ page }) => {
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    await page.locator('select').filter({ hasText: 'Two best net scores' }).first().selectOption('scramble');
+    await page.getByRole('button', { name: 'Stableford points' }).click();
+    await expect(page.getByText(/birdie 3, par 2, bogey 1/)).toBeVisible();
+
+    // "Continuing" is the neglected verb (AGENTS.md): the choice must come back.
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('select').filter({ hasText: 'Scramble' }).first()).toHaveValue('scramble');
+    await expect(page.getByText(/birdie 3, par 2, bogey 1/)).toBeVisible();
+  });
+});
+
+test.describe('F-006: the scorecard for a generalized team format', () => {
+  // A classic pool used to hard-code teamMode 'two-best-balls' and pass only ballSelection,
+  // so a scramble pool handed the scorecard a rule it wasn't playing. Verified consequences:
+  // scramble money depended on the ORDER of team.playerIds (+$75 vs −$75 on a reorder,
+  // because per-player entry left members holding different scores), and the card's team row
+  // contradicted the payout. Craig's call: one ball = one shared entry, and the team row comes
+  // from the same engine the money uses.
+  test('SCRAMBLE enters ONE score for the whole foursome', async ({ page }) => {
+    const id = await seed(page, 'Scramble pool');
+    await goToGame(page, id);
+    await page.getByRole('button', { name: /enter scores/i }).first().click();
+    await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+
+    // ONE entry card for the foursome, listing all four players — not four separate cards.
+    await expect(page.getByText('(Craig, Jym, Dave, Rick)')).toBeVisible();
+    // Named after the FOURSOME, not the generic 2v2 side label.
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('Team 1');
+    expect(body).not.toContain('Team A');
+    expect(body).not.toContain('Team B');
+    // And the one-ball handicap is the USGA tiered team figure, not a per-player one.
+    expect(body).toContain('USGA Tiered');
+
+    await page.screenshot({ path: 'e2e/screenshots/card-scramble.png', fullPage: true });
+  });
+
+  test('the team row EXISTS on a one-sided pool card and matches the money engine', async ({ page }) => {
+    // Use the POT-mode Stableford pool: in hole-match mode the leaderboard's last column is
+    // MATCH POINTS (holes won), not the team total, so comparing against it would be
+    // comparing two different quantities. (My first version of this test did exactly that
+    // and "failed" on 62 vs 18 — both numbers correct, wrong pair.)
+    const id = await seed(page, 'Stableford pool');
+    await goToGame(page, id);
+    await page.getByRole('button', { name: /enter scores/i }).first().click();
+    await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
+
+    // `hasTeams` needed BOTH sides, so a pool foursome (one side) got player rows and no
+    // team row — the number the money settles on was the one thing missing. This is a
+    // MULTI-ball format, which is how the gap in the first fix surfaced.
+    const teamRow = page.locator('tr', { hasText: /Team 1 pts/ }).first();
+    await expect(teamRow).toBeVisible();
+    const cardCells = (await teamRow.innerText()).split('\t').map((s) => s.trim());
+    const cardTotal = cardCells[cardCells.length - 1];
+
+    // The leaderboard IS the money engine. The card's total must equal it exactly —
+    // AGENTS.md: the scorecard defers to the money engine so the screen matches payouts.
+    await goToGame(page, id, '/leaderboard');
+    const lbTotal = (await page.locator('tbody tr', { hasText: 'Team 1' }).first()
+      .locator('td').nth(-2).innerText()).trim();   // PTS column (PACE is last)
+    expect(cardTotal, 'card team total must equal the leaderboard total').toBe(lbTotal);
+  });
+
+  test('a one-sided card shows no A-vs-B match badge', async ({ page }) => {
+    const id = await seed(page, 'Scramble pool');
+    await goToGame(page, id);
+    await page.getByRole('button', { name: /enter scores/i }).first().click();
+    await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
+    // getMatchStatus compares side A against side B; with one side on the device that's
+    // meaningless, so it must not render "2 UP" / "AS" / "3 ahead" against the team total.
+    const teamRow = page.locator('tr', { hasText: /Team 1 pts/ }).first();
+    await expect(teamRow).not.toContainText(/\d+ (UP|DN|ahead|back)/);
+    await expect(teamRow).not.toContainText(/\bAS\b/);
+  });
+
+  test('a LEGACY pool scorecard is untouched (per-player, no team format)', async ({ page }) => {
+    const id = await seed(page, 'Classic pool — 2 foursomes, mid-round');
+    await goToGame(page, id);
+    await page.getByRole('button', { name: /enter scores/i }).first().click();
+    await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+
+    // Still four separate player entry cards, no shared team entry, no team-name relabel.
+    await expect(page.getByText('(Craig, Jym, Dave, Rick)')).toHaveCount(0);
+    const body = await page.locator('body').innerText();
+    expect(body).not.toContain('USGA Tiered');
+  });
+});
+
+test.describe('F-006: a GUEST on a share link scores a scramble correctly', () => {
+  // The "continuing" path that matters most: another foursome scoring from a phone with no
+  // organizer login. The card is built by the hub from the same PoolGame, so it must teach the
+  // guest's device the format too — a guest entering four separate scores on a one-ball format
+  // is how the player-order money bug would reach a real round.
+  test('the shared card enters ONE team score and names the foursome', async ({ browser, page }) => {
+    const id = await seed(page, 'Scramble pool');
+    await goToGame(page, id);
+    await page.getByRole('button', { name: 'Share' }).first().click();
+    const link = await page.locator('input[readonly]').first().inputValue();
+    const store = await page.evaluate(() => sessionStorage.getItem('__sandbox_supabase__') ?? '');
+
+    const guestCtx = await browser.newContext();
+    const guest = await guestCtx.newPage();
+    await guest.goto(`${BASE}/sandbox`);
+    await guest.evaluate((d) => sessionStorage.setItem('__sandbox_supabase__', d), store);
+    await guest.goto(link);
+    await guest.waitForLoadState('networkidle');
+
+    await guest.getByRole('button', { name: /enter scores/i }).first().click();
+    await guest.waitForURL(/\/game\/play/, { timeout: 15_000 });
+    await expect(guest.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+
+    // One shared entry for the foursome, named after the team, on the team handicap.
+    await expect(guest.getByText('(Craig, Jym, Dave, Rick)')).toBeVisible();
+    const body = await guest.locator('body').innerText();
+    expect(body).toContain('Team 1');
+    expect(body).toContain('USGA Tiered');
+    expect(body).not.toContain('Team A');
+
+    // And the team row is present, so the guest can see what their group is scoring.
+    await expect(guest.locator('tr', { hasText: /Team 1 pts/ }).first()).toBeVisible();
+
+    await guest.screenshot({ path: 'e2e/screenshots/guest-scramble-card.png', fullPage: true });
+    await guestCtx.close();
   });
 });

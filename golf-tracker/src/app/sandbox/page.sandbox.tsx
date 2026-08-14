@@ -238,6 +238,62 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'pool-stableford',
+    label: 'Stableford pool — 4 foursomes, most points wins',
+    detail: 'F-006: the headline case the classic pool could not express. Team 1 birdies everything (54 pts) and MUST be shown 1st and paid — an earlier pass ranked lower-is-better and paid the 36-point team. Also proves the per-hole grid greens the HIGHEST number under points.',
+    build: () => {
+      const ps = players([0, 0, 0, 0, 0, 0, 0, 0]);
+      const game = baseGame({
+        players: ps,
+        name: 'Stableford Outing',
+        teamFormat: 'best-ball',
+        teamScoreBasis: 'stableford',
+        positionSplit: [70, 30],
+        teams: [
+          { id: 'st1', name: 'Team 1', playerIds: ['sp1', 'sp2'], matchupId: 'sm1' },
+          { id: 'st2', name: 'Team 2', playerIds: ['sp3', 'sp4'], matchupId: 'sm2' },
+          { id: 'st3', name: 'Team 3', playerIds: ['sp5', 'sp6'], matchupId: 'sm3' },
+          { id: 'st4', name: 'Team 4', playerIds: ['sp7', 'sp8'], matchupId: 'sm4' },
+        ],
+      });
+      // Birdies (3 pts/hole) → pars (2) → bogeys (1) → doubles (0). Ranking must follow.
+      saveGameScores('sm1', scores(['sp1', 'sp2'], [-1, -1], ALL18));
+      saveGameScores('sm2', scores(['sp3', 'sp4'], [0, 0], ALL18));
+      saveGameScores('sm3', scores(['sp5', 'sp6'], [1, 1], ALL18));
+      saveGameScores('sm4', scores(['sp7', 'sp8'], [2, 2], ALL18));
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+  {
+    key: 'pool-scramble-match',
+    label: 'Scramble pool — 2 foursomes head-to-head, Stableford',
+    detail: 'F-006: Stableford in MATCH mode, where three separate consumers each ranked lower-is-better and paid the losing team the whole leg. The birdie team must win all three legs.',
+    build: () => {
+      const ps = players([4, 10, 16, 22, 6, 12, 18, 24]);
+      const game = baseGame({
+        players: ps,
+        name: 'Scramble Match',
+        teamFormat: 'scramble',
+        teamScoreBasis: 'stableford',
+        moneyMode: 'match',
+        matchConfig: {
+          legDollars: { front: 10, back: 10, overall: 20 },
+          junkPerPoint: 5,
+          scoring: 'holes',
+          pointsPerHole: { win: 1, tie: 0.5, loss: 0 },
+        },
+        teams: [
+          { id: 'st1', name: 'Team 1', playerIds: ['sp1', 'sp2', 'sp3', 'sp4'], matchupId: 'sm1' },
+          { id: 'st2', name: 'Team 2', playerIds: ['sp5', 'sp6', 'sp7', 'sp8'], matchupId: 'sm2' },
+        ],
+      });
+      // One ball per team: every member carries the same gross, as the scorecard writes.
+      saveGameScores('sm1', scores(['sp1', 'sp2', 'sp3', 'sp4'], [-1, -1, -1, -1], ALL18));
+      saveGameScores('sm2', scores(['sp5', 'sp6', 'sp7', 'sp8'], [1, 1, 1, 1], ALL18));
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+  {
     key: 'ledger-season',
     label: 'Season ledger — 5 completed games, 61-player roster',
     detail: 'The "continuing" payoff surface. /home/stats was structurally dead until the completion fix, so its settle-up math and four lenses have never been seen with real data.',

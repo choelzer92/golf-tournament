@@ -499,6 +499,104 @@ score the same matchup from separate devices.
 name the specific path — over-broad warnings about working features cost trust and
 misdirect effort.
 
+## 5.x Stableford in a pool of foursomes (2026-08-13)
+
+**Decision: Stableford + head-to-head match mode is allowed.** Asked whether a Stableford
+pool should be able to play head-to-head (fixed $/leg) or be restricted to pot mode while
+the math settled, Craig chose to allow it: most points wins the front, back, and overall,
+and in the hole-by-hole variant more points wins the hole.
+
+**Why:** nothing about points makes head-to-head unnatural — it was only ever a question of
+getting more math right at once. Restricting it would have deferred the exact headline case
+F-006 exists to unblock.
+
+**How to apply:** any new scoring basis must be threaded through BOTH money models (pot and
+match) and both match-scoring variants (`stroke` and `holes`) before it ships. Three of the
+four bugs in the F-006 pass were consumers that hadn't been.
+
+---
+
+## 5.y Craig's review questions are load-bearing — treat them as bug reports (2026-08-13)
+
+Three questions during the F-006 review each found a real defect that tests had missed:
+
+1. *"why does the team -90 to par have more points than the team -108? were there
+   handicaps?"* → no handicaps; `toPar` was `total − 2 × par` with `total` in points.
+   Exposed the hard-coded two-ball assumption AND that three consumers still ranked on it.
+2. *"we should clarify if that is net or gross for the pace"* → exposed that
+   `two-best-gross` and `net-and-gross` scored 0 points on nearly every hole (two stroke
+   scores summed, then compared to one par). Every team tied; the pot split evenly
+   regardless of play.
+3. *"does that work with a fixed junk pot or also $/junk point over opponents? want to
+   make sure both versions work"* → junk was in fact unaffected, now proven by test for
+   both models rather than assumed.
+
+**How to apply:** when Craig asks why a number looks odd, verify with a probe before
+answering — don't explain the number from the code's intent. Two of these three read as
+requests for clarification and were actually defects. And "I believe this does it, but I
+want to be sure" means *go check*, not *reassure me*.
+
+---
+
+## 5.z Prove a money test can FAIL before trusting it (2026-08-13)
+
+Asked to sweep every game type and setting for "weird errors", I wrote ~860 combinatorial
+cases. They passed 100% on the first run. Rather than report that, I re-introduced each of the
+four bugs from the F-006 pass as a one-line mutation: **three of four survived.** The sweep
+looked exhaustive and asserted almost nothing.
+
+The common failure: every surviving assertion read a value the code under test had produced —
+`place` vs `rankMetric` (both from the same three lines), `holesWon` read back from the tally
+being tested. Self-agreement, not correctness. One axis was also simply missing (match mode's
+`stroke` leg scoring, never swept).
+
+**Why:** for money math, a green test is a claim about the code. If the test can't fail when
+the bug is present, the claim is unfounded — and a big passing number is *more* dangerous than
+no test, because it stops further looking.
+
+**How to apply:** after writing a test that guards money, handicap, or scoring math,
+re-introduce the bug it claims to catch and watch it fail. Prefer an independent oracle
+(recompute from raw scores) over reading the engine's own derived fields. And when many cases
+fail at once — including cases that were correct before — suspect the assertion, not the code:
+that's how I caught my own wrong invariant (asserting equal scoring *rate* implies equal
+`toPar`, when `toPar` is cumulative like any leaderboard's "-5 thru 12").
+
+---
+
+## 5.aa One ball = one entry; the card never invents its own scoring rule (2026-08-13)
+
+**Decision.** For a scramble or alternate-shot pool, the scorecard shows ONE shared score entry
+for the foursome (writing the same gross to every member underneath), exactly as the 2v2 mode
+already does. And the card's team row is computed from the same engine that settles the money,
+never from a hard-coded rule.
+
+**Why.** Per-player entry on a one-ball format made the money depend on the ORDER of the player
+list — the same round paid +$75 or −$75 after reordering four names, because the engine reads
+"the first member with a score". Craig was offered a cheaper fix (treat scramble as "lowest
+gross counts") and rejected it: it removes the order-dependence by silently turning a scramble
+into gross best-ball, a different game with a different USGA handicap.
+
+**How to apply.** When a new format reaches the money engine, ask what the SCORECARD does with
+it before calling the work done. The engine and the card are two separate implementations of
+"what did this team score on this hole"; any format that only teaches one of them is a bug
+waiting for the first real round. A useful check: assert the card's team total equals the
+leaderboard's, in a test.
+
+---
+
+## 5.ab Branch discipline while friends are using the live app (2026-08-13)
+
+Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch
+today at all. we will do that another time when its safe."*
+
+**How to apply.** Keep building on the feature branch and keep `npm run verify` green, but do
+not merge, push, or suggest either — and don't treat a green gate as a cue to ask. Merge timing
+is Craig's call based on who's mid-round, not on whether the code is ready. Everything in the
+dev loop is already safe for this: the sandbox is an in-memory Map with no network, and vitest
+never sees `.env.local` credentials.
+
+---
+
 ## 6. Focus areas Craig has named
 
 Requested, in his stated order of interest:
@@ -523,3 +621,4 @@ Awaiting Craig's call. Inferred answers are marked as guesses.
 | 5 | How much configurability belongs on the **first** screen? | Sharpest tension with the north star; genuinely his call |
 | 6 | Mid-round pot money isn't zero-sum (P1 in the audit): split the un-started leg evenly, or pro-rate `entryPaid`? | Split evenly, matching the `settleNassau` precedent |
 | 7 | Nassau "Back 9 · thru 9" reads as hole 9 (P3) | Convert to a hole number, matching the header's vocabulary |
+| 8 | What should a **Stableford** pool's leaderboard show where to-par goes? Offered PTS-only, PTS + PACE (points better than steady pars), or PTS + projected-18. Craig didn't pick — he asked the net/gross question instead, which turned out to be a bug. | Built **PTS + PACE**: pace is what the pot actually ranks on, and the only column that makes a team thru 12 comparable to one thru 18. Not confirmed — revisit. |
