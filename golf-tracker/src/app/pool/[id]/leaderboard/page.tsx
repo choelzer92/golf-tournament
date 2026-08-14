@@ -16,6 +16,7 @@ import {
   getGameHoles,
 } from '@/lib/pool-game';
 import { getGameMode, type IndividualResult } from '@/lib/game-modes';
+import type { TeamFormat } from '@/lib/game-modes/team-scoring';
 import type { WolfHoleLine, NassauLegLine, JunkLine } from '@/lib/game-modes/types';
 import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
 
@@ -133,6 +134,10 @@ export default function PoolLeaderboardPage() {
   // play the point tally is the score that matters, not raw strokes.
   const isHoleMatch = isMatch && game.teams.length === 2 && game.matchConfig?.scoring === 'holes';
   const fmtPts = (n: number) => (n % 1 === 0 ? String(n) : `${Math.floor(n)}½`);
+  // Stableford scores POINTS, so every "best on this hole" judgement inverts. Without
+  // this the per-hole grid painted the LOWEST number green — highlighting the worst
+  // foursome on all 18 holes. See FINDINGS.md F-006.
+  const pointsBasis = game.teamScoreBasis === 'stableford';
 
   // A team's match-point cell for a leg (front/back/overall): its points and tone
   // vs the opponent. Returns null when the leg has no match tally (non-match mode).
@@ -220,7 +225,16 @@ export default function PoolLeaderboardPage() {
                     <th key={h.holeNumber} className="text-center px-1 py-1.5 font-medium min-w-[24px]">{h.holeNumber}</th>
                   ))}
                   <th className="text-center px-1.5 py-1.5 font-bold text-gray-400 min-w-[28px]">B</th>
-                  <th className="text-center px-1.5 py-1.5 font-bold text-gray-400 min-w-[32px]">Tot</th>
+                  {/* In hole-match scoring this column holds MATCH points (holes won), not
+                      the Stableford total — so it must not be labelled PTS there, or two
+                      different kinds of point sit under one heading. */}
+                  <th className="text-center px-1.5 py-1.5 font-bold text-gray-400 min-w-[32px]">{pointsBasis && !isHoleMatch ? 'PTS' : 'Tot'}</th>
+                  {/* Under points a raw total can't be compared across differing thru
+                      counts — 27 points from 9 holes is better play than 36 from 18.
+                      PACE is that comparison, and it's what the pot actually ranks on. */}
+                  {pointsBasis && !isHoleMatch && (
+                    <th className="text-center px-1.5 py-1.5 font-bold text-gray-400 min-w-[36px]">PACE</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -241,9 +255,9 @@ export default function PoolLeaderboardPage() {
                       </td>
                       {frontHoles.map((h) => {
                         const score = h.teamScores[r.teamId];
-                        const lowOnHole = lowScoreOnHole(h.teamScores);
-                        const isLow = score !== null && score === lowOnHole;
-                        const tiedLow = isLow && countAtScore(h.teamScores, lowOnHole) > 1;
+                        const bestOnHole = bestScoreOnHole(h.teamScores, pointsBasis);
+                        const isLow = score !== null && score === bestOnHole;
+                        const tiedLow = isLow && countAtScore(h.teamScores, bestOnHole) > 1;
                         return (
                           <td key={h.holeNumber} className="text-center px-1 py-1.5">
                             <div className={`${tiedLow ? 'font-bold text-yellow-400' : isLow ? 'font-bold text-green-400' : 'text-gray-300'}`}>
@@ -259,9 +273,9 @@ export default function PoolLeaderboardPage() {
                       </td>
                       {backHoles.map((h) => {
                         const score = h.teamScores[r.teamId];
-                        const lowOnHole = lowScoreOnHole(h.teamScores);
-                        const isLow = score !== null && score === lowOnHole;
-                        const tiedLow = isLow && countAtScore(h.teamScores, lowOnHole) > 1;
+                        const bestOnHole = bestScoreOnHole(h.teamScores, pointsBasis);
+                        const isLow = score !== null && score === bestOnHole;
+                        const tiedLow = isLow && countAtScore(h.teamScores, bestOnHole) > 1;
                         return (
                           <td key={h.holeNumber} className="text-center px-1 py-1.5">
                             <div className={`${tiedLow ? 'font-bold text-yellow-400' : isLow ? 'font-bold text-green-400' : 'text-gray-300'}`}>
@@ -280,6 +294,13 @@ export default function PoolLeaderboardPage() {
                           ? <div className={`font-bold ${pointToneCls(overallPts.tone)}`}>{overallPts.text}</div>
                           : <div className="font-bold text-white">{r.total || '-'}</div>}
                       </td>
+                      {pointsBasis && !isHoleMatch && (
+                        <td className="text-center px-1.5 py-1.5 bg-gray-750">
+                          <div className={`font-bold ${r.thru === 0 ? 'text-gray-500' : r.toPar > 0 ? 'text-green-400' : r.toPar < 0 ? 'text-red-400' : 'text-gray-200'}`}>
+                            {r.thru === 0 ? '-' : fmtPace(r.toPar)}
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -288,8 +309,8 @@ export default function PoolLeaderboardPage() {
           </div>
           <div className="px-3 py-2 text-[10px] text-gray-500 border-t border-gray-700">
             {isHoleMatch
-              ? <>Holes = {ballSelectionCaption(game.ballSelection)} (lower wins the hole) · F/B/Tot show match points (<span className="text-green-400">ahead</span> / <span className="text-red-400">behind</span> / <span className="text-yellow-400">tied</span>)</>
-              : <>Team score = {ballSelectionCaption(game.ballSelection)} per hole · lowest total wins</>}
+              ? <>Holes = {teamScoringCaption(game)} ({pointsBasis ? 'most points' : 'lower'} wins the hole) · F/B/Tot show match points (<span className="text-green-400">ahead</span> / <span className="text-red-400">behind</span> / <span className="text-yellow-400">tied</span>)</>
+              : <>Team score = {teamScoringCaption(game)} per hole · {pointsBasis ? 'most points wins · PACE = points better than steady pars' : 'lowest total wins'}</>}
           </div>
         </div>
 
@@ -606,6 +627,7 @@ function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult })
   const twoTeams = game.teams.length === 2;
   const isHoleMatch = cfg.scoring === 'holes';
   const teamName = (id: string) => game.teams.find((t) => t.id === id)?.name ?? '?';
+  const pointsBasis = game.teamScoreBasis === 'stableford';
 
   // A 9-hole game has ONE score leg. computePoolResult builds the front/back legs
   // with no holes so they can never settle, but listing them here showed two
@@ -624,7 +646,12 @@ function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult })
       ];
 
   // Winner of a leg. In hole-match scoring the winner is whoever won more holes
-  // (standings carry holesWon); otherwise it's the lower toPar. null = push/halved.
+  // (standings carry holesWon); otherwise it's the best `rankMetric`. null = push/halved.
+  //
+  // rankMetric — never toPar. This mirrors matchLegOutcome in pool-game.ts, and under
+  // Stableford a HIGHER toPar is better, so sorting it ascending here named the losing team
+  // as the leg winner while the money engine (correctly) paid the other one — a board that
+  // contradicted the payout beside it.
   function legWinner(leg: PoolLegKey): { winnerId: string | null; a?: PoolResult['legs'][number]['standings'][number]; b?: PoolResult['legs'][number]['standings'][number] } {
     const l = result.legs.find((x) => x.leg === leg);
     if (!l) return { winnerId: null };
@@ -636,8 +663,8 @@ function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult })
       if ((sorted[0].holesWon ?? 0) === (sorted[1].holesWon ?? 0)) return { winnerId: null, a, b };
       return { winnerId: sorted[0].teamId, a, b };
     }
-    const sorted = [...played].sort((x, y) => x.toPar - y.toPar);
-    if (sorted[0].toPar === sorted[1].toPar) return { winnerId: null, a, b };
+    const sorted = [...played].sort((x, y) => x.rankMetric - y.rankMetric);
+    if (sorted[0].rankMetric === sorted[1].rankMetric) return { winnerId: null, a, b };
     return { winnerId: sorted[0].teamId, a, b };
   }
 
@@ -684,7 +711,14 @@ function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult })
                 <p className="text-[10px] text-gray-500">
                   {matchLine
                     ? matchLine
-                    : a && b ? `${teamName(a.teamId)} ${a.thru ? a.toPar : '–'} vs ${teamName(b.teamId)} ${b.thru ? b.toPar : '–'} (to par)` : '—'}
+                    : a && b
+                      // Under points, "to par" is meaningless and the raw total isn't
+                      // comparable across thru counts — show the points and the pace, which
+                      // is what actually decided the leg.
+                      ? pointsBasis
+                        ? `${teamName(a.teamId)} ${a.thru ? `${a.total} (${fmtPace(a.toPar)})` : '–'} vs ${teamName(b.teamId)} ${b.thru ? `${b.total} (${fmtPace(b.toPar)})` : '–'} (points, vs pars)`
+                        : `${teamName(a.teamId)} ${a.thru ? a.toPar : '–'} vs ${teamName(b.teamId)} ${b.thru ? b.toPar : '–'} (to par)`
+                      : '—'}
                 </p>
               </div>
               <div className="text-right text-sm">
@@ -733,6 +767,34 @@ function ballSelectionCaption(variant: PoolGame['ballSelection'] | undefined): s
     case '1-net-1-gross':
     default: return 'best net + best gross';
   }
+}
+
+// Pace vs steady pars (2 points a hole per ball). Signed like a to-par figure, but the
+// sign MEANS the opposite: ahead of pace is good, so +4 is good news and is drawn green.
+function fmtPace(n: number): string {
+  return n === 0 ? 'E' : n > 0 ? `+${n}` : String(n);
+}
+
+// How a foursome's hole score is made, in words. A generalized game (teamFormat set)
+// describes ITS format — the ballSelection caption would otherwise name a rule the game
+// isn't playing. Each phrase says net or gross, because that's decided by the format and
+// is the difference between two legitimate-looking scores.
+function teamFormatCaption(format: TeamFormat): string {
+  switch (format) {
+    case 'best-ball': return 'best ball (net)';
+    case 'two-best-net': return 'best 2 net';
+    case 'two-best-gross': return 'best 2 gross';
+    case 'net-and-gross': return 'best net + best gross';
+    case 'combined': return 'every ball added (net)';
+    case 'scramble': return 'scramble, one ball (net of team handicap)';
+    case 'alternate-shot': return 'alternate shot, one ball (net of team handicap)';
+  }
+}
+
+// The full "how a hole is scored" caption for the per-hole grid footer.
+function teamScoringCaption(game: PoolGame): string {
+  const how = game.teamFormat ? teamFormatCaption(game.teamFormat) : ballSelectionCaption(game.ballSelection);
+  return game.teamScoreBasis === 'stableford' ? `${how}, Stableford points` : how;
 }
 
 // Leaderboard for INDIVIDUAL game modes (9s / skins / quota / …). Runs its own
@@ -1198,13 +1260,19 @@ function StrokesGivenBox({ players }: { players: PoolPlayerDetail[] }) {
   );
 }
 
-function lowScoreOnHole(teamScores: Record<string, number | null>): number | null {
-  let low: number | null = null;
+// The BEST team score on a hole — lowest under strokes, highest under Stableford points.
+// `pointsBasis` is not optional-by-accident: it defaults to strokes so every legacy caller
+// reads the same as before.
+function bestScoreOnHole(
+  teamScores: Record<string, number | null>,
+  pointsBasis = false,
+): number | null {
+  let best: number | null = null;
   for (const s of Object.values(teamScores)) {
     if (s === null) continue;
-    if (low === null || s < low) low = s;
+    if (best === null || (pointsBasis ? s > best : s < best)) best = s;
   }
-  return low;
+  return best;
 }
 
 // How many teams share a given score on a hole. Used to tell a sole low (green)
