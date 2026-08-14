@@ -1,0 +1,4 @@
+# Vitest writes snapshots with LF; without this they show as modified after every
+# test run on Windows. These files guard existing games' money, so a permanent
+# "modified" flag on them is noise you learn to ignore -- exactly the wrong habit.
+*.snap text eol=lf
