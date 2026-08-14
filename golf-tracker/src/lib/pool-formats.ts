@@ -56,6 +56,11 @@ export function formatFromGame(game: PoolGame): GroupDefaults {
     customBonuses: game.customBonuses,
     entryPerPlayer: game.entryPerPlayer,
     ballSelection: game.ballSelection,
+    // The generalized format (F-006), or absent for an ordinary stroke game. Without these
+    // two, saving "scramble, most Stableford points wins" to the library and starting a game
+    // from it would silently give back a stroke game with the legacy ball selection.
+    teamFormat: game.teamFormat,
+    teamScoreBasis: game.teamScoreBasis,
     handicapAllowance: game.handicapAllowance,
     strokeMethod: game.strokeMethod,
     handicapBasis: game.handicapBasis,

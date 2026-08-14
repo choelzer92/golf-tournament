@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import type { PoolJunkValues, PoolMoneyMode, PoolMatchConfig, CustomBonus } from './pool-game';
 import type { TwoBestBallsVariant } from './formats';
+import type { ScoreBasis, TeamFormat } from './game-modes/team-scoring';
 
 // A saved group = an organizer's "home base": a named set of roster player IDs
 // PLUS the default game settings to prefill when starting a game from it. The
@@ -20,6 +21,12 @@ export interface GroupDefaults {
   strokeMethod?: 'full' | 'off-the-low';
   handicapBasis?: 'course' | 'index';
   ballSelection?: TwoBestBallsVariant;
+  // Generalized team format (F-006), so a saved group or Format Library entry can carry
+  // "we play a scramble, most Stableford points wins" — the classic pool's three ball
+  // selections couldn't express it. Absent = the legacy ballSelection above, which is every
+  // existing group. Rides the same defaults JSONB; no migration.
+  teamFormat?: TeamFormat;
+  teamScoreBasis?: ScoreBasis;
   useCaptains?: boolean;
   // Game-mode fields (added with the pluggable game-mode library). Let a saved
   // group/format carry a full individual/2v2/decision game, not just the classic

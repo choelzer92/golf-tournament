@@ -58,6 +58,15 @@ import {
   upsertGroup,
 } from '@/lib/roster-groups';
 import { getPlayerGroups } from '@/lib/pool-formats';
+import {
+  formatOfGame,
+  persistedTeamScoring,
+  teamModeForFormat,
+  TEAM_FORMAT_OPTIONS,
+  type ScoreBasis,
+  type TeamFormat,
+} from '@/lib/game-modes/team-scoring';
+import { TEAM_MODES } from '@/lib/formats';
 import { POOL_GROUP_SEED_KEY } from '@/lib/group-seed';
 import { GAME_MODES, getGameMode, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
@@ -132,7 +141,15 @@ export default function NewPoolGamePage() {
   // a scorecard, so a scorer taps them per hole. Empty = the game plays none, which is
   // every game today. Seeded from a group's saved set when one is chosen.
   const [customBonuses, setCustomBonuses] = useState<CustomBonus[]>([]);
-  const [ballSelection, setBallSelection] = useState<TwoBestBallsVariant>('1-net-1-gross');
+  // How a foursome's hole score is made (F-006). ONE picker, always defined — the legacy
+  // three-option `ballSelection` dropdown was a subset of this list, and keeping both would
+  // ask the same question twice. `ballSelection` is DERIVED at save time by
+  // persistedTeamScoring, which stores an ordinary stroke game the legacy way (no
+  // teamFormat) so it computes down the snapshot-pinned path and settles exactly as every
+  // game before it.
+  const [teamFormat, setTeamFormat] = useState<TeamFormat>('net-and-gross');
+  const [teamScoreBasis, setTeamScoreBasis] = useState<ScoreBasis>('stroke');
+  const ballSelection = persistedTeamScoring(teamFormat, teamScoreBasis).ballSelection;
   // Money mode: 'pot' = classic buy-in pool (JY); 'match' = 2-foursome head-to-head.
   const [moneyMode, setMoneyMode] = useState<PoolMoneyMode>('pot');
   // Match-mode config (per-player $/leg + junk $/point). Stored as strings for the
@@ -204,7 +221,14 @@ export default function NewPoolGamePage() {
         if (data.potDollars) { setPotDollars(data.potDollars); setPotEdited(!!data.potEdited); }
         if (typeof data.positionSplitText === 'string') setPositionSplitText(data.positionSplitText);
         if (data.junkValues) setJunkValues(data.junkValues);
-        if (data.ballSelection) setBallSelection(data.ballSelection);
+        // A draft may predate the format picker and carry only `ballSelection`; read either
+        // shape back into the one picker.
+        if (data.teamFormat || data.ballSelection) {
+          setTeamFormat(formatOfGame({ teamFormat: data.teamFormat, ballSelection: data.ballSelection }));
+        }
+        if (data.teamScoreBasis === 'stroke' || data.teamScoreBasis === 'stableford') {
+          setTeamScoreBasis(data.teamScoreBasis);
+        }
         if (data.moneyMode === 'pot' || data.moneyMode === 'match') setMoneyMode(data.moneyMode);
         if (data.matchLegs) setMatchLegs(data.matchLegs);
         if (typeof data.matchJunkPerPoint === 'string') setMatchJunkPerPoint(data.matchJunkPerPoint);
@@ -240,11 +264,11 @@ export default function NewPoolGamePage() {
     if (!hydrated) return;
     sessionStorage.setItem(WIZARD_KEY, JSON.stringify({
       name, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
-      junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step,
+      junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step,
       holesPlaying, nineHandicapBasis,
     }));
   }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
-      junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step,
+      junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step,
       holesPlaying, nineHandicapBasis]);
 
   // The current format settings, packaged as a group's defaults (for "save field
@@ -259,7 +283,9 @@ export default function NewPoolGamePage() {
       handicapAllowance: parseFloat(handicapAllowance) || 100,
       strokeMethod,
       handicapBasis,
-      ballSelection,
+      // Save the format the same way a game stores it: an ordinary stroke game keeps only
+      // `ballSelection`, so a saved group stays readable by any older client.
+      ...persistedTeamScoring(teamFormat, teamScoreBasis),
       useCaptains,
       // Game mode + its settings (so a saved group/format restores the game type).
       gameMode,
@@ -288,7 +314,12 @@ export default function NewPoolGamePage() {
     if (d.customBonuses) setCustomBonuses(d.customBonuses);
     if (d.strokeMethod === 'full' || d.strokeMethod === 'off-the-low') setStrokeMethod(d.strokeMethod);
     if (d.handicapBasis === 'course' || d.handicapBasis === 'index') setHandicapBasis(d.handicapBasis);
-    if (d.ballSelection) setBallSelection(d.ballSelection);
+    // A group saved before the format picker carries only `ballSelection`; either shape
+    // reads back into the one picker.
+    if (d.teamFormat || d.ballSelection) {
+      setTeamFormat(formatOfGame({ teamFormat: d.teamFormat, ballSelection: d.ballSelection }));
+    }
+    if (d.teamScoreBasis === 'stroke' || d.teamScoreBasis === 'stableford') setTeamScoreBasis(d.teamScoreBasis);
     if (typeof d.useCaptains === 'boolean') setUseCaptains(d.useCaptains);
     // Game mode + settings (restore a saved individual/2v2/decision game). Only
     // set gameMode when present so a plain player-group (no mode) stays classic.
@@ -325,7 +356,10 @@ export default function NewPoolGamePage() {
       course,
       players,
       teams,
-      ballSelection,
+      // ballSelection + (teamFormat, teamScoreBasis) as one decision. An ordinary stroke
+      // game gets NO teamFormat, so it computes down the legacy path whose math is pinned by
+      // the golden snapshots in pool-game.test.ts — new games settle exactly as old ones.
+      ...persistedTeamScoring(teamFormat, teamScoreBasis),
       moneyMode,
       // Only carry match config when the game IS a match, so pot games stay clean.
       matchConfig: moneyMode === 'match' ? buildMatchConfig() : undefined,
@@ -421,8 +455,10 @@ export default function NewPoolGamePage() {
             setPositionSplitText={setPositionSplitText}
             junkValues={junkValues}
             setJunkValues={setJunkValues}
-            ballSelection={ballSelection}
-            setBallSelection={setBallSelection}
+            teamFormat={teamFormat}
+            setTeamFormat={setTeamFormat}
+            teamScoreBasis={teamScoreBasis}
+            setTeamScoreBasis={setTeamScoreBasis}
             moneyMode={moneyMode}
             setMoneyMode={setMoneyMode}
             matchLegs={matchLegs}
@@ -623,7 +659,7 @@ function DetailsStep({
   strokeMethod, setStrokeMethod,
   handicapBasis, setHandicapBasis,
   positionSplitText, setPositionSplitText,
-  junkValues, setJunkValues, ballSelection, setBallSelection,
+  junkValues, setJunkValues, teamFormat, setTeamFormat, teamScoreBasis, setTeamScoreBasis,
   moneyMode, setMoneyMode, matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
   applyGroupDefaults, onGroupChosen, chosenGroupId,
   onNext,
@@ -637,7 +673,8 @@ function DetailsStep({
   handicapBasis: 'course' | 'index'; setHandicapBasis: (v: 'course' | 'index') => void;
   positionSplitText: string; setPositionSplitText: (s: string) => void;
   junkValues: PoolJunkValues; setJunkValues: (v: PoolJunkValues) => void;
-  ballSelection: TwoBestBallsVariant; setBallSelection: (v: TwoBestBallsVariant) => void;
+  teamFormat: TeamFormat; setTeamFormat: (v: TeamFormat) => void;
+  teamScoreBasis: ScoreBasis; setTeamScoreBasis: (v: ScoreBasis) => void;
   moneyMode: PoolMoneyMode; setMoneyMode: (v: PoolMoneyMode) => void;
   matchLegs: { front: string; back: string; overall: string };
   setMatchLegs: (v: { front: string; back: string; overall: string }) => void;
@@ -687,11 +724,8 @@ function DetailsStep({
       setMoneyMode('pot');
     }
   }
-  const ballOptions: { value: TwoBestBallsVariant; label: string }[] = [
-    { value: '1-net-1-gross', label: 'Best net + best gross (from two different players)' },
-    { value: '2-best-net', label: 'Two best net scores' },
-    { value: '2-best-gross', label: 'Two best gross scores' },
-  ];
+  // (The old three-entry `ballOptions` list is gone — TEAM_FORMAT_OPTIONS is its superset,
+  // and the first three entries save identically to the legacy path.)
 
   // USGA recommended handicap allowance for the format being played. The tables
   // already live in lib/formats.ts (TEAM_MODES.usgaAllowance, plus per-format
@@ -708,14 +742,22 @@ function DetailsStep({
       if (selectedMode.category === 'team-within-group') return null;
       return { pct: 95, note: 'USGA suggests 95% for individual stroke play' };
     }
-    if (moneyMode === 'match') {
-      return { pct: 90, note: 'USGA suggests 90% for four-ball match play' };
+    // The allowance follows the FORMAT — a scramble is nothing like four-ball. Read it from
+    // the one table in lib/formats.ts (TEAM_MODES[].usgaAllowance) rather than repeating the
+    // percentages here, so the two can't drift.
+    const mode = TEAM_MODES.find((m) => m.id === teamModeForFormat(teamFormat));
+    if (!mode) return null;
+    // Scramble is tiered by team size (35/15, 20/15/10, …), so no single figure is right.
+    if (mode.usgaAllowance === 'tiered') return null;
+    const pct = mode.usgaAllowance;
+    if (teamFormat === 'net-and-gross' || teamFormat === 'two-best-net' || teamFormat === 'two-best-gross') {
+      // Two-ball formats are four-ball; the USGA number differs between match and stroke
+      // play, and the classic pool has always quoted 85% for the stroke-play pool.
+      return moneyMode === 'match'
+        ? { pct: 90, note: 'USGA suggests 90% for four-ball match play' }
+        : { pct: 85, note: 'USGA suggests 85% for four-ball stroke play (two scores counting)' };
     }
-    // Classic pool = two-best-balls of four, which the USGA treats as four-ball
-    // stroke play.
-    return ballSelection === '1-net-1-gross'
-      ? { pct: 85, note: 'USGA suggests 85% for four-ball stroke play (two scores counting)' }
-      : { pct: 85, note: 'USGA suggests 85% for four-ball stroke play' };
+    return { pct, note: `USGA suggests ${pct}% for ${mode.name.toLowerCase()}` };
   })();
   const usgaApplied = usgaRec !== null && Math.round(parseFloat(handicapAllowance)) === usgaRec.pct;
 
@@ -957,16 +999,49 @@ function DetailsStep({
         {!isRegisteredMode && (
         <div className="pt-2 border-t">
           <label className="block text-sm font-medium text-gray-800 mb-1">Which scores count for the team?</label>
+          {/* ONE picker for the hole rule. The first three options are the classic ball
+              selections and save exactly as before (no teamFormat); the rest are the formats
+              F-006 added. Same control, more possibilities — not a second screen. */}
           <select
-            value={ballSelection}
-            onChange={(e) => setBallSelection(e.target.value as TwoBestBallsVariant)}
+            value={teamFormat}
+            onChange={(e) => setTeamFormat(e.target.value as TeamFormat)}
             className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
           >
-            {ballOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            {TEAM_FORMAT_OPTIONS.map((opt) => (
+              <option key={opt.format} value={opt.format}>{opt.label}</option>
             ))}
           </select>
-          <p className="text-xs text-gray-500 mt-1">On each hole, this is how the foursome&apos;s single team score is worked out.</p>
+          <p className="text-xs text-gray-500 mt-1">
+            {TEAM_FORMAT_OPTIONS.find((o) => o.format === teamFormat)?.hint}
+          </p>
+
+          <label className="block text-sm font-medium text-gray-800 mt-3 mb-1">How is the hole scored?</label>
+          <div className="flex gap-2">
+            {([
+              { v: 'stroke' as ScoreBasis, label: 'Strokes' },
+              { v: 'stableford' as ScoreBasis, label: 'Stableford points' },
+            ]).map(({ v, label }) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setTeamScoreBasis(v)}
+                // Same classes as the money / strokes toggles above: solid green when
+                // selected, and a 44px min height for a thumb. See UI_CONVENTIONS.md.
+                className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
+                  teamScoreBasis === v
+                    ? 'border-green-600 bg-green-600 text-white'
+                    : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            {teamScoreBasis === 'stableford'
+              ? 'Points off par per ball — birdie 3, par 2, bogey 1. Most points wins.'
+              : 'Add the strokes. Lowest total wins, as usual.'}
+          </p>
         </div>
         )}
       </div>
