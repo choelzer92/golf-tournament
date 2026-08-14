@@ -5,7 +5,15 @@ import { useRouter, useParams } from 'next/navigation';
 import type { GameSetup, Player, TeeSetOption } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
 import type { PoolGame, PoolTeam, PoolTeamDetail, PoolJunkValues, PoolMoneyMode } from '@/lib/pool-game';
-import type { TwoBestBallsVariant } from '@/lib/formats';
+import {
+  formatOfGame,
+  isOneBall,
+  persistedTeamScoring,
+  teamModeForFormat,
+  TEAM_FORMAT_OPTIONS,
+  type ScoreBasis,
+  type TeamFormat,
+} from '@/lib/game-modes/team-scoring';
 import {
   loadPoolGame,
   fetchPoolGame,
@@ -208,6 +216,35 @@ export default function PoolHubPage() {
       }
     }
 
+    // GENERALIZED TEAM FORMAT (F-006). A classic pool used to hard-code teamMode
+    // 'two-best-balls' and pass only ballSelection, so a scramble or Stableford pool handed
+    // the scorecard a rule it wasn't playing. Two things went wrong, both verified:
+    //
+    //  1. Scramble money depended on the ORDER of team.playerIds. teamNetOnHole reads the
+    //     first member who has a score — right when one ball is entered (all members share
+    //     the gross), but the card did PER-PLAYER entry, so the team score became whoever was
+    //     listed first: the same round paid +$75 or −$75 on a 4-player reorder.
+    //  2. The card's team row (hard-coded 1-net-1-gross) contradicted the payout — scramble
+    //     hole 1 was 4 to the engine and 9 on the card; Stableford drew strokes where the
+    //     money counted points.
+    //
+    // Craig's call: one-ball formats enter ONE shared team score (as the 2v2 mode already
+    // does), and the team row comes from the same engine the money uses.
+    const poolFormat = game!.teamFormat;
+    if (poolFormat) {
+      teamMode = teamModeForFormat(poolFormat);
+      // Tag the whole foursome as ONE side, for EVERY generalized format — not just the
+      // one-ball ones. The card's team row and the one-ball entry UI both group by
+      // player.team, so an untagged foursome gets no team row at all: a multi-ball
+      // Stableford pool would have scored with no sight of the number it's settled on.
+      players = players.map((p) => ({ ...p, team: 'A' as const }));
+      if (isOneBall(poolFormat)) {
+        // Match the leaderboard's team handicap: scramble is USGA tiered (-1 is the play
+        // page's sentinel for that), alternate shot is 50% of the 60/40 combined.
+        handicapAllowance = poolFormat === 'scramble' ? -1 : 50;
+      }
+    }
+
     const setup: GameSetup = {
       formatId: 'stroke-play',
       teamMode,
@@ -224,7 +261,17 @@ export default function PoolHubPage() {
       holesPlaying: game!.holesPlaying ?? '18',
       strokeMethod,
       handicapBasis: game!.handicapBasis ?? 'course',
-      formatSettings: { ballSelection: game!.ballSelection },
+      // ballSelection stays for legacy games and older readers; teamFormat/teamScoreBasis
+      // let the card draw the row the money engine will actually score.
+      formatSettings: {
+        ballSelection: game!.ballSelection,
+        ...(game!.teamFormat ? { teamFormat: game!.teamFormat } : {}),
+        ...(game!.teamScoreBasis ? { teamScoreBasis: game!.teamScoreBasis } : {}),
+        // The foursome's own name, so a one-ball card says "Team 1" rather than the generic
+        // "Team A" the 2v2 sides use. Rides formatSettings (a string bag) like ballSelection,
+        // so no GameSetup schema change.
+        poolTeamName: team.name,
+      },
       matchupId: team.matchupId,
       offTheLowBaseline,
     };
@@ -756,11 +803,6 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
   const junk = game.junkValues ?? DEFAULT_JUNK_VALUES;
   const matchCfg = game.matchConfig ?? DEFAULT_MATCH_CONFIG;
 
-  const ballOptions: { value: TwoBestBallsVariant; label: string }[] = [
-    { value: '1-net-1-gross', label: '1 Net + 1 Gross (different players)' },
-    { value: '2-best-net', label: '2 Best Net' },
-    { value: '2-best-gross', label: '2 Best Gross' },
-  ];
   const junkFields: { key: keyof PoolJunkValues; label: string }[] = [
     { key: 'birdie', label: 'Birdie' },
     { key: 'eagle', label: 'Eagle' },
@@ -945,10 +987,39 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
           )}
         </div>
 
+        {/* The hole rule, as ONE picker over the full format list. This editor already let an
+            organizer change ball selection mid-round; it now covers the F-006 formats too.
+            Without this, a Stableford game edited here would show a control that silently did
+            nothing — teamFormat takes precedence over ballSelection wherever both are read. */}
         <div>
-          <label className="block text-sm font-medium text-gray-800 mb-1">Team ball selection</label>
-          <select className={inputCls} value={game.ballSelection} onChange={(e) => onSave({ ...game, ballSelection: e.target.value as TwoBestBallsVariant })}>
-            {ballOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          <label className="block text-sm font-medium text-gray-800 mb-1">Which scores count for the team?</label>
+          <select
+            className={inputCls}
+            value={formatOfGame(game)}
+            onChange={(e) => onSave({
+              ...game,
+              ...persistedTeamScoring(e.target.value as TeamFormat, game.teamScoreBasis ?? 'stroke'),
+            })}
+          >
+            {TEAM_FORMAT_OPTIONS.map((o) => <option key={o.format} value={o.format}>{o.label}</option>)}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            {TEAM_FORMAT_OPTIONS.find((o) => o.format === formatOfGame(game))?.hint}
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-800 mb-1">How is the hole scored?</label>
+          <select
+            className={inputCls}
+            value={game.teamScoreBasis ?? 'stroke'}
+            onChange={(e) => onSave({
+              ...game,
+              ...persistedTeamScoring(formatOfGame(game), e.target.value as ScoreBasis),
+            })}
+          >
+            <option value="stroke">Strokes — lowest total wins</option>
+            <option value="stableford">Stableford points — most points wins</option>
           </select>
         </div>
 

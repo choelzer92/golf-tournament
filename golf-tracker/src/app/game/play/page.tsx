@@ -76,11 +76,23 @@ export default function PlayGamePage() {
       // scored under the generic "Team A"/"Team B" while its own leaderboard
       // showed the real side names.
       const applySideNames = (g: PoolGame) => {
-        if (getGameMode(g.gameMode)?.category !== 'team-within-group') return;
-        const sides = g.subTeams ?? defaultSubTeams(
-          g.players.map((p) => p.id), g.players, g.course, g.handicapAllowance, g.handicapBasis,
-        );
-        setTeamNames(sideNamesForGame(g, sides));
+        // A 2v2 game has real SIDE names and owns both A and B — handle it first, or the
+        // pool-team branch below would overwrite side B with a placeholder.
+        if (getGameMode(g.gameMode)?.category === 'team-within-group') {
+          const sides = g.subTeams ?? defaultSubTeams(
+            g.players.map((p) => p.id), g.players, g.course, g.handicapAllowance, g.handicapBasis,
+          );
+          setTeamNames(sideNamesForGame(g, sides));
+          return;
+        }
+        // A classic pool foursome playing a team format is ONE side, named after the
+        // foursome. Without this a scramble pool card read "Team A" while its own hub and
+        // leaderboard called the same group "Team 1". Side B is left as-is: the other
+        // foursomes aren't on this device, and naming it would print a placeholder.
+        const poolTeamName = parsed.formatSettings?.poolTeamName;
+        if (typeof poolTeamName === 'string' && poolTeamName) {
+          setTeamNames((prev) => ({ ...prev, A: poolTeamName }));
+        }
       };
       const cached = loadPoolGame(pctx.poolGameId);
       if (cached) { setPoolGame(cached); applySideNames(cached); }
@@ -1287,9 +1299,26 @@ export default function PlayGamePage() {
           const teamBPlayers = sortedPlayers.filter((p) => p.team === 'B');
           const noTeamPlayers = sortedPlayers.filter((p) => !p.team);
           const hasTeams = teamAPlayers.length > 0 && teamBPlayers.length > 0;
+          // A classic pool foursome playing a TEAM format is ONE side, not two (F-006): the
+          // other foursomes score on their own devices. `hasTeams` requires both A and B, so
+          // a scramble pool card showed four player rows and no team row at all — the number
+          // the money is actually settled on was the one thing missing.
+          const teamRowSides = hasTeams
+            ? ([
+                { players: teamAPlayers, label: teamNames.A, color: 'text-blue-700', team: 'A' as const },
+                { players: teamBPlayers, label: teamNames.B, color: 'text-red-700', team: 'B' as const },
+              ])
+            : teamAPlayers.length > 0 && isTeamMode(teamMode)
+              ? ([{ players: teamAPlayers, label: teamNames.A, color: 'text-blue-700', team: 'A' as const }])
+              : [];
 
           const formatId = setup.formatId;
-          const isStablefordFormat = formatId === 'stableford';
+          // A classic pool can now be scored in Stableford points (F-006). It arrives as
+          // formatId 'stroke-play' with teamScoreBasis on formatSettings, so keying only on
+          // formatId drew STROKES in the team row while the money engine counted POINTS —
+          // the same cell showing two different units.
+          const isStablefordFormat = formatId === 'stableford'
+            || setup.formatSettings?.teamScoreBasis === 'stableford';
           const tournamentRound = tournamentCtx ? loadTournament(tournamentCtx.tournamentId)?.rounds.find((r) => r.id === tournamentCtx.roundId) : null;
           const isMatchPlayScoring = tournamentRound ? tournamentRound.scoringMethod === 'match-play' : (formatId === 'match-play' || formatId === 'skins' || formatId === 'nassau');
           const isScramble = teamMode === 'scramble';
@@ -1610,16 +1639,16 @@ export default function PlayGamePage() {
                     );
                   })}
                   {/* Team net/stableford rows */}
-                  {hasTeams && [
-                    { players: teamAPlayers, label: teamNames.A, color: 'text-blue-700', team: 'A' as const },
-                    { players: teamBPlayers, label: teamNames.B, color: 'text-red-700', team: 'B' as const },
-                  ].map(({ players: tp, label, color, team }) => {
+                  {teamRowSides.map(({ players: tp, label, color, team }) => {
                     const getHoleValue = isStablefordFormat ? (h: typeof holes[0]) => getTeamStableford(tp, h) : (h: typeof holes[0]) => getTeamNet(tp, h);
                     const visTotal = visibleHoles.reduce((s, h) => s + (getHoleValue(h) ?? 0), 0);
                     const otherTotal = hasOtherSide ? otherHoles.reduce((s, h) => s + (getHoleValue(h) ?? 0), 0) : 0;
                     const totalValue = holes.reduce((s, h) => s + (getHoleValue(h) ?? 0), 0);
                     const scoredAny = holes.some((h) => getHoleValue(h) !== null);
-                    const matchStatus = getMatchStatus(team);
+                    // getMatchStatus compares side A against side B, which means nothing on a
+                    // one-sided pool card — the other foursomes aren't on this device. Their
+                    // standing lives on the leaderboard.
+                    const matchStatus = hasTeams ? getMatchStatus(team) : null;
 
                     return (
                       <tr key={team} className="border-t border-gray-200 bg-gray-50">
@@ -1640,7 +1669,7 @@ export default function PlayGamePage() {
                         )}
                         <td className="px-1.5 py-1 text-center border-l border-gray-200">
                           <span className={`font-bold ${color}`}>{scoredAny ? totalValue : '–'}</span>
-                          {scoredAny && (
+                          {scoredAny && matchStatus && (
                             <span className={`ml-1 text-[9px] font-bold px-1 py-0.5 rounded ${matchStatus.color}`}>
                               {matchStatus.label}
                             </span>
