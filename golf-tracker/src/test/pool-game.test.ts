@@ -1263,3 +1263,78 @@ describe('getGameHoles', () => {
     expect(getGameHoles(makeGame({ holesPlaying: 'back9' })).map((h) => h.number)).toEqual(backNine());
   });
 });
+
+// ---------------------------------------------------------------------------
+// ONE BALL MEANS ONE SCORE (F-006 follow-up)
+// ---------------------------------------------------------------------------
+//
+// Craig's rule: "if you start a game as a scramble or alt shot, and dont declare a different
+// format on the back 9 or different holes, I feel there should only be one score entered per
+// team." A PoolGame has ONE format for all 18 holes — there's no equivalent of a tournament's
+// splitFormat — so divergent per-member scores are data that should not exist.
+//
+// The bug this pins: teamNetOnHole read the FIRST member with a score, so when members
+// disagreed the team score (and the payout) depended on the ORDER of team.playerIds. The same
+// round settled +$75 or -$75 after reversing four names. Divergence is now prevented upstream
+// (one shared entry on the card; the hub refuses to switch a scored game to one ball), and the
+// engine takes the minimum so order can never matter even if it somehow occurs.
+
+describe('one-ball formats: player order can never change the money', () => {
+  const ONE_BALL = ['scramble', 'alternate-shot'] as const;
+
+  function payoutFor(order: string[], perPlayerOffsets: number[], format: (typeof ONE_BALL)[number]) {
+    const game = makeGame({
+      teamCount: 2, indexes: Array(8).fill(0), entryPerPlayer: 25, teamFormat: format,
+    });
+    game.teams[0].playerIds = order;
+    // Deliberately DIVERGENT scores — the shape the old scorecard produced, and what a
+    // mid-round format switch could still leave behind.
+    const t1 = order.flatMap((id, i) =>
+      scoresFor(id, allEighteen().map((h) => TEST_PARS[h - 1] + perPlayerOffsets[i])));
+    const t2 = ['p5', 'p6', 'p7', 'p8'].flatMap((id) =>
+      scoresFor(id, allEighteen().map((h) => TEST_PARS[h - 1] + 1)));
+    const r = computePoolResult(game, new Map([['m1', t1], ['m2', t2]]));
+    const st = r.legs.find((l) => l.leg === 'overall')!.standings.find((s) => s.teamId === 't1')!;
+    return { total: st.total, net: r.payouts.find((p) => p.teamId === 't1')!.net };
+  }
+
+  for (const format of ONE_BALL) {
+    it(`${format}: reversing playerIds does not move a dollar`, () => {
+      const forward = payoutFor(['p1', 'p2', 'p3', 'p4'], [0, 1, 2, 3], format);
+      const reversed = payoutFor(['p4', 'p3', 'p2', 'p1'], [3, 2, 1, 0], format);
+      expect(reversed.total, `${format}: total moved with order`).toBe(forward.total);
+      expect(reversed.net, `${format}: MONEY moved with order`).toBe(forward.net);
+    });
+
+    it(`${format}: every permutation of a foursome settles identically`, () => {
+      // Exhaustive over 4! = 24 orders. A single reversal can pass by luck; this can't.
+      const offsets: Record<string, number> = { p1: 0, p2: 1, p3: 2, p4: 3 };
+      const perms: string[][] = [];
+      const permute = (rest: string[], acc: string[]) => {
+        if (rest.length === 0) { perms.push(acc); return; }
+        rest.forEach((x, i) => permute([...rest.slice(0, i), ...rest.slice(i + 1)], [...acc, x]));
+      };
+      permute(['p1', 'p2', 'p3', 'p4'], []);
+      expect(perms).toHaveLength(24);
+
+      const results = perms.map((order) => payoutFor(order, order.map((id) => offsets[id]), format));
+      const first = results[0];
+      for (const r of results) {
+        expect(r.total, `${format}: total varies by permutation`).toBe(first.total);
+        expect(r.net, `${format}: money varies by permutation`).toBe(first.net);
+      }
+    });
+  }
+
+  it('the CORRECT case (all members share the ball) is unchanged', () => {
+    // The normal path: one shared score written to every member. min of equal values is that
+    // value, so this must compute exactly as before the fix.
+    for (const format of ONE_BALL) {
+      const same = payoutFor(['p1', 'p2', 'p3', 'p4'], [0, 0, 0, 0], format);
+      const reversed = payoutFor(['p4', 'p3', 'p2', 'p1'], [0, 0, 0, 0], format);
+      expect(same.net, format).toBe(reversed.net);
+      // Four scratch players all shooting par: the team gross is par every hole.
+      expect(same.total, format).toBe(72);
+    }
+  });
+});

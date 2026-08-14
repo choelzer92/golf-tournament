@@ -100,12 +100,25 @@ export function teamNetOnHole(input: TeamScoreInput): number | null {
   const { playerIds, hole, format, grossOnHole, netOnHole } = input;
 
   if (isOneBall(format)) {
-    // One ball: members share an identical gross (the scorecard writes the same value to
-    // each), so read the first member who has one and apply the TEAM handicap.
+    // ONE BALL MEANS ONE SCORE. Craig's rule: "if you start a game as a scramble or alt
+    // shot, and dont declare a different format on the back 9 or different holes, I feel
+    // there should only be one score entered per team." A pool has a single format for all
+    // 18 holes (unlike a tournament's splitFormat), so there is no declared exception —
+    // divergent per-member scores are data that should not exist, not a case to resolve.
+    //
+    // This used to read the FIRST member with a score, which made the team score — and the
+    // payout — depend on the order of playerIds whenever members disagreed: the same round
+    // paid +$75 or -$75 after reordering four names. Taking the minimum is
+    // order-independent, and in the correct case (all members share the ball) min of equal
+    // values IS that value, so nothing changes. The guarantee is structural rather than a
+    // reliance on callers behaving.
+    //
+    // Divergence is PREVENTED upstream — the scorecard enters one shared score, and the hub
+    // refuses to switch a scored game to a one-ball format. This is the backstop.
     let gross: number | null = null;
     for (const id of playerIds) {
       const g = grossOnHole(id);
-      if (g !== null) { gross = g; break; }
+      if (g !== null && (gross === null || g < gross)) gross = g;
     }
     if (gross === null) return null;
     const strokes = getMoneyStrokesOnHole(input.teamHandicap ?? 0, hole.handicap, input.numHoles ?? 18);

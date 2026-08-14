@@ -803,6 +803,28 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
   const junk = game.junkValues ?? DEFAULT_JUNK_VALUES;
   const matchCfg = game.matchConfig ?? DEFAULT_MATCH_CONFIG;
 
+  // ONE BALL MEANS ONE SCORE, so a game that already has PER-PLAYER scores can't become a
+  // scramble or alternate shot mid-round: those scores were entered under a format where
+  // each member plays their own ball, and a one-ball format has no honest way to read four
+  // different numbers as one team score. A pool has a single format for all 18 holes (there
+  // is no PoolGame equivalent of a tournament's splitFormat), so there's no declared
+  // exception to allow for.
+  //
+  // Without this the payout depended on the ORDER of playerIds: the same round settled +$75
+  // or -$75 after reordering four names. The engine now takes the minimum so order can never
+  // matter, but the real fix is not creating the divergence in the first place.
+  const [hasScores, setHasScores] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const ids = Array.from(new Set(game.teams.map((t) => t.matchupId)));
+    Promise.all(ids.map((mid) => fetchGameScores(mid))).then((all) => {
+      if (cancelled) return;
+      setHasScores(all.some((s) => Array.isArray(s) && s.length > 0));
+    });
+    return () => { cancelled = true; };
+  }, [game]);
+  const lockOneBall = hasScores && !isOneBall(formatOfGame(game));
+
   const junkFields: { key: keyof PoolJunkValues; label: string }[] = [
     { key: 'birdie', label: 'Birdie' },
     { key: 'eagle', label: 'Eagle' },
@@ -996,16 +1018,34 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
           <select
             className={inputCls}
             value={formatOfGame(game)}
-            onChange={(e) => onSave({
-              ...game,
-              ...persistedTeamScoring(e.target.value as TeamFormat, game.teamScoreBasis ?? 'stroke'),
-            })}
+            onChange={(e) => {
+              const next = e.target.value as TeamFormat;
+              // Guard the handler too, not just the <option disabled>: a disabled option can
+              // still be selected programmatically, and this one changes how money settles.
+              if (lockOneBall && isOneBall(next)) return;
+              onSave({ ...game, ...persistedTeamScoring(next, game.teamScoreBasis ?? 'stroke') });
+            }}
           >
-            {TEAM_FORMAT_OPTIONS.map((o) => <option key={o.format} value={o.format}>{o.label}</option>)}
+            {TEAM_FORMAT_OPTIONS.map((o) => (
+              <option
+                key={o.format}
+                value={o.format}
+                disabled={lockOneBall && isOneBall(o.format)}
+              >
+                {o.label}{lockOneBall && isOneBall(o.format) ? ' — needs a fresh game' : ''}
+              </option>
+            ))}
           </select>
           <p className="text-xs text-gray-500 mt-1">
             {TEAM_FORMAT_OPTIONS.find((o) => o.format === formatOfGame(game))?.hint}
           </p>
+          {lockOneBall && (
+            <p className="text-xs text-amber-700 mt-1">
+              Scramble and alternate shot enter ONE score for the team. This game already has
+              scores entered per player, so switching now would leave four different numbers
+              on a hole that can only have one. Start a new game to play a scramble.
+            </p>
+          )}
         </div>
 
         <div>

@@ -856,3 +856,43 @@ test.describe('F-006: a GUEST on a share link scores a scramble correctly', () =
     await guestCtx.close();
   });
 });
+
+test.describe('F-006: one ball means one score — the hub will not create divergence', () => {
+  // Craig's rule: a scramble has one ball, so there should be one score per team. A PoolGame
+  // has a single format for all 18 holes, so there's no declared exception. That makes a
+  // mid-round switch TO a one-ball format illegal on a game that already has per-player
+  // scores — it would leave four different numbers on a hole that can only have one, and the
+  // payout then depended on the order of playerIds (+$75 vs −$75 on a reorder).
+  test('a game with per-player scores cannot switch to scramble', async ({ page }) => {
+    const id = await seed(page, 'Classic pool — 2 foursomes, mid-round');
+    await goToGame(page, id);
+    await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+
+    const picker = page.locator('select').filter({ hasText: 'Two best net scores' }).first();
+    await expect(picker).toBeVisible();
+
+    // The one-ball options are disabled and say why.
+    await expect(picker.locator('option[value="scramble"]')).toBeDisabled();
+    await expect(picker.locator('option[value="alternate-shot"]')).toBeDisabled();
+    await expect(page.getByText(/Scramble and alternate shot enter ONE score/)).toBeVisible();
+
+    // The multi-ball formats stay switchable — this game can still become Stableford or
+    // best-ball, which per-player entry handles correctly.
+    await expect(picker.locator('option[value="best-ball"]')).not.toBeDisabled();
+    await expect(picker.locator('option[value="combined"]')).not.toBeDisabled();
+
+    await page.screenshot({ path: 'e2e/screenshots/hub-oneball-locked.png', fullPage: true });
+  });
+
+  test('a game ALREADY playing scramble can still change its other settings', async ({ page }) => {
+    // The lock is about switching TO one ball, not about scramble games being frozen.
+    const id = await seed(page, 'Scramble pool');
+    await goToGame(page, id);
+    await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+
+    const picker = page.locator('select').filter({ hasText: 'Scramble' }).first();
+    await expect(picker).toHaveValue('scramble');
+    // Its own format is not flagged, because the scores it holds ARE one-ball scores.
+    await expect(page.getByText(/Scramble and alternate shot enter ONE score/)).toHaveCount(0);
+  });
+});
