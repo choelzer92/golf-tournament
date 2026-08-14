@@ -584,6 +584,37 @@ leaderboard's, in a test.
 
 ---
 
+## 5.ac Prevent impossible data; don't reconcile it (2026-08-14)
+
+Asked whether the next session could investigate the order-dependent scramble payout, I
+re-probed it and found the bug **still live** — my earlier fix changed the input (one shared
+score) without making the engine robust, and the hub picker I added in the same pass could
+re-create divergent scores via a mid-round format switch.
+
+I offered three options, all of which resolved four different scores into one team score
+somehow (take the lowest, take the lowest and warn, block just the one path). Craig rejected
+the framing: *"if you start a game as a scramble or alt shot, and dont declare a different
+format on the back 9 or different holes, I feel there should only be one score entered per
+team, right?"*
+
+He's right, and it's a stronger fix. A `PoolGame` has ONE format for all 18 holes — there is
+no equivalent of a tournament's `splitFormat` — so four different scores on a one-ball hole
+isn't an edge case to handle, it's data that should never exist. The fix is to stop creating
+it (the hub refuses the switch once per-player scores exist), with an order-independent
+`min` in the engine as a structural backstop rather than the primary answer.
+
+**Why:** "resolve it gracefully" would have made an impossible state look legitimate, and
+whichever resolution rule I picked would silently change what game was being played.
+
+**How to apply:** when a bug comes from malformed data, ask whether that data should be
+representable at all before designing a rule to interpret it. If the answer is no, close the
+door that creates it and treat any engine-level tolerance as a backstop with a test, not as
+the fix. And note the exception Craig named — a *declared* per-nine format change is
+legitimate; `PoolGame` just can't express one today. If that lands, this constraint needs
+revisiting rather than blindly keeping.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

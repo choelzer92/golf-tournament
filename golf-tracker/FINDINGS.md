@@ -577,6 +577,30 @@ against the leaderboard's full 18. They agree exactly (Out 35 = 4x8 + 3, since a
 of 8 puts strokes on SI 1-8, making a birdie there an eagle at 4 points). Verified with a probe
 before writing anything down.
 
+#### Follow-up (2026-08-14): the order-dependent payout was still live
+
+Asked whether the next session could pick this up, I re-probed all four reachable paths first
+and found the fix incomplete. The scorecard change removed the *input* that triggered it; the
+engine's "first member with a score" read was untouched, and **the hub format picker added in
+the same pass could re-create divergent scores** by switching a scored game to scramble:
+
+| path | p1 first | reversed | differs |
+|---|---|---|---|
+| divergent scores (old card) | +$75 | −$75 | **yes** |
+| identical scores (new card) | +$100 | +$100 | no |
+| **format switched mid-round (new hub picker)** | **+$75** | **−$75** | **yes** |
+| one member unscored | +$75 | +$75 | no |
+
+Two changes shipped in one pass, and I hadn't checked their interaction — the second undid the
+first's guarantee.
+
+Craig reframed the fix (see DECISIONS.md §5.ac): one ball means one score, so divergent
+per-member scores are data that should not exist. The hub now refuses to switch a scored game
+to a one-ball format (in the `<option disabled>` *and* the `onChange`, since a disabled option
+can still be set programmatically), and `teamNetOnHole` takes the minimum as a structural
+backstop. Pinned by all 24 permutations of a foursome × both one-ball formats, asserting
+neither the total nor the money moves; restoring the old read fails 4 of them.
+
 **Still open — the N-sides half of option C.** Everything above generalized the *pool*
 (N foursomes, any format). The 2v2 *within-group* engine is still hard-wired to exactly two
 sides, which is what Craig's "yes, eventually" was about:
