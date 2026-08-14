@@ -577,13 +577,27 @@ against the leaderboard's full 18. They agree exactly (Out 35 = 4x8 + 3, since a
 of 8 puts strokes on SI 1-8, making a birdie there an eagle at 4 points). Verified with a probe
 before writing anything down.
 
-**Still open:** `subTeams` widening to N sides;
-`subTeams` widening to N sides; `TeamLegLine.winner` widening; `settleJunkForSides`
-field-average settlement; Wolf as a 2-side consumer. The play page's leg panel
-(`app/game/play/page.tsx:2490`) shows a raw leg total in its sub-line — honest, but not
-pace-normalized under points.
+**Still open — the N-sides half of option C.** Everything above generalized the *pool*
+(N foursomes, any format). The 2v2 *within-group* engine is still hard-wired to exactly two
+sides, which is what Craig's "yes, eventually" was about:
 
-**Status:** in progress — engine + pool wiring + tests done, format picker not built
+- `subTeams: { a: string[]; b: string[] }` → N sides, with the two-side shape read as a
+  legacy case so saved games keep working (`pool-game.ts:205`, `roster-groups.ts:36`,
+  `game-modes/types.ts:55`, plus the wizard's `SubTeamsStep`)
+- `TeamLegLine.winner: 'a' | 'b' | null` → a side id (`game-modes/types.ts:87`)
+- `settleJunkForSides` nets side A against side B (`game-modes/settings.ts:188`); N sides
+  needs a field-average settlement like `settlePerPoint`
+- `team-game.ts:119` defaults to `{ a: [], b: [] }` and computes two standings
+- Wolf builds a Wolf-side and a field-side (`wolf.ts:82`), so it's a 2-side consumer of the
+  same code and must keep working unchanged
+- the money models (`per-hole`, `per-point`, `legs`) all assume a head-to-head margin
+
+Smaller follow-up: the play page's leg panel (`app/game/play/page.tsx`) shows a raw leg total
+in its sub-line — honest, but not pace-normalized under points.
+
+**Status:** pool side DONE (engine, 4 money-bug fixes, leaderboard, wizard + hub picker,
+scorecard, ~860-case sweep). Committed on `ui-consistency-and-compute-tests`, not merged.
+N-sides widening not started.
 
 ---
 
