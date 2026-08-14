@@ -1,0 +1,428 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GOLDEN: current ballSelection results (must not change) > 1-net-1-gross: per-hole team scores and leg totals are stable 1`] = `
+{
+  "holes": [
+    {
+      "n": 1,
+      "t1": 7,
+      "t2": 7,
+    },
+    {
+      "n": 2,
+      "t1": 9,
+      "t2": 9,
+    },
+    {
+      "n": 3,
+      "t1": 6,
+      "t2": 6,
+    },
+    {
+      "n": 4,
+      "t1": 8,
+      "t2": 8,
+    },
+    {
+      "n": 5,
+      "t1": 8,
+      "t2": 7,
+    },
+    {
+      "n": 6,
+      "t1": 8,
+      "t2": 7,
+    },
+  ],
+  "legs": [
+    {
+      "leg": "front",
+      "totals": [
+        {
+          "id": "t2",
+          "toPar": -4,
+          "total": 68,
+        },
+        {
+          "id": "t1",
+          "toPar": -1,
+          "total": 71,
+        },
+      ],
+    },
+    {
+      "leg": "back",
+      "totals": [
+        {
+          "id": "t2",
+          "toPar": 2,
+          "total": 74,
+        },
+        {
+          "id": "t1",
+          "toPar": 3,
+          "total": 75,
+        },
+      ],
+    },
+    {
+      "leg": "overall",
+      "totals": [
+        {
+          "id": "t2",
+          "toPar": -2,
+          "total": 142,
+        },
+        {
+          "id": "t1",
+          "toPar": 2,
+          "total": 146,
+        },
+      ],
+    },
+    {
+      "leg": "junk",
+      "totals": [
+        {
+          "id": "t1",
+          "toPar": 0,
+          "total": 0,
+        },
+        {
+          "id": "t2",
+          "toPar": 0,
+          "total": 0,
+        },
+      ],
+    },
+  ],
+  "payouts": [
+    {
+      "id": "t2",
+      "net": 75,
+    },
+    {
+      "id": "t1",
+      "net": -75,
+    },
+  ],
+}
+`;
+
+exports[`GOLDEN: current ballSelection results (must not change) > 2-best-gross: per-hole team scores and leg totals are stable 1`] = `
+{
+  "holes": [
+    {
+      "n": 1,
+      "t1": 9,
+      "t2": 9,
+    },
+    {
+      "n": 2,
+      "t1": 11,
+      "t2": 11,
+    },
+    {
+      "n": 3,
+      "t1": 7,
+      "t2": 7,
+    },
+    {
+      "n": 4,
+      "t1": 9,
+      "t2": 9,
+    },
+    {
+      "n": 5,
+      "t1": 9,
+      "t2": 9,
+    },
+    {
+      "n": 6,
+      "t1": 9,
+      "t2": 9,
+    },
+  ],
+  "legs": [
+    {
+      "leg": "front",
+      "totals": [
+        {
+          "id": "t1",
+          "toPar": 9,
+          "total": 81,
+        },
+        {
+          "id": "t2",
+          "toPar": 9,
+          "total": 81,
+        },
+      ],
+    },
+    {
+      "leg": "back",
+      "totals": [
+        {
+          "id": "t1",
+          "toPar": 9,
+          "total": 81,
+        },
+        {
+          "id": "t2",
+          "toPar": 9,
+          "total": 81,
+        },
+      ],
+    },
+    {
+      "leg": "overall",
+      "totals": [
+        {
+          "id": "t1",
+          "toPar": 18,
+          "total": 162,
+        },
+        {
+          "id": "t2",
+          "toPar": 18,
+          "total": 162,
+        },
+      ],
+    },
+    {
+      "leg": "junk",
+      "totals": [
+        {
+          "id": "t1",
+          "toPar": 0,
+          "total": 0,
+        },
+        {
+          "id": "t2",
+          "toPar": 0,
+          "total": 0,
+        },
+      ],
+    },
+  ],
+  "payouts": [
+    {
+      "id": "t1",
+      "net": 0,
+    },
+    {
+      "id": "t2",
+      "net": 0,
+    },
+  ],
+}
+`;
+
+exports[`GOLDEN: current ballSelection results (must not change) > 2-best-net: per-hole team scores and leg totals are stable 1`] = `
+{
+  "holes": [
+    {
+      "n": 1,
+      "t1": 7,
+      "t2": 6,
+    },
+    {
+      "n": 2,
+      "t1": 8,
+      "t2": 8,
+    },
+    {
+      "n": 3,
+      "t1": 5,
+      "t2": 5,
+    },
+    {
+      "n": 4,
+      "t1": 8,
+      "t2": 8,
+    },
+    {
+      "n": 5,
+      "t1": 8,
+      "t2": 7,
+    },
+    {
+      "n": 6,
+      "t1": 7,
+      "t2": 6,
+    },
+  ],
+  "legs": [
+    {
+      "leg": "front",
+      "totals": [
+        {
+          "id": "t2",
+          "toPar": -9,
+          "total": 63,
+        },
+        {
+          "id": "t1",
+          "toPar": -5,
+          "total": 67,
+        },
+      ],
+    },
+    {
+      "leg": "back",
+      "totals": [
+        {
+          "id": "t2",
+          "toPar": 0,
+          "total": 72,
+        },
+        {
+          "id": "t1",
+          "toPar": 2,
+          "total": 74,
+        },
+      ],
+    },
+    {
+      "leg": "overall",
+      "totals": [
+        {
+          "id": "t2",
+          "toPar": -9,
+          "total": 135,
+        },
+        {
+          "id": "t1",
+          "toPar": -3,
+          "total": 141,
+        },
+      ],
+    },
+    {
+      "leg": "junk",
+      "totals": [
+        {
+          "id": "t1",
+          "toPar": 0,
+          "total": 0,
+        },
+        {
+          "id": "t2",
+          "toPar": 0,
+          "total": 0,
+        },
+      ],
+    },
+  ],
+  "payouts": [
+    {
+      "id": "t2",
+      "net": 75,
+    },
+    {
+      "id": "t1",
+      "net": -75,
+    },
+  ],
+}
+`;
+
+exports[`GOLDEN: current ballSelection results (must not change) > 3 foursomes with a position split are stable 1`] = `
+[
+  {
+    "id": "t3",
+    "net": 66,
+  },
+  {
+    "id": "t2",
+    "net": -6,
+  },
+  {
+    "id": "t1",
+    "net": -60,
+  },
+]
+`;
+
+exports[`GOLDEN: current ballSelection results (must not change) > a nine is stable on both handicap bases 1`] = `
+{
+  "basis": "18",
+  "legs": [
+    {
+      "leg": "front",
+      "subPot": 0,
+    },
+    {
+      "leg": "back",
+      "subPot": 0,
+    },
+    {
+      "leg": "overall",
+      "subPot": 150,
+    },
+    {
+      "leg": "junk",
+      "subPot": 50,
+    },
+  ],
+  "payouts": [
+    {
+      "id": "t2",
+      "net": 75,
+    },
+    {
+      "id": "t1",
+      "net": -75,
+    },
+  ],
+}
+`;
+
+exports[`GOLDEN: current ballSelection results (must not change) > a nine is stable on both handicap bases 2`] = `
+{
+  "basis": "9",
+  "legs": [
+    {
+      "leg": "front",
+      "subPot": 0,
+    },
+    {
+      "leg": "back",
+      "subPot": 0,
+    },
+    {
+      "leg": "overall",
+      "subPot": 150,
+    },
+    {
+      "leg": "junk",
+      "subPot": 50,
+    },
+  ],
+  "payouts": [
+    {
+      "id": "t2",
+      "net": 75,
+    },
+    {
+      "id": "t1",
+      "net": -75,
+    },
+  ],
+}
+`;
+
+exports[`GOLDEN: current ballSelection results (must not change) > match mode leg outcomes are stable 1`] = `
+[
+  {
+    "id": "t2",
+    "net": 160,
+    "perPerson": 40,
+  },
+  {
+    "id": "t1",
+    "net": -160,
+    "perPerson": -40,
+  },
+]
+`;

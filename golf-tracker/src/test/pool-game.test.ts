@@ -27,7 +27,7 @@ import {
 } from '@/lib/pool-game';
 import type { GameScore } from '@/lib/game-state';
 import {
-  backNine, frontNine, makeGame, makePlayer, makePlayers, parScores, scoresFor, TEST_PARS,
+  allEighteen, backNine, frontNine, makeGame, makePlayer, makePlayers, parScores, scoresFor, TEST_PARS,
   type GameOpts,
 } from './fixtures';
 
@@ -565,6 +565,379 @@ describe('junk leg with nobody scoring (F-007 regression)', () => {
     expect(winner.teamId).toBe('t1');
     expect(winner.payout).toBeCloseTo(junk.subPot, 6);   // winner-take-all
     expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A pool of N foursomes playing scramble / Stableford (F-006)
+// ---------------------------------------------------------------------------
+
+describe('pool with a generalized teamFormat', () => {
+  it('a legacy game (no teamFormat) is byte-identical to before', () => {
+    // The safety property. Also covered by the golden snapshots below, asserted here
+    // directly so the intent is obvious at the call site.
+    const legacy = twoFoursomes();
+    expect(legacy.teamFormat).toBeUndefined();
+    const r = computePoolResult(legacy, new Map([
+      ['m1', flatRound(team1, 0)], ['m2', flatRound(team2, 1)],
+    ]));
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+
+  it('SCRAMBLE: four foursomes, one ball each', () => {
+    const game = makeGame({
+      teamCount: 2, indexes: [4, 10, 16, 22, 6, 12, 18, 24], entryPerPlayer: 25,
+      teamFormat: 'scramble', strokeMethod: 'full',
+    });
+    // One ball: every member of a foursome carries the SAME gross, as the scorecard writes.
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, 0)],   // team 1 shoots par
+      ['m2', flatRound(team2, 1)],   // team 2 bogeys
+    ]));
+    const t1 = r.payouts.find((p) => p.teamId === 't1')!;
+    expect(t1.net).toBeGreaterThan(0);          // the better scramble wins
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+
+  it('STABLEFORD: most points wins instead of lowest strokes', () => {
+    const game = makeGame({
+      teamCount: 2, indexes: Array(8).fill(0), entryPerPlayer: 25,
+      teamFormat: 'best-ball', teamScoreBasis: 'stableford',
+    });
+    // Team 1 birdies every hole (3 pts), team 2 pars (2 pts).
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, -1)],
+      ['m2', flatRound(team2, 0)],
+    ]));
+    const overall = r.legs.find((l) => l.leg === 'overall')!;
+    const t1 = overall.standings.find((st) => st.teamId === 't1')!;
+    const t2 = overall.standings.find((st) => st.teamId === 't2')!;
+    expect(t1.total).toBeGreaterThan(t2.total);
+    // AND the higher score must actually WIN. My first version of this test only checked
+    // the totals, which passed while the 54-point team was losing to the 36-point team —
+    // buildLeg ranks lower-is-better, which is backwards for points. Assert the money.
+    expect(t1.place).toBe(1);
+    expect(t2.place).toBe(2);
+    expect(r.payouts.find((p) => p.teamId === 't1')!.net).toBeGreaterThan(0);
+    expect(r.payouts.find((p) => p.teamId === 't2')!.net).toBeLessThan(0);
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+
+  it('STABLEFORD: a tie on points splits, and stays zero-sum', () => {
+    const game = makeGame({
+      teamCount: 2, indexes: Array(8).fill(0), entryPerPlayer: 25,
+      teamFormat: 'best-ball', teamScoreBasis: 'stableford',
+    });
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, 0)], ['m2', flatRound(team2, 0)],
+    ]));
+    const overall = r.legs.find((l) => l.leg === 'overall')!;
+    for (const st of overall.standings) expect(st.place).toBe(1);
+    for (const p of r.payouts) expect(p.net).toBeCloseTo(0, 6);
+  });
+
+  it('STABLEFORD: 4 foursomes rank best-points-first', () => {
+    const game = makeGame({
+      teamCount: 4, indexes: Array(16).fill(0), entryPerPlayer: 20,
+      teamFormat: 'best-ball', teamScoreBasis: 'stableford', positionSplit: [70, 30],
+    });
+    const ids = (n: number) => game.teams[n].playerIds;
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(ids(0), -1)],  // birdies — most points
+      ['m2', flatRound(ids(1), 0)],
+      ['m3', flatRound(ids(2), 1)],
+      ['m4', flatRound(ids(3), 2)],   // fewest
+    ]));
+    const overall = r.legs.find((l) => l.leg === 'overall')!;
+    expect(overall.standings.map((st) => st.teamId)).toEqual(['t1', 't2', 't3', 't4']);
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+
+  it('COMBINED: every member counts', () => {
+    const game = makeGame({
+      teamCount: 2, indexes: Array(8).fill(0), entryPerPlayer: 25, teamFormat: 'combined',
+    });
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, 0)], ['m2', flatRound(team2, 1)],
+    ]));
+    const overall = r.legs.find((l) => l.leg === 'overall')!;
+    // 4 players × 72 = 288 for the par team.
+    expect(overall.standings.find((st) => st.teamId === 't1')!.total).toBe(288);
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+
+  it('teamFormat works on a nine and stays zero-sum', () => {
+    const game = makeGame({
+      teamCount: 2, indexes: Array(8).fill(6), entryPerPlayer: 25,
+      teamFormat: 'best-ball', holesPlaying: 'back9',
+    });
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, 0, backNine())],
+      ['m2', flatRound(team2, 1, backNine())],
+    ]));
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+
+  // The thru-count normalization. `toPar` exists so a team mid-round can be compared with
+  // one that's finished; with the wrong ball count it stopped doing that job and ranked on
+  // holes played instead of on how well anyone played.
+  it('a team thru 9 ties a team thru 18 when both are even — every format', () => {
+    const CASES = [
+      { teamFormat: 'best-ball' as const, off: 0 },        // 1 ball
+      { teamFormat: 'two-best-net' as const, off: 0 },     // 2 balls
+      { teamFormat: 'combined' as const, off: 0 },         // 4 balls
+      { teamFormat: 'scramble' as const, off: 0 },         // 1 ball, team handicap
+    ];
+    for (const { teamFormat, off } of CASES) {
+      const game = makeGame({
+        teamCount: 2, indexes: Array(8).fill(0), entryPerPlayer: 25, teamFormat,
+      });
+      // Both teams even par; team 2 has only played the back nine.
+      const r = computePoolResult(game, new Map([
+        ['m1', flatRound(team1, off)],
+        ['m2', flatRound(team2, off, backNine())],
+      ]));
+      const overall = r.legs.find((l) => l.leg === 'overall')!;
+      const [a, b] = overall.standings;
+      expect(a.toPar, teamFormat).toBe(b.toPar);
+      expect(a.rankMetric, teamFormat).toBe(b.rankMetric);
+      for (const st of overall.standings) expect(st.place, teamFormat).toBe(1);
+    }
+  });
+
+  it('STABLEFORD ranks on PACE, not raw points, so thru counts stay comparable', () => {
+    const game = makeGame({
+      teamCount: 2, indexes: Array(8).fill(0), entryPerPlayer: 25,
+      teamFormat: 'best-ball', teamScoreBasis: 'stableford',
+    });
+    // Team 1: pars all 18 → 36 pts, dead even pace. Team 2: birdies the back 9 only →
+    // 27 pts from 9 holes, +9 on pace. FEWER raw points, clearly playing better.
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, 0)],
+      ['m2', flatRound(team2, -1, backNine())],
+    ]));
+    const overall = r.legs.find((l) => l.leg === 'overall')!;
+    const t1 = overall.standings.find((st) => st.teamId === 't1')!;
+    const t2 = overall.standings.find((st) => st.teamId === 't2')!;
+    expect(t1.total).toBe(36);
+    expect(t2.total).toBe(27);
+    expect(t1.total).toBeGreaterThan(t2.total);   // more raw points…
+    expect(t2.place).toBe(1);                      // …but team 2 is ahead on pace
+    expect(t1.place).toBe(2);
+    // toPar under points reads as pace: even vs nine-better-than-pars.
+    expect(t1.toPar).toBe(0);
+    expect(t2.toPar).toBe(9);
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+
+  // MATCH mode was the worst of the three: it ranked on toPar directly, so the higher
+  // Stableford total (a MORE negative toPar under the old math) lost every leg and paid
+  // the full amount to the team that played worse.
+  it('STABLEFORD + match/stroke: most points wins each leg', () => {
+    const game = makeGame({
+      teamCount: 2, indexes: Array(8).fill(0),
+      teamFormat: 'best-ball', teamScoreBasis: 'stableford',
+      moneyMode: 'match',
+      matchConfig: {
+        legDollars: { front: 10, back: 10, overall: 20 },
+        junkPerPoint: 0, scoring: 'stroke',
+        pointsPerHole: { win: 1, tie: 0.5, loss: 0 },
+      },
+    });
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, -1)],   // birdies: 54 pts
+      ['m2', flatRound(team2, 0)],    // pars:    36 pts
+    ]));
+    const t1 = r.payouts.find((p) => p.teamId === 't1')!;
+    const t2 = r.payouts.find((p) => p.teamId === 't2')!;
+    // All three legs to team 1: ($10 + $10 + $20) × 4 players.
+    expect(t1.perPersonNet).toBe(40);
+    expect(t1.net).toBe(160);
+    expect(t2.net).toBe(-160);
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+
+  it('STABLEFORD + match/holes: MORE points wins the hole', () => {
+    const game = makeGame({
+      teamCount: 2, indexes: Array(8).fill(0),
+      teamFormat: 'best-ball', teamScoreBasis: 'stableford',
+      moneyMode: 'match',
+      matchConfig: {
+        legDollars: { front: 10, back: 10, overall: 20 },
+        junkPerPoint: 0, scoring: 'holes',
+        pointsPerHole: { win: 1, tie: 0.5, loss: 0 },
+      },
+    });
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, -1)],   // 3 pts a hole
+      ['m2', flatRound(team2, 0)],    // 2 pts a hole
+    ]));
+    const overall = r.legs.find((l) => l.leg === 'overall')!;
+    const t1 = overall.standings.find((st) => st.teamId === 't1')!;
+    const t2 = overall.standings.find((st) => st.teamId === 't2')!;
+    // Team 1 wins all 18 holes. Hard-coded `a < b` gave it ZERO.
+    expect(t1.holesWon).toBe(18);
+    expect(t2.holesWon).toBe(0);
+    expect(t1.place).toBe(1);
+    expect(r.payouts.find((p) => p.teamId === 't1')!.net).toBe(160);
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+
+  // Junk is scored and settled independently of the score basis — birdies are birdies
+  // whether the leg is strokes or points. Both junk models are asserted here so a future
+  // change to the score basis can't quietly move junk money.
+  it('JUNK, pot model: unaffected by the Stableford basis', () => {
+    const opts = {
+      teamCount: 2, indexes: Array(8).fill(0), entryPerPlayer: 25,
+      teamFormat: 'best-ball' as const,
+    };
+    // Team 1 birdies every hole (4 players × 18 birdies), team 2 pars.
+    const scores = new Map([['m1', flatRound(team1, -1)], ['m2', flatRound(team2, 0)]]);
+    const strokes = computePoolResult(makeGame(opts), scores);
+    const points = computePoolResult(makeGame({ ...opts, teamScoreBasis: 'stableford' }), scores);
+
+    const junkOf = (r: typeof strokes) => r.legs.find((l) => l.leg === 'junk')!;
+    // Identical junk totals, sub-pot, places and payouts under both bases.
+    expect(junkOf(points).subPot).toBe(junkOf(strokes).subPot);
+    expect(junkOf(points).standings.map((s) => [s.teamId, s.total, s.place, s.payout]))
+      .toEqual(junkOf(strokes).standings.map((s) => [s.teamId, s.total, s.place, s.payout]));
+    expect(points.junkDetails).toEqual(strokes.junkDetails);
+    // And the winner of the junk sub-pot is the team that actually made the birdies.
+    const t1Junk = junkOf(points).standings.find((s) => s.teamId === 't1')!;
+    expect(t1Junk.total).toBeGreaterThan(0);
+    expect(t1Junk.place).toBe(1);
+    expect(t1Junk.payout).toBeGreaterThan(0);
+    expect(netSum(points.payouts)).toBeCloseTo(0, 6);
+  });
+
+  it('JUNK, $-per-point differential: unaffected by the Stableford basis', () => {
+    const matchConfig = {
+      legDollars: { front: 10, back: 10, overall: 20 },
+      junkPerPoint: 5, scoring: 'stroke' as const,
+      pointsPerHole: { win: 1, tie: 0.5, loss: 0 },
+    };
+    const opts = {
+      teamCount: 2, indexes: Array(8).fill(0),
+      teamFormat: 'best-ball' as const, moneyMode: 'match' as const, matchConfig,
+    };
+    const scores = new Map([['m1', flatRound(team1, -1)], ['m2', flatRound(team2, 0)]]);
+    const strokes = computePoolResult(makeGame(opts), scores);
+    const points = computePoolResult(makeGame({ ...opts, teamScoreBasis: 'stableford' }), scores);
+
+    // The junk differential is the same dollars under both bases…
+    const junkPer = (r: typeof strokes, id: string) => r.payouts.find((p) => p.teamId === id)!.junk;
+    expect(junkPer(points, 't1')).toBe(junkPer(strokes, 't1'));
+    expect(junkPer(points, 't2')).toBe(junkPer(strokes, 't2'));
+    // …and it's a real, signed amount to the birdie team, not zero.
+    expect(junkPer(points, 't1')).toBeGreaterThan(0);
+    expect(junkPer(points, 't1')).toBe(-junkPer(points, 't2'));
+    // 72 birdies vs 0 = margin 72 × $5 = $360 per player.
+    expect(junkPer(points, 't1')).toBe(360);
+    expect(netSum(points.payouts)).toBeCloseTo(0, 6);
+  });
+
+  it('scales to 4 foursomes', () => {
+    const game = makeGame({
+      teamCount: 4, indexes: Array(16).fill(8), entryPerPlayer: 20,
+      teamFormat: 'best-ball', teamScoreBasis: 'stableford',
+    });
+    const ids = (n: number) => game.teams[n].playerIds;
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(ids(0), -1)], ['m2', flatRound(ids(1), 0)],
+      ['m3', flatRound(ids(2), 1)], ['m4', flatRound(ids(3), 2)],
+    ]));
+    expect(r.payouts).toHaveLength(4);
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GOLDEN SNAPSHOT — pins today's ballSelection math before the N-sides work
+// ---------------------------------------------------------------------------
+//
+// F-006 generalizes team scoring from two sides to N. That touches the money engine's hot
+// path, so before ANY of it: lock down exactly what every existing ballSelection produces,
+// on a mixed-handicap field, across both money modes and a nine. If the generalization
+// changes any of these numbers, existing games would settle differently — which is not
+// allowed. These are deliberately concrete numbers, not invariants.
+
+describe('GOLDEN: current ballSelection results (must not change)', () => {
+  const VARIANTS = ['1-net-1-gross', '2-best-net', '2-best-gross'] as const;
+  // A mixed field, so handicap strokes actually bite.
+  const MIXED = [2, 9, 15, 24, 5, 11, 18, 27];
+
+  function fixture(variant: (typeof VARIANTS)[number], extra: GameOpts = {}) {
+    return makeGame({
+      teamCount: 2, indexes: MIXED, entryPerPlayer: 25,
+      ballSelection: variant, strokeMethod: 'off-the-low', ...extra,
+    });
+  }
+  // Distinct, deterministic scores per player so every variant differs.
+  const scoresFor8 = (ids: string[], holes = allEighteen()) =>
+    ids.flatMap((id, i) => scoresFor(id, holes.map((h) => TEST_PARS[h - 1] + ((h + i) % 4)), holes));
+
+  for (const variant of VARIANTS) {
+    it(`${variant}: per-hole team scores and leg totals are stable`, () => {
+      const game = fixture(variant);
+      const r = computePoolResult(game, new Map([
+        ['m1', scoresFor8(['p1', 'p2', 'p3', 'p4'])],
+        ['m2', scoresFor8(['p5', 'p6', 'p7', 'p8'])],
+      ]));
+      // Snapshot the first six holes' team scores plus every leg total, which together
+      // pin the ball-selection rule AND the stroke allocation feeding it.
+      const shape = {
+        holes: r.holeScores.slice(0, 6).map((h) => ({ n: h.holeNumber, t1: h.teamScores.t1, t2: h.teamScores.t2 })),
+        legs: r.legs.map((l) => ({
+          leg: l.leg,
+          totals: l.standings.map((st) => ({ id: st.teamId, total: st.total, toPar: st.toPar })),
+        })),
+        payouts: r.payouts.map((p) => ({ id: p.teamId, net: p.net })),
+      };
+      expect(shape).toMatchSnapshot();
+    });
+  }
+
+  it('match mode leg outcomes are stable', () => {
+    const game = fixture('1-net-1-gross', {
+      moneyMode: 'match',
+      matchConfig: {
+        legDollars: { front: 10, back: 10, overall: 20 },
+        junkPerPoint: 5, scoring: 'holes',
+        pointsPerHole: { win: 1, tie: 0.5, loss: 0 },
+      },
+    });
+    const r = computePoolResult(game, new Map([
+      ['m1', scoresFor8(['p1', 'p2', 'p3', 'p4'])],
+      ['m2', scoresFor8(['p5', 'p6', 'p7', 'p8'])],
+    ]));
+    expect(r.payouts.map((p) => ({ id: p.teamId, net: p.net, perPerson: p.perPersonNet }))).toMatchSnapshot();
+  });
+
+  it('a nine is stable on both handicap bases', () => {
+    for (const basis of ['18', '9'] as const) {
+      const game = fixture('2-best-net', { holesPlaying: 'back9', nineHandicapBasis: basis });
+      const r = computePoolResult(game, new Map([
+        ['m1', scoresFor8(['p1', 'p2', 'p3', 'p4'], backNine())],
+        ['m2', scoresFor8(['p5', 'p6', 'p7', 'p8'], backNine())],
+      ]));
+      expect({
+        basis,
+        legs: r.legs.map((l) => ({ leg: l.leg, subPot: l.subPot })),
+        payouts: r.payouts.map((p) => ({ id: p.teamId, net: p.net })),
+      }).toMatchSnapshot();
+    }
+  });
+
+  it('3 foursomes with a position split are stable', () => {
+    const game = makeGame({
+      teamCount: 3, indexes: [...MIXED, 7, 13, 21, 30], entryPerPlayer: 20,
+      ballSelection: '1-net-1-gross', positionSplit: [70, 30], strokeMethod: 'off-the-low',
+    });
+    const ids = (n: number) => game.teams[n].playerIds;
+    const r = computePoolResult(game, new Map([
+      ['m1', scoresFor8(ids(0))], ['m2', scoresFor8(ids(1))], ['m3', scoresFor8(ids(2))],
+    ]));
+    expect(r.payouts.map((p) => ({ id: p.teamId, net: p.net }))).toMatchSnapshot();
   });
 });
 

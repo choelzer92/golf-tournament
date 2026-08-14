@@ -5,6 +5,10 @@ import { getMoneyStrokesOnHole } from './money-games';
 import { bestBallTeamHoleScore } from './live-scoring';
 import { supabase } from './supabase';
 import { ORGANIZER_TOKEN, generateShareToken } from './invite-gate';
+import {
+  ballsPerHole, betterValue, evenValueOnHole, isOneBall, teamValueOnHole,
+  type ScoreBasis, type TeamFormat,
+} from './game-modes/team-scoring';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -207,6 +211,13 @@ export interface PoolGame {
   // (hole N → wolfOrder[(N-1) % len]). Absent = fall back to game.players order
   // (today's behavior). Set via the Wolf draw (mini-game / randomize / manual).
   wolfOrder?: string[];
+  // GENERALIZED TEAM SCORING (F-006). ABSENT on every existing game, which keeps them on
+  // the legacy `ballSelection` path — its exact math is pinned by golden snapshots in
+  // pool-game.test.ts. When set, the foursome's hole score comes from the same engine the
+  // 2v2 mode uses, so a pool can play scramble / alternate shot / combined, and score in
+  // Stableford points instead of strokes.
+  teamFormat?: TeamFormat;
+  teamScoreBasis?: ScoreBasis;
   // Manual bonuses this game plays, and the marks scorers have tapped. Both ABSENT on
   // every existing game, which keeps them computing identically — the fixed five in
   // junkValues are unaffected. See CustomBonus / BonusMarks.
@@ -292,8 +303,19 @@ export type PoolLegKey = 'front' | 'back' | 'overall' | 'junk';
 export interface PoolTeamLegStanding {
   teamId: string;
   teamName: string;
-  total: number;   // summed team hole score over scored leg holes
-  toPar: number;   // total minus (2 x par) over scored holes — comparable across thru counts
+  total: number;   // summed team hole score over scored leg holes (strokes, or Stableford points)
+  // Total minus the "even" value over scored holes, so it stays comparable across differing
+  // thru counts. Under strokes that's par × balls per hole and reads as to-par (−3 = 3
+  // under). Under Stableford it's 2 points × balls and reads as PACE (+4 = four points
+  // better than steady pars). Sign convention therefore flips with the basis — never sort
+  // on this; sort on `rankMetric`.
+  toPar: number;
+  // The single ranking number, ALWAYS lower-is-better whatever the basis (it is `toPar`
+  // under strokes and `-toPar` under points). Every consumer — pot payouts, head-to-head
+  // leg outcomes, the leaderboard — must rank on this. Four separate places used to derive
+  // their own comparison from `toPar`, and when Stableford made higher-better, three of
+  // them silently paid the losing team. One field, one direction, no chance of drift.
+  rankMetric: number;
   thru: number;    // leg holes scored
   place: number;
   payout: number;  // gross winnings from this leg's sub-pot
@@ -1448,6 +1470,7 @@ function teamHoleScore(
   variant: TwoBestBallsVariant
 ): number | null {
   const playerScores: { gross: number; net: number }[] = [];
+  const byId = new Map<string, { gross: number; net: number }>();
   for (const pid of team.playerIds) {
     const sc = scores.find((s) => s.playerId === pid && s.hole === hole.number);
     if (!sc) continue;
@@ -1457,8 +1480,38 @@ function teamHoleScore(
     // (game-aware: re-ranked 1–9 on the USGA 9-hole basis).
     const strokeIndex = player ? playerHoleStrokeIndexForGame(game, player, hole.number, hole.handicap) : hole.handicap;
     const strokes = getMoneyStrokesOnHole(hcap, strokeIndex, numHoles);
-    playerScores.push({ gross: sc.grossScore, net: sc.grossScore - strokes });
+    const card = { gross: sc.grossScore, net: sc.grossScore - strokes };
+    playerScores.push(card);
+    byId.set(pid, card);
   }
+
+  // Generalized path — only when the game opted in. Every existing game has no
+  // teamFormat and falls through to the legacy call below, whose exact output is pinned
+  // by golden snapshots.
+  if (game.teamFormat) {
+    const teamHcap = isOneBall(game.teamFormat)
+      ? teamHandicapForFormat(
+          team.playerIds.map((pid) => {
+            const p = game.players.find((x) => x.id === pid);
+            return p ? getPoolPlayingHandicap(p, game.course, 100, game.handicapBasis, gameNineBasis(game)) : 0;
+          }),
+          game.teamFormat === 'scramble' ? 'scramble' : 'alternate-shot',
+        )
+      : 0;
+    return teamValueOnHole(
+      {
+        playerIds: team.playerIds,
+        hole,
+        format: game.teamFormat,
+        grossOnHole: (id) => byId.get(id)?.gross ?? null,
+        netOnHole: (id) => byId.get(id)?.net ?? null,
+        teamHandicap: teamHcap,
+        numHoles,
+      },
+      game.teamScoreBasis ?? 'stroke',
+    );
+  }
+
   return bestBallTeamHoleScore(playerScores, variant);
 }
 
@@ -1468,10 +1521,17 @@ function buildLeg(
   teams: PoolTeam[],
   holeScoresByTeam: Map<string, Map<number, number | null>>,
   subPot: number,
-  positionSplit: number[]
+  positionSplit: number[],
+  // How to measure a hole. Defaults to the legacy shape — strokes, two balls (best net +
+  // best gross) — so every existing game computes exactly as before.
+  scoring: { basis: ScoreBasis; ballsFor: (team: PoolTeam) => number } = {
+    basis: 'stroke',
+    ballsFor: () => 2,
+  },
 ): PoolLeg {
   const standings: PoolTeamLegStanding[] = teams.map((team) => {
     const perHole = holeScoresByTeam.get(team.id)!;
+    const balls = scoring.ballsFor(team);
     let total = 0;
     let toPar = 0;
     let thru = 0;
@@ -1479,20 +1539,25 @@ function buildLeg(
       const s = perHole.get(hole.number);
       if (s === null || s === undefined) continue;
       total += s;
-      toPar += s - hole.par * 2; // two balls contribute (best net + best gross)
+      // Normalize against what this format's ball count makes an "even" hole, so a team
+      // thru 9 stays comparable to one thru 18. See evenValueOnHole.
+      toPar += s - evenValueOnHole(hole, scoring.basis, balls);
       thru++;
     }
-    return { teamId: team.id, teamName: team.name, total, toPar, thru, place: 0, payout: 0 };
+    // Points are higher-is-better, so negate to keep ONE lower-is-better direction for
+    // every consumer downstream (sort, distributePot, tie detection, the leaderboard).
+    const rankMetric = scoring.basis === 'stableford' ? -toPar : toPar;
+    return { teamId: team.id, teamName: team.name, total, toPar, rankMetric, thru, place: 0, payout: 0 };
   });
 
   const complete = standings.every((s) => s.thru === legHoles.length) && legHoles.length > 0;
 
-  // Rank by toPar ascending (lower is better). Teams with no holes sink to the bottom.
+  // Rank by rankMetric ascending (lower is better). Teams with no holes sink to the bottom.
   const ranked = [...standings].sort((a, b) => {
     if (a.thru === 0 && b.thru === 0) return 0;
     if (a.thru === 0) return 1;
     if (b.thru === 0) return -1;
-    return a.toPar - b.toPar;
+    return a.rankMetric - b.rankMetric;
   });
 
   // A leg NOBODY has started yet is a dead heat — everyone is tied at zero holes, so
@@ -1506,7 +1571,7 @@ function buildLeg(
   const eligible = ranked.filter((s) => s.thru > 0);
   const contenders = eligible.length > 0 ? eligible : ranked;
   const payouts = distributePot(
-    contenders.map((s) => ({ teamId: s.teamId, metric: s.toPar })),
+    contenders.map((s) => ({ teamId: s.teamId, metric: s.rankMetric })),
     subPot,
     positionSplit
   );
@@ -1517,7 +1582,7 @@ function buildLeg(
     // Before a leg starts, every team is jointly 1st (and paid) rather than unplaced —
     // place must agree with the payout or the board pays a team it shows as ranked 0.
     if (legStarted && ranked[i].thru === 0) { ranked[i].place = 0; continue; }
-    if (i > 0 && ranked[i - 1].thru > 0 && ranked[i].toPar !== ranked[i - 1].toPar) place = i + 1;
+    if (i > 0 && ranked[i - 1].thru > 0 && ranked[i].rankMetric !== ranked[i - 1].rankMetric) place = i + 1;
     ranked[i].place = place;
     ranked[i].payout = payouts[ranked[i].teamId] ?? 0;
   }
@@ -1584,15 +1649,19 @@ function computeJunk(
 }
 
 // Head-to-head HOLE tally for a leg between exactly two teams (match-play
-// scoring). For each leg hole where BOTH teams have a team score, the lower
+// scoring). For each leg hole where BOTH teams have a team score, the BETTER
 // score wins the hole; equal scores halve it. Returns holes won by each side,
 // halved holes, and the display points (holesWon × win + halved × tie).
+//
+// "Better" is lower under strokes and HIGHER under Stableford — `basis` carries which.
+// Hard-coded `a < b` here handed a birdies-everything team 0 of 18 holes.
 function computeLegHoleMatch(
   legHoles: HoleData[],
   teamAId: string,
   teamBId: string,
   holeScoresByTeam: Map<string, Map<number, number | null>>,
-  points: { win: number; tie: number; loss: number }
+  points: { win: number; tie: number; loss: number },
+  basis: ScoreBasis = 'stroke',
 ): { aWon: number; bWon: number; tied: number; aPoints: number; bPoints: number } {
   const aMap = holeScoresByTeam.get(teamAId);
   const bMap = holeScoresByTeam.get(teamBId);
@@ -1601,9 +1670,9 @@ function computeLegHoleMatch(
     const a = aMap?.get(hole.number);
     const b = bMap?.get(hole.number);
     if (a === null || a === undefined || b === null || b === undefined) continue;
-    if (a < b) aWon++;
-    else if (b < a) bWon++;
-    else tied++;
+    if (a === b) tied++;
+    else if (betterValue(basis, a, b)) aWon++;
+    else bWon++;
   }
   return {
     aWon, bWon, tied,
@@ -1614,9 +1683,9 @@ function computeLegHoleMatch(
 
 // The winner/loser of a single leg in a HEAD-TO-HEAD match. In match-play
 // ('holes') scoring the leg standings carry `holesWon`, so the leg goes to
-// whoever won more holes (equal = halved = push). Otherwise ranks by toPar
-// (lower is better) — toPar normalizes for differing thru counts. Returns nulls
-// for a push, or when fewer than two teams have any score.
+// whoever won more holes (equal = halved = push). Otherwise ranks by `rankMetric`
+// (always lower-is-better, and already normalized for differing thru counts).
+// Returns nulls for a push, or when fewer than two teams have any score.
 function matchLegOutcome(leg: PoolLeg): { winnerId: string | null; loserId: string | null } {
   const played = leg.standings.filter((s) => s.thru > 0);
   if (played.length < 2) return { winnerId: null, loserId: null };
@@ -1628,8 +1697,10 @@ function matchLegOutcome(leg: PoolLeg): { winnerId: string | null; loserId: stri
     return { winnerId: sorted[0].teamId, loserId: sorted[1].teamId };
   }
 
-  const sorted = [...played].sort((a, b) => a.toPar - b.toPar);
-  if (sorted[0].toPar === sorted[1].toPar) return { winnerId: null, loserId: null }; // push
+  // rankMetric, not toPar: under Stableford a HIGHER toPar is better, and sorting it
+  // ascending paid the losing team the whole leg.
+  const sorted = [...played].sort((a, b) => a.rankMetric - b.rankMetric);
+  if (sorted[0].rankMetric === sorted[1].rankMetric) return { winnerId: null, loserId: null }; // push
   return { winnerId: sorted[0].teamId, loserId: sorted[1].teamId };
 }
 
@@ -1795,9 +1866,19 @@ export function computePoolResult(
   // Pot allocation: 9-hole puts the whole non-junk pot on overall; 18-hole uses
   // the configured front/back/overall split.
   const overallSubPot = nineOnly ? pot * (1 - game.potSplit.junk) : pot * game.potSplit.overall;
-  const front = buildLeg('front', frontHoles, game.teams, holeScoresByTeam, nineOnly ? 0 : pot * game.potSplit.front, game.positionSplit);
-  const back = buildLeg('back', backHoles, game.teams, holeScoresByTeam, nineOnly ? 0 : pot * game.potSplit.back, game.positionSplit);
-  const overall = buildLeg('overall', holes, game.teams, holeScoresByTeam, overallSubPot, game.positionSplit);
+  // How to measure a hole. A legacy game (no teamFormat) keeps strokes and the two balls
+  // every ballSelection plays; a generalized game reports its own basis and ball count so
+  // the leg totals are normalized against the right "even" value. `combined` counts a ball
+  // per member, so ballsFor is per-team rather than a constant.
+  const legScoring: { basis: ScoreBasis; ballsFor: (team: PoolTeam) => number } = game.teamFormat
+    ? {
+        basis: game.teamScoreBasis ?? 'stroke',
+        ballsFor: (team) => ballsPerHole(game.teamFormat!, team.playerIds.length),
+      }
+    : { basis: 'stroke', ballsFor: () => 2 };
+  const front = buildLeg('front', frontHoles, game.teams, holeScoresByTeam, nineOnly ? 0 : pot * game.potSplit.front, game.positionSplit, legScoring);
+  const back = buildLeg('back', backHoles, game.teams, holeScoresByTeam, nineOnly ? 0 : pot * game.potSplit.back, game.positionSplit, legScoring);
+  const overall = buildLeg('overall', holes, game.teams, holeScoresByTeam, overallSubPot, game.positionSplit, legScoring);
 
   // Head-to-head match play (two teams, matchConfig.scoring === 'holes'):
   // annotate each score leg with the hole-by-hole tally so the leg is won by
@@ -1809,7 +1890,7 @@ export function computePoolResult(
     const [tA, tB] = game.teams;
     const pts = matchCfg0.pointsPerHole ?? DEFAULT_MATCH_POINTS;
     const annotate = (leg: PoolLeg, legHoles: HoleData[]) => {
-      const m = computeLegHoleMatch(legHoles, tA.id, tB.id, holeScoresByTeam, pts);
+      const m = computeLegHoleMatch(legHoles, tA.id, tB.id, holeScoresByTeam, pts, legScoring.basis);
       for (const s of leg.standings) {
         const isA = s.teamId === tA.id;
         s.holesWon = isA ? m.aWon : m.bWon;
@@ -1863,6 +1944,9 @@ export function computePoolResult(
       teamName: j.teamName,
       total: j.total,
       toPar: j.total,
+      // Junk has always been points-scored — more is better — hence the negation, matching
+      // the metric handed to distributePot just above.
+      rankMetric: -j.total,
       thru: thruHole,
       // Everyone tied at zero still HAS a place (joint 1st) — it must match the
       // payout, or the leaderboard pays a team while showing it unplaced.
