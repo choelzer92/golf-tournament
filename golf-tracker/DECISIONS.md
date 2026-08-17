@@ -648,6 +648,54 @@ stays as built — Craig's call, revisit later, don't rebuild unprompted.
 
 ---
 
+## 5.ae Multi-side margin money is PAIRWISE round-robin (2026-08-17)
+
+Asked what "$2 per hole won" or "$1 per point" should mean once three or more sides play in one
+group, I offered a margin rule vs a field average. Craig rejected both framings twice, and the
+second time named the actual rule:
+
+> "wouldnt if it was $ per stroke, or something like that, the losing team would owe all teams
+> ahead of them, and the 2nd team would owe just the one ahead?"
+
+**Decision: every side settles against every OTHER side, pairwise.** A side's money is the sum
+of its result against each opponent individually.
+
+Verified before building on it — $1/point, three sides at 70 / 74 / 80:
+
+```
+A: (74−70) + (80−70) = +$14     last owes both sides ahead of it
+B: (70−74) + (80−74) =  +$2     2nd owes only 1st, and collects from 3rd
+C: (70−80) + (74−80) = −$16
+                        sum $0
+```
+
+**Why it's the right rule.** It is zero-sum at every side count, and at two sides it reduces to
+exactly today's payout (A +$4 on a 4-stroke margin), so no existing 2v2 game moves. It also
+matches how these games are actually settled at the table — you owe the people who beat you, by
+how much they beat you — and it generalizes the *same* idea as the junk rule in §5.ad rather
+than introducing a second style of settlement into one game.
+
+Note the property that makes it fair and that a field average also has: B can finish 2nd and
+still be *up*, because it lost to one side and beat another. An "outright winner takes all"
+rule would have paid B nothing.
+
+**My framing error, worth recording.** I asked this as "collect-from-every-side vs
+field-average" — both of which are *aggregate* rules — when the natural unit is the PAIRING. I
+also asked about tie-breaking as though it were an open question; `distributePot` already
+implements exactly what Craig described (tied 1st shares 1st+2nd money; tied 2nd splits 2nd),
+verified by probe. Two of three questions in that round were answerable from the codebase.
+
+**How to apply:** when a rule needs generalizing, ask what the atomic unit of the settlement is
+before offering aggregate formulas. And check whether the codebase already answers the
+question — §5.y's lesson (Craig's questions are load-bearing) has a mirror: my questions should
+be load-bearing too, not a menu of things I could have looked up.
+
+**Still open, deliberately not built here:** the 2v2 mode has NO pot model — its three money
+models are all margins. A "buy-in, split by place" option for multi-side games would come free
+from `distributePot` + `positionSplit`. Craig hasn't chosen it; don't add it unprompted.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

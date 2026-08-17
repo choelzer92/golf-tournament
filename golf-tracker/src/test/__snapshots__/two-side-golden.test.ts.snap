@@ -958,7 +958,7 @@ exports[`GOLDEN: 2v2 across every format x scoring x result x money model > alte
 }
 `;
 
-exports[`GOLDEN: 2v2 across every format x scoring x result x money model > an unscored side, and a part-scored round, are stable 1`] = `
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > an unscored side sits OUT rather than leading on a total of zero 1`] = `
 {
   "junkLines": undefined,
   "metricLabel": "net",
@@ -968,22 +968,6 @@ exports[`GOLDEN: 2v2 across every format x scoring x result x money model > an u
     "b": "Player3 & Player4",
   },
   "standings": [
-    {
-      "id": "B",
-      "money": -0,
-      "name": "Player3 & Player4",
-      "perHole": [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-      ],
-      "place": 1,
-      "points": 0,
-      "thru": 0,
-    },
     {
       "id": "A",
       "money": 0,
@@ -996,9 +980,25 @@ exports[`GOLDEN: 2v2 across every format x scoring x result x money model > an u
         null,
         null,
       ],
-      "place": 2,
+      "place": 1,
       "points": 20,
       "thru": 5,
+    },
+    {
+      "id": "B",
+      "money": 0,
+      "name": "Player3 & Player4",
+      "perHole": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
+      "place": 0,
+      "points": 0,
+      "thru": 0,
     },
   ],
   "teamLegs": [

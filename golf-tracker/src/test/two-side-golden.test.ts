@@ -187,12 +187,89 @@ describe('GOLDEN: 2v2 across every format x scoring x result x money model', () 
     expect(standing(r, 'B').moneyNet).toBe(-7);
   });
 
-  it('an unscored side, and a part-scored round, are stable', () => {
-    // Side B has posted nothing: no leg can be decided, so no money changes hands.
+  // DELIBERATELY RE-PINNED (2026-08-17). This is the one case of the 48 whose snapshot changed
+  // when the engine went to N sides, and it changed because it was WRONG:
+  //
+  //   before: side B, thru 0, ranked PLACE 1 — its total of 0 "beat" side A's 20 under strokes,
+  //           and under per-point money it collected +$20 for a round it had not started
+  //   after:  side B is place 0 and out of the settlement until it posts a score
+  //
+  // The same defect at a less extreme setting: both sides at par, A thru 9 vs B thru 5, paid
+  // $16 to B for having played less golf. Craig's call was to rank on SCORE TO PAR showing thru
+  // ("this is what it looks like in a normal golf tournament in terms of the scoreboard"), which
+  // is the mechanism the classic pool has had since the pool half of F-006 (evenValueOnHole).
+  //
+  // Why no other snapshot moved: at equal thru counts the to-par margin is arithmetically
+  // identical to the raw-total margin, because the "even" term cancels. So completed games —
+  // every real settled round — pay exactly what they paid before. 47 of 48 cells byte-identical.
+  it('an unscored side sits OUT rather than leading on a total of zero', () => {
     const g = game2v2({ format: 'best-ball', scoring: 'stroke', result: 'total', moneyModel: 'legs' });
     const r = run(g, spread(['p1', 'p2'], [1, 2, 3, 4, 5]));
     expect(shapeOf(r)).toMatchSnapshot();
     expect(r.standings.reduce((s, x) => s + x.moneyNet, 0)).toBeCloseTo(0, 6);
+    // The explicit claims, so this can't silently regress to the old behavior.
+    const b = standing(r, 'B');
+    expect(b.thru).toBe(0);
+    expect(b.place).toBe(0);
+    expect(b.moneyNet).toBe(0);
+    expect(standing(r, 'A').place).toBe(1);
+  });
+
+  // The reachable version of the same bug: nobody is playing better, one side has just played
+  // more holes. SCRATCH players here, deliberately — the matrix fixture's mixed handicaps
+  // (4/11 vs 7/19) mean par GROSS is well under par NET, so both sides would legitimately be
+  // under par by different amounts and $0 would be the wrong expectation. My first version of
+  // this test asserted $0 on the mixed field and failed at $3; the $3 was correct (side A was 9
+  // under net thru 9, side B 6 under thru 5) and the assertion was wrong. Recording that
+  // because it's the §5.z failure mode in miniature: when a money assertion fails, check
+  // whether the test or the code is wrong before touching the code.
+  it('two sides playing to expectation settle $0 at different thru counts', () => {
+    for (const scoring of ['stroke', 'stableford'] as const) {
+      const g = makeGame({
+        gameMode: 'team-2v2', indexes: [0, 0, 0, 0],       // scratch: net == gross
+        subTeams: { a: ['p1', 'p2'], b: ['p3', 'p4'] },
+        modeSettings: { format: 'best-ball', scoring, result: 'total', moneyModel: 'per-point', dollarsPerPoint: 1 },
+      });
+      const nine = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+      const five = [1, 2, 3, 4, 5];
+      const par = (holes: number[]) => holes.map((h) => TEST_PARS[h - 1]);
+      const r = run(g, [
+        ...scoresFor('p1', par(nine), nine), ...scoresFor('p2', par(nine), nine),
+        ...scoresFor('p3', par(five), five), ...scoresFor('p4', par(five), five),
+      ]);
+      // Both sides level par ⇒ nobody owes anybody, whatever they've completed. On raw totals
+      // this paid $16 to whichever side had played fewer holes.
+      expect(standing(r, 'A').moneyNet, `${scoring}: paid for holes played, not golf`).toBe(0);
+      expect(standing(r, 'B').moneyNet, scoring).toBe(0);
+      expect(standing(r, 'A').place, scoring).toBe(1);
+      expect(standing(r, 'B').place, scoring).toBe(1);
+      // `points` still reports the REAL total each side shot — the ranking changed, the
+      // displayed score did not.
+      expect(standing(r, 'A').thru, scoring).toBe(9);
+      expect(standing(r, 'B').thru, scoring).toBe(5);
+      expect(standing(r, 'A').points, scoring).not.toBe(standing(r, 'B').points);
+    }
+  });
+
+  // And the direction still works: a side genuinely playing better is still paid.
+  it('a side that is actually better is still paid, at unequal thru counts', () => {
+    const g = makeGame({
+      gameMode: 'team-2v2', indexes: [0, 0, 0, 0],
+      subTeams: { a: ['p1', 'p2'], b: ['p3', 'p4'] },
+      modeSettings: { format: 'best-ball', scoring: 'stroke', result: 'total', moneyModel: 'per-point', dollarsPerPoint: 1 },
+    });
+    const nine = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    const five = [1, 2, 3, 4, 5];
+    // A is 2 under thru 9; B is level thru 5. A leads by 2.
+    const aCard = nine.map((h) => TEST_PARS[h - 1] - (h <= 2 ? 1 : 0));
+    const bCard = five.map((h) => TEST_PARS[h - 1]);
+    const r = run(g, [
+      ...scoresFor('p1', aCard, nine), ...scoresFor('p2', aCard, nine),
+      ...scoresFor('p3', bCard, five), ...scoresFor('p4', bCard, five),
+    ]);
+    expect(standing(r, 'A').moneyNet).toBe(2);
+    expect(standing(r, 'B').moneyNet).toBe(-2);
+    expect(standing(r, 'A').place).toBe(1);
   });
 });
 

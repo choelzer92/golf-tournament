@@ -84,15 +84,18 @@ export interface PlayerStanding {
   holesWon?: number[];            // Wolf only: hole numbers this player earned points on (for the expandable standings)
 }
 
-// A front/back/overall sub-result for a 2v2 team game (Nassau-style breakdown).
+// A front/back/overall sub-result for a side game (Nassau-style breakdown).
 // `label` is "Front 9" / "Back 9" / "Overall 18". `status` is a ready-to-show
-// line (e.g. "A 2 UP", "All square", "Side A by 3"). `winner` is which side
-// leads that leg ('a'|'b'|null for tied/none).
+// line (e.g. "A 2 UP", "All square", "Side A by 3").
 export interface TeamLegLine {
   key: 'front' | 'back' | 'overall';
   label: string;
   status: string;
-  winner: 'a' | 'b' | null;
+  // Which SIDE leads that leg, by its stable side id ('a', 'b', 'c', …), or null when tied or
+  // unplayed. Was `'a' | 'b' | null`; widened for N sides (F-006). A legacy two-side game
+  // still emits exactly 'a' or 'b', because the normalizer preserves those ids literally —
+  // which is why every existing consumer comparing to 'a'/'b' keeps working.
+  winner: string | null;
   thru: number;
 }
 
@@ -125,9 +128,16 @@ export interface IndividualResult {
   pot: number;
   thruHole: number;
   moneyModel: 'per-point' | 'pot';
-  // 2v2 team games only: front/back/overall breakdown for the leaderboard.
+  // Side games only: front/back/overall breakdown for the leaderboard.
   teamLegs?: TeamLegLine[];
+  // The first two sides' names. LEGACY VIEW, kept because several surfaces read it and a
+  // two-side game is still the norm. For a 3+ side game it names only the first two — read
+  // `sideLabels` instead.
   sideNames?: { a: string; b: string };
+  // EVERY side's id and display name, in board order (F-006). Present for any side game,
+  // including two-side ones, so a consumer never has to choose between the two fields based
+  // on side count.
+  sideLabels?: { id: string; name: string }[];
   // Wolf only: per-hole matchup breakdown (Wolf, call, side nets, winner).
   wolfHoles?: WolfHoleLine[];
   // Nassau-pot money model only: the front/back/total segment payout breakdown

@@ -121,8 +121,10 @@ test.describe('single-group vocabulary', () => {
     const body = await page.locator('body').innerText();
     expect(body).not.toContain('1 foursomes');
     expect(body).not.toContain('Pool Money Game · 1');
-    // Names the mode instead.
-    expect(body).toMatch(/2 vs 2/i);
+    // Names the mode instead. The mode was renamed "2 vs 2 (within group)" → "Sides (within
+    // group)" when it was generalized to N sides (F-006): two sides is still the default, but
+    // the name can no longer claim there are exactly two.
+    expect(body).toMatch(/Sides \(within group\)/i);
     await page.screenshot({ path: 'e2e/screenshots/hub-2v2.png', fullPage: true });
   });
 
@@ -908,7 +910,7 @@ test.describe('F-012: the same rule, in the 2v2 editor', () => {
 
     // Assert we're on the 2v2 editor, not the classic pool one — this page renders two
     // different settings panels and an early version of this test could pass on the wrong one.
-    await expect(page.getByText('2 vs 2 (within group) options')).toBeVisible();
+    await expect(page.getByText('Sides (within group) options')).toBeVisible();
 
     const picker = page.locator('select').filter({ hasText: 'Best ball (low net counts)' }).first();
     await expect(picker).toBeVisible();

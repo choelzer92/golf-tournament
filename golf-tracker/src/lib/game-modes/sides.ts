@@ -150,3 +150,50 @@ export function nextSideId(sides: GameSide[]): string {
 export function defaultSideLabel(sideId: string): string {
   return `Side ${sideId.toUpperCase()}`;
 }
+
+// ---------------------------------------------------------------------------
+// Round-robin settlement
+// ---------------------------------------------------------------------------
+
+/**
+ * PAIRWISE settlement across N sides: every side settles against every OTHER side, and its
+ * money is the sum of those individual results.
+ *
+ * Craig's rule (DECISIONS.md §5.ae), in his words: "the losing team would owe all teams ahead
+ * of them, and the 2nd team would owe just the one ahead". So with $1 a point and three sides
+ * at 70 / 74 / 80 strokes:
+ *
+ *     A: (74−70) + (80−70) = +$14     last owes both sides ahead of it
+ *     B: (70−74) + (80−74) =  +$2     2nd owes 1st, and collects from 3rd
+ *     C: (70−80) + (74−80) = −$16
+ *
+ * Two properties that make this the right generalization, both asserted in sides.test.ts:
+ *   - it is ZERO-SUM at every side count, because each pairing contributes +x to one side and
+ *     −x to the other
+ *   - at exactly two sides it reduces to today's head-to-head margin, so every existing 2v2
+ *     game settles unchanged
+ *
+ * `valueOf` returns the side's comparable figure (a total, a points tally, holes won — whatever
+ * the money model is counting), or null when that side has nothing to settle with yet.
+ * `settle` returns what the FIRST side collects from the second for that pairing; return 0 for
+ * a push. Sides whose value is null are skipped entirely rather than treated as zero, so an
+ * unscored side neither pays nor collects.
+ */
+export function settleRoundRobin<T>(
+  sides: T[],
+  valueOf: (side: T) => number | null,
+  settle: (a: number, b: number) => number,
+): number[] {
+  const values = sides.map(valueOf);
+  return values.map((mine, i) => {
+    if (mine === null) return 0;
+    let total = 0;
+    for (let j = 0; j < values.length; j++) {
+      if (i === j) continue;
+      const theirs = values[j];
+      if (theirs === null) continue;
+      total += settle(mine, theirs);
+    }
+    return total;
+  });
+}
