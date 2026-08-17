@@ -1168,6 +1168,62 @@ which is its own piece of work and shouldn't ride along with this.
 
 ---
 
+### F-014 — The wizard shows "Side C/D/E/F name" boxes for a two-side game  [P2] [start]
+
+**Where:** `src/lib/game-modes/team-game.ts` SETTINGS (six `side*Name` keys, none with a
+`showIf`), rendered by `src/app/pool/new/page.tsx` step 1
+**Violates:** north star — *minimum exposed complexity* — and `DECISIONS.md` §5.d/§5.e
+
+**Introduced by the N-sides work, 2026-08-17.** Found by counting the mode's settings, not by
+reading the code:
+
+```
+side mode settings:        26 total
+always visible (no showIf): 10
+of those, side name boxes:   4   <- "Side C name" .. "Side F name"
+```
+
+The HUB hides the unused ones — it passes `unusedSideNameKeys(sides.length)` to the settings
+editor, because by then the game's side count is known. **The WIZARD cannot**, because mode
+options are shown on step 1, before the sides step has run, so it hard-codes
+`unusedSideNameKeys(2)`... which hides C–F. That part is right.
+
+**The problem is what remains visible even so:** a plain 2v2 setup screen shows Team format, Hole
+score, Compare by, Money, Side A name, Side B name — six controls before any money field — where
+before this branch it showed the same six. So the wizard may be *unchanged* for the common case
+and the real exposure may be in the HUB after a third side is added. **This needs measuring on
+screen before it's called a defect**, which is why it's filed as an observation rather than a
+confirmed regression.
+
+**What to measure (next session):**
+1. Screenshot wizard step 1 for a 2v2 on a phone viewport, on this branch and on `main`. Count
+   visible controls in each.
+2. Same for the hub's settings panel at two sides and at three.
+3. Check whether `unusedSideNameKeys(2)` in the wizard is ever wrong — i.e. can a user reach a
+   3-side game whose C name box was never offered? (Sides are chosen on a later step, so probably
+   yes, and the name is then only settable from the hub. Is that acceptable or confusing?)
+
+**Options**
+- **A. Move side names out of the generic settings bag** into the Sides editor itself, one field
+  per side that exists. Names would then always match the side count, on every screen, and four
+  keys leave the schema. Costs a bespoke control, which `AGENTS.md` calls a design smell — though
+  the Sides editor is already bespoke.
+- **B. Collapse names behind a disclosure** ("Name the sides") that's closed by default. Cheapest;
+  keeps the generic renderer. Doesn't fix the wizard/hub asymmetry.
+- **C. Drop custom side names above two sides.** Sides 3+ are named after their players
+  ("Craig & Jym +1"), which is already the default. Removes four settings outright. Cuts a
+  capability nobody has asked for.
+- **D. Leave it**, if the measurement shows the common case is unchanged.
+
+**Recommendation:** measure first (steps 1–3), then **A** if the asymmetry is real, **D** if it
+isn't. Do not fix on sight — this is the exact kind of change that should be justified by a
+screenshot.
+
+**Status:** open, needs measurement. Part of the broader "did N sides make the app worse" audit —
+see `NEXT_SESSION_PROMPT.md`.
+
+---
+
 ### F-001 — Nassau segment "thru" reads as a hole number  [P3] [track]
 
 **Screen:** `/pool/[id]/leaderboard`, 2-player skins w/ Nassau ·
