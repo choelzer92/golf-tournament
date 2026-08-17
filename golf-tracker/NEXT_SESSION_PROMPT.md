@@ -77,6 +77,30 @@ whether we are still on track. Not a summary of what was built; I know what was 
    the extra name fields should go — say so plainly, with your reasoning, and rank the
    recommendations. "Leave it as is" is a legitimate answer if the measurements support it.
 
+## ALSO IN SCOPE: can I actually set up a real day?
+
+Separate from the complexity audit, and possibly more important. Walk through how I would set up
+the games we actually play on a given day, and tell me which are expressible today, which are
+awkward, and which are impossible:
+
+- **2v2v2v2** — eight players, four pairs, all against each other. (`playersMax` is 8 on the side
+  mode, so the engine should do this. Verify on screen, with money.)
+- **A side game ON TOP of the main game** — e.g. four foursomes playing the pool, AND skins
+  running across everyone. Or 2v2 for the team money plus individual skins alongside.
+- **Different games on the front and back nine.**
+- **A game that starts as one thing and changes** — someone joins at the turn, or we decide to
+  press.
+
+**The known structural blocker, verified:** `computeGameResult` reads a single `gameMode` string
+per `PoolGame`, so a game is exactly ONE game. Layering a side bet on top of the main game is not
+expressible at all today — not hard, not awkward, impossible. Also every mode except the side game
+has `playersMax: 4`, so skins across eight players can't be set up either.
+
+Don't build any of this. Tell me what each would take, what it would cost in exposed complexity,
+and which ONE you'd do first if I only picked one. This is the "more possibilities than any app on
+the market" half of the north star, so I want it scoped honestly against the complexity findings
+above — some of these may be worth NOT doing.
+
 ## HOW TO WORK
 
 Document first, change on request — this is an audit, so DON'T fix things you find. Write them up
