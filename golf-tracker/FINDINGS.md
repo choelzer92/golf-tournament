@@ -610,7 +610,9 @@ sides, which is what Craig's "yes, eventually" was about:
   `game-modes/types.ts:55`, plus the wizard's `SubTeamsStep`)
 - `TeamLegLine.winner: 'a' | 'b' | null` → a side id (`game-modes/types.ts:87`)
 - `settleJunkForSides` nets side A against side B (`game-modes/settings.ts:188`); N sides
-  needs a field-average settlement like `settlePerPoint`
+  needs a settlement that generalizes. **Craig's call 2026-08-14: collect-from-every-other-side,
+  NOT field-average** — see DECISIONS.md §5.ad. Field-average would have halved every existing
+  2v2 game's junk money, which the line above didn't notice.
 - `team-game.ts:119` defaults to `{ a: [], b: [] }` and computes two standings
 - Wolf builds a Wolf-side and a field-side (`wolf.ts:82`), so it's a 2-side consumer of the
   same code and must keep working unchanged
@@ -621,7 +623,34 @@ in its sub-line — honest, but not pace-normalized under points.
 
 **Status:** pool side DONE (engine, 4 money-bug fixes, leaderboard, wizard + hub picker,
 scorecard, ~860-case sweep). Committed on `ui-consistency-and-compute-tests`, not merged.
-N-sides widening not started.
+N-sides widening in progress — see F-012 for the live bug found while scoping it.
+
+#### Decisions taken before writing any N-sides code (2026-08-14)
+
+Craig's answers to the three questions the sequencing required:
+
+1. **Side-collection shape:** `sides?: { id: string; name?: string; playerIds: string[] }[]` —
+   an ORDERED ARRAY with a stable explicit `id`, added alongside `subTeams`, absent on every
+   existing game (the additive pattern `teamFormat`/`teamScoreBasis` already established).
+   Rejected `string[][]`, where side identity would be the array INDEX — index-as-identity is
+   the exact bug class that already cost $150 twice in this finding. Rejected
+   `Record<string, string[]>` — no defined display order.
+
+   Legacy load is one normalizer at the read boundary (`sidesOfGame(game)`), never inside the
+   engine: `{a, b}` → `[{id:'a', …}, {id:'b', …}]`, ids preserved **literally**. That's what
+   makes it cheap — `TeamLegLine.winner: 'a'|'b'` stays a valid value when the type widens to
+   `string`, the `playerId: 'A'|'B'` standings rows stay valid, `sideAName`/`sideBName` keep
+   resolving, and every saved game, existing test and snapshot reads identically. The write
+   path keeps emitting `{a, b}` at exactly two sides, mirroring `persistedTeamScoring`.
+
+2. **Junk across N sides: collect from every other side** (§5.ad). Not field-average.
+
+3. **The one-ball pin captures the FIXED, order-independent result**, not today's behavior —
+   see F-012. Pinning the current output would pin a live money bug and the fix would have to
+   unpin it immediately.
+
+Also raised once and settled: open question 8 (a Stableford pool's PTS + PACE column) stays
+as built, revisit later. Craig's call — don't rebuild it unprompted.
 
 ---
 
@@ -938,6 +967,55 @@ thru 1, 3, 6, 9, 12, 15, 18.**
 **Both money bugs found this session came from the same mistake** — treating "no
 eligible winner" as "pay nobody" instead of "everybody ties." Worth watching for
 elsewhere.
+
+---
+
+### F-012 — The order-dependent one-ball payout has a live TWIN in the 2v2 engine  [P1 MONEY] [track]
+
+**Where:** `src/lib/game-modes/team-game.ts:151` (`sideNet`), reachable via
+`src/app/pool/[id]/page.tsx:858` (`assignSide`) and the same file's `indMode` settings branch
+**Violates:** DECISIONS.md §5.ac — one ball means one score
+
+**Found while scoping the N-sides work**, by re-probing the closed pool-side bug in the file
+that pass never touched. §5.ac fixed `team-scoring.ts` (`teamNetOnHole` takes the minimum).
+`team-game.ts` has its own separate one-ball read, and it still reads **"the first member with
+a score"** — the exact line that was removed on the pool side.
+
+Verified with a probe, not inferred. Scratch foursome, 2v2 scramble, `$1`/point:
+
+```
+subTeams.a = ['p1','p2']   side A total  72   money   $0
+subTeams.a = ['p2','p1']   side A total 126   money -$54
+```
+
+Same scores. Same game. A $54 swing from the ORDER of two ids in an array.
+
+**Two reachable paths, both through the hub:**
+
+1. **The side buttons reorder the array on a no-op tap.** `assignSide` filters the id out and
+   `push`es it, so tapping the side a player is *already on* moves them to the end of the list.
+   Nothing on screen changes. The payout does.
+2. **A scored 2v2 game can still be switched to scramble.** `lockOneBall` (`page.tsx:826`)
+   guards only the *pool* format picker at 1023-1035. The `indMode` branch returns at ~975,
+   before that code — so `ModeSettingsEditor` renders the mode's own `format` select, scramble
+   and alternate-shot included, with no guard at all.
+
+**This is the same interaction failure §5.ac recorded**, one file over: two changes shipped in
+one pass, and the second undid the first's guarantee. The pool got the fix and the prevention;
+the 2v2 engine got neither, because the audit line said "still open — N sides" and nobody
+re-probed the money.
+
+**Fix (Craig's call 2026-08-14, applying the rule already decided in §5.ac rather than making
+a new one):** take the minimum in `sideNet` as the structural backstop, and close both doors —
+`assignSide` must not reorder, and `lockOneBall` must cover the 2v2 format select. Pinned by
+all 24 permutations of a foursome × both one-ball formats, asserting neither the side total nor
+the money moves; restoring the first-member read must fail.
+
+**Sequencing note:** this lands BEFORE the N-sides pin, not after. Step 1 of the widening is
+"pin current 2v2 results" — and pinning the current one-ball result would pin this bug, forcing
+the fix to unpin it one commit later.
+
+**Status:** open, fix authorized, not yet applied.
 
 ---
 

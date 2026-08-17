@@ -896,3 +896,56 @@ test.describe('F-006: one ball means one score — the hub will not create diver
     await expect(page.getByText(/Scramble and alternate shot enter ONE score/)).toHaveCount(0);
   });
 });
+
+test.describe('F-012: the same rule, in the 2v2 editor', () => {
+  // The pool's format picker got the one-ball lock in the F-006 pass. The 2v2 branch of the
+  // same settings editor returns BEFORE that code, so a scored 2v2 game could still be
+  // switched to scramble — re-creating the divergent per-member scores the rule exists to
+  // prevent. Probed at a $54 swing on a scratch foursome before the fix.
+  test('a scored 2v2 game cannot switch to a one-ball format', async ({ page }) => {
+    await seed(page, '2v2 best ball — mid-round');
+    await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+
+    // Assert we're on the 2v2 editor, not the classic pool one — this page renders two
+    // different settings panels and an early version of this test could pass on the wrong one.
+    await expect(page.getByText('2 vs 2 (within group) options')).toBeVisible();
+
+    const picker = page.locator('select').filter({ hasText: 'Best ball (low net counts)' }).first();
+    await expect(picker).toBeVisible();
+    await expect(picker).toHaveValue('best-ball');
+
+    // The one-ball formats are locked and say why.
+    await expect(picker.locator('option[value="scramble"]')).toBeDisabled();
+    await expect(picker.locator('option[value="alternate-shot"]')).toBeDisabled();
+    await expect(picker.locator('option[value="scramble"]')).toContainText('needs a fresh game');
+
+    // Per-player-entry formats stay switchable: this game's scores are valid for them.
+    await expect(picker.locator('option[value="combined"]')).not.toBeDisabled();
+
+    // The reason must be VISIBLE on the page, not only inside the closed dropdown. Caught by
+    // looking at the screenshot: the first version of this fix disabled the options silently,
+    // so the 2v2 editor refused a tap with no explanation while the classic pool's picker
+    // explained itself — the same rule reading two different ways on two screens.
+    await expect(page.getByText(/Scramble and alternate shot enter ONE score/)).toBeVisible();
+
+    await page.screenshot({ path: 'e2e/screenshots/hub-2v2-oneball-locked.png', fullPage: true });
+  });
+
+  // The OTHER door: re-tapping the side a player is already on used to filter-then-push them
+  // to the end of subTeams, which silently changed which member's score a one-ball side read.
+  // Nothing on screen moved; the money did.
+  test('re-tapping a side a player is already on changes nothing on screen', async ({ page }) => {
+    await seed(page, '2v2 best ball — mid-round');
+    await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+    await expect(page.getByText('Sides', { exact: true })).toBeVisible();
+
+    const before = await page.locator('body').innerText();
+    // Craig is on side A already (subTeams.a = [sp1, sp2]); tap A again.
+    const firstRow = page.locator('div.divide-y > div').filter({ hasText: 'Craig' }).first();
+    await firstRow.getByRole('button', { name: 'A', exact: true }).click();
+    await page.waitForTimeout(300);
+
+    expect(await page.locator('body').innerText()).toBe(before);
+    await page.screenshot({ path: 'e2e/screenshots/hub-2v2-side-retap.png', fullPage: true });
+  });
+});

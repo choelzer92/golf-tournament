@@ -583,6 +583,123 @@ describe('team-2v2', () => {
     expect(r.standings[0].playerId).toBe('B');
     expect(standing(r, 'B').place).toBe(1);
   });
+
+  // -------------------------------------------------------------------------
+  // ONE BALL MEANS ONE SCORE — the 2v2 twin of the pool-side bug (F-012)
+  // -------------------------------------------------------------------------
+  //
+  // DECISIONS.md §5.ac settled this rule for the pool (`teamNetOnHole` in team-scoring.ts).
+  // `team-game.ts` has its OWN one-ball read for a 2v2 side, and it was missed by that pass:
+  // it read "the first member with a score", so a side's score — and the money — depended on
+  // the ORDER of `subTeams.a`. Probed at $54 on a scratch foursome.
+  //
+  // Reachable two ways through the hub: `assignSide` re-pushed a player already on that side
+  // (moving them to the end of the array), and the 2v2 format select had no equivalent of the
+  // pool picker's `lockOneBall` guard, so a scored game could still be switched to scramble.
+  //
+  // The fix mirrors the pool: take the MINIMUM, so order can never matter. In the correct
+  // case every member shares the ball, and min of equal values is that value.
+  describe('one-ball formats: side player order can never change the money', () => {
+    const ONE_BALL = ['scramble', 'alternate-shot'] as const;
+
+    function payoutFor(sideAOrder: string[], offsets: Record<string, number>, format: string) {
+      const g = makeGame({
+        gameMode: 'team-2v2', indexes: [0, 0, 0, 0],
+        subTeams: { a: sideAOrder, b: ['p3', 'p4'] },
+        modeSettings: {
+          format, scoring: 'stroke', result: 'total',
+          moneyModel: 'per-point', dollarsPerPoint: 1,
+        },
+      });
+      // Deliberately DIVERGENT per-member scores on side A — the shape a mid-round format
+      // switch could leave behind. Side B shares one ball, as a correct game would.
+      const r = run(g, [
+        ...sideAOrder.flatMap((id) => scoresFor(id, TEST_PARS.map((p) => p + offsets[id]))),
+        ...scoresFor('p3', TEST_PARS.map((p) => p + 1)),
+        ...scoresFor('p4', TEST_PARS.map((p) => p + 1)),
+      ]);
+      return { total: standing(r, 'A').points, money: standing(r, 'A').moneyNet };
+    }
+
+    for (const format of ONE_BALL) {
+      it(`${format}: swapping a side's two ids does not move a dollar`, () => {
+        const offsets = { p1: 0, p2: 3 };
+        const forward = payoutFor(['p1', 'p2'], offsets, format);
+        const swapped = payoutFor(['p2', 'p1'], offsets, format);
+        expect(swapped.total, `${format}: side total moved with order`).toBe(forward.total);
+        expect(swapped.money, `${format}: MONEY moved with order`).toBe(forward.money);
+      });
+
+      it(`${format}: every permutation of a foursome's sides settles identically`, () => {
+        // Exhaustive over 4! = 24 orders, split 2/2 into the sides. A single swap can pass by
+        // luck; this can't. Mirrors the pool-side test in pool-game.test.ts.
+        const offsets: Record<string, number> = { p1: 0, p2: 1, p3: 2, p4: 3 };
+        const perms: string[][] = [];
+        const permute = (rest: string[], acc: string[]) => {
+          if (rest.length === 0) { perms.push(acc); return; }
+          rest.forEach((x, i) => permute([...rest.slice(0, i), ...rest.slice(i + 1)], [...acc, x]));
+        };
+        permute(['p1', 'p2', 'p3', 'p4'], []);
+        expect(perms).toHaveLength(24);
+
+        // Every permutation assigns the SAME two players to side A (only the order within
+        // each side varies), so the money must be identical across all 24.
+        const results = perms.map((order) => {
+          const g = makeGame({
+            gameMode: 'team-2v2', indexes: [0, 0, 0, 0],
+            subTeams: { a: order.slice(0, 2), b: order.slice(2) },
+            modeSettings: {
+              format, scoring: 'stroke', result: 'total',
+              moneyModel: 'per-point', dollarsPerPoint: 1,
+            },
+          });
+          const r = run(g, order.flatMap((id) =>
+            scoresFor(id, TEST_PARS.map((p) => p + offsets[id]))));
+          // Key by WHICH players are on side A, so we compare like with like: the two
+          // distinct side splits are separate expectations, order within them is not.
+          const key = [...order.slice(0, 2)].sort().join('+');
+          return { key, total: standing(r, 'A').points, money: standing(r, 'A').moneyNet };
+        });
+
+        // Group by side membership; within a group, order must be irrelevant.
+        const byKey = new Map<string, typeof results>();
+        for (const r of results) byKey.set(r.key, [...(byKey.get(r.key) ?? []), r]);
+        expect(byKey.size).toBe(6); // C(4,2) = 6 distinct side splits
+        for (const [key, group] of byKey) {
+          for (const r of group) {
+            expect(r.total, `${format} ${key}: side total varies by order`).toBe(group[0].total);
+            expect(r.money, `${format} ${key}: MONEY varies by order`).toBe(group[0].money);
+          }
+        }
+      });
+    }
+
+    it('the CORRECT case (both members share the ball) is unchanged', () => {
+      // The normal path: one shared score written to every member of the side. min of equal
+      // values is that value, so this must compute exactly as it did before the fix.
+      for (const format of ONE_BALL) {
+        const same = payoutFor(['p1', 'p2'], { p1: 0, p2: 0 }, format);
+        const swapped = payoutFor(['p2', 'p1'], { p1: 0, p2: 0 }, format);
+        expect(same.money, format).toBe(swapped.money);
+        expect(same.total, format).toBe(swapped.total);
+        // Four scratch players all shooting par: the side's gross is par every hole.
+        expect(same.total, format).toBe(72);
+      }
+    });
+
+    // The order tests above prove order is IRRELEVANT — but max() is order-independent too,
+    // so they can't tell min from max. This pins WHICH value the backstop takes, matching the
+    // pool side's `teamNetOnHole`: the minimum. Verified by mutation — swapping min for max
+    // passes every other case in this file and fails only here.
+    it('takes the MINIMUM, not the maximum, when members somehow disagree', () => {
+      for (const format of ONE_BALL) {
+        // p1 pars (72), p2 is three over on every hole (126). Scratch players, so the team
+        // handicap is 0 under both one-ball formats and net == gross.
+        const r = payoutFor(['p1', 'p2'], { p1: 0, p2: 3 }, format);
+        expect(r.total, `${format}: should take p1's 72, not p2's 126`).toBe(72);
+      }
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

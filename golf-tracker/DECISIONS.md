@@ -615,6 +615,39 @@ revisiting rather than blindly keeping.
 
 ---
 
+## 5.ad Junk across N sides: collect from every other side, not the field average (2026-08-14)
+
+Before writing any N-sides code I asked what should change hands when three sides earn unequal
+junk — $6, $2, $1. `FINDINGS.md` F-006 had already written down "N sides needs a field-average
+settlement like `settlePerPoint`", but that line was written while scoping, never checked
+against the numbers. I checked. **It halves every existing 2v2 game's junk money.**
+
+| | 2 sides, $4 vs $2 | 3 sides, $6/$2/$1 |
+|---|---|---|
+| today's 2-side engine | A **+$2** | n/a |
+| collect-from-each-other | A **+$2** ✅ unchanged | +$9 / −$3 / −$6 |
+| field average | A **+$1** ❌ moved | +$3 / −$1 / −$2 |
+
+**Craig chose collect-from-every-other-side:** side *i* nets `own × (N−1) − sum(others)`.
+
+**Why it's the right one, beyond the arithmetic.** It reduces EXACTLY to today's two-side math
+(`A = own − other`), so no existing 2v2 game moves a cent — which is the whole premise of the
+generalization. It's also already the shipped convention: `settleJunkFromSettings` settles
+individual junk the same way ("a birdie worth $1 in a foursome pays the earner $3"). Stakes
+scaling with side count is the honest reading of a bonus — a birdie is worth collecting from
+everyone who didn't make one.
+
+**How to apply:** when a doc line proposes a formula for generalizing money math, compute what
+it does at the CURRENT case before trusting it. This one was written down as the plan, read
+plausibly, and would have silently rewritten history. `settlePerPoint` is field-average because
+it settles a *game metric* against the field; junk is a bonus *collected*, and the two aren't
+interchangeable just because both are zero-sum.
+
+**Also settled in the same exchange:** open question 8 (a Stableford pool's PTS + PACE column)
+stays as built — Craig's call, revisit later, don't rebuild unprompted.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

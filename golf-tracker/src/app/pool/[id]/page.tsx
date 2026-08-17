@@ -854,8 +854,38 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
     const modeSettings = game.modeSettings ?? defaultSettings(indMode.settings);
     const setModeSetting = (key: string, value: SettingValue) =>
       onSave({ ...game, modeSettings: { ...modeSettings, [key]: value } });
+
+    // ONE BALL MEANS ONE SCORE, in the 2v2 editor too. The classic pool's format picker below
+    // has had this guard since §5.ac, but this branch returns before reaching it, so a scored
+    // 2v2 game could still be switched to scramble / alternate shot — re-creating exactly the
+    // divergent per-member scores that rule exists to prevent (F-012). Same reasoning, same
+    // wording as the pool side; the engine's min() is the backstop, this is the closed door.
+    const lockModeOption = (settingKey: string, optionValue: string): string | null => {
+      if (!isWithinGroup || settingKey !== 'format' || !hasScores) return null;
+      const current = String(modeSettings.format ?? 'best-ball');
+      const oneBall = (f: string) => f === 'scramble' || f === 'alternate-shot';
+      // Already playing a one-ball format? Staying on one is fine — the scores are shared.
+      if (oneBall(current)) return null;
+      return oneBall(optionValue) ? 'needs a fresh game' : null;
+    };
+    // The same rule, said on the page. A disabled <option> can't be seen until the dropdown
+    // is opened, so without this the 2v2 editor silently refused a tap while the classic
+    // pool's picker explained itself — the two halves of one rule reading differently on
+    // screen is the drift this project's audit exists to catch. Wording matches the pool's.
+    const lockModeNote = (settingKey: string): string | null =>
+      lockModeOption(settingKey, 'scramble')
+        ? 'Scramble and alternate shot enter ONE score for the side. This game already has '
+          + 'scores entered per player, so switching now would leave two different numbers on '
+          + 'a hole that can only have one. Start a new game to play a scramble.'
+        : null;
     const sides = game.subTeams ?? defaultSubTeams(game.players.map((p) => p.id), game.players, game.course, game.handicapAllowance, game.handicapBasis);
     const assignSide = (pid: string, side: 'a' | 'b') => {
+      // Tapping the side a player is ALREADY on is a no-op — return early rather than
+      // filter-then-push, which silently moved them to the end of the array. Nothing on
+      // screen changed, but under a one-ball format the side's score was read from the
+      // first member, so that invisible reorder moved real money (F-012). The engine now
+      // takes the minimum, and this keeps the stored order stable regardless.
+      if (sides[side].includes(pid)) return;
       const a = sides.a.filter((x) => x !== pid);
       const b = sides.b.filter((x) => x !== pid);
       (side === 'a' ? a : b).push(pid);
@@ -940,7 +970,13 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
           <NineBasisField game={game} onSave={onSave} />
           <div className="pt-2 border-t">
             <p className="text-sm font-semibold text-gray-800 mb-2">{indMode.name} options</p>
-            <ModeSettingsEditor schema={indMode.settings} values={modeSettings} onChangeAction={setModeSetting} />
+            <ModeSettingsEditor
+              schema={indMode.settings}
+              values={modeSettings}
+              onChangeAction={setModeSetting}
+              lockOptionAction={lockModeOption}
+              lockNoteAction={lockModeNote}
+            />
           </div>
           {isWithinGroup && (
             <div className="pt-2 border-t">

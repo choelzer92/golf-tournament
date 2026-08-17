@@ -145,10 +145,23 @@ function compute(ctx: GameModeContext): IndividualResult {
   function sideNet(side: Side, hole: HoleData): number | null {
     const ids = sideIds(side);
     if (isSingleBall) {
-      // One ball: the members share an identical gross (the scorecard writes the
-      // same value to both). Read the first member with a score.
+      // ONE BALL MEANS ONE SCORE (DECISIONS.md §5.ac). The members share an identical gross —
+      // the scorecard writes the same value to every member of the side.
+      //
+      // This used to read the FIRST member with a score, which made the side's score, and the
+      // payout, depend on the ORDER of subTeams[side]: the same round settled $0 or -$54 after
+      // swapping two ids. The pool half of F-006 fixed exactly this in team-scoring.ts and
+      // missed this file, which has its own one-ball read. Taking the minimum is
+      // order-independent, and in the correct case (all members share the ball) min of equal
+      // values IS that value, so nothing changes for a well-formed game.
+      //
+      // Divergence is PREVENTED upstream — the scorecard enters one shared score, and the hub
+      // refuses to switch a scored game to a one-ball format. This is the backstop.
       let gross: number | null = null;
-      for (const id of ids) { const g = ctx.grossOnHole(id, hole); if (g !== null) { gross = g; break; } }
+      for (const id of ids) {
+        const g = ctx.grossOnHole(id, hole);
+        if (g !== null && (gross === null || g < gross)) gross = g;
+      }
       if (gross === null) return null;
       return gross - getMoneyStrokesOnHole(teamHcap[side], hole.handicap, numHoles);
     }
