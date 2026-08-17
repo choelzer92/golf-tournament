@@ -681,9 +681,35 @@ And one gap the e2e test exposed while being written: `ModeSettingsEditor`'s `<l
 `htmlFor`, so nothing linked them to their inputs. `getByLabel()` failing is the same lookup a
 screen reader does. Fixed for every setting field in the app, not just the side names.
 
-**Deliberately NOT built, needs Craig:** the side game has no **pot** money model — its three are
-all margins. "Buy-in, split by place" would come free from `distributePot` + `positionSplit`
-(verified: tied 1st already shares 1st+2nd money correctly). Not chosen; don't add it unprompted.
+#### The pot money model (2026-08-17, Craig asked for it)
+
+The side game's three money models were all margins, so "everybody throws in $20, best side takes
+it" couldn't be expressed. Added as a fourth: **buy-in PER SIDE** (§5.ag — every side buys one
+equal shot at the pot whatever its size, so a solo side and a trio have the same stake), paying
+down the order by a configurable split, `100` by default.
+
+Reuses `distributePot`, so Craig's tie rule needed no second implementation: tied 1st shares
+1st+2nd money, a tie for 2nd splits 2nd, an all-sides tie returns every ante. An **unstarted side
+is not in the pot at all** — it neither antes nor collects, which matters because an unstarted
+side ranking first on an empty total is the bug §5.af closed.
+
+Mutation-proved: ante per player instead of per side (8 cases), ante never collected (8), points
+ranked lower-is-better (1), unstarted sides included (1).
+
+**Two things this pass got wrong and fixed:**
+
+1. **My own side-count sweep didn't list `pot`.** It swept the three margin models across 2–6
+   sides and the pot only at the counts I'd hand-written. That is verbatim the "one axis was
+   simply missing" row in §5.z's own table, in a test file whose header warns about it. Added; it
+   now names the failing cell ("2 sides / pot / stroke / match is not zero-sum").
+2. **Side names broke at sizes other than a pair** — found in a screenshot, not the code. A
+   three-player side read "Craig & Jym & Dave" (worse at four) and a solo side read a bare "Tony",
+   indistinguishable from a player row on a board of sides. Now "Craig & Jym +1" and "Tony (solo)".
+   The whole suite stayed green when I changed the format, which is how I know it was untested
+   rather than working — tests added.
+
+Worth noting the registry design paid off: the ~860-case all-modes sweep grew 872 → 881 on its own
+when the setting was added, because it drives the real registry rather than a copy of it.
 
 #### Decisions taken before writing any N-sides code (2026-08-14)
 

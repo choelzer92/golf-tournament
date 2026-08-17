@@ -1044,3 +1044,37 @@ test.describe('F-006: three sides in one group', () => {
     await expect(page.getByRole('button', { name: 'Remove side D' })).toBeVisible();
   });
 });
+
+test.describe('F-006: a side game can play a POT', () => {
+  // DECISIONS 5.ag. The side game only had margin money models until now.
+  test('the board shows the pot and pays the best side', async ({ page }) => {
+    await seed(page, 'Three sides playing a POT');
+    const body = await page.locator('body').innerText();
+
+    // Three sides of 3 / 2 / 1 at $20 a SIDE = $60, not 6 x $20 = $120. That's the whole
+    // point of the per-side ante: the solo player has the same stake as the trio.
+    expect(body).toContain('$60 pot');
+
+    // Somebody is paid and somebody pays — a pot board where no money moved would pass a
+    // zero-sum check trivially.
+    expect(body).toMatch(/\+\$/);
+    expect(body).toMatch(/−\$/);
+
+    await page.screenshot({ path: 'e2e/screenshots/three-sides-pot.png', fullPage: true });
+  });
+
+  test('the buy-in and split fields appear only for a pot game', async ({ page }) => {
+    const id = await seed(page, 'Three sides playing a POT');
+    await page.goto(`${BASE}/pool/${id}`);
+    await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+    await expect(page.getByLabel('Buy-in ($ / side)')).toBeVisible();
+    await expect(page.getByLabel('Pot split (%)')).toBeVisible();
+    // The margin models' fields are hidden while a pot is selected.
+    await expect(page.getByLabel('$ per point')).toHaveCount(0);
+
+    // Switching to a margin model hides the pot fields again (showIf, both directions).
+    await page.getByLabel('Money', { exact: true }).selectOption('per-point');
+    await expect(page.getByLabel('Buy-in ($ / side)')).toHaveCount(0);
+    await expect(page.getByLabel('$ per point')).toBeVisible();
+  });
+});

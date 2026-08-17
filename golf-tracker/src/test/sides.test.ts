@@ -13,7 +13,7 @@ import {
 } from '@/lib/game-modes/sides';
 import { buildGameModeContext } from '@/lib/game-modes/context';
 import { getGameMode } from '@/lib/game-modes';
-import { sideNameSettingKey } from '@/lib/game-modes/team-game';
+import { sideNameFrom, sideNameSettingKey } from '@/lib/game-modes/team-game';
 import type { IndividualResult } from '@/lib/game-modes/types';
 import type { PoolGame } from '@/lib/pool-game';
 import type { GameScore } from '@/lib/game-state';
@@ -516,7 +516,10 @@ describe('three sides in one group', () => {
   // breaks zero-sum at 3+ sides but passes everything else). Zero-sum across every side count x
   // money model x scoring is the invariant that actually guards this.
   it('is zero-sum for every side count x money model x scoring', () => {
-    const MONEY = ['per-hole', 'per-point', 'legs'] as const;
+    // 'pot' included deliberately. The first version of this sweep listed only the three margin
+    // models, so the pot model was covered at 2 and 3 sides by hand-written cases and at no other
+    // count — the "one axis was simply missing" failure from DECISIONS.md §5.z's own table.
+    const MONEY = ['per-hole', 'per-point', 'legs', 'pot'] as const;
     const SCORING = ['stroke', 'stableford'] as const;
     const RESULT = ['match', 'total'] as const;
     for (const sideCount of [2, 3, 4, 5, 6]) {
@@ -531,6 +534,7 @@ describe('three sides in one group', () => {
               modeSettings: {
                 format: 'best-ball', scoring, result, moneyModel,
                 dollarsPerHole: 2, dollarsPerPoint: 1, legFront: 10, legBack: 10, legOverall: 20,
+                sideBuyIn: 20, potSplit: '100',
               },
             });
             // Distinct cards so sides separate rather than all tying (a tie pays $0, which
@@ -665,5 +669,186 @@ describe('three sides in one group', () => {
     expect(moneyOf(r, 'A')).toBe(0);
     expect(moneyOf(r, 'B')).toBe(0);
     expect(r.standings.every((s) => s.place === 1)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POT money for a side game (DECISIONS.md 5.ag)
+// ---------------------------------------------------------------------------
+
+describe('side pot', () => {
+  // Buy-in is PER SIDE, so the uneven case is the interesting one. Scratch players throughout,
+  // so every expected number below is derivable by hand.
+  function potGame(sideSpec: string[][], settings: Record<string, string | number> = {}) {
+    const ids = sideSpec.flat();
+    return makeGame({
+      gameMode: 'team-2v2', indexes: ids.map(() => 0),
+      sides: sideSpec.map((playerIds, i) => ({ id: String.fromCharCode(97 + i), playerIds })),
+      modeSettings: {
+        format: 'best-ball', scoring: 'stroke', result: 'total',
+        moneyModel: 'pot', sideBuyIn: 20, potSplit: '100', ...settings,
+      },
+    });
+  }
+  const moneyOf = (r: IndividualResult, id: string) =>
+    r.standings.find((s) => s.playerId === id)!.moneyNet;
+  // Card `n` holes better than par.
+  const card = (n: number) => HOLES.map((h) => TEST_PARS[h - 1] - (h <= n ? 1 : 0));
+
+  it('winner takes the pot; every side antes the SAME whatever its size', () => {
+    // Sides of 3 / 2 / 1. Per-player antes would have made this 6 x $20 = $120 with the solo
+    // side risking $20 for the same prize the trio risked $60 for (5.ag).
+    const g = potGame([['p1', 'p2', 'p3'], ['p4', 'p5'], ['p6']]);
+    const r = run3(g, [
+      ...['p1', 'p2', 'p3'].flatMap((id) => scoresFor(id, card(6))),   // A: -6, best
+      ...['p4', 'p5'].flatMap((id) => scoresFor(id, card(3))),          // B: -3
+      ...scoresFor('p6', card(0)),                                     // C: level
+    ]);
+    // 3 sides x $20 = $60 pot. A takes it: +$60 - $20 ante = +$40. B and C are out their ante.
+    expect(moneyOf(r, 'A')).toBe(40);
+    expect(moneyOf(r, 'B')).toBe(-20);
+    expect(moneyOf(r, 'C')).toBe(-20);
+    expect(r.standings.reduce((s, x) => s + x.moneyNet, 0)).toBeCloseTo(0, 6);
+    // And the board can show the pot.
+    expect(r.pot).toBe(60);
+    expect(r.moneyModel).toBe('pot');
+  });
+
+  it('a two-way tie for FIRST splits first and second money', () => {
+    // Craig's rule: "if it is winner take all, the first and second teams would split first
+    // place money if there is a two way tie". Under [100] second place money is $0, so a
+    // two-way tie splits the whole pot evenly.
+    const g = potGame([['p1', 'p2'], ['p3', 'p4'], ['p5', 'p6']]);
+    const r = run3(g, [
+      ...['p1', 'p2'].flatMap((id) => scoresFor(id, card(6))),    // A: -6
+      ...['p3', 'p4'].flatMap((id) => scoresFor(id, card(6))),    // B: -6, tied with A
+      ...['p5', 'p6'].flatMap((id) => scoresFor(id, card(0))),    // C: level
+    ]);
+    // $60 pot split between A and B = $30 each, minus each side's $20 ante.
+    expect(moneyOf(r, 'A')).toBe(10);
+    expect(moneyOf(r, 'B')).toBe(10);
+    expect(moneyOf(r, 'C')).toBe(-20);
+    expect(r.standings.reduce((s, x) => s + x.moneyNet, 0)).toBeCloseTo(0, 6);
+  });
+
+  it('a top-two split pays second place as well', () => {
+    const g = potGame([['p1', 'p2'], ['p3', 'p4'], ['p5', 'p6']], { potSplit: '70,30' });
+    const r = run3(g, [
+      ...['p1', 'p2'].flatMap((id) => scoresFor(id, card(6))),    // A: -6, 1st
+      ...['p3', 'p4'].flatMap((id) => scoresFor(id, card(3))),    // B: -3, 2nd
+      ...['p5', 'p6'].flatMap((id) => scoresFor(id, card(0))),    // C: level, 3rd
+    ]);
+    // $60 pot: A 70% = $42, B 30% = $18, C nothing. Less each side's $20.
+    expect(moneyOf(r, 'A')).toBe(22);
+    expect(moneyOf(r, 'B')).toBe(-2);
+    expect(moneyOf(r, 'C')).toBe(-20);
+    expect(r.standings.reduce((s, x) => s + x.moneyNet, 0)).toBeCloseTo(0, 6);
+  });
+
+  it('a tie for SECOND splits second money only', () => {
+    const g = potGame([['p1', 'p2'], ['p3', 'p4'], ['p5', 'p6']], { potSplit: '70,30' });
+    const r = run3(g, [
+      ...['p1', 'p2'].flatMap((id) => scoresFor(id, card(6))),    // A: -6, 1st
+      ...['p3', 'p4'].flatMap((id) => scoresFor(id, card(3))),    // B: -3
+      ...['p5', 'p6'].flatMap((id) => scoresFor(id, card(3))),    // C: -3, tied with B
+    ]);
+    // A takes 70% = $42; B and C split 30% = $9 each.
+    expect(moneyOf(r, 'A')).toBe(22);
+    expect(moneyOf(r, 'B')).toBe(-11);
+    expect(moneyOf(r, 'C')).toBe(-11);
+    expect(r.standings.reduce((s, x) => s + x.moneyNet, 0)).toBeCloseTo(0, 6);
+  });
+
+  it('an ALL-SIDES tie returns every ante', () => {
+    const g = potGame([['p1', 'p2'], ['p3', 'p4'], ['p5', 'p6']]);
+    const par = HOLES.map((h) => TEST_PARS[h - 1]);
+    const r = run3(g, ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'].flatMap((id) => scoresFor(id, par)));
+    expect(moneyOf(r, 'A')).toBe(0);
+    expect(moneyOf(r, 'B')).toBe(0);
+    expect(moneyOf(r, 'C')).toBe(0);
+  });
+
+  it('an unstarted side neither antes nor collects', () => {
+    // The bug 5.af closed was an unstarted side RANKING FIRST on an empty total. It must not be
+    // in the pot at all, or it would win money for a round it hasn't begun.
+    const g = potGame([['p1', 'p2'], ['p3', 'p4'], ['p5', 'p6']]);
+    const r = run3(g, [
+      ...['p1', 'p2'].flatMap((id) => scoresFor(id, card(6))),
+      ...['p3', 'p4'].flatMap((id) => scoresFor(id, card(0))),
+      // side C has posted nothing
+    ]);
+    // Only two sides in it: $40 pot, A takes it, C is untouched.
+    expect(r.pot).toBe(40);
+    expect(moneyOf(r, 'A')).toBe(20);
+    expect(moneyOf(r, 'B')).toBe(-20);
+    expect(moneyOf(r, 'C')).toBe(0);
+    expect(r.standings.reduce((s, x) => s + x.moneyNet, 0)).toBeCloseTo(0, 6);
+  });
+
+  it('still works at TWO sides, which is the common case', () => {
+    const g = potGame([['p1', 'p2'], ['p3', 'p4']]);
+    const r = run3(g, [
+      ...['p1', 'p2'].flatMap((id) => scoresFor(id, card(4))),
+      ...['p3', 'p4'].flatMap((id) => scoresFor(id, card(0))),
+    ]);
+    expect(moneyOf(r, 'A')).toBe(20);   // $40 pot, less own $20
+    expect(moneyOf(r, 'B')).toBe(-20);
+  });
+
+  it('under Stableford the side with MOST points takes the pot', () => {
+    // The direction bug from F-006 (points ranked lower-is-better paid the losing side) must not
+    // reappear in a new money model.
+    const g = potGame([['p1', 'p2'], ['p3', 'p4']], { scoring: 'stableford' });
+    const r = run3(g, [
+      ...['p1', 'p2'].flatMap((id) => scoresFor(id, card(6))),   // birdies => more points
+      ...['p3', 'p4'].flatMap((id) => scoresFor(id, card(0))),
+    ]);
+    expect(moneyOf(r, 'A')).toBe(20);
+    expect(moneyOf(r, 'B')).toBe(-20);
+    expect(r.standings.find((s) => s.playerId === 'A')!.place).toBe(1);
+  });
+
+  it('a zero buy-in is inert', () => {
+    const g = potGame([['p1', 'p2'], ['p3', 'p4']], { sideBuyIn: 0 });
+    const r = run3(g, [
+      ...['p1', 'p2'].flatMap((id) => scoresFor(id, card(4))),
+      ...['p3', 'p4'].flatMap((id) => scoresFor(id, card(0))),
+    ]);
+    expect(moneyOf(r, 'A')).toBe(0);
+    expect(moneyOf(r, 'B')).toBe(0);
+  });
+});
+
+// Side NAMES at sizes other than a pair. Both cases below were found by reading a screenshot,
+// and neither had a test — the whole suite stayed green when the format changed, which is how I
+// know these were untested rather than working.
+describe('side display names by size', () => {
+  const ps = [
+    { id: 'p1', name: 'Craig Hoelzer' }, { id: 'p2', name: 'Jym Youngberg' },
+    { id: 'p3', name: 'Dave Miller' }, { id: 'p4', name: 'Rick Tanaka' },
+  ];
+
+  it('a PAIR reads "Craig & Jym" (unchanged - this is the 2v2 norm)', () => {
+    expect(sideNameFrom(ps, ['p1', 'p2'], 'a')).toBe('Craig & Jym');
+  });
+
+  it('a SOLO side says solo, so it is not mistaken for a player row', () => {
+    // The board's other rows are sides; a bare "Tony" read as a person.
+    expect(sideNameFrom(ps, ['p1'], 'c')).toBe('Craig (solo)');
+  });
+
+  it('THREE or more counts the rest instead of chaining ampersands', () => {
+    // Was "Craig & Jym & Dave", and worse at four.
+    expect(sideNameFrom(ps, ['p1', 'p2', 'p3'], 'a')).toBe('Craig & Jym +1');
+    expect(sideNameFrom(ps, ['p1', 'p2', 'p3', 'p4'], 'a')).toBe('Craig & Jym +2');
+  });
+
+  it('a custom name always wins, at any size', () => {
+    expect(sideNameFrom(ps, ['p1', 'p2', 'p3'], 'a', 'The Hogs')).toBe('The Hogs');
+    expect(sideNameFrom(ps, ['p1'], 'c', 'The Cats')).toBe('The Cats');
+  });
+
+  it('an EMPTY side falls back to its letter', () => {
+    expect(sideNameFrom(ps, [], 'c')).toBe('Side C');
   });
 });

@@ -747,6 +747,34 @@ side axis never got it, which is the single most common shape of bug in this cod
 
 ---
 
+## 5.ag A side game's pot is anted PER SIDE, not per player (2026-08-17)
+
+The side game (2v2 generalized to N) had only margin money models — $/hole, $/point, fixed legs.
+Craig asked for a pot. Two questions, both answered:
+
+**1. Who antes? PER SIDE.** Every side puts in the same buy-in regardless of how many players it
+has. Only matters once sides can be uneven, which the N-sides work just made possible.
+
+```
+sides of 3 / 2 / 1, $20 a side  ->  pot $60, each side risks $20, winner nets +$40
+```
+
+**Why not per player** (which is how the classic pool collects): in the pool every team is a full
+foursome, so per-player and per-team are the same number. Here they aren't — at $20 a player the
+solo side would risk $20 to win a $120 pot while the trio risks $60 for the same prize. A pot
+*between sides* means each side buys one equal shot at it.
+
+**2. Winner-take-all by default, split configurable.** `positionSplit` `[100]` is the default;
+`[70,30]` pays the top two. Reuses `distributePot`, so Craig's tie rule comes free and is already
+verified: a two-way tie for 1st shares 1st + 2nd money ($150/$150 of a $300 pot), a tie for 2nd
+splits 2nd. That was one of the questions I asked that the codebase had already answered.
+
+**How to apply:** when adding a money model to a mode, check whether the "obvious" consistency
+(match the classic pool) is actually consistency or just a coincidence of that context. Per-player
+antes look consistent right up until sides differ in size.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

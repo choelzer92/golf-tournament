@@ -1,10 +1,10 @@
 import type { FormatSetting } from '../formats';
 import type { HoleData, PoolGame } from '../pool-game';
-import { teamHandicapForFormat } from '../pool-game';
+import { distributePot, teamHandicapForFormat } from '../pool-game';
 import type { Player } from '../game-state';
 import { getMoneyStrokesOnHole } from '../money-games';
 import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding, TeamLegLine } from './types';
-import { numberSetting, stringSetting, JUNK_SETTINGS, settleJunkForSides } from './settings';
+import { numberSetting, parseVector, stringSetting, JUNK_SETTINGS, settleJunkForSides } from './settings';
 import {
   defaultSideLabel, fromLegacySubTeams, settleRoundRobin, type GameSide,
 } from './sides';
@@ -58,11 +58,25 @@ const SETTINGS: FormatSetting[] = [
       { value: 'per-hole', label: '$ per hole won' },
       { value: 'per-point', label: '$ per point of margin' },
       { value: 'legs', label: 'Fixed front / back / overall' },
+      { value: 'pot', label: 'Pot (buy-in, best side wins)' },
     ],
     defaultValue: 'legs',
   },
   { key: 'dollarsPerHole', label: '$ per hole won', type: 'number', defaultValue: 2, hint: 'Money = $ per hole × (holes won − holes lost) over 18.', showIf: { key: 'moneyModel', in: ['per-hole'] } },
   { key: 'dollarsPerPoint', label: '$ per point', type: 'number', defaultValue: 1, hint: 'Money = $ per point × 18-hole margin.', showIf: { key: 'moneyModel', in: ['per-point'] } },
+  // POT money (DECISIONS.md §5.ag). The buy-in is PER SIDE, not per player: every side buys one
+  // equal shot at the pot whatever its size. At $20 a player an uneven game would let a solo side
+  // risk $20 for the same prize a trio risked $60 for.
+  {
+    key: 'sideBuyIn', label: 'Buy-in ($ / side)', type: 'number', defaultValue: 20,
+    hint: 'Each SIDE puts in this much, whatever its size. Best side wins the pot; ties split it.',
+    showIf: { key: 'moneyModel', in: ['pot'] },
+  },
+  {
+    key: 'potSplit', label: 'Pot split (%)', type: 'text', defaultValue: '100',
+    hint: 'How the pot pays down the finishing order. "100" = winner takes all; "70,30" pays the top two.',
+    showIf: { key: 'moneyModel', in: ['pot'] },
+  },
   { key: 'legFront', label: 'Front 9 ($)', type: 'number', defaultValue: 10, showIf: { key: 'moneyModel', in: ['legs'] } },
   { key: 'legBack', label: 'Back 9 ($)', type: 'number', defaultValue: 10, showIf: { key: 'moneyModel', in: ['legs'] } },
   { key: 'legOverall', label: 'Overall 18 ($)', type: 'number', defaultValue: 10, showIf: { key: 'moneyModel', in: ['legs'] } },
@@ -104,8 +118,17 @@ export function sideNameFrom(
   if (custom) return custom;
   const names = ids
     .map((id) => players.find((p) => p.id === id)?.name.split(' ')[0])
-    .filter(Boolean);
-  return names.length ? names.join(' & ') : defaultSideLabel(sideId);
+    .filter(Boolean) as string[];
+  if (names.length === 0) return defaultSideLabel(sideId);
+  // "Craig & Jym" is right for a PAIR, which is what a side was when only 2v2 existed. At three
+  // it read "Craig & Jym & Dave" — a run of ampersands that gets worse with every player — and a
+  // ONE-player side read as a bare "Tony", indistinguishable from a player name on a board whose
+  // other rows are sides. Both were only obvious in a screenshot.
+  if (names.length === 1) return `${names[0]} (solo)`;
+  if (names.length === 2) return names.join(' & ');
+  // Three or more: name it after the first two and count the rest, so the column stays readable
+  // on a phone. A group that cares can set a custom name.
+  return `${names[0]} & ${names[1]} +${names.length - 2}`;
 }
 
 // The FIRST TWO sides' display names for a saved side game. Used by the play page (which has a
@@ -138,6 +161,8 @@ function compute(ctx: GameModeContext): IndividualResult {
     overall: numberSetting(SETTINGS, ctx.settings, 'legOverall'),
   };
   const altShotAllowance = numberSetting(SETTINGS, ctx.settings, 'altShotAllowance');
+  const sideBuyIn = numberSetting(SETTINGS, ctx.settings, 'sideBuyIn');
+  const potSplit = stringSetting(SETTINGS, ctx.settings, 'potSplit');
   const numHoles = ctx.holes.length || 18;
 
   // N SIDES. ctx.sides is normalized at the read boundary (game-modes/sides.ts), so a legacy
@@ -396,6 +421,39 @@ function compute(ctx: GameModeContext): IndividualResult {
     const higherIsBetter = result === 'match' || scoring === 'stableford';
     add(settleRoundRobin(values, (v) => v,
       (mine, theirs) => (higherIsBetter ? mine - theirs : theirs - mine) * dollarsPerPoint));
+  } else if (moneyModel === 'pot') {
+    // POT (DECISIONS.md §5.ag): every SIDE antes the same buy-in whatever its size, and the pot
+    // pays down the finishing order by `potSplit` — "100" winner-take-all, "70,30" top two.
+    //
+    // Ranking already happened (assignPlaces, on score to par under 'total'), so this reuses the
+    // pool's distributePot: it assigns places by metric, gives tied sides the SUM of the
+    // positions they span, and distributes 100% of the pot. That's Craig's tie rule
+    // ("first and second would split first place money if there is a two way tie") without a
+    // second implementation of it.
+    //
+    // Sides that haven't started are NOT in the pot — they neither ante nor collect. An
+    // unstarted side ranking first on an empty total is the bug §5.af closed.
+    const inPot = sides.map((_, idx) => stand[idx].thru > 0);
+    const potSides = sides.filter((_, idx) => inPot[idx]);
+    if (potSides.length > 0 && sideBuyIn > 0) {
+      const pot = sideBuyIn * potSides.length;
+      // distributePot wants a lower-is-better metric, pre-sorted best-first.
+      const rankOf = (idx: number) => {
+        const v = rankValue(idx);
+        // 'match' points and Stableford are higher-is-better; negate for one direction, exactly
+        // as computePoolResult does with rankMetric.
+        return (result === 'match' || scoring === 'stableford') ? -v : v;
+      };
+      const ranked = sides
+        .map((s, idx) => ({ teamId: s.id, metric: rankOf(idx) }))
+        .filter((_, idx) => inPot[idx])
+        .sort((a, b) => a.metric - b.metric);
+      const payouts = distributePot(ranked, pot, parseVector(potSplit));
+      sides.forEach((s, idx) => {
+        if (!inPot[idx]) return;
+        money[idx] += (payouts[s.id] ?? 0) - sideBuyIn;
+      });
+    }
   } else {
     // legs: each leg's winner collects that leg's dollars FROM EACH other side. At two sides
     // that is the old +$leg / −$leg. On a nine there is a single leg, paid at the 'overall'
@@ -435,7 +493,12 @@ function compute(ctx: GameModeContext): IndividualResult {
   });
   return {
     kind: 'individual', gameModeId: 'team-2v2', metricLabel,
-    standings, pot: 0, thruHole, moneyModel: 'per-point',
+    standings, thruHole,
+    // Report the pot so the leaderboard can show "$60 pot" (it already renders that for any
+    // result whose moneyModel is 'pot'). Only sides that have STARTED are in it, matching the
+    // settlement — an unstarted side neither antes nor collects.
+    moneyModel: moneyModel === 'pot' ? 'pot' : 'per-point',
+    pot: moneyModel === 'pot' ? sideBuyIn * stand.filter((s) => s.thru > 0).length : 0,
     teamLegs,
     // The two-side view every current consumer reads. Kept exactly as before for a two-side
     // game; for 3+ sides it names the first two, and `sideLabels` below carries them all.

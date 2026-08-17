@@ -186,6 +186,35 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'three-sides-pot',
+    label: 'Three sides playing a POT (uneven 3/2/1)',
+    detail: 'DECISIONS 5.ag: buy-in is PER SIDE, so the solo player and the trio have the same stake.',
+    build: () => {
+      const ps = players([4, 12, 8, 16, 6, 14]);
+      const game = baseGame({
+        players: ps,
+        name: 'Pot, Three Sides',
+        gameMode: 'team-2v2',
+        sides: [
+          { id: 'a', playerIds: ['sp1', 'sp2', 'sp3'] },
+          { id: 'b', playerIds: ['sp4', 'sp5'] },
+          { id: 'c', playerIds: ['sp6'] },
+        ],
+        modeSettings: {
+          format: 'best-ball', scoring: 'stroke', result: 'total',
+          moneyModel: 'pot', sideBuyIn: 20, potSplit: '70,30',
+        },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1' }],
+      });
+      saveGameScores('sm1', [
+        ...scores(['sp1', 'sp2', 'sp3'], [0, 1, 2], ALL18),
+        ...scores(['sp4', 'sp5'], [1, 2], ALL18),
+        ...scores(['sp6'], [2], ALL18),
+      ]);
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+  {
     key: '2v2-nine-complete',
     label: '2v2 on a nine — complete',
     detail: 'Verifies the ONE-leg collapse + caption (was "Front · Back · Overall" over a lone row).',
