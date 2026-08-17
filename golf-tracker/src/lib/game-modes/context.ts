@@ -3,6 +3,7 @@ import type { PoolGame, HoleData } from '../pool-game';
 import { getGameHoles, numHolesForStrokes, buildHcapMap, playerHoleStrokeIndexForGame, gameNineBasis, getPoolPlayingHandicap, defaultSubTeams } from '../pool-game';
 import { getMoneyStrokesOnHole } from '../money-games';
 import type { GameModeContext, SettingsBag } from './types';
+import { fromLegacySubTeams, sidesOfGame } from './sides';
 
 // Build the compute context for an INDIVIDUAL game from a single foursome's
 // scores. Reuses the exact pool handicap/stroke machinery (buildHcapMap +
@@ -56,9 +57,17 @@ export function buildGameModeContext(
   const settings: SettingsBag = game.modeSettings ?? {};
   const pot = players.length * (game.entryPerPlayer || 0);
 
-  // Team-within-group: the two sides (stored, else a balanced default).
-  const subTeams = game.subTeams
-    ?? defaultSubTeams(players.map((p) => p.id), players, game.course, game.handicapAllowance, game.handicapBasis);
+  // Team-within-group: the sides. Normalized ONCE here, at the read boundary, so no mode has
+  // to know which of the two storage shapes a game used (see game-modes/sides.ts).
+  const stored = sidesOfGame(game);
+  const sides = stored.length > 0
+    ? stored
+    : fromLegacySubTeams(
+        defaultSubTeams(players.map((p) => p.id), players, game.course, game.handicapAllowance, game.handicapBasis),
+      );
+  // The legacy two-side view, kept populated for consumers not yet migrated. For a 3+ side
+  // game it holds only the first two sides and is therefore incomplete — `sides` is complete.
+  const subTeams = { a: sides[0]?.playerIds ?? [], b: sides[1]?.playerIds ?? [] };
 
   // Raw course handicap (allowance 100, no off-the-low) for the USGA team formulas.
   // Respects the 9-hole basis so scramble/alt-shot team handicaps match the nine.
@@ -73,5 +82,5 @@ export function buildGameModeContext(
   const playerIdSet = new Set(players.map((p) => p.id));
   const wolfOrder = game.wolfOrder?.filter((id) => playerIdSet.has(id));
 
-  return { players, holes, scores, settings, pot, playingHcap, strokesOnHole, grossOnHole, netOnHole, subTeams, rawCourseHcap, wolfDecisions: game.wolfDecisions, wolfOrder: wolfOrder && wolfOrder.length > 0 ? wolfOrder : undefined };
+  return { players, holes, scores, settings, pot, playingHcap, strokesOnHole, grossOnHole, netOnHole, subTeams, sides, rawCourseHcap, wolfDecisions: game.wolfDecisions, wolfOrder: wolfOrder && wolfOrder.length > 0 ? wolfOrder : undefined };
 }

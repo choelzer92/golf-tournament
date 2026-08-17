@@ -1,6 +1,7 @@
 import type { Player, GameScore } from '../game-state';
 import type { FormatSetting } from '../formats';
 import type { HoleData, WolfHoleDecision } from '../pool-game';
+import type { GameSide } from './sides';
 
 // A game mode's category decides which result axis (and leaderboard) it uses.
 //   'team'              — the classic pool: compare foursomes (computePoolResult).
@@ -52,7 +53,14 @@ export interface GameModeContext {
   netOnHole(playerId: string, hole: HoleData): number | null;
   // Team-within-group games only: the two sides' player-id lists (from
   // game.subTeams, else a balanced default). Undefined for individual games.
+  //
+  // LEGACY VIEW, kept so nothing that reads it has to change at once. It holds the first two
+  // sides of `sides` below; for a 3+ side game it is therefore INCOMPLETE — read `sides`.
   subTeams?: { a: string[]; b: string[] };
+  // Team-within-group games only: ALL sides, normalized (F-006). Always populated when
+  // subTeams is, since a legacy {a, b} widens to two sides with the ids 'a' and 'b'. This is
+  // the field the engine should read. See game-modes/sides.ts.
+  sides?: GameSide[];
   // Raw course handicap (allowance 100, no off-the-low) — the input the USGA
   // team-handicap formulas need (scramble/alt-shot, Phase B). Distinct from
   // playingHcap, which is allowance-adjusted, off-the-low-adjusted, and rounded.

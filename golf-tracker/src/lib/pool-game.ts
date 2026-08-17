@@ -9,6 +9,7 @@ import {
   ballsPerHole, betterValue, evenValueOnHole, isOneBall, teamValueOnHole,
   type ScoreBasis, type TeamFormat,
 } from './game-modes/team-scoring';
+import type { GameSide } from './game-modes/sides';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -202,7 +203,16 @@ export interface PoolGame {
   modeSettings?: Record<string, string | number | boolean>;
   // Team-within-group games only (2v2 in one foursome). ABSENT for every other
   // game. Player-id lists don't fit the flat modeSettings bag, so they live here.
+  //
+  // LEGACY two-side shape. Every existing 2v2 game holds this, and an ordinary two-side
+  // game still SAVES this way, so it computes down the path the golden snapshots pin
+  // (two-side-golden.test.ts). Read it via sidesOfGame(), never directly.
   subTeams?: { a: string[]; b: string[] };
+  // N SIDES (F-006). Absent on every existing game. Set only when the collection can't be
+  // expressed as {a, b} — three or more sides, or a side carrying its own name. `subTeams`
+  // is deliberately absent when this is present: a lossy first-two-sides copy would make an
+  // older client silently settle a different game. See game-modes/sides.ts.
+  sides?: GameSide[];
   // Wolf (and Wolf-family) per-hole decisions: who was the Wolf and whether they
   // took a partner / went lone / blind. Keyed by hole number. Mirrors ctpWinners'
   // storage (whole-JSON, read-latest-merge on write). Absent for other games.

@@ -51,6 +51,10 @@ export function formatFromGame(game: PoolGame): GroupDefaults {
     gameMode: game.gameMode,
     modeSettings: game.modeSettings,
     subTeams: game.subTeams,
+    // N sides, or absent for an ordinary two-side game (F-006). Without this, saving a
+    // three-side game to the library and starting from it would silently give back two sides —
+    // the same class of drop that made teamFormat/teamScoreBasis necessary here.
+    sides: game.sides,
     moneyMode: game.moneyMode,
     junkValues: game.junkValues,
     customBonuses: game.customBonuses,

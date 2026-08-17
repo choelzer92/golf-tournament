@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import type { PoolJunkValues, PoolMoneyMode, PoolMatchConfig, CustomBonus } from './pool-game';
 import type { TwoBestBallsVariant } from './formats';
 import type { ScoreBasis, TeamFormat } from './game-modes/team-scoring';
+import type { GameSide } from './game-modes/sides';
 
 // A saved group = an organizer's "home base": a named set of roster player IDs
 // PLUS the default game settings to prefill when starting a game from it. The
@@ -34,6 +35,10 @@ export interface GroupDefaults {
   gameMode?: string;
   modeSettings?: Record<string, string | number | boolean>;
   subTeams?: { a: string[]; b: string[] };
+  // N sides (F-006), for a saved group/format that plays 3+ sides in one group. Absent =
+  // the legacy two-side subTeams above, which is every existing group. Rides the same
+  // defaults JSONB; no migration. See game-modes/sides.ts.
+  sides?: GameSide[];
   // Marks this roster_groups row as a Format Library entry (a reusable game
   // format, typically with no players) rather than a player Group. Absent = a
   // normal player group (unchanged behavior).
