@@ -273,9 +273,14 @@ function compute(ctx: GameModeContext): IndividualResult {
   const legThru = { front: 0, back: 0 };
   const totals = zeros();
   let thruHole = 0;
+  // Each side's HOLE SCORE per hole, kept for the scorecard (DECISIONS.md §5.ah). Distinct from
+  // PlayerStanding.perHole, which under match scoring holds the 1 / 0.5 / 0 match POINTS and so
+  // cannot draw a card row.
+  const holeValues: (number | null)[][] = sides.map(() => ctx.holes.map(() => null));
 
   ctx.holes.forEach((hole, hIdx) => {
     const ms = sides.map((_, idx) => metric(idx, hole));
+    ms.forEach((m, idx) => { holeValues[idx][hIdx] = m; });
     if (ms.every((m) => m === null)) return;
     thruHole = hole.number;
     const leg = hole.number <= 9 ? 'front' : 'back';
@@ -483,6 +488,27 @@ function compute(ctx: GameModeContext): IndividualResult {
   // money is between sides, not a free-for-all among the players.
   const junkLines = settleJunkForSides(SETTINGS, ctx.settings, ctx, stand, sides);
 
+  // One side's ready-to-show status for the SCORECARD: its rank, plus the margin in the unit the
+  // game actually counts (DECISIONS.md §5.ah). Craig's correction: "what if it isnt a score to
+  // par type of game? what if its points?" — so the figure follows the game, never a hard-coded
+  // "to par". At TWO sides the leaderboard's own leg lines already say "2 up"/"by 3"; this is the
+  // per-side line the card needs, which has to be readable with any number of opponents.
+  function sideStatus(idx: number): string {
+    if (stand[idx].thru === 0) return '–';
+    const place = stand[idx].place;
+    const ord = place === 1 ? '1st' : place === 2 ? '2nd' : place === 3 ? '3rd' : `${place}th`;
+    const fmt = (n: number) => (n % 1 === 0 ? String(n) : n.toFixed(1));
+    if (result === 'match') {
+      // Match play counts HOLES, not strokes or points.
+      const holesWon = legHolesWon.front[idx] + legHolesWon.back[idx];
+      return `${ord} · ${holesWon} ${holesWon === 1 ? 'hole' : 'holes'}`;
+    }
+    if (scoring === 'stableford') return `${ord} · ${fmt(totals[idx])} pts`;
+    // Strokes: score to par, which is the figure the ranking and the money use.
+    const tp = toPar[idx];
+    return `${ord} · ${tp === 0 ? 'E' : tp > 0 ? `+${fmt(tp)}` : fmt(tp)}`;
+  }
+
   const metricLabel = result === 'match' ? 'match pts' : scoring === 'stableford' ? 'pts' : 'net';
   // Order the sides by who's winning (place 1 first). Unscored (place 0) sinks last. Without
   // this the board listed the sides in storage order regardless of the lead.
@@ -504,6 +530,14 @@ function compute(ctx: GameModeContext): IndividualResult {
     // game; for 3+ sides it names the first two, and `sideLabels` below carries them all.
     sideNames: { a: names[0] ?? '', b: names[1] ?? '' },
     sideLabels: sides.map((s, idx) => ({ id: s.id, name: names[idx] })),
+    sideBreakdown: sides.map((s, idx) => ({
+      id: s.id,
+      name: names[idx],
+      values: holeValues[idx],
+      total: totals[idx],
+      place: stand[idx].place,
+      status: sideStatus(idx),
+    })),
     junkLines: junkLines ?? undefined,
   };
 }

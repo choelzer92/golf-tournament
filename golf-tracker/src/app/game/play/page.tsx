@@ -13,7 +13,7 @@ import type { SideGameResult } from '@/lib/side-game';
 import type { PoolGame, PoolResult, PoolLeg } from '@/lib/pool-game';
 import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores, buildHcapMap, playerHoleStrokeIndexForGame, numHolesForStrokes, defaultSubTeams, isPoolGameFullyScored } from '@/lib/pool-game';
 import { getMoneyStrokesOnHole } from '@/lib/money-games';
-import { isSingleGroupGame } from '@/lib/game-modes/result';
+import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
 import { getGameMode } from '@/lib/game-modes';
 import { sideNamesForGame } from '@/lib/game-modes/team-game';
 import { fromLegacySubTeams, sidesOfGame } from '@/lib/game-modes/sides';
@@ -318,6 +318,19 @@ export default function PlayGamePage() {
   // gives the correct per-player-tee index (reranked 1–9 only on the USGA basis).
   const poolHcapMap = poolGame ? buildHcapMap(poolGame) : null;
   const poolNumHoles = poolGame ? numHolesForStrokes(poolGame) : 18;
+
+  // SIDE TOTALS COME FROM THE ENGINE for a side game (DECISIONS.md §5.ah). Same reasoning as the
+  // stroke dots above: the card keeping its own copy of "what did this side score" is what
+  // produced two F-006 bugs (a scramble drawn as 1-net-1-gross, Stableford drawn as strokes).
+  //
+  // Scoped to the pool side-game path only. This card ALSO serves a 2-team tournament, which has
+  // no PoolGame and therefore no engine to ask — that path keeps its own math untouched.
+  const sideBreakdown = (() => {
+    if (!poolGame || !poolCtx || !isSingleGroupGame(poolGame)) return null;
+    if (getGameMode(poolGame.gameMode)?.category !== 'team-within-group') return null;
+    const result = computeGameResult(poolGame, new Map([[poolCtx.matchupId, scores]]));
+    return result.kind === 'individual' ? result.sideBreakdown ?? null : null;
+  })();
 
   // Manual bonuses (sandies, barkies, …) the app can't read off a scorecard. The SCORER
   // taps them for any player in their foursome — Craig: "the scorer can enter any for
@@ -750,6 +763,12 @@ export default function PlayGamePage() {
           const activeAllowance = (setup.splitFormat && isBackNine) ? (setup.splitFormat.handicapAllowance ?? 100) : (setup.handicapAllowance ?? 100);
           const activeStrokeMethod = (setup.splitFormat && isBackNine) ? (setup.splitFormat.strokeMethod ?? 'off-the-low') : (setup.strokeMethod ?? 'off-the-low');
           parts.push(formatNames[activeFormatId] || activeFormatId.replace('-', ' '));
+          // Say how many sides are playing when it isn't the usual two. The card otherwise read
+          // "Stroke Play · Best Ball · Full Handicap" for a three-side game — true, but silent
+          // about the thing most likely to surprise someone picking up the phone.
+          if (sideBreakdown && sideBreakdown.length > 2) {
+            parts.push(`${sideBreakdown.length} sides`);
+          }
 
           if (oneBall) {
             if (teamMode === 'scramble') {
@@ -1317,6 +1336,15 @@ export default function PlayGamePage() {
               ? ([{ players: teamAPlayers, label: teamNames.A, color: 'text-blue-700', team: 'A' as const }])
               : [];
 
+          // A side game with MORE THAN TWO sides can't use the rows above: Player.team holds only
+          // 'A' | 'B', so those players are deliberately left untagged (see pool/[id]/page.tsx).
+          // Draw the rows from the ENGINE instead — one row per side, in board order, with the
+          // side's own hole scores and a rank + margin in the game's own unit (§5.ah).
+          const engineSideRows = sideBreakdown && sideBreakdown.length > 2 ? sideBreakdown : null;
+          // Side colours, matching the leaderboard's palette so one game reads the same on both
+          // screens. Blue/red stay first, so a two-side game is unchanged.
+          const SIDE_ROW_COLORS = ['text-blue-700', 'text-red-700', 'text-amber-700', 'text-emerald-700', 'text-fuchsia-700', 'text-cyan-700'];
+
           const formatId = setup.formatId;
           // A classic pool can now be scored in Stableford points (F-006). It arrives as
           // formatId 'stroke-play' with teamScoreBasis on formatSettings, so keying only on
@@ -1677,6 +1705,51 @@ export default function PlayGamePage() {
                           {scoredAny && matchStatus && (
                             <span className={`ml-1 text-[9px] font-bold px-1 py-0.5 rounded ${matchStatus.color}`}>
                               {matchStatus.label}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {/* THREE OR MORE SIDES: rows straight from the engine, so the card can't
+                      disagree with the money (§5.ah). One row per side, in board order. */}
+                  {engineSideRows?.map((side, sideIdx) => {
+                    const color = SIDE_ROW_COLORS[sideIdx % SIDE_ROW_COLORS.length];
+                    const valueAt = (holeNumber: number) => {
+                      const i = holes.findIndex((h) => h.number === holeNumber);
+                      return i < 0 ? null : side.values[i] ?? null;
+                    };
+                    const scoredAny = side.values.some((v) => v !== null);
+                    const otherTotal = hasOtherSide
+                      ? otherHoles.reduce((s, h) => s + (valueAt(h.number) ?? 0), 0)
+                      : 0;
+                    return (
+                      <tr key={side.id} className="border-t border-gray-200 bg-gray-50">
+                        <td className={`px-2 py-1 font-bold text-[10px] whitespace-nowrap ${color}`}>
+                          {side.name}{isStablefordFormat ? ' pts' : ''}
+                        </td>
+                        {visibleHoles.map((h) => {
+                          const val = valueAt(h.number);
+                          const isCurrent = h.number === currentHole;
+                          return (
+                            <td key={h.number} className={`py-1 text-center font-bold ${color} ${isCurrent ? 'bg-yellow-50' : ''}`}>
+                              {val ?? '–'}
+                            </td>
+                          );
+                        })}
+                        {hasOtherSide && (
+                          <td className={`px-1.5 py-1 text-center font-bold border-l border-gray-200 ${color}`}>
+                            {otherTotal || '–'}
+                          </td>
+                        )}
+                        <td className="px-1.5 py-1 text-center border-l border-gray-200">
+                          <span className={`font-bold ${color}`}>{scoredAny ? side.total : '–'}</span>
+                          {scoredAny && (
+                            /* Rank + margin in the game's OWN unit — "1st · −4" for strokes,
+                               "1st · 42 pts" for Stableford, "1st · 5 holes" for match play. A
+                               two-side "2 UP" badge means nothing against two opponents. */
+                            <span className="ml-1 text-[9px] font-bold px-1 py-0.5 rounded text-gray-700 bg-gray-200 whitespace-nowrap">
+                              {side.status}
                             </span>
                           )}
                         </td>

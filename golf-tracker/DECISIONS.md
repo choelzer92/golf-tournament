@@ -775,6 +775,41 @@ antes look consistent right up until sides differ in size.
 
 ---
 
+## 5.ah The scorecard reads side totals FROM THE ENGINE, and shows rank + margin (2026-08-17)
+
+Asked what a side's row on the scorecard should show once three sides exist (the badge says
+"2 UP", which is meaningless against two opponents), I proposed "score to par". Craig caught the
+assumption:
+
+> "it should show score to par, but also, what if it isnt a score to par type of game? what if
+> its points? probably should be a net, gross, and ranking type situation"
+
+He's right, and the code agreed: `getMatchStatus` already branches four ways (match vs total ×
+Stableford vs net) and derives a rank in each, then discards it to render a two-side ahead/back.
+
+**Decision 1: rank + margin, in the game's own unit.** `1st · −4` under strokes, `1st · 42 pts`
+under Stableford, `1st · 5 holes` in match play. Rank is unit-free so it's always right; the
+margin is whatever that game actually counts. Two sides keeps today's UP/DN badge — no existing
+card changes.
+
+**Decision 2: the card reads side totals from the compute engine**, not its own loops. Asked
+whether to widen the card's own math or retire it, Craig chose to retire it.
+
+**Why that's the important half.** `AGENTS.md` names "the money engine is the source of truth for
+strokes" as load-bearing, and F-006 hit this divergence *twice* in one pass: the card drew a
+1-net-1-gross team row for a scramble, and drew Stableford as strokes. Both were two
+implementations of "what did this side score" disagreeing. Widening the card's own loops to N
+would have kept that setup and doubled the surface. Reading from the engine means a format the
+engine understands, the card understands — by construction, not by keeping two copies in sync.
+
+**How to apply:** when a screen has its own copy of a domain calculation, widening the copy is
+almost never the cheaper option — it's the same work plus a permanent obligation to keep both
+honest. Prefer deleting the copy. And note the general lesson from Craig's correction: a label
+that names a *unit* ("to par", "net") is a claim about what game is being played. Check it holds
+for every game the screen can show.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

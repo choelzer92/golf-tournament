@@ -1141,7 +1141,30 @@ engine needs) and settles correctly on the leaderboard; the card just doesn't sh
 on one surface, and the surface that *pays* is correct. But a group actually playing three sides
 will want their side's running total while they're out there, so it's the natural next piece.
 
-**Status:** open, scoped, not started.
+**Status: PARTLY DONE (2026-08-17).** A 3+ side game now draws one row per side on the card,
+**from the engine** (`IndividualResult.sideBreakdown`), with a rank + margin in the game's own
+unit: `1st · −4` under strokes, `1st · 42 pts` under Stableford, `1st · 5 holes` in match play.
+Craig's calls, DECISIONS.md §5.ah — including the correction that "to par" is a stroke-play word
+and the card has to serve points games too.
+
+Verified on screen, not just asserted: three side rows in the leaderboard's own colours, totals
+and statuses matching the board exactly, and all six players still scoreable. The header also now
+says "3 sides", which the screenshot showed it wasn't (it read "Stroke Play · Best Ball · Full
+Handicap" — true, and silent about the surprising part).
+
+**What is NOT done, and why.** The plan was to retire the card's own `getTeamNet` /
+`getTeamStableford` / `getMatchStatus` and have every path read the engine. That turned out to be
+unsafe as a single step: **this card also serves the 2-team TOURNAMENT**, which has no `PoolGame`
+and therefore no engine to ask. So the engine rows are scoped to the pool side-game path with 3+
+sides, and everything else — two-side games and every tournament — keeps the existing math
+untouched.
+
+That leaves the duplication §5.ah wanted gone, for two sides only. The honest framing: the new
+path has one source of truth, the old path still has two. Retiring the old math needs the
+tournament to gain an engine of its own (or a shim that builds a context from a `Tournament`),
+which is its own piece of work and shouldn't ride along with this.
+
+**Still open:** the tournament's copy of the team-score math, and the two-side badge path.
 
 ---
 

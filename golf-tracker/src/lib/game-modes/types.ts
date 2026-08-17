@@ -144,6 +144,22 @@ export interface IndividualResult {
   // including two-side ones, so a consumer never has to choose between the two fields based
   // on side count.
   sideLabels?: { id: string; name: string }[];
+  // The SCORECARD's team rows, straight from the engine (DECISIONS.md §5.ah). Craig's call: the
+  // card must not keep its own copy of "what did this side score" — that duplication produced two
+  // F-006 bugs (a scramble drawn as 1-net-1-gross, Stableford drawn as strokes).
+  //
+  // `values` is the side's HOLE SCORE per hole (net strokes or Stableford points, by the game's
+  // basis) aligned to ctx.holes — deliberately NOT PlayerStanding.perHole, which holds match
+  // POINTS under match scoring and so can't draw a scorecard row. `status` is a ready-to-show
+  // rank + margin in the game's own unit ("1st · −4", "1st · 42 pts", "1st · 5 holes").
+  sideBreakdown?: {
+    id: string;
+    name: string;
+    values: (number | null)[];
+    total: number;
+    place: number;
+    status: string;
+  }[];
   // Wolf only: per-hole matchup breakdown (Wolf, call, side nets, winner).
   wolfHoles?: WolfHoleLine[];
   // Nassau-pot money model only: the front/back/total segment payout breakdown

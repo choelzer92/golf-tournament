@@ -1078,3 +1078,51 @@ test.describe('F-006: a side game can play a POT', () => {
     await expect(page.getByLabel('$ per point')).toBeVisible();
   });
 });
+
+test.describe('F-013: the scorecard with three sides', () => {
+  // DECISIONS 5.ah. The card used to be able to express only two sides, so a 3+ side game
+  // showed no team row at all. It now draws one row per side FROM THE ENGINE, so the card and
+  // the money cannot disagree.
+  test('draws a row per side, with rank + margin in the game own unit', async ({ page }) => {
+    const id = await seed(page, 'Three sides in one group');
+    await page.goto(`${BASE}/pool/${id}`);
+    await page.getByRole('button', { name: /enter scores/i }).first().click();
+    await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+
+    const body = await page.locator('body').innerText();
+    // All three sides have a row, named as the leaderboard names them.
+    expect(body).toContain('Craig & Jym');
+    expect(body).toContain('Dave & Rick');
+    expect(body).toContain('Sam & Tony');
+    // Rank + margin, not a two-side "2 UP" badge. This is a stroke game, so the unit is to-par.
+    expect(body).toMatch(/1st · /);
+    expect(body).not.toMatch(/\d+ UP/);
+    // And the header says how many sides are playing — it read "Stroke Play · Best Ball · Full
+    // Handicap" for a three-side game, true but silent about the surprising part.
+    expect(body).toContain('3 sides');
+
+    await page.screenshot({ path: 'e2e/screenshots/three-sides-scorecard.png', fullPage: true });
+  });
+
+  test('every player can still enter a score, including on the third side', async ({ page }) => {
+    const id = await seed(page, 'Three sides in one group');
+    await page.goto(`${BASE}/pool/${id}`);
+    await page.getByRole('button', { name: /enter scores/i }).first().click();
+    await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
+    // Six players on three sides — all six must be scoreable, or the third side can't play.
+    for (const name of ['Craig', 'Jym', 'Dave', 'Rick', 'Sam', 'Tony']) {
+      await expect(page.getByText(name, { exact: false }).first()).toBeVisible();
+    }
+  });
+
+  test('a TWO-side game keeps its familiar UP/DN badge', async ({ page }) => {
+    // The engine rows are for 3+ only; two sides must be untouched.
+    await seed(page, '2v2 best ball — mid-round');
+    await page.getByRole('button', { name: /enter scores/i }).first().click();
+    await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
+    const body = await page.locator('body').innerText();
+    expect(body).toMatch(/UP|DN|AS|ahead|back/);
+    expect(body).not.toMatch(/1st · /);
+  });
+});
