@@ -19,6 +19,7 @@ import { getGameMode, type IndividualResult } from '@/lib/game-modes';
 import type { TeamFormat } from '@/lib/game-modes/team-scoring';
 import type { WolfHoleLine, NassauLegLine, JunkLine } from '@/lib/game-modes/types';
 import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
+import { defaultSideLabel, sideOfPlayer, sidesOfGame } from '@/lib/game-modes/sides';
 
 const LEG_LABELS: Record<PoolLegKey, string> = {
   front: 'Front 9',
@@ -775,6 +776,22 @@ function fmtPace(n: number): string {
   return n === 0 ? 'E' : n > 0 ? `+${n}` : String(n);
 }
 
+// A side's colour, by its stable side id. ONE definition, because the blue/red pair was
+// hard-coded at three separate call sites and a third side would have been invisible at all of
+// them. Blue and red stay first so every existing two-side game looks exactly as it did.
+//
+// NOTE (DECISIONS.md §7 open question 2): these colours are side IDENTITY, not win/loss
+// valence — that's carried by the numbers. Adding more identity colours doesn't change that
+// tension, but it does make it more visible, so it stays worth resolving.
+const SIDE_TONES = ['text-blue-300', 'text-red-300', 'text-amber-300', 'text-emerald-300', 'text-fuchsia-300', 'text-cyan-300'];
+
+function sideTone(sideId: string, order: string[]): string {
+  const idx = order.indexOf(sideId);
+  // Unknown side (stale id) falls back to neutral rather than colouring it as side A.
+  if (idx < 0) return 'text-gray-400';
+  return SIDE_TONES[idx % SIDE_TONES.length];
+}
+
 // How a foursome's hole score is made, in words. A generalized game (teamFormat set)
 // describes ITS format — the ballSelection caption would otherwise name a rule the game
 // isn't playing. Each phrase says net or gross, because that's decided by the format and
@@ -864,15 +881,28 @@ function IndividualLeaderboard({ id }: { id: string }) {
   // 2v2 only: which side a player is on, for the Player Details grid. Every other
   // panel on this page is side-oriented, but the grid listed all four players flat
   // with no indication of the sides. Undefined for individual games.
-  const sideOf = isWithinGroup && result?.sideNames
-    ? (playerId: string): { label: string; tone: 'a' | 'b' } | null => {
-        const sides = game.subTeams;
-        if (!sides) return null;
-        if (sides.a.includes(playerId)) return { label: result.sideNames!.a, tone: 'a' };
-        if (sides.b.includes(playerId)) return { label: result.sideNames!.b, tone: 'b' };
-        return null;
+  // Score to par / PACE, shown when the engine ranks on it rather than on the displayed metric
+  // (side games under 'total' scoring — see DECISIONS.md §5.af). Under Stableford the figure is
+  // PACE, where ahead of pace is GOOD; under strokes it's plain to-par.
+  const showToPar = result?.standings.some((s) => s.toPar !== undefined) ?? false;
+  const paceHigherIsBetter = result?.metricLabel === 'pts';
+  const paceLabel = paceHigherIsBetter ? 'PACE' : 'To par';
+
+  // Which side a player is on, for the Player Details grid. Reads the normalized side
+  // collection so a 3+ side game labels every player, not just the first two (it used to read
+  // game.subTeams directly and hard-code a/b).
+  const gameSides = isWithinGroup ? sidesOfGame(game) : [];
+  const sideOf = isWithinGroup && result?.sideLabels
+    ? (playerId: string): { label: string; sideId: string } | null => {
+        const found = sideOfPlayer(gameSides, playerId);
+        if (!found) return null;
+        const label = result.sideLabels!.find((s) => s.id === found.id)?.name ?? defaultSideLabel(found.id);
+        return { label, sideId: found.id };
       }
     : undefined;
+  // Board order for grouping players by side — the order the standings are in, so the grid
+  // reads the same way as the table above it.
+  const sideOrder = result?.sideLabels?.map((s) => s.id) ?? [];
 
   return (
     <div className="min-h-full bg-gray-900">
@@ -907,6 +937,15 @@ function IndividualLeaderboard({ id }: { id: string }) {
                     <th className="text-left px-3 py-1.5 font-medium">#</th>
                     <th className="text-left px-2 py-1.5 font-medium">{isWithinGroup ? 'Side' : 'Player'}</th>
                     <th className="text-center px-2 py-1.5 font-medium">{result.metricLabel}</th>
+                    {/* The figure the board is RANKED and PAID on, when it isn't the metric
+                        itself (DECISIONS.md §5.af). A raw total can't be compared across
+                        differing thru counts, so a side game under 'total' scoring ranks on
+                        score to par — and was doing so without showing it, which made the
+                        order look wrong. Same column the pool board already has: "TO PAR"
+                        under strokes, "PACE" under points, where ahead of pace is good. */}
+                    {showToPar && (
+                      <th className="text-center px-2 py-1.5 font-medium">{paceLabel}</th>
+                    )}
                     <th className="text-center px-2 py-1.5 font-medium">Thru</th>
                     <th className="text-right px-3 py-1.5 font-medium">$</th>
                   </tr>
@@ -929,6 +968,25 @@ function IndividualLeaderboard({ id }: { id: string }) {
                             {canExpand && <span className="ml-1 text-gray-600 text-[10px]">{isOpen ? '▾' : '▸'}</span>}
                           </td>
                           <td className="text-center px-2 py-1.5 font-bold text-white">{fmtMetric(s.points)}</td>
+                          {showToPar && (
+                            <td className="text-center px-2 py-1.5">
+                              {/* Colour keys on the BASIS, not just the sign: under Stableford
+                                  this is PACE and +4 is GOOD (ahead of pars), while under
+                                  strokes +4 is four over. Drawing both grey read as if being
+                                  18 over par were unremarkable. */}
+                              <span className={
+                                s.thru === 0 || s.toPar === undefined
+                                  ? 'text-gray-500'
+                                  : s.toPar === 0
+                                    ? 'text-gray-200'
+                                    : (paceHigherIsBetter ? s.toPar > 0 : s.toPar < 0)
+                                      ? 'text-green-400'
+                                      : 'text-red-400'
+                              }>
+                                {s.thru === 0 || s.toPar === undefined ? '-' : fmtPace(s.toPar)}
+                              </span>
+                            </td>
+                          )}
                           <td className="text-center px-2 py-1.5 text-gray-400">{s.thru || '-'}</td>
                           <td className={`text-right px-3 py-1.5 font-medium ${s.moneyNet > 0 ? 'text-green-400' : s.moneyNet < 0 ? 'text-red-400' : 'text-gray-500'}`}>
                             {money(s.moneyNet)}
@@ -937,7 +995,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
                         {canExpand && isOpen && (
                           <tr className="bg-gray-900/40">
                             <td />
-                            <td colSpan={4} className="px-2 pb-2 text-[11px] text-gray-400">
+                            <td colSpan={showToPar ? 5 : 4} className="px-2 pb-2 text-[11px] text-gray-400">
                               {s.holesWon && s.holesWon.length > 0
                                 ? <>Won holes: <span className="text-gray-300">{s.holesWon.join(', ')}</span></>
                                 : 'No holes won yet.'}
@@ -996,7 +1054,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
                           <p className="text-[10px] text-gray-500">{leg.thru} of {segmentHoles(leg.key, holesInPlay)} holes</p>
                         )}
                       </div>
-                      <span className={`text-sm font-medium ${leg.winner === 'a' ? 'text-blue-300' : leg.winner === 'b' ? 'text-red-300' : 'text-gray-400'}`}>
+                      <span className={`text-sm font-medium ${leg.winner ? sideTone(leg.winner, sideOrder) : 'text-gray-400'}`}>
                         {leg.status}
                       </span>
                     </div>
@@ -1011,7 +1069,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
                 <div className="px-4 py-2 border-b border-gray-700">
                   <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Player Details</p>
                 </div>
-                <IndividualPlayerGrid players={players} sideOf={sideOf} />
+                <IndividualPlayerGrid players={players} sideOf={sideOf} sideOrder={sideOrder} />
               </div>
             )}
 
@@ -1141,11 +1199,13 @@ function WolfBreakdown({ lines }: { lines: WolfHoleLine[] }) {
 // The per-player scorecard grid for individual games — same Out/In/Gross/Net
 // columns and strokes-given box as the team leaderboard's Player Details, but for
 // the single group. Extracted so both paths share the presentation.
-function IndividualPlayerGrid({ players, sideOf }: {
+function IndividualPlayerGrid({ players, sideOf, sideOrder = [] }: {
   players: PoolPlayerDetail[];
-  // 2v2 only: resolves a player to their side label, so the grid shows the sides
+  // Side games only: resolves a player to their side label + id, so the grid shows the sides
   // like every other panel on the page. Absent for individual games.
-  sideOf?: (playerId: string) => { label: string; tone: 'a' | 'b' } | null;
+  sideOf?: (playerId: string) => { label: string; sideId: string } | null;
+  // The sides in board order, for grouping rows and picking each side's colour.
+  sideOrder?: string[];
 }) {
   const allHoles = players[0]?.holes ?? [];
   const frontHoles = allHoles.filter((h) => h.holeNumber <= 9);
@@ -1154,11 +1214,16 @@ function IndividualPlayerGrid({ players, sideOf }: {
     const played = p.holes.filter((h) => pred(h) && h.gross != null);
     return played.length ? played.reduce((s, h) => s + (h.gross ?? 0), 0) : null;
   };
-  // For a 2v2, group the rows by side (side A first) so the two partnerships read
-  // as blocks. Individual games keep their given order.
+  // For a side game, group the rows by side (board order) so each partnership reads as a block.
+  // Individual games keep their given order. Works for any number of sides — it used to rank on
+  // a hard-coded a/b pair, so every player of a third side sorted last together.
   const ordered = sideOf
     ? [...players].sort((a, b) => {
-        const rank = (pid: string) => (sideOf(pid)?.tone === 'a' ? 0 : sideOf(pid)?.tone === 'b' ? 1 : 2);
+        const rank = (pid: string) => {
+          const id = sideOf(pid)?.sideId;
+          const idx = id ? sideOrder.indexOf(id) : -1;
+          return idx < 0 ? sideOrder.length : idx;   // unknown side sinks last
+        };
         return rank(a.playerId) - rank(b.playerId);
       })
     : players;
@@ -1191,7 +1256,7 @@ function IndividualPlayerGrid({ players, sideOf }: {
                   {player.playerName.split(' ')[0]}
                   <span className="text-[10px] text-gray-500 ml-0.5">({Math.round(player.playingHcap)})</span>
                   {showSide && (
-                    <span className={`ml-1 text-[9px] font-normal ${side!.tone === 'a' ? 'text-blue-300' : 'text-red-300'}`}>
+                    <span className={`ml-1 text-[9px] font-normal ${sideTone(side!.sideId, sideOrder)}`}>
                       {side!.label}
                     </span>
                   )}

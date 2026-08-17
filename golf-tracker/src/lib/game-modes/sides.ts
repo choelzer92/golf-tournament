@@ -114,6 +114,19 @@ export function persistedSides(sides: GameSide[]): {
   return { sides };
 }
 
+/**
+ * Settings keys for side names that this collection has no side for.
+ *
+ * The mode declares six (`sideAName`..`sideFName`) because a settings schema is static, but a
+ * two-side game must not render four always-blank name boxes — that's four rows of nothing on a
+ * phone. The hub hides these.
+ */
+export function unusedSideNameKeys(sideCount: number): string[] {
+  const keys: string[] = [];
+  for (let i = sideCount; i < 6; i++) keys.push(`side${String.fromCharCode(65 + i)}Name`);
+  return keys;
+}
+
 /** A side's members, by id. Empty when the id isn't in the collection. */
 export function sideMembers(sides: GameSide[], sideId: string): string[] {
   return sides.find((s) => s.id === sideId)?.playerIds ?? [];

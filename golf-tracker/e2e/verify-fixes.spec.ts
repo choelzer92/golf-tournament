@@ -951,3 +951,96 @@ test.describe('F-012: the same rule, in the 2v2 editor', () => {
     await page.screenshot({ path: 'e2e/screenshots/hub-2v2-side-retap.png', fullPage: true });
   });
 });
+
+test.describe('F-006: three sides in one group', () => {
+  // The N-sides half of F-006. Two sides is still the default; this proves the third is real
+  // on screen, not just in the engine.
+  test('the leaderboard shows all three sides, ranked, with money', async ({ page }) => {
+    const id = await seed(page, 'Three sides in one group');
+    await page.waitForURL(new RegExp(`/pool/${id}/leaderboard`));
+
+    // All three sides present and named after their players.
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('Craig & Jym');
+    expect(body).toContain('Dave & Rick');
+    expect(body).toContain('Sam & Tony');
+
+    // Three standings rows, and the money sums to zero (pairwise round-robin, DECISIONS 5.ae).
+    const rows = page.locator('table tbody tr');
+    expect(await rows.count()).toBeGreaterThanOrEqual(3);
+
+    await page.screenshot({ path: 'e2e/screenshots/three-sides-leaderboard.png', fullPage: true });
+  });
+
+  test('the board shows the TO PAR figure it ranks on', async ({ page }) => {
+    await seed(page, 'Three sides in one group');
+    // DECISIONS 5.af: a side game under 'total' scoring ranks on score to par, and used to
+    // display only the raw total — so the order looked wrong with nothing explaining it.
+    await expect(page.getByRole('columnheader', { name: 'To par' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Thru' })).toBeVisible();
+  });
+
+  test('side C, thru fewer holes, is not paid for playing less golf', async ({ page }) => {
+    await seed(page, 'Three sides in one group');
+    const body = await page.locator('body').innerText();
+    // The seed has side C twelve holes in while A and B are done, and C playing WORSE.
+    // On raw totals C's lower total would have ranked it first; on to-par it is last.
+    const cRow = page.locator('tr', { hasText: 'Sam & Tony' }).first();
+    await expect(cRow).toBeVisible();
+    // C is last of the three, and owes money rather than collecting it.
+    expect(body).toContain('Sam & Tony');
+    const cText = await cRow.innerText();
+    expect(cText).toMatch(/−\$/);   // a loss, using the app's minus sign
+  });
+
+  // Both of these were found by LOOKING at three-sides-leaderboard.png, not by reading code.
+  test('a bad to-par is drawn red, not the same grey as a good one', async ({ page }) => {
+    await seed(page, 'Three sides in one group');
+    // Side A is -4 (good), side C is +18 (bad). They rendered identically until this fix, so
+    // being 18 over par read as unremarkable. Colour keys on the BASIS: under strokes lower is
+    // better, so a positive to-par is red.
+    const aRow = page.locator('tr', { hasText: 'Craig & Jym' }).first();
+    const cRow = page.locator('tr', { hasText: 'Sam & Tony' }).first();
+    await expect(aRow.locator('span.text-green-400')).toHaveCount(1);
+    await expect(cRow.locator('span.text-red-400')).toHaveCount(1);
+  });
+
+  test('a third side can be NAMED, and unused name boxes stay hidden', async ({ page }) => {
+    const id = await seed(page, 'Three sides in one group');
+    await page.goto(`${BASE}/pool/${id}`);
+    await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+    await expect(page.getByText('Sides (within group) options')).toBeVisible();
+
+    // Three sides => three name fields, and no boxes for sides that don't exist.
+    await expect(page.getByLabel('Side A name')).toBeVisible();
+    await expect(page.getByLabel('Side C name')).toBeVisible();
+    await expect(page.getByLabel('Side D name')).toHaveCount(0);
+
+    // Naming side C actually reaches the leaderboard.
+    await page.getByLabel('Side C name').fill('The Cats');
+    await page.getByLabel('Side C name').blur();
+    await page.goto(`${BASE}/pool/${id}/leaderboard`);
+    // Appears in BOTH the standings row and the player-details side tag — that consistency is
+    // the point (a name that reached one surface and not the other is the F-006 "Team A" bug).
+    await expect(page.getByRole('cell', { name: 'The Cats', exact: true })).toBeVisible();
+    expect(await page.getByText('The Cats').count()).toBe(2);
+    await page.screenshot({ path: 'e2e/screenshots/three-sides-named.png', fullPage: true });
+  });
+
+  test('the hub can add and remove a side', async ({ page }) => {
+    const id = await seed(page, 'Three sides in one group');
+    await page.goto(`${BASE}/pool/${id}`);
+    await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+    await expect(page.getByText('Sides (within group) options')).toBeVisible();
+
+    // Three side buttons per player row, and the controls to change that.
+    await expect(page.getByRole('button', { name: 'Remove side C' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '+ Add a side' })).toBeVisible();
+
+    await page.screenshot({ path: 'e2e/screenshots/three-sides-hub.png', fullPage: true });
+
+    // Adding a fourth side gives every player a D button to tap.
+    await page.getByRole('button', { name: '+ Add a side' }).click();
+    await expect(page.getByRole('button', { name: 'Remove side D' })).toBeVisible();
+  });
+});

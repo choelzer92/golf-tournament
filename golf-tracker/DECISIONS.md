@@ -696,6 +696,57 @@ from `distributePot` + `positionSplit`. Craig hasn't chosen it; don't add it unp
 
 ---
 
+## 5.af Rank sides on SCORE TO PAR, and show it (2026-08-17)
+
+Generalizing the side engine changed exactly one of 48 golden snapshots, so I probed why instead
+of accepting it, and found a live bug in the shipped 2v2 mode: `total` scoring ranked on RAW
+TOTALS, so a side was paid for having played FEWER holes.
+
+```
+both sides level par, A thru 9 vs B thru 5   ->  B collected $16
+side B thru 0 (not started)                  ->  B ranked 1st, collected $20
+```
+
+Craig, choosing the rule:
+> "i actually think score to par is the way to rank it, showing what holes each team is through.
+> But athis is what it looks like in a normal golf tournament in terms of the scoreboard"
+
+**Decision: rank and settle on score to par, display thru.** The tournament-scoreboard
+convention. `points` still reports the real total the side shot — the ranking normalizes, the
+displayed score doesn't.
+
+**Why it's safe for existing games:** at equal thru counts the to-par margin is arithmetically
+identical to the raw-total margin (the "even" term cancels), so every completed round pays
+exactly what it paid before. Only mid-round unequal-thru numbers move, which is the bug. 47 of
+48 snapshots byte-identical.
+
+**Then Craig asked "what about the pace situation".** Worth recording the answer, because it
+collapses two things I had been treating separately: **PACE and score-to-par are the same
+computation** (`evenValueOnHole` — score minus what expectation would score). Only the unit and
+sign differ:
+
+| | unit | "even" per hole | good is |
+|---|---|---|---|
+| to par (strokes) | strokes | par × balls | negative |
+| PACE (Stableford) | points | 2 × balls | positive |
+
+So the pool's PACE column and the side engine's new ranking are one mechanism on two axes.
+**Craig's follow-on call: show the column on the side board too** (TOT + to-par/PACE + THRU,
+the same shape the pool board already uses), because the board was ranking on a number it
+didn't display — a side could sit above another with a worse-looking total and nothing on
+screen explained why.
+
+**This narrows open question 8 rather than answering it.** Ranking is settled and no longer
+optional on either axis: without it a side thru 5 gets paid for playing less golf. What remains
+open there is only the label and whether a *projected-18* variant is preferable to *pace* as the
+wording. Don't rebuild the pool's column unprompted.
+
+**How to apply:** when two surfaces compute the same idea under different names, say so out loud
+before adding a third. This one had a fix on the pool axis since the pool half of F-006 and the
+side axis never got it, which is the single most common shape of bug in this codebase's audit.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch
@@ -733,4 +784,4 @@ Awaiting Craig's call. Inferred answers are marked as guesses.
 | 5 | How much configurability belongs on the **first** screen? | Sharpest tension with the north star; genuinely his call |
 | 6 | Mid-round pot money isn't zero-sum (P1 in the audit): split the un-started leg evenly, or pro-rate `entryPaid`? | Split evenly, matching the `settleNassau` precedent |
 | 7 | Nassau "Back 9 · thru 9" reads as hole 9 (P3) | Convert to a hole number, matching the header's vocabulary |
-| 8 | What should a **Stableford** pool's leaderboard show where to-par goes? Offered PTS-only, PTS + PACE (points better than steady pars), or PTS + projected-18. Craig didn't pick — he asked the net/gross question instead, which turned out to be a bug. | Built **PTS + PACE**: pace is what the pot actually ranks on, and the only column that makes a team thru 12 comparable to one thru 18. Not confirmed — revisit. |
+| 8 | ~~What should a **Stableford** pool's leaderboard show where to-par goes?~~ **NARROWED 2026-08-17 (§5.af).** Raised again; Craig chose to leave PTS + PACE as built, and separately confirmed the side board should gain the same column. So the *mechanism* is settled on both axes and is no longer optional — ranking on raw totals pays a side for playing fewer holes. Still open: only the **label** (is "PACE" the clearest word?) and whether a projected-18 variant reads better. | Keep PACE. Don't rebuild unprompted. |

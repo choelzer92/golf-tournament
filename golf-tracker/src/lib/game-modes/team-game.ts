@@ -67,10 +67,26 @@ const SETTINGS: FormatSetting[] = [
   { key: 'legBack', label: 'Back 9 ($)', type: 'number', defaultValue: 10, showIf: { key: 'moneyModel', in: ['legs'] } },
   { key: 'legOverall', label: 'Overall 18 ($)', type: 'number', defaultValue: 10, showIf: { key: 'moneyModel', in: ['legs'] } },
   { key: 'altShotAllowance', label: 'Alt-shot allowance (%)', type: 'number', defaultValue: 50, hint: 'Alternate shot only: % of the 60/40 combined handicap. USGA default 50.', showIf: { key: 'format', in: ['alternate-shot'] } },
+  // Optional custom side names. A/B are the original two keys and stay exactly as they were, so
+  // every saved game keeps its names; C-F were added with N sides (F-006) — without them a third
+  // side could never be named "The Hogs", which the screenshot made obvious and the code did not.
+  // Six is the ceiling because playersMax is 8 and a side needs at least one player; a game with
+  // fewer sides simply never renders the extra fields (they're inert, defaulting to blank).
   { key: 'sideAName', label: 'Side A name', type: 'text', defaultValue: '', hint: 'Optional — leave blank to name it after its players.' },
   { key: 'sideBName', label: 'Side B name', type: 'text', defaultValue: '', hint: 'Optional — leave blank to name it after its players.' },
+  { key: 'sideCName', label: 'Side C name', type: 'text', defaultValue: '', hint: 'Optional — only used when a third side exists.' },
+  { key: 'sideDName', label: 'Side D name', type: 'text', defaultValue: '', hint: 'Optional — only used when a fourth side exists.' },
+  { key: 'sideEName', label: 'Side E name', type: 'text', defaultValue: '', hint: 'Optional — only used when a fifth side exists.' },
+  { key: 'sideFName', label: 'Side F name', type: 'text', defaultValue: '', hint: 'Optional — only used when a sixth side exists.' },
   ...JUNK_SETTINGS,
 ];
+
+// The settings key holding a side's custom name, by its position on the board. Exported so the
+// hub can hide the fields for sides that don't exist rather than showing six always-blank boxes.
+export function sideNameSettingKey(idx: number): string | null {
+  const letter = String.fromCharCode(65 + idx);   // 'A'..
+  return idx >= 0 && idx < 6 ? `side${letter}Name` : null;
+}
 
 // The ONE place a side gets its display name. Custom name if set, else the side's players'
 // first names ("Craig & Jym"), else "Side A"/"Side B"/"Side C". Exported so the SCORECARD
@@ -92,16 +108,21 @@ export function sideNameFrom(
   return names.length ? names.join(' & ') : defaultSideLabel(sideId);
 }
 
-// Both sides' display names for a saved 2v2 game. Used by the play page (which
-// has a PoolGame, not a GameModeContext) so scorecard labels match the board.
+// The FIRST TWO sides' display names for a saved side game. Used by the play page (which has a
+// PoolGame, not a GameModeContext) so scorecard labels match the board.
+//
+// Two, not N, because the scorecard's team slot is a two-value field (Player.team: 'A' | 'B').
+// A 3+ side game is deliberately left untagged upstream, so this is only ever called with two.
 export function sideNamesForGame(
   game: PoolGame,
-  sides: { a: string[]; b: string[] },
+  sides: GameSide[],
 ): { A: string; B: string } {
-  return {
-    A: sideNameFrom(game.players, sides.a, 'a', String(game.modeSettings?.sideAName ?? '')),
-    B: sideNameFrom(game.players, sides.b, 'b', String(game.modeSettings?.sideBName ?? '')),
+  const nameAt = (idx: number, legacySetting: string) => {
+    const side = sides[idx];
+    if (!side) return idx === 0 ? 'Side A' : 'Side B';
+    return sideNameFrom(game.players, side.playerIds, side.id, side.name || String(game.modeSettings?.[legacySetting] ?? ''));
   };
+  return { A: nameAt(0, 'sideAName'), B: nameAt(1, 'sideBName') };
 }
 
 function compute(ctx: GameModeContext): IndividualResult {
@@ -125,15 +146,15 @@ function compute(ctx: GameModeContext): IndividualResult {
   const sides: GameSide[] = ctx.sides ?? (ctx.subTeams ? fromLegacySubTeams(ctx.subTeams) : []);
   const sideIds = (idx: number) => sides[idx]?.playerIds ?? [];
 
-  // Custom side names. A side may carry its own `name` (the N-side field); the two legacy
-  // settings sideAName/sideBName remain the source for the first two sides, so an existing
-  // game's names keep working exactly as before.
-  const legacyNames = [
-    stringSetting(SETTINGS, ctx.settings, 'sideAName').trim(),
-    stringSetting(SETTINGS, ctx.settings, 'sideBName').trim(),
-  ];
+  // Custom side names. A side may carry its own `name` (the N-side field), else the
+  // side<Letter>Name setting for its board position — sideAName/sideBName are the original two
+  // keys, so an existing game's names keep working exactly as before.
+  const settingName = (idx: number): string => {
+    const key = sideNameSettingKey(idx);
+    return key ? stringSetting(SETTINGS, ctx.settings, key).trim() : '';
+  };
   const nameFor = (idx: number): string =>
-    sideNameFrom(ctx.players, sideIds(idx), sides[idx]?.id ?? '?', sides[idx]?.name || legacyNames[idx] || '');
+    sideNameFrom(ctx.players, sideIds(idx), sides[idx]?.id ?? '?', sides[idx]?.name || settingName(idx));
 
   // Team handicap for the single-ball formats (0 for best-ball/combined), per side.
   const isSingleBall = format === 'scramble' || format === 'alternate-shot';
@@ -285,7 +306,13 @@ function compute(ctx: GameModeContext): IndividualResult {
   // Match mode is already thru-safe (it only scores a hole every side has posted), so it ranks
   // on its match points directly.
   if (result === 'total') {
-    sides.forEach((_, idx) => { stand[idx].points = totals[idx]; });
+    sides.forEach((_, idx) => {
+      stand[idx].points = totals[idx];
+      // Surface the figure the board is ranked on, so the leaderboard can SHOW it. Without
+      // this a side could sit above another with a worse-looking total and nothing on screen
+      // explained why (DECISIONS.md §5.af).
+      stand[idx].toPar = toPar[idx];
+    });
   }
   const rankValue = (idx: number) => (result === 'match' ? stand[idx].points : toPar[idx]);
   assignPlaces(stand, sides.map((_, idx) => rankValue(idx)), result === 'match' ? (x, y) => x > y : better);

@@ -15,6 +15,11 @@ import {
   type TeamFormat,
 } from '@/lib/game-modes/team-scoring';
 import {
+  fromLegacySubTeams, nextSideId, persistedSides, sideMembers, sideOfPlayer, sidesOfGame,
+  unusedSideNameKeys,
+  type GameSide,
+} from '@/lib/game-modes/sides';
+import {
   loadPoolGame,
   fetchPoolGame,
   savePoolGame,
@@ -201,12 +206,24 @@ export default function PoolHubPage() {
     const mode = getGameMode(game!.gameMode);
     if (mode?.category === 'team-within-group') {
       const fmt = String(game!.modeSettings?.format ?? 'best-ball');
-      const sides = game!.subTeams
-        ?? defaultSubTeams(game!.players.map((p) => p.id), game!.players, game!.course, game!.handicapAllowance, game!.handicapBasis);
-      players = players.map((p) => ({
-        ...p,
-        team: sides.a.includes(p.id) ? 'A' : sides.b.includes(p.id) ? 'B' : undefined,
-      }));
+      const storedSides = sidesOfGame(game!);
+      const sides = storedSides.length > 0
+        ? storedSides
+        : fromLegacySubTeams(defaultSubTeams(game!.players.map((p) => p.id), game!.players, game!.course, game!.handicapAllowance, game!.handicapBasis));
+      // The SCORECARD's team slot is a two-value field (Player.team: 'A' | 'B', read at ~27
+      // sites in game/play/page.tsx), so it can only express two sides. With THREE or more we
+      // deliberately tag nobody rather than tagging the first two: a partial tagging would draw
+      // an A-vs-B team row and match badge for a game that isn't A vs B, which is exactly the
+      // class of defect F-006 already hit twice (the card playing a different game from the
+      // engine, DECISIONS.md §5.aa). Untagged means the card shows per-player entry with no team
+      // row — honest and incomplete rather than confident and wrong. The leaderboard still
+      // settles and displays all N sides. Widening the card is tracked as its own finding.
+      if (sides.length <= 2) {
+        players = players.map((p) => {
+          const sideId = sideOfPlayer(sides, p.id)?.id;
+          return { ...p, team: sideId === sides[0]?.id ? 'A' : sideId === sides[1]?.id ? 'B' : undefined };
+        });
+      }
       if (fmt === 'scramble' || fmt === 'alternate-shot') {
         teamMode = fmt;
         handicapAllowance = fmt === 'scramble' ? -1 : Number(game!.modeSettings?.altShotAllowance ?? 50);
@@ -878,19 +895,38 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
           + 'scores entered per player, so switching now would leave two different numbers on '
           + 'a hole that can only have one. Start a new game to play a scramble.'
         : null;
-    const sides = game.subTeams ?? defaultSubTeams(game.players.map((p) => p.id), game.players, game.course, game.handicapAllowance, game.handicapBasis);
-    const assignSide = (pid: string, side: 'a' | 'b') => {
+    // The game's sides, normalized — a legacy {a,b} game reads as two sides with the ids 'a'
+    // and 'b', so nothing about an existing 2v2 changes here.
+    const storedSides = sidesOfGame(game);
+    const sides: GameSide[] = storedSides.length > 0
+      ? storedSides
+      : fromLegacySubTeams(defaultSubTeams(game.players.map((p) => p.id), game.players, game.course, game.handicapAllowance, game.handicapBasis));
+
+    // Save a side collection back onto the game. persistedSides writes the LEGACY shape at
+    // exactly two unnamed sides, so an ordinary 2v2 never leaves the snapshot-pinned
+    // representation; three or more opts in. The `sides`/`subTeams` pair is cleared first so a
+    // game that drops from three sides to two doesn't keep a stale `sides` field that would
+    // take precedence over the {a,b} it just wrote.
+    const saveSides = (next: GameSide[]) =>
+      onSave({ ...game, subTeams: undefined, sides: undefined, ...persistedSides(next) });
+
+    const assignSide = (pid: string, sideId: string) => {
       // Tapping the side a player is ALREADY on is a no-op — return early rather than
       // filter-then-push, which silently moved them to the end of the array. Nothing on
       // screen changed, but under a one-ball format the side's score was read from the
       // first member, so that invisible reorder moved real money (F-012). The engine now
       // takes the minimum, and this keeps the stored order stable regardless.
-      if (sides[side].includes(pid)) return;
-      const a = sides.a.filter((x) => x !== pid);
-      const b = sides.b.filter((x) => x !== pid);
-      (side === 'a' ? a : b).push(pid);
-      onSave({ ...game, subTeams: { a, b } });
+      if (sideMembers(sides, sideId).includes(pid)) return;
+      saveSides(sides.map((side) => ({
+        ...side,
+        playerIds: side.id === sideId
+          ? [...side.playerIds.filter((x) => x !== pid), pid]
+          : side.playerIds.filter((x) => x !== pid),
+      })));
     };
+    const addSide = () => saveSides([...sides, { id: nextSideId(sides), playerIds: [] }]);
+    // Removing a side UNASSIGNS its players rather than guessing a new pairing for them.
+    const removeSide = (sideId: string) => saveSides(sides.filter((s) => s.id !== sideId));
 
     // Switch this game to a different mode WITHOUT losing scores (they're gross,
     // stored per player — every mode recomputes from them). Money RESETS to the
@@ -920,8 +956,9 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
         if (!MONEY_KEYS.has(k) && modeSettings[k] !== undefined) carried[k] = modeSettings[k];
       }
       const updated: PoolGame = { ...game, gameMode: newId, modeSettings: carried };
-      // 2v2 needs sides; seed a balanced default if we don't already have them.
-      if (target.category === 'team-within-group' && !updated.subTeams) {
+      // A side game needs sides; seed a balanced default if we don't already have them (in
+      // either storage shape — sidesOfGame reads both).
+      if (target.category === 'team-within-group' && sidesOfGame(updated).length === 0) {
         updated.subTeams = defaultSubTeams(game.players.map((p) => p.id), game.players, game.course, game.handicapAllowance, game.handicapBasis);
       }
       // Wolf-family per-hole decisions don't transfer to a different game.
@@ -976,6 +1013,7 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
               onChangeAction={setModeSetting}
               lockOptionAction={lockModeOption}
               lockNoteAction={lockModeNote}
+              hideKeys={isWithinGroup ? unusedSideNameKeys(sides.length) : undefined}
             />
           </div>
           {isWithinGroup && (
@@ -983,21 +1021,21 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
               <p className="text-sm font-semibold text-gray-800 mb-2">Sides</p>
               <div className="divide-y divide-gray-100 rounded-md border border-gray-200">
                 {game.players.map((p) => {
-                  const s = sides.a.includes(p.id) ? 'a' : sides.b.includes(p.id) ? 'b' : null;
+                  const s = sideOfPlayer(sides, p.id)?.id ?? null;
                   return (
                     <div key={p.id} className="flex items-center justify-between px-3 py-2">
                       <span className="text-sm text-gray-800">{p.name}</span>
                       <div className="flex gap-1.5">
-                        {(['a', 'b'] as const).map((side) => (
+                        {sides.map((side) => (
                           <button
-                            key={side}
+                            key={side.id}
                             type="button"
-                            onClick={() => assignSide(p.id, side)}
+                            onClick={() => assignSide(p.id, side.id)}
                             className={`w-8 h-8 rounded-full text-xs font-bold transition ${
-                              s === side ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              s === side.id ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                           >
-                            {side.toUpperCase()}
+                            {side.id.toUpperCase()}
                           </button>
                         ))}
                       </div>
@@ -1005,6 +1043,33 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
                   );
                 })}
               </div>
+              {/* Add / remove a side mid-round. Two sides stays the default and most games
+                  never touch this; a group splitting into three pairs at the turn can. */}
+              <div className="mt-2 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={addSide}
+                  disabled={sides.length >= game.players.length}
+                  className="text-xs font-medium text-green-700 hover:text-green-900 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  + Add a side
+                </button>
+                {sides.length > 2 && (
+                  <button
+                    type="button"
+                    onClick={() => removeSide(sides[sides.length - 1].id)}
+                    className="text-xs font-medium text-gray-500 hover:text-gray-800"
+                  >
+                    Remove side {sides[sides.length - 1].id.toUpperCase()}
+                  </button>
+                )}
+              </div>
+              {game.players.some((p) => !sideOfPlayer(sides, p.id)) && (
+                <p className="text-xs text-amber-700 mt-1">
+                  {game.players.filter((p) => !sideOfPlayer(sides, p.id)).map((p) => p.name.split(' ')[0]).join(', ')} not
+                  on a side — their scores won&apos;t count toward any side until you assign them.
+                </p>
+              )}
             </div>
           )}
         </div>

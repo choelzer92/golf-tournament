@@ -8,10 +8,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   defaultSideLabel, fromLegacySubTeams, nextSideId, persistedSides, sideMembers,
-  settleRoundRobin, sideOfPlayer, sidesOfGame, toLegacySubTeams, type GameSide,
+  settleRoundRobin, sideOfPlayer, sidesOfGame, toLegacySubTeams, unusedSideNameKeys,
+  type GameSide,
 } from '@/lib/game-modes/sides';
 import { buildGameModeContext } from '@/lib/game-modes/context';
 import { getGameMode } from '@/lib/game-modes';
+import { sideNameSettingKey } from '@/lib/game-modes/team-game';
 import type { IndividualResult } from '@/lib/game-modes/types';
 import type { PoolGame } from '@/lib/pool-game';
 import type { GameScore } from '@/lib/game-state';
@@ -421,6 +423,60 @@ describe('three sides in one group', () => {
     expect(moneyOf(r, 'B')).toBe(-2);
     expect(moneyOf(r, 'C')).toBe(-8);
     expect(r.standings.reduce((s, x) => s + x.moneyNet, 0)).toBeCloseTo(0, 6);
+  });
+
+
+  // FOUND BY LOOKING AT A SCREENSHOT, not by reading code (the lesson from F-006's third pass).
+  // The settings offered "Side A name" and "Side B name" only, so a third side could never be
+  // called "The Hogs" — GameSide.name existed and nothing could write it.
+  it('a THIRD side can be given a custom name', () => {
+    const g = makeGame({
+      gameMode: 'team-2v2', indexes: [0, 0, 0, 0, 0, 0],
+      sides: [
+        { id: 'a', playerIds: ['p1', 'p2'] },
+        { id: 'b', playerIds: ['p3', 'p4'] },
+        { id: 'c', playerIds: ['p5', 'p6'] },
+      ],
+      modeSettings: {
+        format: 'best-ball', scoring: 'stroke', result: 'total', moneyModel: 'per-point',
+        sideAName: 'The Hogs', sideBName: 'The Dawgs', sideCName: 'The Cats',
+      },
+    });
+    const par = HOLES.map((h) => TEST_PARS[h - 1]);
+    const r = run3(g, ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'].flatMap((id) => scoresFor(id, par)));
+    expect(r.sideLabels?.map((s) => s.name)).toEqual(['The Hogs', 'The Dawgs', 'The Cats']);
+    // And the legacy two-side view still names the first two, for consumers reading it.
+    expect(r.sideNames).toEqual({ a: 'The Hogs', b: 'The Dawgs' });
+  });
+
+  // A side's own `name` field wins over the positional setting, so a saved 3-side format keeps
+  // its names even if the settings bag is empty.
+  it('GameSide.name takes precedence over the positional setting', () => {
+    const g = makeGame({
+      gameMode: 'team-2v2', indexes: [0, 0, 0, 0],
+      sides: [
+        { id: 'a', name: 'Stored A', playerIds: ['p1', 'p2'] },
+        { id: 'b', playerIds: ['p3', 'p4'] },
+      ],
+      modeSettings: {
+        format: 'best-ball', scoring: 'stroke', result: 'total', moneyModel: 'per-point',
+        sideAName: 'Setting A', sideBName: 'Setting B',
+      },
+    });
+    const par = HOLES.map((h) => TEST_PARS[h - 1]);
+    const r = run3(g, ['p1', 'p2', 'p3', 'p4'].flatMap((id) => scoresFor(id, par)));
+    expect(r.sideLabels?.map((s) => s.name)).toEqual(['Stored A', 'Setting B']);
+  });
+
+  it('hides the name fields for sides a game does not have', () => {
+    // A two-side game must not render four always-blank name boxes on a phone.
+    expect(unusedSideNameKeys(2)).toEqual(['sideCName', 'sideDName', 'sideEName', 'sideFName']);
+    expect(unusedSideNameKeys(3)).toEqual(['sideDName', 'sideEName', 'sideFName']);
+    expect(unusedSideNameKeys(6)).toEqual([]);
+    // And the key mapping the engine reads matches the schema's keys.
+    expect(sideNameSettingKey(0)).toBe('sideAName');
+    expect(sideNameSettingKey(2)).toBe('sideCName');
+    expect(sideNameSettingKey(6)).toBeNull();
   });
 
   it('four sides of one player each is zero-sum too', () => {

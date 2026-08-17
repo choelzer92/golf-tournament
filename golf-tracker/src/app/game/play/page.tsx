@@ -16,6 +16,7 @@ import { getMoneyStrokesOnHole } from '@/lib/money-games';
 import { isSingleGroupGame } from '@/lib/game-modes/result';
 import { getGameMode } from '@/lib/game-modes';
 import { sideNamesForGame } from '@/lib/game-modes/team-game';
+import { fromLegacySubTeams, sidesOfGame } from '@/lib/game-modes/sides';
 import { wolfForHole } from '@/lib/game-modes/wolf';
 import type { WolfHoleDecision } from '@/lib/pool-game';
 
@@ -79,9 +80,13 @@ export default function PlayGamePage() {
         // A 2v2 game has real SIDE names and owns both A and B — handle it first, or the
         // pool-team branch below would overwrite side B with a placeholder.
         if (getGameMode(g.gameMode)?.category === 'team-within-group') {
-          const sides = g.subTeams ?? defaultSubTeams(
+          const stored = sidesOfGame(g);
+          const sides = stored.length > 0 ? stored : fromLegacySubTeams(defaultSubTeams(
             g.players.map((p) => p.id), g.players, g.course, g.handicapAllowance, g.handicapBasis,
-          );
+          ));
+          // Only the first two sides can be named here — the card's team slot holds two. A 3+
+          // side game leaves every player untagged (see pool/[id]/page.tsx), so those names are
+          // never drawn; the leaderboard shows all N.
           setTeamNames(sideNamesForGame(g, sides));
           return;
         }

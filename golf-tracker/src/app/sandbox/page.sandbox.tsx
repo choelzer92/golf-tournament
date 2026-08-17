@@ -154,6 +154,38 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'three-sides',
+    label: 'Three sides in one group (6 players)',
+    detail: 'F-006 N sides: three pairs, pairwise round-robin money, to-par ranking, three side colours.',
+    build: () => {
+      const ps = players([4, 12, 8, 16, 6, 14]);
+      const game = baseGame({
+        players: ps,
+        name: 'Three Pairs',
+        gameMode: 'team-2v2',
+        sides: [
+          { id: 'a', playerIds: ['sp1', 'sp2'] },
+          { id: 'b', playerIds: ['sp3', 'sp4'] },
+          { id: 'c', playerIds: ['sp5', 'sp6'] },
+        ],
+        modeSettings: {
+          format: 'best-ball', scoring: 'stroke', result: 'total',
+          moneyModel: 'per-point', dollarsPerPoint: 1,
+          junkEnabled: true, junkBirdie: 2, junkEagle: 5, junkAlbatross: 10, junkBasis: 'gross',
+        },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1' }],
+      });
+      // Deliberately separated sides so the board shows a real order, and side C is thru
+      // FEWER holes than A and B — the case that used to pay a side for playing less golf.
+      saveGameScores('sm1', [
+        ...scores(['sp1', 'sp2'], [0, 1], ALL18),
+        ...scores(['sp3', 'sp4'], [1, 2], ALL18),
+        ...scores(['sp5', 'sp6'], [2, 3], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
+      ]);
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+  {
     key: '2v2-nine-complete',
     label: '2v2 on a nine — complete',
     detail: 'Verifies the ONE-leg collapse + caption (was "Front · Back · Overall" over a lone row).',

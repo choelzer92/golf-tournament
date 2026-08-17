@@ -82,6 +82,12 @@ export interface PlayerStanding {
   thru: number;                   // holes this player has scored
   place: number;                  // 1-based rank (ties share a place); 0 if unscored
   holesWon?: number[];            // Wolf only: hole numbers this player earned points on (for the expandable standings)
+  // SIDE games under 'total' scoring: score to par — the figure the side is actually RANKED and
+  // PAID on (DECISIONS.md §5.af). `points` stays the real total the side shot; this is that
+  // total minus what playing to expectation would score, so a side thru 5 is comparable to one
+  // thru 18. Under Stableford it's PACE (higher is better); under strokes it's to-par (lower is
+  // better). Absent for match scoring, which is already thru-safe, and for individual games.
+  toPar?: number;
 }
 
 // A front/back/overall sub-result for a side game (Nassau-style breakdown).

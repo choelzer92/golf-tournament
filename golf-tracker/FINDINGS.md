@@ -621,9 +621,69 @@ sides, which is what Craig's "yes, eventually" was about:
 Smaller follow-up: the play page's leg panel (`app/game/play/page.tsx`) shows a raw leg total
 in its sub-line — honest, but not pace-normalized under points.
 
-**Status:** pool side DONE (engine, 4 money-bug fixes, leaderboard, wizard + hub picker,
-scorecard, ~860-case sweep). Committed on `ui-consistency-and-compute-tests`, not merged.
-N-sides widening in progress — see F-012 for the live bug found while scoping it.
+**Status: F-006 DONE — both halves.** Pool side (engine, 4 money-bug fixes, leaderboard, wizard +
+hub picker, scorecard, ~860-case sweep) and the N-sides side game. Committed on
+`ui-consistency-and-compute-tests`, not merged.
+
+#### The N-sides half (2026-08-17)
+
+Sequenced as specified, and the sequencing paid for itself twice — both times the *pins* caught
+a live money bug rather than a regression I'd introduced.
+
+**Step 0 — F-012, found while scoping.** `team-game.ts` had its own copy of the order-dependent
+one-ball read the pool half had already fixed. $54 on a scratch foursome. See F-012.
+
+**Step 1 — pinned first** (`src/test/two-side-golden.test.ts`, 61 cases): the whole 2v2 matrix
+(4 formats × 2 scorings × 2 results × 3 money models) as full-`IndividualResult` snapshots, plus
+Wolf's every call type, plus independent oracles recomputing from raw gross. Mutation-proved with
+five one-line bug re-introductions before being trusted (§5.z) — the table is in the file header.
+
+**Step 2 — the shape** (`src/lib/game-modes/sides.ts`): `sides?: {id, name?, playerIds}[]`,
+ordered, stable ids, alongside `subTeams`. `sidesOfGame()` normalizes at the read boundary and
+preserves `'a'`/`'b'` literally; `persistedSides()` writes the legacy shape at exactly two unnamed
+sides. So an ordinary 2v2 never leaves the pinned representation.
+
+**Step 3 — the engine.** Money settles **pairwise round-robin** (§5.ae): every side against every
+other, summed. Zero-sum at any count, reduces to today's head-to-head margin at two.
+
+**THE BUG THE PINS CAUGHT (2).** One of 48 snapshots moved, so I probed instead of accepting it.
+`total` scoring ranked on RAW TOTALS, so a side was paid for playing FEWER holes:
+
+```
+both sides level par, A thru 9 vs B thru 5   ->  B collected $16
+side B thru 0 (not started)                  ->  B ranked 1st, collected $20
+```
+
+Craig's call: rank on score to par, showing thru — the tournament-scoreboard convention (§5.af).
+This is the mechanism the *pool* has had since the pool half (`evenValueOnHole`); the side axis
+never got it. **One axis drifting from the other, again** — the shape `AGENTS.md` warns about, and
+the third time in this finding alone. At equal thru counts the to-par margin equals the raw margin
+exactly, so no completed game's money moved: 47 of 48 snapshots byte-identical.
+
+**Step 4 — the UI.** Mode widened in place (id `team-2v2` kept so saved games resolve, `playersMax`
+4 → 8, renamed "Sides (within group)"). Wizard + hub gained add/remove-a-side; the leaderboard's
+side colouring, row grouping and leg-winner tint now key on the side id instead of a hard-coded
+blue/red pair. **The scorecard deliberately does NOT tag players for 3+ sides** — `Player.team` is
+`'A' | 'B'` at ~27 sites, and tagging the first two would draw an A-vs-B team row and match badge
+for a game that isn't A vs B, which is precisely the §5.aa defect. Untagged is honest-and-incomplete
+rather than confident-and-wrong. Widening the card is its own finding (F-013).
+
+**Two defects found by LOOKING at the screenshot, invisible in the code:**
+
+1. **A third side could never be named.** The settings offered "Side A name" / "Side B name" only,
+   so `GameSide.name` existed with nothing able to write it. Added C–F, with the unused boxes
+   hidden so a two-side game doesn't show four blank fields.
+2. **`+18` to par was drawn the same grey as `-4`.** Being 18 over par read as unremarkable.
+   Colour now keys on the *basis* — under Stableford PACE is good when positive, under strokes it
+   isn't — so the sign can't be coloured wrongly.
+
+And one gap the e2e test exposed while being written: `ModeSettingsEditor`'s `<label>`s had no
+`htmlFor`, so nothing linked them to their inputs. `getByLabel()` failing is the same lookup a
+screen reader does. Fixed for every setting field in the app, not just the side names.
+
+**Deliberately NOT built, needs Craig:** the side game has no **pot** money model — its three are
+all margins. "Buy-in, split by place" would come free from `distributePot` + `positionSplit`
+(verified: tied 1st already shares 1st+2nd money correctly). Not chosen; don't add it unprompted.
 
 #### Decisions taken before writing any N-sides code (2026-08-14)
 
@@ -1016,6 +1076,46 @@ the money moves; restoring the first-member read must fail.
 the fix to unpin it one commit later.
 
 **Status:** open, fix authorized, not yet applied.
+
+---
+
+### F-013 — The SCORECARD can only express two sides, so a 3+ side game scores untagged  [P2] [track]
+
+**Where:** `src/lib/game-state.ts:9` (`Player.team?: 'A' | 'B'`), consumed at ~27 sites in
+`src/app/game/play/page.tsx`; set in `src/app/pool/[id]/page.tsx:207`
+**Violates:** north star — *more possibilities* — and the §5.aa rule that the card and the engine
+must agree
+
+**Known and deliberate, not an oversight.** The N-sides work (F-006) generalized the engine, the
+storage, the leaderboard, the wizard and the hub. The scorecard was left at two sides because
+`Player.team` is a two-value field read at ~27 places, and the honest options were:
+
+- tag only the first two sides → the card draws an **A-vs-B team row and match badge for a game
+  that is not A vs B**. That is exactly the defect §5.aa records (the card playing a different
+  game from the money engine), and it would be worse than showing nothing.
+- tag nobody → the card shows plain per-player entry with **no team row**. Incomplete, but nothing
+  on it is false.
+
+The second was chosen. A three-side game therefore scores fine (gross per player, which is all the
+engine needs) and settles correctly on the leaderboard; the card just doesn't show side totals.
+
+**What widening it would take:**
+1. `Player.team` becomes a side id (`string`), or the card reads `sidesOfGame(game)` directly
+   rather than a denormalized per-player field. The latter is cleaner and matches how the
+   leaderboard was widened.
+2. `teamNames: { A, B }` on the play page becomes a per-side lookup (same shape as
+   `IndividualResult.sideLabels`, which already exists).
+3. The match badge needs a rule for 3+ sides, or should be hidden — a single "2 UP" is
+   meaningless against two opponents. Note the pool side already hides that badge for a
+   one-sided card, so there's a precedent to follow.
+4. The two-side colour pair (blue/red) needs the same `sideTone`-style palette the leaderboard
+   now uses.
+
+**Why P2 rather than P1:** no money is wrong and nothing on screen lies. It's a missing capability
+on one surface, and the surface that *pays* is correct. But a group actually playing three sides
+will want their side's running total while they're out there, so it's the natural next piece.
+
+**Status:** open, scoped, not started.
 
 ---
 

@@ -66,6 +66,10 @@ import {
   type ScoreBasis,
   type TeamFormat,
 } from '@/lib/game-modes/team-scoring';
+import {
+  fromLegacySubTeams, nextSideId, persistedSides, sideMembers, sideOfPlayer,
+  unusedSideNameKeys, type GameSide,
+} from '@/lib/game-modes/sides';
 import { TEAM_MODES } from '@/lib/formats';
 import { POOL_GROUP_SEED_KEY } from '@/lib/group-seed';
 import { GAME_MODES, getGameMode, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
@@ -124,8 +128,9 @@ export default function NewPoolGamePage() {
   // ('nines'|'skins'|'quota'|...) = an INDIVIDUAL game scored within one group.
   const [gameMode, setGameMode] = useState<string | undefined>(undefined);
   const [modeSettings, setModeSettings] = useState<SettingsBag>({});
-  // 2v2 within-group games only: the two sides' player-id lists.
-  const [subTeams, setSubTeams] = useState<{ a: string[]; b: string[] } | undefined>(undefined);
+  // Within-group side games only: the sides' player-id lists. N sides (F-006); persisted as
+  // the legacy {a,b} shape whenever there are exactly two, via persistedSides().
+  const [sides, setSides] = useState<GameSide[] | undefined>(undefined);
   const [entryPerPlayer, setEntryPerPlayer] = useState('25');
   const [handicapAllowance, setHandicapAllowance] = useState('100');
   const [strokeMethod, setStrokeMethod] = useState<'full' | 'off-the-low'>('off-the-low');
@@ -264,11 +269,11 @@ export default function NewPoolGamePage() {
     if (!hydrated) return;
     sessionStorage.setItem(WIZARD_KEY, JSON.stringify({
       name, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
-      junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step,
+      junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step, sides,
       holesPlaying, nineHandicapBasis,
     }));
   }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
-      junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step,
+      junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step, sides,
       holesPlaying, nineHandicapBasis]);
 
   // The current format settings, packaged as a group's defaults (for "save field
@@ -290,7 +295,7 @@ export default function NewPoolGamePage() {
       // Game mode + its settings (so a saved group/format restores the game type).
       gameMode,
       modeSettings: gameMode ? modeSettings : undefined,
-      subTeams,
+      sides,
     };
   }
 
@@ -325,7 +330,10 @@ export default function NewPoolGamePage() {
     // set gameMode when present so a plain player-group (no mode) stays classic.
     if (typeof d.gameMode === 'string') setGameMode(d.gameMode);
     if (d.modeSettings && typeof d.modeSettings === 'object') setModeSettings(d.modeSettings);
-    if (d.subTeams && Array.isArray(d.subTeams.a) && Array.isArray(d.subTeams.b)) setSubTeams(d.subTeams);
+    // Restore either shape: a draft saved before N sides holds subTeams, a newer one holds
+    // sides. Both normalize to the same thing.
+    if (Array.isArray(d.sides) && d.sides.length > 0) setSides(d.sides as GameSide[]);
+    else if (d.subTeams && Array.isArray(d.subTeams.a) && Array.isArray(d.subTeams.b)) setSides(fromLegacySubTeams(d.subTeams));
   }
 
   // Parse the match-config inputs into a PoolMatchConfig (per-player $/leg + junk
@@ -377,8 +385,10 @@ export default function NewPoolGamePage() {
       // Individual game mode + its chosen option values (absent for classic pool).
       gameMode,
       modeSettings: gameMode ? modeSettings : undefined,
-      // 2v2 within-group only: the two sides.
-      subTeams: isWithinGroup ? subTeams : undefined,
+      // Within-group side games only. persistedSides emits the LEGACY {a,b} shape at exactly
+      // two unnamed sides, so an ordinary 2v2 saves exactly as it always has and computes down
+      // the snapshot-pinned path; three or more opts in to `sides`. See game-modes/sides.ts.
+      ...(isWithinGroup && sides && sides.length > 0 ? persistedSides(sides) : {}),
       status: 'active',
       // 9-hole support (absent/'18' = full 18, every existing game). nineHandicapBasis
       // only matters when a nine is chosen.
@@ -523,7 +533,9 @@ export default function NewPoolGamePage() {
                   matchupId: crypto.randomUUID(),
                 }]);
                 if (isWithinGroup) {
-                  setSubTeams((prev) => prev ?? defaultSubTeams(players.map((p) => p.id), players, course, parseFloat(handicapAllowance) || 100, handicapBasis));
+                  setSides((prev) => prev && prev.length > 0
+                    ? prev
+                    : fromLegacySubTeams(defaultSubTeams(players.map((p) => p.id), players, course, parseFloat(handicapAllowance) || 100, handicapBasis)));
                   setStep('teams');
                 } else {
                   setStep('create');
@@ -543,8 +555,8 @@ export default function NewPoolGamePage() {
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             handicapBasis={handicapBasis}
             nine={wizardNine}
-            subTeams={subTeams}
-            setSubTeams={setSubTeams}
+            sides={sides}
+            setSides={setSides}
             onNext={() => setStep('create')}
             onBack={() => setStep('tees')}
           />
@@ -859,6 +871,10 @@ function DetailsStep({
               schema={selectedMode.settings}
               values={modeSettings}
               onChangeAction={(key, value) => setModeSettings({ ...modeSettings, [key]: value })}
+              /* This step runs BEFORE sides are chosen, so the side count isn't known yet —
+                 hide the C-F name fields here (two sides is the default) and let the hub's
+                 editor, which does know, show the ones a game actually has. */
+              hideKeys={unusedSideNameKeys(2)}
             />
           </div>
         )}
@@ -2784,44 +2800,69 @@ function TeamsStep({
   );
 }
 
-// 2v2 within-group: assign the group's players to Side A or Side B. Seeded from
-// a balanced default (low+high vs the two middle). Each player is exactly one side.
+// Within-group SIDES: assign the group's players to a side. Seeded from a balanced default
+// (low+high vs the two middle) at two sides, which is the norm — three or more is available for
+// the groups that want it (DECISIONS.md 5.g) without making the usual 2v2 any harder to set up.
 function SubTeamsStep({
-  players, course, handicapAllowance, handicapBasis, nine, subTeams, setSubTeams, onNext, onBack,
+  players, course, handicapAllowance, handicapBasis, nine, sides, setSides, onNext, onBack,
 }: {
   players: Player[];
   course: CourseSelection | null;
   handicapAllowance: number;
   handicapBasis: 'course' | 'index';
   nine: 'front9' | 'back9' | null;
-  subTeams: { a: string[]; b: string[] } | undefined;
-  setSubTeams: (v: { a: string[]; b: string[] }) => void;
+  sides: GameSide[] | undefined;
+  setSides: (v: GameSide[]) => void;
   onNext: () => void;
   onBack: () => void;
 }) {
-  const effective = subTeams ?? defaultSubTeams(players.map((p) => p.id), players, course, handicapAllowance, handicapBasis);
-  const sideOf = (id: string): 'a' | 'b' | null =>
-    effective.a.includes(id) ? 'a' : effective.b.includes(id) ? 'b' : null;
+  const effective = sides && sides.length > 0
+    ? sides
+    : fromLegacySubTeams(defaultSubTeams(players.map((p) => p.id), players, course, handicapAllowance, handicapBasis));
+  const sideIdOf = (id: string): string | null => sideOfPlayer(effective, id)?.id ?? null;
 
-  function assign(id: string, side: 'a' | 'b') {
-    const a = effective.a.filter((x) => x !== id);
-    const b = effective.b.filter((x) => x !== id);
-    (side === 'a' ? a : b).push(id);
-    setSubTeams({ a, b });
+  function assign(playerId: string, sideId: string) {
+    // Tapping the side a player is already on is a NO-OP. Filter-then-push would move them to
+    // the end of the list, which changed nothing on screen but moved real money under a
+    // one-ball format (F-012). Same guard as the hub's editor.
+    if (sideMembers(effective, sideId).includes(playerId)) return;
+    setSides(effective.map((side) => ({
+      ...side,
+      playerIds: side.id === sideId
+        ? [...side.playerIds.filter((x) => x !== playerId), playerId]
+        : side.playerIds.filter((x) => x !== playerId),
+    })));
   }
 
-  const balanced = effective.a.length === effective.b.length;
+  function addSide() {
+    setSides([...effective, { id: nextSideId(effective), playerIds: [] }]);
+  }
+
+  function removeSide(sideId: string) {
+    // The removed side's players are unassigned rather than silently moved somewhere — the
+    // organizer chose who plays together, so the app shouldn't guess a new pairing.
+    setSides(effective.filter((side) => side.id !== sideId));
+  }
+
+  const counts = effective.map((side) => side.playerIds.length);
+  const balanced = counts.every((c) => c === counts[0]);
+  const unassigned = players.filter((p) => sideIdOf(p.id) === null);
+  const emptySides = effective.filter((side) => side.playerIds.length === 0);
   const chcp = (p: Player) => Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine));
 
   return (
     <div>
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
-      <h2 className="text-lg font-semibold text-gray-900 mb-1">Sides (2 vs 2)</h2>
-      <p className="text-sm text-gray-500 mb-4">Assign each player to a side. Seeded to balance handicaps — adjust as you like.</p>
+      <h2 className="text-lg font-semibold text-gray-900 mb-1">
+        Sides {effective.length === 2 ? '(2 vs 2)' : `(${counts.join(' vs ')})`}
+      </h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Assign each player to a side. Seeded to balance handicaps — adjust as you like.
+      </p>
 
       <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
         {players.map((p) => {
-          const s = sideOf(p.id);
+          const mine = sideIdOf(p.id);
           return (
             <div key={p.id} className="flex items-center justify-between px-4 py-3">
               <span className="text-sm text-gray-800">
@@ -2829,16 +2870,16 @@ function SubTeamsStep({
                 {course && <span className="ml-2 text-xs text-gray-400">CHcp {chcp(p)}</span>}
               </span>
               <div className="flex gap-1.5">
-                {(['a', 'b'] as const).map((side) => (
+                {effective.map((side) => (
                   <button
-                    key={side}
+                    key={side.id}
                     type="button"
-                    onClick={() => assign(p.id, side)}
+                    onClick={() => assign(p.id, side.id)}
                     className={`w-9 h-9 rounded-full text-sm font-bold transition ${
-                      s === side ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      mine === side.id ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    {side.toUpperCase()}
+                    {side.id.toUpperCase()}
                   </button>
                 ))}
               </div>
@@ -2847,13 +2888,43 @@ function SubTeamsStep({
         })}
       </div>
 
+      {/* Add / remove a side. Hidden behind nothing, but deliberately below the assignment
+          list: two sides is the default and most groups never touch this. */}
+      <div className="mt-3 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={addSide}
+          disabled={effective.length >= players.length}
+          className="text-sm font-medium text-green-700 hover:text-green-900 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          + Add a side
+        </button>
+        {effective.length > 2 && (
+          <button
+            type="button"
+            onClick={() => removeSide(effective[effective.length - 1].id)}
+            className="text-sm font-medium text-gray-500 hover:text-gray-800"
+          >
+            Remove side {effective[effective.length - 1].id.toUpperCase()}
+          </button>
+        )}
+      </div>
+
       {!balanced && (
-        <p className="text-xs text-amber-700 mt-2">Sides are uneven ({effective.a.length} vs {effective.b.length}). 2v2 works best with two on each side.</p>
+        <p className="text-xs text-amber-700 mt-2">
+          Sides are uneven ({counts.join(' vs ')}). That works — handicaps still apply per player — but
+          it is worth a look before you start.
+        </p>
+      )}
+      {unassigned.length > 0 && (
+        <p className="text-xs text-amber-700 mt-2">
+          {unassigned.map((p) => p.name.split(' ')[0]).join(', ')} {unassigned.length === 1 ? 'is' : 'are'} not on a side yet.
+        </p>
       )}
 
       <button
         onClick={onNext}
-        disabled={effective.a.length === 0 || effective.b.length === 0}
+        disabled={emptySides.length > 0 || unassigned.length > 0}
         className="mt-6 w-full rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Next: Review &amp; Create
