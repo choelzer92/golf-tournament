@@ -126,5 +126,15 @@ describe('PROBE: does a side that played FEWER back-nine holes win the back leg?
     const back = r.teamLegs!.find((l) => l.key === 'back')!;
     console.log(`TWO-side back leg: "${back.status}" winner=${back.winner} thru=${back.thru}`);
     console.log('TWO-side money:', JSON.stringify(r.standings.map((s) => [s.playerId, s.moneyNet])));
+
+    // ASSERTED, because this is the load-bearing claim in F-016: the bug is NOT an N-sides
+    // regression. Side B played 3 of the back nine, side A played all 9 — and B takes the leg.
+    // Two sides is the shape every existing game has, and `main` behaves identically here.
+    // After F-016 this must flip to a contested-holes comparison, so this assertion changes
+    // deliberately and its diff is the proof the fix reached the two-side path too.
+    expect(back.thru).toBe(3);
+    expect(back.winner).toBe('b');
+    expect(r.standings.find((s) => s.playerId === 'B')!.moneyNet).toBeGreaterThan(0);
+    expect(r.standings.reduce((t, s) => t + s.moneyNet, 0)).toBeCloseTo(0, 6);
   });
 });
