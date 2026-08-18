@@ -857,7 +857,10 @@ group picker uses it. `/home/stats` calls raw `getGroups()`.
 
 **Recommendation:** A. This is a straightforward bug, not a design decision.
 
-**Status:** open (trivial fix)
+**Status: FIXED + VERIFIED (option A).** Status line was stale — corrected 2026-08-18 after
+checking the code. `/home/stats:96` calls `getPlayerGroups()`, which filters
+`defaults.kind === 'format'` (`pool-formats.ts:38`), and every other group picker in the app uses
+the same helper. Guarded by the e2e test "F-008: the group picker excludes saved formats".
 
 ---
 
@@ -1101,7 +1104,12 @@ the money moves; restoring the first-member read must fail.
 "pin current 2v2 results" — and pinning the current one-ball result would pin this bug, forcing
 the fix to unpin it one commit later.
 
-**Status:** open, fix authorized, not yet applied.
+**Status: FIXED + VERIFIED.** Status line was stale — corrected 2026-08-18 after checking the
+code rather than trusting the log. All three parts are in: `sideNet` takes the minimum
+(`team-game.ts:223`), `assignSide` returns early on a no-op tap (`pool/[id]/page.tsx:913`), and
+`lockModeOption` covers the 2v2 format select. Pinned by `two-side-golden.test.ts` and guarded by
+two e2e assertions ("a scored 2v2 game cannot switch to a one-ball format", "re-tapping a side a
+player is already on changes nothing on screen").
 
 ---
 
@@ -1245,8 +1253,12 @@ afterwards, and nothing says so.
 **option A** for the naming asymmetry — see F-015, which is the same root cause on a third
 surface and is the one worth fixing.
 
-**Status:** measured; the wizard half is **not** a defect. The naming asymmetry is real and
-carried forward as F-015.
+**Status: CHOSEN 2026-08-18 — D for the wizard's step 1 (not a defect), A for the naming model.**
+Side names leave the generic settings bag and become one optional field per side that actually
+exists, rendered in the Sides editor where players are assigned. Four keys (`sideCName`..
+`sideFName`) leave the schema, so no future consumer can forget to hide them — this had already
+been forgotten on two of three surfaces (F-015). Closes the step-3 gap: a wizard-built 3-side game
+can currently never name side C. Not yet built.
 
 ---
 
@@ -1309,8 +1321,12 @@ noting it changes money for *mid-round and abandoned* games only: at equal thru 
 identical to today, so no completed game moves. **This is a math change — Craig's call before
 anything is touched (`AGENTS.md`).**
 
-**Status:** open, needs Craig's decision. Probe test is committed as evidence and should be
-turned into a real assertion once an option is chosen.
+**Status: CHOSEN 2026-08-18 — option A, plus a close-out prompt (DECISIONS.md §5.ai).**
+Contested holes only. Craig rejected a per-group "void unfinished legs" setting in favour of
+asking at close-out: *"if someone clicks finish game, and all legs are not complete, it should
+prompt the user."* The prompt names each incomplete leg and how many holes are short, then asks
+**per leg** whether it pays on the holes played or pays nothing; the answer is stored on the game
+so the board and the season ledger agree. Not yet built.
 
 ---
 
@@ -1355,7 +1371,13 @@ to remember to hide the unused ones. Two of three remembered.
 value (it fixes F-015 and hardens the panel), and **A** as the real fix for the naming model,
 which also closes F-014's step-3 gap (a wizard-built 3-side game can never name side C).
 
-**Status:** open
+**Status: CHOSEN 2026-08-18 — option C.** A read-only summary never prints a row whose value is
+blank; a side that HAS been named still shows (`Side A · The Hogs`). Generic, so it hardens the
+panel against any future setting rather than just this one. Craig asked what the rows even were —
+worth noting the finding was only legible once he saw the screenshot, not the description.
+
+The naming model itself (option A) was chosen separately under F-014, so both halves are going in
+— but as two commits, since C fixes a screen and A changes a schema. Not yet built.
 
 ---
 
@@ -1402,7 +1424,17 @@ the only place the model isn't pairwise — but this is money arithmetic with mo
 defensible answer, so it's **Craig's call**. Note **C is genuinely fine** if he'd rather not touch
 settled math; no completed two-side game is affected by any of the three.
 
-**Status:** open, needs Craig's decision (§5.ae adjacent — the *tie* case it didn't specify).
+**Status: CHOSEN 2026-08-18 — option B, pairwise (DECISIONS.md §5.aj).** Craig: *"i think they
+would owe both based on the settings we are making. IF it was a pot split situation, it would be
+different, no?"* — so the tie rule follows the **kind** of money model: `legs`/`per-hole`/
+`per-point` are per-opponent stakes (lose to two sides, owe two sides), `pot` is a divided prize
+and keeps splitting (§5.ag, unchanged). He accepted knowingly, asked twice, that a tie at the top
+costs last place more than a clean defeat ($20 vs $10 on a $10 leg).
+
+**Blast radius verified before deciding** (he asked directly about pot pools):
+`src/test/probe-blast-radius.test.ts` pins the side game's pot mode and a classic 4-foursome pool.
+`payLeg` has 5 call sites, all in the `legs` branch; `computePoolResult` doesn't reach it. Not yet
+built.
 
 ---
 
@@ -1446,7 +1478,10 @@ hides F-014's naming gap: nothing here reveals that side C has no name.
 **Recommendation:** **C** as the floor (the current label is simply wrong for this mode), **A** if
 Craig wants the review step to earn its name. Not a money change either way.
 
-**Status:** open
+**Status: CHOSEN 2026-08-18 — option A.** A sides block: one row per side with its members and
+display name, plus the money terms in words, mirroring what the hub shows after creation. Note
+this composes with §5.al (say "side" in a side game) — the "Foursomes" label is wrong for this
+mode and goes with it. Not yet built.
 
 ---
 
@@ -1484,7 +1519,12 @@ stalled at hole 9. It's money display, so ambiguity reads as a bug.
 **Recommendation:** B — smallest change, removes the collision, and doesn't risk
 the not-started logic that keeps the board zero-sum.
 
-**Status:** open
+**Status: CHOSEN 2026-08-18 — option B ("9 of 9 holes").** Also closes `DECISIONS.md` §7 q7, which
+was this same item logged twice. Craig chose the count over converting to a hole number
+specifically because it needs no data change, so the `thru === 0` not-started guard that keeps the
+board zero-sum is untouched. The side game's leg board already words it this way
+(`leaderboard/page.tsx:1054`), so this makes the two axes agree rather than inventing a third
+wording. Not yet built.
 
 ---
 

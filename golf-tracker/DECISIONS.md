@@ -810,6 +810,127 @@ for every game the screen can show.
 
 ---
 
+## 5.ai An unfinished leg settles on CONTESTED holes, and close-out asks (2026-08-18)
+
+F-016: a leg's margin was accumulated over the holes each side *individually* played, while
+`thru` counted only holes *every* side had posted. So a side that walked in after 12 collected
+the back nine — verified at **$60 for playing 3 of its 9 holes**. Predates the N-sides branch;
+`main` fails the same way at two sides.
+
+**Decision 1: a leg compares sides over contested holes only** — the same gate `legThru`
+already uses. At equal thru counts this is byte-identical to today, so no completed game's
+money moves; only mid-round and abandoned games change.
+
+**Decision 2: no setting for it. Close-out asks instead.** I offered a per-group "unfinished
+legs pay nothing" toggle (default off). Craig rejected the framing:
+
+> "i think that if someone clicks finish game, and all legs are not complete, it should prompt
+> the user."
+
+So the choice is made **at the moment it matters, by the person who knows what happened** — not
+pre-declared in a settings screen before anyone knows whose knee will give out. Close-out names
+each incomplete leg and how many holes are short, then asks whether the unfinished ones pay on
+the holes played or pay nothing. **Per leg**, so a completed front still pays while a short back
+nine voids. The answer is stored on the game so the leaderboard and the season ledger agree
+forever after.
+
+**How to apply.** Prefer a prompt at the decision point over a setting that has to be
+configured in advance — a default nobody chose is worse than a question asked once, and this is
+the "continuing" phase the north star says to bias toward. Note also that close-out was already
+the right place to ask: it had a passive note ("Some holes are still missing scores — you can
+close out anyway") that stated the problem and offered no way to act on it.
+
+---
+
+## 5.aj A tied leg is settled PAIRWISE — you owe every side you lost to (2026-08-18)
+
+F-017: under `legs` money (the default), a tied leg paid nobody — so a side 18 over par owed
+nothing because the two ahead of it happened to tie. `per-point` charged that side $36 and `pot`
+charged $20 on identical cards; only `legs` charged $0.
+
+I offered a "split" rule (every side behind pays the leg once; the leaders share it) and
+recommended it, because it reproduces today's clear-winner math exactly and keeps a loser's cost
+the same whether the winners tied or not. Craig chose **pairwise**, and gave the reason that
+settles it:
+
+> "i think they would owe both based on the settings we are making. IF it was a pot split
+> situation, it would be different, no?"
+
+**The principle: the money model determines the tie rule, not a global preference.**
+- `legs` / `per-hole` / `per-point` are **per-opponent stakes** — "we're playing you for $10 a
+  leg" is a separate bet against each side. Lose to two sides, owe two sides.
+- `pot` is a **fixed prize** — there's one pot, so tied leaders divide it (§5.ag, unchanged).
+
+**Consequence Craig accepted knowingly**, having had it put to him twice: a tie at the top costs
+last place *more* than a clean defeat ($20 vs $10 on a $10 leg), because it lost to two sides
+that both beat it rather than one. Under per-opponent stakes that's the correct reading, not an
+anomaly.
+
+**Blast radius, verified rather than asserted** (Craig asked directly whether this touched pot
+pools): `payLeg` has five call sites, all inside the `legs` branch of `team-game.ts`. The classic
+pool of N foursomes is `computePoolResult` in `pool-game.ts` — a different function, not in that
+call graph. The side game's own pot mode uses `distributePot`. Pinned before the change so the
+numbers can be compared after.
+
+**How to apply.** When a rule looks inconsistent across money models, check whether the models
+differ in *kind* before making them agree. Two of these are per-opponent bets and one is a
+divided prize; forcing one tie rule on all three would have been consistency at the cost of
+meaning.
+
+---
+
+## 5.ak Colour: identity on names, money on good/bad (2026-08-18) — closes §7 q2 + q3
+
+Two colour questions that had sat open since the original audit, both settled by walking the
+side leaderboard.
+
+**q2 — blue/red was doing double duty:** "this is side B" *and* "this is bad news". They agreed
+only because side A wins in the fixtures; the day side B wins, its `+$36` is drawn red.
+**Decision: the side's colour marks its NAME and row edge; money and to-par are coloured by
+whether they're good or bad, independent of which side.** So a winning side B shows a red name
+and a green figure, and nothing contradicts itself.
+
+**q3 — green meant both "winning" and "money coming in".** Every shipped mode pays the winner,
+so they never disagreed — but pairwise round-robin (§5.ae) can already produce a side that wins
+a leg and is net down, and a reverse/consolation mode would split them completely.
+**Decision: green = money coming to you.** Craig's reasoning is the app's: on a money app green
+should mean you get paid, the way a bank balance reads. Winning is already carried by rank and
+the score columns, so nothing is lost.
+
+**How to apply.** One visual channel, one meaning. When a colour encodes two things that
+currently coincide, find the case that separates them before choosing — here it was "what if
+side B wins" and "what if a mode pays the loser", and both were reachable.
+
+---
+
+## 5.al Say "side" in a side game, "team" in a pool (2026-08-18) — closes §7 q1
+
+Craig had already standardized on *side* for within-group groupings, reserving *team* for
+foursomes. The audit found the app doesn't honor it: the side-game wizard's forward buttons say
+"Next: Set Teams" then "Next: Teams" while the step they lead to is labelled "Sides", and the
+review step calls the group "Foursomes".
+
+**Decision: enforce the existing vocabulary** — buttons, labels and tabs follow the mode. Not a
+new rule, just the places nobody re-read after the rename. The classic pool keeps "team" and
+"foursome" unchanged.
+
+**How to apply.** A rename is not done when the concept is renamed; it's done when every string
+that names it agrees. Grep for the old word after any vocabulary decision — these three were
+invisible until the wizard was driven end to end.
+
+---
+
+## 5.am Keep PACE as the column label (2026-08-18) — closes §7 q8
+
+The last open fragment of q8. The mechanism was settled in §5.af; only the *word* remained.
+**Decision: keep PACE**, and don't build the projected-18 variant. It survives the problem that
+killed "to par": it stays true under both strokes and Stableford, where "to par" is simply the
+wrong unit. A projection was also rejected implicitly — it's a guess shown next to real money.
+
+**§7 q8 is now fully closed.**
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch
@@ -840,11 +961,13 @@ Awaiting Craig's call. Inferred answers are marked as guesses.
 
 | # | Question | My guess |
 |---|---|---|
-| 1 | Is **"sides"** right for 2v2, or do golfers say "teams"? | Standardized on *side*, reserving *team* for foursomes |
-| 2 | **Blue/red** is both side identity and win/loss valence — they collide | Confine identity to labels/borders, valence to numbers |
-| 3 | Green = winning or green = money? (they coincide today) | Unresolved; matters if a mode ever pays the loser |
+| 1 | ~~Is **"sides"** right for 2v2, or do golfers say "teams"?~~ **CLOSED 2026-08-18 (§5.al)** — enforce *side* in a side game, *team* in a pool. The audit found three places still saying "Teams"; fixing them is queued, not optional. | — |
+| 2 | ~~**Blue/red** is both side identity and win/loss valence — they collide~~ **CLOSED 2026-08-18 (§5.ak)** — side colour on the NAME/row edge, money coloured good/bad. | — |
+| 3 | ~~Green = winning or green = money?~~ **CLOSED 2026-08-18 (§5.ak)** — green = money coming to you. | — |
 | 4 | Dark = live, light = setup — deliberate? | Written up as deliberate; it reads well |
-| 5 | How much configurability belongs on the **first** screen? | Sharpest tension with the north star; genuinely his call |
-| 6 | Mid-round pot money isn't zero-sum (P1 in the audit): split the un-started leg evenly, or pro-rate `entryPaid`? | Split evenly, matching the `settleNassau` precedent |
-| 7 | Nassau "Back 9 · thru 9" reads as hole 9 (P3) | Convert to a hole number, matching the header's vocabulary |
-| 8 | ~~What should a **Stableford** pool's leaderboard show where to-par goes?~~ **NARROWED 2026-08-17 (§5.af).** Raised again; Craig chose to leave PTS + PACE as built, and separately confirmed the side board should gain the same column. So the *mechanism* is settled on both axes and is no longer optional — ranking on raw totals pays a side for playing fewer holes. Still open: only the **label** (is "PACE" the clearest word?) and whether a projected-18 variant reads better. | Keep PACE. Don't rebuild unprompted. |
+| 5 | How much configurability belongs on the **first** screen? | **Measured 2026-08-17**: an ordinary 2v2 is 6 mode controls on step 1 and 13 taps end to end (`e2e/nsides-audit.spec.ts`). Craig hasn't been asked to rule on the number yet — still his call |
+| 6 | ~~Mid-round pot money isn't zero-sum (P1 in the audit)~~ **CLOSED** — this is F-007/F-011, both fixed and verified 2026-08-12. | — |
+| 7 | ~~Nassau "Back 9 · thru 9" reads as hole 9 (P3)~~ **CLOSED 2026-08-18** — same item as F-001. Craig chose **"9 of 9 holes"**, matching the side leg board, rather than converting to a hole number: no data change, so the `thru === 0` not-started guard that keeps the board zero-sum is untouched. | — |
+| 8 | ~~What should a **Stableford** pool's leaderboard show where to-par goes?~~ **FULLY CLOSED 2026-08-18 (§5.am)** — mechanism settled in §5.af; label stays **PACE**; the projected-18 variant is rejected (a guess shown next to real money). | — |
+
+**Only q4 and q5 remain open.** q5 now has numbers attached but no ruling.
