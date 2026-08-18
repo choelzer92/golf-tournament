@@ -1219,8 +1219,234 @@ confirmed regression.
 isn't. Do not fix on sight — this is the exact kind of change that should be justified by a
 screenshot.
 
-**Status:** open, needs measurement. Part of the broader "did N sides make the app worse" audit —
-see `NEXT_SESSION_PROMPT.md`.
+#### MEASURED 2026-08-17 (`e2e/nsides-audit.spec.ts`, phone 390×844)
+
+The suspicion was right about *where*, and wrong about *what*. The wizard is fine; the exposure
+is in the hub — but in the **read-only summary**, not the editor the finding pointed at.
+
+```
+wizard step 1, plain 2v2   6 mode controls (Team format, Hole score, Compare by,
+                           Money, Side A name, Side B name)          <- C-F correctly hidden
+hub EDITOR, 2 sides        Side A name, Side B name                  <- correctly hidden
+hub SUMMARY, 2 sides       Side A .. Side F name, four of them blank <- DEFECT (see F-015)
+```
+
+Ordinary-2v2 walk, empty state → playing: **13 taps**, and every screen's controls counted in
+`audit-01`..`audit-10`. Nothing about it is worse than a two-side-only app would be — the
+`showIf` + `hideKeys` machinery does its job on the two screens that were wired for it.
+
+**Step 3 answered — yes, and it's confusing.** A 3-side game built in the wizard is never
+offered "Side C name" *anywhere*: step 1 hard-codes `unusedSideNameKeys(2)` and the sides step
+(where the third side is added) has no name fields. Verified by driving it — after adding side C
+and going Back to step 1, the box is still absent. The name is settable only from the hub
+afterwards, and nothing says so.
+
+**Verdict: option D for the wizard** (measurement shows the common case is unchanged), plus
+**option A** for the naming asymmetry — see F-015, which is the same root cause on a third
+surface and is the one worth fixing.
+
+**Status:** measured; the wizard half is **not** a defect. The naming asymmetry is real and
+carried forward as F-015.
+
+---
+
+### F-016 — A leg is settled on unequal hole counts, so a side is PAID for walking in  [P1 MONEY] [track]
+
+**Where:** `src/lib/game-modes/team-game.ts:352` (`legLine`) → `payLeg` at :466
+**Screen:** `/pool/[id]/leaderboard`, 3-side seed · `e2e/screenshots/audit-13-leaderboard-3side.png`
+**Violates:** `DECISIONS.md` §5.af — the rule that a side must not profit from playing fewer holes
+
+**Found by reading a screenshot, then confirmed by probe.** The seeded 3-side board reads:
+
+```
+Back 9    3 of 9 holes    Craig & Jym by 6
+```
+
+Six *what*, over three holes, against sides that played nine? `legThru` counts holes where
+**every** side has posted, but `legToPar` accumulates on every hole a side **individually**
+played. So the leg margin compares one side's 9 holes against another's 3 — and `payLeg` pays
+whoever that comparison names.
+
+**Reproduced (`src/test/probe-leg-unequal.test.ts`), scratch players, `legs` money:**
+
+```
+front: all three sides level par            -> dead heat, isolates the back
+back:  A and B play all 9 at +1  (= +9)
+       C plays only holes 10-12 at level par (= 0)
+
+BACK LEG:  "C by 9"   winner = c   thru 3
+MONEY:     C +$60,  A −$30,  B −$30
+```
+
+**C collected $60 for playing three holes of the nine.** Zero-sum still holds, which is exactly
+why the existing tests are green — the money balances, it's just pointed at the wrong side.
+
+**Not introduced by this branch.** `main` compares raw leg totals (`legMetric`) and fails the
+same way at two sides: the probe's two-side control gives `"B by 9" → B +$30 / A −$30`. The
+N-sides work generalized the *comparison* faithfully, including the flaw. §5.af fixed this for
+the **standings** (rank on to-par, show thru); the **leg lines** never got the same treatment —
+one axis drifting from the other, the shape `AGENTS.md` warns about.
+
+**Why it matters in the real day:** this is the ordinary "Tony's knee went at 13, we walked in"
+case, on the default money model. It pays the guy who quit.
+
+**Options**
+- **A. A leg only counts holes every side in it has played.** Accumulate `legToPar` on contested
+  holes only (the same gate `legThru` already uses). Then "3 of 9 holes · C by 0" is a comparison
+  over the same three holes, and the margin is honest. Cost: a side that plays a hole its
+  opponents haven't gets no credit for it until they catch up — which is what "contested" means
+  everywhere else in this engine.
+- **B. Normalize to a per-hole rate** (to-par per contested hole). Handles ragged cards, but
+  invents a unit no golfer uses and would print fractional margins.
+- **C. Void a leg nobody finished** — no winner, no money, unless every side played every hole
+  of it. Simplest and safest; costs the mid-round leg board, which would read "–" until the
+  ninth hole is in.
+- **D. Leave it** and accept that a walk-in distorts the legs.
+
+**Recommendation:** **A** — it makes the leg line mean what it says, matches the contested-hole
+rule the rest of the engine already uses, and is the minimum change that stops the payout. Worth
+noting it changes money for *mid-round and abandoned* games only: at equal thru counts A is
+identical to today, so no completed game moves. **This is a math change — Craig's call before
+anything is touched (`AGENTS.md`).**
+
+**Status:** open, needs Craig's decision. Probe test is committed as evidence and should be
+turned into a real assertion once an option is chosen.
+
+---
+
+### F-015 — The hub's read-only summary shows six side-name rows, four of them blank  [P2] [start]
+
+**Where:** `src/app/pool/[id]/page.tsx:1359` (`MoneySummary`) — filters on `showIf` but never
+applies `unusedSideNameKeys`
+**Screen:** `/pool/[id]`, any 2-side game · `e2e/screenshots/audit-11-hub-2side-collapsed.png`
+**Violates:** north star — *minimum exposed complexity*
+
+The defect F-014 went looking for, on the surface nobody checked. The **editor** hides the unused
+name fields (`hideKeys={unusedSideNameKeys(sides.length)}`, :1016). The **read-only summary** —
+the panel every player sees on the hub without tapping Edit — renders the raw schema:
+
+```
+Front 9 ($)  10     Back 9 ($)   10
+Overall 18   10     Side A name
+Side B name         Side C name
+Side D name         Side E name
+Side F name         Birdie/eagle bonuses  On
+```
+
+Five of the eleven rows on a plain 2v2's money panel are empty side-name labels. Two labels
+(`Side A name`, `Side B name`) are also blank-by-design, so the panel's most prominent feature is
+six rows of nothing.
+
+**Same root cause as F-014, third surface.** Six static keys in the schema, and each consumer has
+to remember to hide the unused ones. Two of three remembered.
+
+**Options**
+- **A. Move side names out of the settings bag into the Sides editor** (F-014 option A). Fixes all
+  three surfaces at once and removes four keys from the schema, so no future consumer can forget.
+  Costs a bespoke control — though the Sides editor is already bespoke, and this is the second
+  finding caused by the generic bag not being able to express "depends on the game's data".
+- **B. Pass `hideKeys` to the summary too.** Three lines. Fixes the screen, leaves the trap armed
+  for the next consumer.
+- **C. Drop blank rows from the summary generically** — a read-only panel showing a label with no
+  value is noise regardless of which setting it is. Fixes this and every future empty-value row.
+- **D. Leave it.**
+
+**Recommendation:** **C then A** — **C** because a read-only summary should never print an empty
+value (it fixes F-015 and hardens the panel), and **A** as the real fix for the naming model,
+which also closes F-014's step-3 gap (a wizard-built 3-side game can never name side C).
+
+**Status:** open
+
+---
+
+### F-017 — `legs` money pays nothing when the top two sides tie, however far behind the third is  [P2 MONEY] [track]
+
+**Where:** `src/lib/game-modes/team-game.ts:367` — `winner = leaders.length === 1 ? … : null`
+**Violates:** `DECISIONS.md` §5.ae (pairwise round-robin: "the losing team would owe all teams
+ahead of them")
+
+At two sides a tied leg paying nobody is correct and uncontroversial. At three it means a side
+that lost to *both* opponents pays nothing, because the two ahead of it happened to tie:
+
+```
+three sides, all 18 holes played, `legs` money (the DEFAULT model)
+A level par, B level par, C +18 on every leg
+
+legs money:       A $0    B $0    C  $0     <- C is 18 over and pays nothing
+per-point money:  A +$18  B +$18  C −$36    <- same cards, round-robin
+pot money:        A +$10  B +$10  C −$20    <- same cards, pot
+```
+
+The other two money models both charge C. `legs` is the one that doesn't, and it's the default.
+§5.ae's rule — you owe everyone ahead of you — is implemented for `per-hole` and `per-point` (via
+`settleRoundRobin`) and for `pot` (via `distributePot`), but `payLeg` is winner-take-all with a
+single winner, so any tie at the top voids the whole leg for everybody.
+
+**This is a design question, not obviously a bug** — "nobody wins the front, so the front is a
+push" is a defensible rule a group might actually play, and it's what two-side games have always
+done. But it's inconsistent with the other three models on the same screen, and the inconsistency
+only shows up at 3+ sides.
+
+**Options**
+- **A. Split the leg among tied leaders, collected from everyone behind.** A and B take half the
+  leg each from C. Consistent with §5.ae and with `pot`'s tie rule ("first and second split first
+  place money"), which is already Craig's stated preference for ties.
+- **B. Settle legs pairwise like the other models** — each side pays each side ahead of it that
+  leg's dollars. Most consistent of all; changes the meaning of "the leg is worth $10" from a
+  fixed prize to a per-opponent rate, which is what `payLeg` *already* does for a clear winner
+  (winner collects $10 from **each** other side).
+- **C. Leave it** — a tied leg is a push, as it always has been at two sides.
+
+**Recommendation:** **B**, because `payLeg` is already per-opponent for the win case, so ties are
+the only place the model isn't pairwise — but this is money arithmetic with more than one
+defensible answer, so it's **Craig's call**. Note **C is genuinely fine** if he'd rather not touch
+settled math; no completed two-side game is affected by any of the three.
+
+**Status:** open, needs Craig's decision (§5.ae adjacent — the *tie* case it didn't specify).
+
+---
+
+### F-018 — The wizard's review step never mentions the sides, on a game that is about sides  [P2] [start]
+
+**Where:** `src/app/pool/new/page.tsx:2936` (`CreateStep`) — renders "Foursomes" and a player
+list; no side block for `team-within-group`
+**Screen:** `e2e/screenshots/audit-20-review-three-sides.png` (3 sides), `audit-09-review.png` (2)
+**Violates:** `UI_CONVENTIONS.md` §2 (say what the game actually is)
+
+The last screen before money changes hands, for a three-side game, reads in full:
+
+```
+Review & create
+Sides (within group)
+Three Sides From Scratch
+Players 6 · Group size 4–8 · Foursomes
+Group   CHcp 60
+Craig Blue 4 | Jym Blue 12 | Dave Blue 8 | Rick Blue 16 | Sam Blue 6 | Tony Blue 14
+```
+
+Not a word about **sides**: not how many, not who's on which, not what the money terms are. The
+step you just came from was the one where you split six players into three sides, and the review
+shows them as one undifferentiated list under the heading "Foursomes". A 2-side game is equally
+silent. The step indicator says "Sides"; the step itself doesn't.
+
+**Why it matters:** "confirm before it's real" is the whole job of a review step, and the thing
+most likely to be wrong (who's paired with whom) is the one thing it doesn't show. This also
+hides F-014's naming gap: nothing here reveals that side C has no name.
+
+**Options**
+- **A. Add a sides block** — one row per side with its members and its display name, plus the
+  money line (`$10 front / $10 back / $20 overall`, or `Buy-in $20 per side`). Mirrors what the
+  hub summary shows, so create and view agree.
+- **B. Reuse the leaderboard's side rows** read-only, so there's one renderer for "here are the
+  sides" across wizard, hub and board.
+- **C. Just relabel "Foursomes" → "Sides" and group the player list by side.** Cheapest honest
+  improvement; no new money copy.
+- **D. Leave it** — the sides step is one tap back.
+
+**Recommendation:** **C** as the floor (the current label is simply wrong for this mode), **A** if
+Craig wants the review step to earn its name. Not a money change either way.
+
+**Status:** open
 
 ---
 
