@@ -256,7 +256,6 @@ function compute(ctx: GameModeContext): IndividualResult {
   // Per-leg tallies (front = holes 1-9, back = 10-18, overall = all), one slot per side.
   const zeros = () => sides.map(() => 0);
   const legHolesWon = { front: zeros(), back: zeros() };
-  const legMetric = { front: zeros(), back: zeros() };
   // SCORE TO PAR, the figure sides are actually RANKED and PAID on (Craig, 2026-08-17: "i
   // actually think score to par is the way to rank it, showing what holes each team is
   // through... this is what it looks like in a normal golf tournament in terms of the
@@ -272,6 +271,25 @@ function compute(ctx: GameModeContext): IndividualResult {
   const legToPar = { front: zeros(), back: zeros() };
   const legThru = { front: 0, back: 0 };
   const totals = zeros();
+  // The same to-par figures, accumulated ONLY on CONTESTED holes — ones every side has posted.
+  //
+  // F-016: `legToPar` above counts every hole a side individually played, while `legThru` counts
+  // only contested ones. Comparing the two meant a leg's margin could pit one side's 9 holes
+  // against another's 3, and the leg winner is paid (`payLeg`). A side that walked in after 12
+  // collected the back nine: $60 for playing three of its nine holes.
+  //
+  // §5.af fixed exactly this class of bug for the STANDINGS (rank on to-par, show thru); the leg
+  // lines never got the same treatment — one axis drifting from the other. This is the leg-level
+  // equivalent, and it uses the gate that already existed rather than inventing a rule.
+  //
+  // Why a SECOND accumulator instead of changing the first: the standings legitimately want
+  // every hole a side has played (that's what "thru 12, +2" means on a tournament board). Only
+  // the head-to-head leg COMPARISON needs like-for-like holes. Two different questions, so two
+  // different figures.
+  //
+  // At equal thru counts these are identical to `legToPar`/`toPar`, so no completed game's money
+  // moves — held by n-side-golden.test.ts, where every "MUST NOT MOVE" case is byte-identical.
+  const contestedToPar = { front: zeros(), back: zeros() };
   let thruHole = 0;
   // Each side's HOLE SCORE per hole, kept for the scorecard (DECISIONS.md §5.ah). Distinct from
   // PlayerStanding.perHole, which under match scoring holds the 1 / 0.5 / 0 match POINTS and so
@@ -284,18 +302,24 @@ function compute(ctx: GameModeContext): IndividualResult {
     if (ms.every((m) => m === null)) return;
     thruHole = hole.number;
     const leg = hole.number <= 9 ? 'front' : 'back';
+    // Each side's to-par contribution on THIS hole. Computed once and reused below, because the
+    // contested-hole accumulator (F-016) needs the same figure after the contested gate.
+    //
+    // "Even" is what a side playing to expectation scores here: par per ball under strokes, 2
+    // points per ball under Stableford. Each side's ball count is its own, since sides can be
+    // uneven (a 3-player side playing combined contributes three balls).
+    const holeToPar = ms.map((m, idx) => {
+      if (m === null) return null;
+      const sideBalls = ballsPerHole(format as TeamFormat, sideIds(idx).length);
+      return m - evenValueOnHole(hole, scoring === 'stableford' ? 'stableford' : 'stroke', sideBalls);
+    });
+
     ms.forEach((m, idx) => {
       if (m === null) return;
       stand[idx].thru += 1;
       totals[idx] += m;
-      legMetric[leg][idx] += m;
-      // What a side playing to expectation scores on this hole: par per ball under strokes,
-      // 2 points per ball under Stableford. Each side's ball count is its own, since sides can
-      // be uneven (a 3-player side playing combined contributes three balls).
-      const sideBalls = ballsPerHole(format as TeamFormat, sideIds(idx).length);
-      const even = evenValueOnHole(hole, scoring === 'stableford' ? 'stableford' : 'stroke', sideBalls);
-      toPar[idx] += m - even;
-      legToPar[leg][idx] += m - even;
+      toPar[idx] += holeToPar[idx]!;
+      legToPar[leg][idx] += holeToPar[idx]!;
     });
 
     // A hole is only CONTESTED once every side has posted — the same rule as before, where a
@@ -303,6 +327,9 @@ function compute(ctx: GameModeContext): IndividualResult {
     if (ms.some((m) => m === null)) return;
     const scored = ms as number[];
     legThru[leg] += 1;
+    // F-016: the leg comparison accumulates only here, past the contested gate, so every side's
+    // leg figure covers exactly the same holes.
+    ms.forEach((_, idx) => { contestedToPar[leg][idx] += holeToPar[idx]!; });
 
     // Best value on the hole, and who holds it. Multiple sides can share it.
     const best = scored.reduce((b, m) => (better(m, b) ? m : b), scored[0]);
@@ -356,10 +383,17 @@ function compute(ctx: GameModeContext): IndividualResult {
     // The leg's per-side figure: holes won under match, score to par under total (not the raw
     // summed metric — see the toPar comment above; a side thru fewer holes must not lead a leg
     // on that basis alone).
+    //
+    // F-016: under 'total' this reads the CONTESTED-hole figures, so every side's number covers
+    // the same holes. `legToPar`/`toPar` count each side's own holes, which is right for the
+    // standings ("thru 12, +2") but wrong for a head-to-head leg — comparing 9 holes against 3
+    // paid a side that walked in. Holes-won was already contested-only, so 'match' needs nothing.
     const values = sides.map((_, idx) =>
       result === 'match'
         ? (key === 'overall' ? legHolesWon.front[idx] + legHolesWon.back[idx] : legHolesWon[key][idx])
-        : (key === 'overall' ? toPar[idx] : legToPar[key][idx]));
+        : (key === 'overall'
+          ? contestedToPar.front[idx] + contestedToPar.back[idx]
+          : contestedToPar[key][idx]));
     // Holes-won is always higher-is-better; a summed metric follows the scoring basis.
     const legBetter = result === 'match' ? (x: number, y: number) => x > y : better;
     const best = values.reduce((b, v) => (legBetter(v, b) ? v : b), values[0]);
