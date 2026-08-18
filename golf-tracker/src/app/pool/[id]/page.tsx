@@ -15,9 +15,9 @@ import {
   type TeamFormat,
 } from '@/lib/game-modes/team-scoring';
 import {
-  fromLegacySubTeams, nextSideId, persistedSides, sideMembers, sideOfPlayer, sidesOfGame,
-  unusedSideNameKeys,
-  type GameSide,
+  fromLegacySubTeams, incompleteLegsForCloseOut, nextSideId, persistedSides, sideMembers,
+  sideOfPlayer, sidesOfGame, unusedSideNameKeys,
+  type GameSide, type IncompleteLeg,
 } from '@/lib/game-modes/sides';
 import {
   loadPoolGame,
@@ -55,7 +55,7 @@ import type { GameScore } from '@/lib/game-state';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
-import { getGameMode, GAME_MODES, defaultSettings, settingValue, type SettingsBag, type SettingValue } from '@/lib/game-modes';
+import { getGameMode, GAME_MODES, buildGameModeContext, defaultSettings, settingValue, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { saveFormat, formatFromGame } from '@/lib/pool-formats';
 import { PairingLocks } from '@/components/pairing-locks';
@@ -2668,8 +2668,17 @@ function WolfRotationEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
 // regardless (and to reopen it if a score needs fixing).
 function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
   const [fullyScored, setFullyScored] = useState<boolean | null>(null);
+  // Legs not every side finished (F-016b). Empty unless this game settles per leg.
+  const [shortLegs, setShortLegs] = useState<IncompleteLeg[]>([]);
+  // The confirmation step. null = not asking; otherwise the leg keys the organizer has marked
+  // as paying nothing. Starts with EVERY short leg voided, because that's the answer a group
+  // reaching for this is most likely to want — but each one is individually togglable.
+  const [asking, setAsking] = useState<('front' | 'back' | 'overall')[] | null>(null);
 
-  // Fetch every foursome's scores to report whether the game is fully scored.
+  // Fetch every foursome's scores to report whether the game is fully scored, and to ask the
+  // engine which legs are short. The engine is the only thing that knows how a leg is scored,
+  // so the prompt reads its answer rather than recomputing hole counts here (§5.aa: one source
+  // of truth for anything the money depends on).
   useEffect(() => {
     let cancelled = false;
     const ids = Array.from(new Set(game.teams.map((t) => t.matchupId)));
@@ -2678,11 +2687,41 @@ function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) 
       const byMatchup = new Map<string, GameScore[]>();
       for (const [mid, s] of pairs) if (s && Array.isArray(s)) byMatchup.set(mid, s as GameScore[]);
       setFullyScored(isPoolGameFullyScored(game, byMatchup));
+
+      const mode = getGameMode(game.gameMode);
+      if (mode?.category !== 'team-within-group') { setShortLegs([]); return; }
+      const result = mode.compute(buildGameModeContext(game, byMatchup));
+      const s = game.modeSettings ?? {};
+      setShortLegs(incompleteLegsForCloseOut(
+        result.teamLegs ?? [],
+        String(s.moneyModel ?? 'legs'),
+        {
+          front: Number(s.legFront ?? 10),
+          back: Number(s.legBack ?? 10),
+          overall: Number(s.legOverall ?? 10),
+        },
+      ));
     });
     return () => { cancelled = true; };
   }, [game]);
 
   const isDone = game.status === 'completed';
+
+  function closeOut(voidedLegs?: ('front' | 'back' | 'overall')[]) {
+    // Only WRITE the field when something is voided, so an ordinary game's saved shape is
+    // untouched — same principle as persistedSides keeping the legacy two-side shape.
+    const next: PoolGame = { ...game, status: 'completed' };
+    if (voidedLegs && voidedLegs.length > 0) next.voidedLegs = voidedLegs;
+    else delete next.voidedLegs;
+    onSave(next);
+    setAsking(null);
+  }
+
+  function onCloseOutTapped() {
+    // Nothing short, or nothing at stake → close out immediately, exactly as before.
+    if (shortLegs.length === 0) { closeOut(); return; }
+    setAsking(shortLegs.map((l) => l.key));
+  }
 
   return (
     <section className="bg-white rounded-lg shadow overflow-hidden">
@@ -2693,26 +2732,99 @@ function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) 
             ? 'Final — this game now counts in Stats & money. Reopen it if a score needs fixing.'
             : 'Marks the game final and includes it in Stats & money. Scores stay editable if you reopen it.'}
         </p>
+        {/* Say it on the page. Without this, a closed-out game whose back nine paid nothing looks
+            like a money bug to anyone who wasn't there when the choice was made. */}
+        {isDone && (game.voidedLegs?.length ?? 0) > 0 && (
+          <p className="text-xs text-amber-700 mt-1">
+            {game.voidedLegs!.length === 1 ? 'One leg pays' : `${game.voidedLegs!.length} legs pay`} nothing —
+            not every side finished {game.voidedLegs!.length === 1 ? 'it' : 'them'}.
+          </p>
+        )}
       </div>
-      <div className="p-4 flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-xs text-gray-600">
-          {fullyScored === null
-            ? 'Checking scores…'
-            : fullyScored
-              ? 'Every player is scored on every hole.'
-              : 'Some holes are still missing scores — you can close out anyway.'}
-        </p>
-        <button
-          onClick={() => onSave({ ...game, status: isDone ? 'active' : 'completed' })}
-          className={`text-sm font-semibold rounded-md px-4 py-2 ${
-            isDone
-              ? 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-              : 'bg-green-700 text-white hover:bg-green-800'
-          }`}
-        >
-          {isDone ? 'Reopen game' : 'Close out game'}
-        </button>
-      </div>
+
+      {/* THE PROMPT (F-016b, DECISIONS.md §5.ai). Craig: "if someone clicks finish game, and all
+          legs are not complete, it should prompt the user." Asked here, at close-out, rather than
+          pre-declared in settings — the person tapping this knows whose knee gave out, and a
+          default nobody chose is worse than a question asked once.
+
+          PER LEG, so a completed front still pays while a short back nine can be written off. */}
+      {asking !== null && !isDone && (
+        <div className="p-4 border-b bg-amber-50">
+          <p className="text-sm font-semibold text-amber-900">
+            {shortLegs.length === 1
+              ? 'One leg wasn’t finished by every side.'
+              : 'Some legs weren’t finished by every side.'}
+          </p>
+          <p className="text-xs text-amber-800 mt-1">
+            Untick a leg to pay it on the holes everyone played. Leave it ticked and it pays nothing.
+          </p>
+          <div className="mt-3 space-y-2">
+            {shortLegs.map((leg) => {
+              const off = asking.includes(leg.key);
+              return (
+                <label key={leg.key} className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={off}
+                    onChange={(e) => setAsking(
+                      e.target.checked
+                        ? [...asking, leg.key]
+                        : asking.filter((k) => k !== leg.key),
+                    )}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-gray-900">
+                      {leg.label} — ${Math.round(leg.dollars)} pays nothing
+                    </span>
+                    <span className="block text-xs text-gray-600">
+                      {leg.thru} of {leg.holes} holes played by every side
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          <div className="mt-4 flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => closeOut(asking)}
+              className="text-sm font-semibold rounded-md px-4 py-2 bg-green-700 text-white hover:bg-green-800"
+            >
+              Close out game
+            </button>
+            <button
+              onClick={() => setAsking(null)}
+              className="text-sm font-medium rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden while the prompt is open, so there is only ever ONE "Close out game" button on
+          screen. Two would leave the second one looking like a way to skip the question. */}
+      {asking === null && (
+        <div className="p-4 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-xs text-gray-600">
+            {fullyScored === null
+              ? 'Checking scores…'
+              : fullyScored
+                ? 'Every player is scored on every hole.'
+                : 'Some holes are still missing scores — you can close out anyway.'}
+          </p>
+          <button
+            onClick={() => (isDone ? onSave({ ...game, status: 'active' }) : onCloseOutTapped())}
+            className={`text-sm font-semibold rounded-md px-4 py-2 ${
+              isDone
+                ? 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                : 'bg-green-700 text-white hover:bg-green-800'
+            }`}
+          >
+            {isDone ? 'Reopen game' : 'Close out game'}
+          </button>
+        </div>
+      )}
     </section>
   );
 }

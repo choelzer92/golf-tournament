@@ -82,5 +82,5 @@ export function buildGameModeContext(
   const playerIdSet = new Set(players.map((p) => p.id));
   const wolfOrder = game.wolfOrder?.filter((id) => playerIdSet.has(id));
 
-  return { players, holes, scores, settings, pot, playingHcap, strokesOnHole, grossOnHole, netOnHole, subTeams, sides, rawCourseHcap, wolfDecisions: game.wolfDecisions, wolfOrder: wolfOrder && wolfOrder.length > 0 ? wolfOrder : undefined };
+  return { players, holes, scores, settings, pot, playingHcap, strokesOnHole, grossOnHole, netOnHole, subTeams, sides, rawCourseHcap, wolfDecisions: game.wolfDecisions, wolfOrder: wolfOrder && wolfOrder.length > 0 ? wolfOrder : undefined, voidedLegs: game.voidedLegs };
 }

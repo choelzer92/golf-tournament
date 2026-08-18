@@ -186,6 +186,38 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'walk-in-legs',
+    label: 'Three sides, LEGS money — side C walked in at 12',
+    detail: 'F-016b: the front nine is complete but the back and overall are short, so "Close out game" must ask whether those legs pay. Open, then scroll to Close out game.',
+    build: () => {
+      const ps = players([4, 12, 8, 16, 6, 14]);
+      const game = baseGame({
+        players: ps,
+        name: 'Walked In At 12',
+        gameMode: 'team-2v2',
+        sides: [
+          { id: 'a', playerIds: ['sp1', 'sp2'] },
+          { id: 'b', playerIds: ['sp3', 'sp4'] },
+          { id: 'c', playerIds: ['sp5', 'sp6'] },
+        ],
+        // LEGS money — the only model that settles per leg, so the only one the prompt applies to.
+        modeSettings: {
+          format: 'best-ball', scoring: 'stroke', result: 'total',
+          moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20,
+        },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1' }],
+      });
+      // A and B finish all 18. C stops at 12 — so the FRONT nine was finished by everyone
+      // (it still pays) while the back and overall were not (the prompt asks about those two).
+      saveGameScores('sm1', [
+        ...scores(['sp1', 'sp2'], [0, 1], ALL18),
+        ...scores(['sp3', 'sp4'], [1, 2], ALL18),
+        ...scores(['sp5', 'sp6'], [1, 2], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
+      ]);
+      return { game, goTo: (id) => `/pool/${id}` };
+    },
+  },
+  {
     key: 'three-sides-pot',
     label: 'Three sides playing a POT (uneven 3/2/1)',
     detail: 'DECISIONS 5.ag: buy-in is PER SIDE, so the solo player and the trio have the same stake.',

@@ -239,6 +239,19 @@ export interface PoolGame {
   // ABSENT on games created before this existed — those still work via the legacy
   // ORGANIZER_TOKEN, and get a token lazily the first time the Share panel opens.
   shareToken?: string;
+  // Legs the group decided pay NOTHING, because not every side finished them
+  // (DECISIONS.md §5.ai / F-016b). Keys are leg keys: 'front' | 'back' | 'overall'.
+  //
+  // ABSENT on every existing game, and absent means "pay every leg on the holes played" —
+  // today's behaviour, so nothing already saved changes.
+  //
+  // WHY THIS IS STORED rather than recomputed: the answer is a JUDGEMENT, not a fact derivable
+  // from the scores. Craig's call was to ask at close-out — "if someone clicks finish game, and
+  // all legs are not complete, it should prompt the user" — so the group's decision has to
+  // survive, or the leaderboard and the season ledger would disagree the moment someone
+  // reopened the game. Recomputing from hole counts would also silently change a settled
+  // game's money if a late score were added.
+  voidedLegs?: ('front' | 'back' | 'overall')[];
 }
 
 // One hole's Wolf decision. `mode`: 'partner' = Wolf + partnerId vs the other two

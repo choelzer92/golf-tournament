@@ -71,6 +71,10 @@ export interface GameModeContext {
   // Kept separate from ctx.players so it drives ONLY who's the default Wolf each
   // hole, not the standings display order or the "all four scored" check.
   wolfOrder?: string[];
+  // Legs the group decided pay nothing because not every side finished them (F-016b,
+  // DECISIONS.md §5.ai). Absent/empty = every leg pays on the holes played, which is what
+  // every existing game does. The leg still SHOWS its margin; it just doesn't settle.
+  voidedLegs?: ('front' | 'back' | 'overall')[];
 }
 
 export interface PlayerStanding {
@@ -103,6 +107,13 @@ export interface TeamLegLine {
   // which is why every existing consumer comparing to 'a'/'b' keeps working.
   winner: string | null;
   thru: number;
+  // How many holes this leg SPANS (9 for a nine, 18 for overall, fewer on a 9-hole game).
+  // `thru` is how many of them every side has posted, so `thru < holes` means the leg is
+  // incomplete — the state the close-out prompt asks about (F-016b).
+  holes: number;
+  // True when this leg was voided by the group at close-out: it still shows its margin, but
+  // settles no money (DECISIONS.md §5.ai). Absent/false on every existing game.
+  voided?: boolean;
 }
 
 // One hole's matchup story for the Wolf leaderboard breakdown. Wolf's whole

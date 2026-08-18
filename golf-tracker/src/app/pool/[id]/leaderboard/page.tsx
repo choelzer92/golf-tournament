@@ -1053,8 +1053,16 @@ function IndividualLeaderboard({ id }: { id: string }) {
                         {leg.thru > 0 && (
                           <p className="text-[10px] text-gray-500">{leg.thru} of {segmentHoles(leg.key, holesInPlay)} holes</p>
                         )}
+                        {/* A voided leg (F-016b) still shows its margin, so say WHY it paid
+                            nothing — otherwise the board contradicts the money beside it. */}
+                        {leg.voided && (
+                          <p className="text-[10px] text-amber-500">pays nothing — unfinished</p>
+                        )}
                       </div>
-                      <span className={`text-sm font-medium ${leg.winner ? sideTone(leg.winner, sideOrder) : 'text-gray-400'}`}>
+                      <span className={`text-sm font-medium ${
+                        leg.voided ? 'text-gray-500 line-through'
+                          : leg.winner ? sideTone(leg.winner, sideOrder) : 'text-gray-400'
+                      }`}>
                         {leg.status}
                       </span>
                     </div>

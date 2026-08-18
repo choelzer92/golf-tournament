@@ -132,6 +132,46 @@ export function sideMembers(sides: GameSide[], sideId: string): string[] {
   return sides.find((s) => s.id === sideId)?.playerIds ?? [];
 }
 
+/** A leg the close-out prompt needs to ask about: short, and worth money. */
+export interface IncompleteLeg {
+  key: 'front' | 'back' | 'overall';
+  label: string;
+  /** Holes every side has posted. */
+  thru: number;
+  /** Holes the leg spans. */
+  holes: number;
+  /** What this leg is worth, so the prompt can say what's at stake. */
+  dollars: number;
+}
+
+/**
+ * Which legs are INCOMPLETE and therefore worth asking about at close-out (F-016b).
+ *
+ * A leg is incomplete when not every side has played all of its holes — `thru < holes` on the
+ * engine's own leg lines, so this reads the engine's answer rather than recomputing hole counts
+ * and risking a second, disagreeing definition.
+ *
+ * Returns EMPTY unless the game actually settles per leg. Verified, not assumed: leg lines feed
+ * money only in the `legs` model (team-game.ts's four payLeg call sites) — per-hole settles on
+ * holes won, per-point on the total margin, pot on finishing order. Asking "should the back nine
+ * pay?" in a pot game would be a question with no consequence, which is worse than not asking.
+ *
+ * Also empty when a leg is worth $0, since voiding it would change nothing.
+ *
+ * Pure, so the rule is unit-tested rather than living inside the close-out component.
+ */
+export function incompleteLegsForCloseOut(
+  legs: { key: 'front' | 'back' | 'overall'; label: string; thru: number; holes: number }[],
+  moneyModel: string,
+  legDollars: { front: number; back: number; overall: number },
+): IncompleteLeg[] {
+  if (moneyModel !== 'legs') return [];
+  return legs
+    .filter((l) => l.thru < l.holes)
+    .map((l) => ({ ...l, dollars: legDollars[l.key] }))
+    .filter((l) => l.dollars > 0);
+}
+
 /** Which side a player is on, or null when they're on none. */
 export function sideOfPlayer(sides: GameSide[], playerId: string): GameSide | null {
   return sides.find((s) => s.playerIds.includes(playerId)) ?? null;

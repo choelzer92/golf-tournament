@@ -376,9 +376,20 @@ function compute(ctx: GameModeContext): IndividualResult {
 
   // Per-leg winners + status lines for the leaderboard.
   const names = sides.map((_, idx) => nameFor(idx));
+  // How many holes a leg spans, from the holes actually in play. A leg is INCOMPLETE when
+  // fewer than this many have been contested, which is what close-out asks about (F-016b).
+  const legHoleCount = (key: 'front' | 'back' | 'overall'): number => {
+    const front = ctx.holes.filter((h) => h.number <= 9).length;
+    const back = ctx.holes.filter((h) => h.number > 9).length;
+    return key === 'front' ? front : key === 'back' ? back : front + back;
+  };
+  const voided = new Set(ctx.voidedLegs ?? []);
   const legLine = (key: 'front' | 'back' | 'overall'): TeamLegLine => {
     const thru = key === 'overall' ? legThru.front + legThru.back : legThru[key];
-    if (thru === 0) return { key, label: legLabel(key), status: '–', winner: null, thru: 0 };
+    const holes = legHoleCount(key);
+    if (thru === 0) {
+      return { key, label: legLabel(key), status: '–', winner: null, thru: 0, holes };
+    }
 
     // The leg's per-side figure: holes won under match, score to par under total (not the raw
     // summed metric — see the toPar comment above; a side thru fewer holes must not lead a leg
@@ -418,7 +429,13 @@ function compute(ctx: GameModeContext): IndividualResult {
         ? `${names[lead.idx]} ${margin} up`
         : `${names[lead.idx]} by ${margin % 1 === 0 ? margin : margin.toFixed(1)}`;
     }
-    return { key, label: legLabel(key), status, winner, thru };
+    return {
+      key, label: legLabel(key), status, winner, thru, holes,
+      // Voided legs still SHOW their margin — the group played those holes and wants to see
+      // them — they just don't settle. Only mark it when the leg is genuinely short, so a
+      // stale flag on a completed leg can't silently withhold money.
+      voided: voided.has(key) && thru < holes,
+    };
   };
   // A 9-hole game has ONE leg. Every hole in ctx.holes belongs to the played
   // nine, so the other nine's leg is permanently empty while 'overall' covers
@@ -431,7 +448,14 @@ function compute(ctx: GameModeContext): IndividualResult {
       ? 'front'
       : null;
   const teamLegs: TeamLegLine[] = nineOnly
-    ? [{ ...legLine('overall'), key: nineOnly, label: nineOnly === 'front' ? 'Front 9' : 'Back 9' }]
+    ? [{
+        ...legLine('overall'),
+        key: nineOnly,
+        label: nineOnly === 'front' ? 'Front 9' : 'Back 9',
+        // The collapsed leg is keyed to the nine actually played, so a void recorded against
+        // that nine's key applies. Re-read it here rather than inheriting 'overall's flag.
+        voided: voided.has(nineOnly) && legLine('overall').thru < legHoleCount('overall'),
+      }]
     : [legLine('front'), legLine('back'), legLine('overall')];
 
   // MONEY — pairwise round-robin across every side (DECISIONS.md §5.ae). Craig's rule: "the
@@ -498,6 +522,9 @@ function compute(ctx: GameModeContext): IndividualResult {
     // that is the old +$leg / −$leg. On a nine there is a single leg, paid at the 'overall'
     // rate — paying front AND overall would settle the same nine holes twice.
     const payLeg = (leg: TeamLegLine, dollars: number) => {
+      // A leg the group voided at close-out pays nothing (F-016b). It still shows its margin on
+      // the board — those holes were played — but no money changes hands over it.
+      if (leg.voided) return;
       if (!leg.winner || dollars === 0) return;
       const winnerIdx = sides.findIndex((s) => s.id === leg.winner);
       if (winnerIdx < 0) return;

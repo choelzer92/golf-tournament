@@ -1126,3 +1126,75 @@ test.describe('F-013: the scorecard with three sides', () => {
     expect(body).not.toMatch(/1st · /);
   });
 });
+
+// F-016 / F-016b — DECISIONS.md §5.ai. A leg is judged over the holes EVERY side played, and
+// close-out asks whether a leg nobody finished should pay at all. Craig's call:
+// "if someone clicks finish game, and all legs are not complete, it should prompt the user."
+test.describe('F-016b: close-out asks about legs nobody finished', () => {
+  test('the prompt names only the SHORT legs, and the money follows the answer', async ({ page }) => {
+    const id = await seed(page, 'side C walked in at 12');
+    await page.goto(`${BASE}/pool/${id}/leaderboard`);
+    await page.waitForLoadState('networkidle');
+    const before = await page.locator('body').innerText();
+    // All three legs pay while the game is open: A collects front + back + overall.
+    expect(before).toContain('+$80');
+
+    await page.goto(`${BASE}/pool/${id}`);
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Close out game' }).first().click();
+
+    const prompt = page.locator('div.p-4.border-b.bg-amber-50');
+    await expect(prompt).toBeVisible();
+    const askText = await prompt.innerText();
+    // The two short legs are named, with how many holes everyone actually played...
+    expect(askText).toContain('Back 9');
+    expect(askText).toContain('3 of 9 holes');
+    expect(askText).toContain('Overall 18');
+    expect(askText).toContain('12 of 18 holes');
+    // ...and the front nine, which every side finished, is NOT asked about.
+    expect(askText).not.toContain('Front 9');
+    // Only ONE close-out button while asking — two would read as a way to skip the question.
+    expect(await page.getByRole('button', { name: 'Close out game' }).count()).toBe(1);
+
+    await page.getByRole('button', { name: 'Close out game' }).click();
+    await expect(page.getByText('Game closed out')).toBeVisible();
+    // The hub says the game has voided legs, so the smaller money isn't mistaken for a bug.
+    expect(await page.locator('body').innerText()).toMatch(/legs pay nothing/);
+
+    // Only the completed front nine settles: $10 from each of two losers.
+    await page.goto(`${BASE}/pool/${id}/leaderboard`);
+    await page.waitForLoadState('networkidle');
+    const after = await page.locator('body').innerText();
+    expect(after).toContain('+$20');
+    expect(after).not.toContain('+$80');
+    // And the board explains WHY, rather than silently showing a smaller number.
+    expect(after).toContain('pays nothing — unfinished');
+  });
+
+  test('unticking a leg pays it on the holes everyone played', async ({ page }) => {
+    const id = await seed(page, 'side C walked in at 12');
+    await page.goto(`${BASE}/pool/${id}`);
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Close out game' }).first().click();
+    // Untick BOTH, so every leg pays as it did before — the "settle it on what we played" answer.
+    const prompt = page.locator('div.p-4.border-b.bg-amber-50');
+    for (const box of await prompt.locator('input[type="checkbox"]').all()) await box.uncheck();
+    await page.getByRole('button', { name: 'Close out game' }).click();
+    await expect(page.getByText('Game closed out')).toBeVisible();
+    // No void was recorded, so the hub says nothing about voided legs.
+    expect(await page.locator('body').innerText()).not.toMatch(/legs pay nothing/);
+
+    await page.goto(`${BASE}/pool/${id}/leaderboard`);
+    await page.waitForLoadState('networkidle');
+    expect(await page.locator('body').innerText()).toContain('+$80');
+  });
+
+  test('a fully-scored game is asked nothing', async ({ page }) => {
+    const id = await seed(page, 'Classic pool — 2 foursomes, FULLY scored');
+    await page.goto(`${BASE}/pool/${id}`);
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Close out game' }).first().click();
+    // Straight to completed, no prompt in the way.
+    await expect(page.getByText('Game closed out')).toBeVisible();
+  });
+});
