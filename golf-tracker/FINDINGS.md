@@ -1321,12 +1321,31 @@ noting it changes money for *mid-round and abandoned* games only: at equal thru 
 identical to today, so no completed game moves. **This is a math change — Craig's call before
 anything is touched (`AGENTS.md`).**
 
-**Status: CHOSEN 2026-08-18 — option A, plus a close-out prompt (DECISIONS.md §5.ai).**
-Contested holes only. Craig rejected a per-group "void unfinished legs" setting in favour of
-asking at close-out: *"if someone clicks finish game, and all legs are not complete, it should
-prompt the user."* The prompt names each incomplete leg and how many holes are short, then asks
-**per leg** whether it pays on the holes played or pays nothing; the answer is stored on the game
-so the board and the season ledger agree. Not yet built.
+**Status: FIXED + VERIFIED (2026-08-18), both halves.** DECISIONS.md §5.ai.
+
+**F-016 — the comparison.** `contestedToPar` accumulates past the gate `legThru` already used, so
+every side's leg figure covers the same holes. The standings deliberately keep reading each side's
+own holes ("thru 12, +2" is correct on a tournament board); only the head-to-head comparison needs
+like-for-like. On screen: "Back 9 · 3 of 9 holes · **by 3**" (was "by 6"), Overall "by 8" over 12
+holes (was "by 14").
+
+**F-016b — whether a short leg pays.** Craig rejected a per-group setting in favour of asking at
+close-out: *"if someone clicks finish game, and all legs are not complete, it should prompt the
+user."* New `PoolGame.voidedLegs`, stored because it records a **judgement** — recomputing from
+hole counts would silently move a settled game's money if a late score arrived. Per leg, so a
+completed front still pays while a short back voids. On the walk-in seed: +$80/−$40/−$40 becomes
++$20/−$10/−$10, exactly the front nine, still zero-sum.
+
+Scope verified rather than assumed: leg lines feed money only in the `legs` model, so the prompt
+appears only there — asking in a pot game would be a question with no consequence.
+
+**Two defects only the screenshot showed:** two "Close out game" buttons on screen at once (the
+second read as a way to skip the question), and a closed-out game saying nothing about why its
+money shrank. Both fixed — the hub and board now say "pays nothing — unfinished" with the leg
+struck through, and a voided leg still shows its margin because those holes were played.
+
+Guarded by `src/test/voided-legs.test.ts` (19), `leg-unequal-thru.test.ts` (6), and three e2e
+assertions including the untick-and-it-pays-normally path.
 
 ---
 
@@ -1431,10 +1450,23 @@ different, no?"* — so the tie rule follows the **kind** of money model: `legs`
 and keeps splitting (§5.ag, unchanged). He accepted knowingly, asked twice, that a tie at the top
 costs last place more than a clean defeat ($20 vs $10 on a $10 leg).
 
-**Blast radius verified before deciding** (he asked directly about pot pools):
-`src/test/probe-blast-radius.test.ts` pins the side game's pot mode and a classic 4-foursome pool.
-`payLeg` has 5 call sites, all in the `legs` branch; `computePoolResult` doesn't reach it. Not yet
-built.
+**Status: FIXED + VERIFIED (2026-08-18).** `TeamLegLine` gained `leaders: string[]` — every side
+tied at the top. Money reads that; `winner` stays single-valued for display (colouring keys on it,
+and it's null on a tie). **At one leader the new rule is arithmetically identical to the old code**,
+which is what makes it safe: two sides still pay $40/−$40 on a clear win and push on a tie.
+
+Blast radius, verified because he asked directly about pot pools: the only snapshot lines that
+moved are the three money figures in the `F-017 (SHOULD MOVE)` block. The classic 4-foursome pool,
+the side game's pot mode and Wolf are byte-identical. `payLeg` has its call sites only in the
+`legs` branch; `computePoolResult` never reaches it.
+
+Guarded by three tests in `sides.test.ts` plus the golden pin, including one asserting the
+accepted trade-off (a tie at the top costs last place $80 where a clean defeat costs $40).
+
+**One mutation SURVIVED and is worth knowing about:** removing the `behind === 0` guard changes
+nothing, because with every side leading `dollars * behind` is already 0. The guard is kept for
+intent and now commented as defensive, so it isn't mistaken for the thing that makes dead heats
+push — that's the arithmetic.
 
 ---
 

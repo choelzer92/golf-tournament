@@ -1367,7 +1367,15 @@ function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
       else if (s.type === 'select') display = s.options?.find((o) => o.value === String(raw))?.label ?? String(raw);
       else display = String(raw);
       return { label: s.label, display };
-    });
+    // A READ-ONLY row with no value says nothing. This panel is what every player sees without
+    // tapping Edit, and on a plain 2v2 six of its eleven rows were empty "Side A name".."Side F
+    // name" labels (F-015) — four for sides that don't exist, two for sides that were never
+    // named. A named side still shows ("Side A · The Hogs").
+    //
+    // Done GENERICALLY rather than by hiding side-name keys here, because that trap has now been
+    // sprung on three surfaces: the editor remembered `unusedSideNameKeys`, the wizard remembered,
+    // this panel didn't. A rule about empty VALUES can't be forgotten by the next setting added.
+    }).filter((r) => r.display.trim() !== '');
     return (
       <section>
         <div className="bg-white rounded-lg shadow overflow-hidden">

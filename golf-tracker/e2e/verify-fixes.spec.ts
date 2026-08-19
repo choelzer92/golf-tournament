@@ -1198,3 +1198,39 @@ test.describe('F-016b: close-out asks about legs nobody finished', () => {
     await expect(page.getByText('Game closed out')).toBeVisible();
   });
 });
+
+// F-015 — the hub's READ-ONLY money panel is what every player sees without tapping Edit. On a
+// plain 2v2 six of its eleven rows were empty "Side A name".."Side F name" labels. Fixed
+// generically: a read-only summary never prints a row whose value is blank.
+test.describe('F-015: a read-only summary prints no empty rows', () => {
+  test('an UNNAMED side shows no name row at all', async ({ page }) => {
+    const id = await seed(page, '2v2 best ball — mid-round');
+    await page.goto(`${BASE}/pool/${id}`);
+    await page.waitForLoadState('networkidle');
+    const body = await page.locator('body').innerText();
+
+    // The panel still shows the settings that HAVE values.
+    expect(body).toContain('Team format');
+    expect(body).toContain('Front 9 ($)');
+    // But not one of the six side-name labels, since this game named no sides.
+    for (const letter of ['A', 'B', 'C', 'D', 'E', 'F']) {
+      expect(body, `Side ${letter} name must not appear unnamed`).not.toContain(`Side ${letter} name`);
+    }
+  });
+
+  test('a NAMED side still shows its name', async ({ page }) => {
+    // This seed sets sideAName 'The Hogs' / sideBName 'The Dawgs'.
+    const id = await seed(page, '2v2 on a nine — complete');
+    await page.goto(`${BASE}/pool/${id}`);
+    await page.waitForLoadState('networkidle');
+    const body = await page.locator('body').innerText();
+    // The row appears BECAUSE it has a value — the fix keys on emptiness, not on the key name.
+    expect(body).toContain('Side A name');
+    expect(body).toContain('The Hogs');
+    expect(body).toContain('The Dawgs');
+    // C-F are still unnamed, so they stay hidden.
+    for (const letter of ['C', 'D', 'E', 'F']) {
+      expect(body).not.toContain(`Side ${letter} name`);
+    }
+  });
+});
