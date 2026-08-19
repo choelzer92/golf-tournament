@@ -1532,10 +1532,21 @@ hides F-014's naming gap: nothing here reveals that side C has no name.
 **Recommendation:** **C** as the floor (the current label is simply wrong for this mode), **A** if
 Craig wants the review step to earn its name. Not a money change either way.
 
-**Status: CHOSEN 2026-08-18 — option A.** A sides block: one row per side with its members and
-display name, plus the money terms in words, mirroring what the hub shows after creation. Note
-this composes with §5.al (say "side" in a side game) — the "Foursomes" label is wrong for this
-mode and goes with it. Not yet built.
+**Status: FIXED + VERIFIED (2026-08-18) — option A.** One row per side with its members, their
+course handicaps, and the side's display name resolved by the **same function the leaderboard
+uses**, so the review can't promise a label the board won't use. Plus the stakes in a sentence.
+
+The stakes line says **who pays whom**, not just the numbers, because at 3+ sides that isn't
+obvious: each leg is collected from every side behind (§5.aj), so a $10 front nine is $10 *per
+opponent*. Under `pot` it also states that the ante is per side whatever its size (§5.ag).
+
+Composes with §5.al as expected — the "Foursomes" label is simply wrong for this mode and is gone
+from the side-game path (the classic pool keeps it).
+
+**A pre-existing bug the screenshot caught:** the heading rendered as literally `Review &amp;
+create`. It's a JS *string* rather than JSX text, so the entity wasn't decoded — invisible in the
+code, obvious on screen. The two `Next: Review &amp; Create` button labels nearby are real JSX
+text and were correct, which is exactly why it survived review.
 
 ---
 

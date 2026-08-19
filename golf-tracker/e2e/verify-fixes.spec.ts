@@ -1260,3 +1260,83 @@ test.describe('F-015: a read-only summary prints no empty rows', () => {
     }
   });
 });
+
+// F-018 — the last screen before money changes hands used to say only "Players 6 · Group size
+// 4-8 · Foursomes" over one flat list of names: not how many sides, not who was with whom, not
+// the stakes. Confirming the pairings is the whole job of a review step.
+//
+// Also covers F-014's payoff (side C is nameable in the wizard now) and §5.al (say "side", not
+// "foursome", in a side game).
+test.describe('F-018: the wizard review step confirms the sides', () => {
+  async function buildSideGame(page: import('@playwright/test').Page, opts: {
+    players: [string, string][]; thirdSide?: boolean; nameC?: string;
+  }) {
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Past games (for recent-course' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await card.getByRole('button', { name: 'Open →' }).click();
+    await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
+
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Review Test');
+    await page.locator('select').first().selectOption({ label: 'Sides (within group)' });
+    await page.getByRole('button', { name: /Next: Select Course/ }).click();
+    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+    await page.getByRole('button', { name: /Next: Build Field/ }).click();
+    for (const [nm, hcp] of opts.players) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    await page.getByRole('button', { name: 'Next: Set Teams' }).click();
+    await page.getByRole('button', { name: 'Next: Teams' }).click();
+    if (opts.thirdSide) {
+      await page.getByRole('button', { name: '+ Add a side' }).click();
+      for (const nm of [opts.players[4][0], opts.players[5][0]]) {
+        const row = page.locator('div.flex.items-center.justify-between', { hasText: nm }).first();
+        await row.getByRole('button', { name: 'C', exact: true }).click();
+      }
+    }
+    if (opts.nameC) {
+      await page.getByRole('button', { name: /Name the sides/ }).click();
+      await page.getByLabel('Side C').fill(opts.nameC);
+    }
+    await page.getByRole('button', { name: /Next: Review/ }).click();
+  }
+
+  test('a 2v2 review shows both sides, their members, and the stakes', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await buildSideGame(page, { players: [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']] });
+    const body = await page.locator('body').innerText();
+
+    expect(body).toContain('Sides (2 vs 2)');
+    // Named exactly as the leaderboard will name them — same resolver.
+    expect(body).toMatch(/Craig & \w+/);
+    // The stakes in words, so the review confirms what's being played for.
+    expect(body).toContain('$10 front / $10 back / $10 overall');
+    // "Foursomes" is the wrong word for this mode (§5.al).
+    expect(body).not.toContain('Foursomes');
+    // And the heading isn't a raw HTML entity (it read "Review &amp; create").
+    expect(body).toContain('Review & create');
+    expect(body).not.toContain('&amp;');
+  });
+
+  test('a 3-side review names all three, including one named in the wizard', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await buildSideGame(page, {
+      players: [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6'], ['Tony', '14']],
+      thirdSide: true,
+      nameC: 'The Cats',
+    });
+    const body = await page.locator('body').innerText();
+
+    expect(body).toContain('Sides (2 vs 2 vs 2)');
+    // F-014's payoff: before, side C could never be named anywhere in the wizard.
+    expect(body).toContain('The Cats');
+    // At 3+ sides each leg is collected from EVERY side behind (§5.aj), which is not obvious
+    // from the numbers alone — so the summary says it.
+    expect(body).toContain('every side behind');
+    await page.screenshot({ path: 'e2e/screenshots/f018-review-three-sides.png', fullPage: true });
+  });
+});

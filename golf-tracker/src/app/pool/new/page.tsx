@@ -75,6 +75,7 @@ import { POOL_GROUP_SEED_KEY } from '@/lib/group-seed';
 import { GAME_MODES, getGameMode, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { SideNames } from '@/components/side-names';
+import { sideNameFrom } from '@/lib/game-modes/team-game';
 
 const WIZARD_KEY = 'pool_wizard_draft';
 // Set by the Format Library's "Start a game" to preconfigure the wizard once.
@@ -625,6 +626,8 @@ export default function NewPoolGamePage() {
             setMatchLegs={setMatchLegs}
             matchJunkPerPoint={matchJunkPerPoint}
             setMatchJunkPerPoint={setMatchJunkPerPoint}
+            sides={sides}
+            modeSettings={modeSettings}
             onCreate={createPoolGame}
             onBack={() => setStep(modeCategory === 'individual' ? 'tees' : 'teams')}
           />
@@ -659,6 +662,45 @@ function StepIndicator({ current, course, individualGame, withinGroup }: { curre
       ))}
     </div>
   );
+}
+
+// The side game's stakes, in a sentence (F-018). A review step that shows the pairings but not
+// what they're playing for is only half a confirmation.
+//
+// Says WHO PAYS WHOM, not just the numbers, because that's the part a group argues about
+// afterwards — and at 3+ sides it isn't obvious: each leg is collected from every side behind
+// (DECISIONS.md §5.aj), so a $10 front nine is $10 per opponent, not $10 total.
+function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
+  const num = (key: string, fallback: number) => {
+    const v = settings[key];
+    const n = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
+    return isNaN(n) ? fallback : n;
+  };
+  const model = String(settings.moneyModel ?? 'legs');
+  const many = sideCount > 2;
+  switch (model) {
+    case 'pot': {
+      const buyIn = num('sideBuyIn', 20);
+      const split = String(settings.potSplit ?? '100');
+      // §5.ag: the ante is PER SIDE whatever its size, which is the surprising part worth saying.
+      return `$${buyIn} per side in the pot ($${buyIn * sideCount} total) — `
+        + `${split === '100' ? 'best side takes it all' : `paid ${split} down the order`}. `
+        + 'Each side antes the same, whatever its size.';
+    }
+    case 'per-hole': {
+      const d = num('dollarsPerHole', 2);
+      return `$${d} a hole won${many ? ', against each other side' : ''}.`;
+    }
+    case 'per-point': {
+      const d = num('dollarsPerPoint', 1);
+      return `$${d} per point of margin${many ? ', against each other side' : ''}.`;
+    }
+    default: {
+      const f = num('legFront', 10), b = num('legBack', 10), o = num('legOverall', 10);
+      return `$${f} front / $${b} back / $${o} overall`
+        + (many ? ' — each leg paid to the winner by every side behind.' : '.');
+    }
+  }
 }
 
 // Bonus (junk) fields, shared by the wizard steps that render them. Labels spell out
@@ -2951,6 +2993,7 @@ function CreateStep({
   entryPerPlayerText, setEntryPerPlayer, positionSplitText, setPositionSplitText,
   junkValues, setJunkValues, customBonuses, setCustomBonuses,
   matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
+  sides, modeSettings,
   onCreate, onBack,
 }: {
   name: string;
@@ -2983,10 +3026,15 @@ function CreateStep({
   setMatchLegs: (v: { front: string; back: string; overall: string }) => void;
   matchJunkPerPoint: string;
   setMatchJunkPerPoint: (v: string) => void;
+  // Side games only (F-018): the sides and their chosen options, so the review step can confirm
+  // the thing the game is actually about instead of listing every player in one run.
+  sides: GameSide[] | undefined;
+  modeSettings: SettingsBag;
   onCreate: () => void; onBack: () => void;
 }) {
   const mode = getGameMode(gameMode);
   const isIndividual = mode?.category === 'individual' || mode?.category === 'team-within-group';
+  const isWithinGroupReview = mode?.category === 'team-within-group';
   const isMatch = moneyMode === 'match';
   const playerById = new Map(players.map((p) => [p.id, p]));
   const pot = players.length * entryPerPlayer;
@@ -3028,7 +3076,10 @@ function CreateStep({
     <div>
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">
-        {isIndividual ? 'Review &amp; create' : "What's it worth?"}
+        {/* A JS STRING, not JSX text — so "&amp;" would render literally as five characters.
+            (The `Next: Review &amp; Create` button labels below are real JSX text and are
+            correctly escaped there.) Caught in a screenshot; invisible in the code. */}
+        {isIndividual ? 'Review & create' : "What's it worth?"}
       </h2>
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
@@ -3251,6 +3302,58 @@ function CreateStep({
         </div>
         )}
 
+        {/* THE SIDES (F-018). The last screen before money changes hands used to say only
+            "Players 6 · Group size 4–8 · Foursomes" over one flat list of six names — not how
+            many sides, not who was with whom, not the stakes. Confirming who's paired with whom is
+            the whole job of a review step, and it was the one thing it didn't show.
+
+            "Foursomes" is also simply the wrong word here (§5.al: say "side" in a side game). */}
+        {isWithinGroupReview && sides && sides.length > 0 && (
+          <div className="pt-2 border-t">
+            <p className="text-sm font-semibold text-gray-800 mb-2">
+              Sides ({sides.map((s) => s.playerIds.length).join(' vs ')})
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {sides.map((side) => (
+                <div key={side.id} className="rounded-lg border border-gray-200 p-2">
+                  <p className="text-sm font-medium text-gray-900 mb-1">
+                    {/* Named exactly as the board will name it — same resolver, so the review
+                        can't promise a label the leaderboard won't use. */}
+                    {sideNameFrom(players, side.playerIds, side.id, side.name)}
+                  </p>
+                  {side.playerIds.map((pid) => {
+                    const p = playerById.get(pid);
+                    if (!p) return null;
+                    const chcp = course
+                      ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine))
+                      : null;
+                    return (
+                      <div key={pid} className="flex items-center gap-2 text-sm text-gray-600 py-0.5">
+                        <span className="truncate min-w-0 flex-1">{p.name}</span>
+                        {chcp !== null && (
+                          <span className="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums" title="Course handicap on this tee">
+                            {chcp}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+            {/* The stakes, in words. A review step that shows the pairings but not what they're
+                playing for is only half a confirmation. */}
+            <p className="text-xs text-gray-500 mt-2">{sideMoneySummary(modeSettings, sides.length)}</p>
+            {players.some((p) => !sides.some((s) => s.playerIds.includes(p.id))) && (
+              <p className="text-xs text-amber-700 mt-1">
+                {players.filter((p) => !sides.some((s) => s.playerIds.includes(p.id)))
+                  .map((p) => p.name.split(' ')[0]).join(', ')} not on a side yet.
+              </p>
+            )}
+          </div>
+        )}
+
+        {!isWithinGroupReview && (
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-2">Foursomes</p>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -3290,6 +3393,7 @@ function CreateStep({
             })}
           </div>
         </div>
+        )}
       </div>
 
       <button
