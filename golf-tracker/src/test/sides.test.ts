@@ -583,6 +583,50 @@ describe('three sides in one group', () => {
     }
   });
 
+  // F-017 (DECISIONS.md §5.aj). A tied leg used to pay NOBODY, because `winner` is null on a
+  // tie — so a side 18 over par owed nothing when the two ahead of it happened to tie. Craig's
+  // rule: "i think they would owe both based on the settings we are making. IF it was a pot
+  // split situation, it would be different, no?" — `legs` is per-opponent stakes, a pot is a
+  // divided prize. Lose to two sides, owe two sides.
+  it('F-017: a tied leg is paid by each side behind, to each side ahead', () => {
+    // A and B level par on every hole; C one over on every hole. Every leg ties at the top.
+    const level = HOLES.map((h) => TEST_PARS[h - 1]);
+    const bogeys = HOLES.map((h) => TEST_PARS[h - 1] + 1);
+    const r = run3(game3({ moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20 }), [
+      ...scoresFor('p1', level), ...scoresFor('p2', level),
+      ...scoresFor('p3', level), ...scoresFor('p4', level),
+      ...scoresFor('p5', bogeys), ...scoresFor('p6', bogeys),
+    ]);
+    // C pays each leg to each of the two leaders: (10 + 10 + 20) × 2 = $80.
+    expect(moneyOf(r, 'C')).toBe(-80);
+    expect(moneyOf(r, 'A')).toBe(40);
+    expect(moneyOf(r, 'B')).toBe(40);
+    expect(r.standings.reduce((s, x) => s + x.moneyNet, 0)).toBeCloseTo(0, 6);
+    // Every leg is genuinely a tie at the top — two leaders, no single winner.
+    for (const leg of r.teamLegs!) {
+      expect(leg.winner).toBeNull();
+      expect(leg.leaders.sort()).toEqual(['a', 'b']);
+    }
+  });
+
+  it('F-017: `leaders` holds exactly one id when there IS an outright winner', () => {
+    // The property that makes this change safe for every existing game: at one leader the new
+    // pairwise rule is arithmetically identical to the old winner-takes-the-leg code.
+    const r = run3(game3({ moneyModel: 'legs' }), scores3());
+    const front = r.teamLegs!.find((l) => l.key === 'front')!;
+    expect(front.winner).toBe('a');
+    expect(front.leaders).toEqual(['a']);
+  });
+
+  it('F-017: a leg every side ties still pays nobody', () => {
+    const level = HOLES.map((h) => TEST_PARS[h - 1]);
+    const r = run3(game3({ moneyModel: 'legs' }),
+      ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'].flatMap((id) => scoresFor(id, level)));
+    // Nobody is behind, so there is nothing to collect — as two tied sides have always done.
+    expect(r.standings.every((s) => s.moneyNet === 0)).toBe(true);
+    expect(r.teamLegs!.every((l) => l.leaders.length === 3)).toBe(true);
+  });
+
   it('an uneven split (3 + 2 + 1) still settles zero-sum', () => {
     const g = makeGame({
       gameMode: 'team-2v2', indexes: [0, 0, 0, 0, 0, 0],

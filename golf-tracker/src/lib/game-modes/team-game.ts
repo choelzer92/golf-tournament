@@ -388,7 +388,7 @@ function compute(ctx: GameModeContext): IndividualResult {
     const thru = key === 'overall' ? legThru.front + legThru.back : legThru[key];
     const holes = legHoleCount(key);
     if (thru === 0) {
-      return { key, label: legLabel(key), status: '–', winner: null, thru: 0, holes };
+      return { key, label: legLabel(key), status: '–', winner: null, leaders: [], thru: 0, holes };
     }
 
     // The leg's per-side figure: holes won under match, score to par under total (not the raw
@@ -430,7 +430,7 @@ function compute(ctx: GameModeContext): IndividualResult {
         : `${names[lead.idx]} by ${margin % 1 === 0 ? margin : margin.toFixed(1)}`;
     }
     return {
-      key, label: legLabel(key), status, winner, thru, holes,
+      key, label: legLabel(key), status, winner, leaders: leaders.map((e) => sides[e.idx].id), thru, holes,
       // Voided legs still SHOW their margin — the group played those holes and wants to see
       // them — they just don't settle. Only mark it when the leg is genuinely short, so a
       // stale flag on a completed leg can't silently withhold money.
@@ -521,19 +521,50 @@ function compute(ctx: GameModeContext): IndividualResult {
     // legs: each leg's winner collects that leg's dollars FROM EACH other side. At two sides
     // that is the old +$leg / −$leg. On a nine there is a single leg, paid at the 'overall'
     // rate — paying front AND overall would settle the same nine holes twice.
+    // PAIRWISE (DECISIONS.md §5.aj). Every side BEHIND the leg pays the leg's dollars to EVERY
+    // side that LED it. Craig, asked whether a losing side owes one leg or one per opponent:
+    //
+    //   > "i think they would owe both based on the settings we are making. IF it was a pot split
+    //   > situation, it would be different, no?"
+    //
+    // That distinction is the rule: `legs` is per-opponent STAKES ("we're playing you for $10 a
+    // leg" is a separate bet against each side), whereas a pot is one divided PRIZE (§5.ag, which
+    // splits and is untouched here). Lose to two sides, owe two sides.
+    //
+    // F-017 was the tie case: with a single winner this already collected the leg from each side
+    // behind, but `winner` is null on a tie, so a side 18 over par owed NOTHING when the two
+    // ahead of it happened to tie. per-point charged it $36 and pot $20 on the same cards.
+    //
+    // Consequence Craig accepted knowingly, put to him twice: a tie at the top costs last place
+    // MORE than a clean defeat ($20 vs $10 on a $10 leg), because it lost to two sides that both
+    // beat it rather than one. Under per-opponent stakes that's the correct reading.
+    //
+    // At ONE leader this is arithmetically identical to the old code, so no existing game moves —
+    // held by n-side-golden.test.ts's "a clear leg winner collects from each side behind".
     const payLeg = (leg: TeamLegLine, dollars: number) => {
       // A leg the group voided at close-out pays nothing (F-016b). It still shows its margin on
       // the board — those holes were played — but no money changes hands over it.
       if (leg.voided) return;
-      if (!leg.winner || dollars === 0) return;
-      const winnerIdx = sides.findIndex((s) => s.id === leg.winner);
-      if (winnerIdx < 0) return;
-      // Only sides that have played this leg are in it — an unscored side neither pays nor
-      // collects, matching settleRoundRobin's treatment of a null value.
+      if (dollars === 0 || leg.leaders.length === 0) return;
+      // Only sides that have played are in the leg — an unscored side neither pays nor collects,
+      // matching settleRoundRobin's treatment of a null value.
       const inLeg = sides.map((_, idx) => stand[idx].thru > 0);
-      const payers = inLeg.filter((v, idx) => v && idx !== winnerIdx).length;
-      money[winnerIdx] += dollars * payers;
-      sides.forEach((_, idx) => { if (inLeg[idx] && idx !== winnerIdx) money[idx] -= dollars; });
+      const isLeader = sides.map((s) => leg.leaders.includes(s.id));
+      const leaderCount = isLeader.filter((v, idx) => v && inLeg[idx]).length;
+      const behind = inLeg.filter((v, idx) => v && !isLeader[idx]).length;
+      // A leg where EVERY side tied has nobody behind, so nothing changes hands — which is also
+      // what two tied sides have always done ("All square" pushes).
+      //
+      // The `behind === 0` half of this guard is DEFENSIVE, not load-bearing: with every side a
+      // leader, `dollars * behind` is already 0 and the loop is a no-op. Removing it passes all
+      // 209 tests. Kept because it states the intent, but noted so nobody mistakes it for the
+      // thing making dead heats push — that's the arithmetic.
+      if (leaderCount === 0 || behind === 0) return;
+      sides.forEach((_, idx) => {
+        if (!inLeg[idx]) return;
+        if (isLeader[idx]) money[idx] += dollars * behind;      // collects from each side behind
+        else money[idx] -= dollars * leaderCount;               // pays each side ahead
+      });
     };
     if (nineOnly) {
       payLeg(teamLegs[0], legDollars.overall);

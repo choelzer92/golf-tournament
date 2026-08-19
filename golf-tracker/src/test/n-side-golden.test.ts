@@ -292,12 +292,36 @@ describe('F-017 (SHOULD MOVE, legs only): top sides tie with a third behind', ()
     ...scoresFor('p5', flat(1)), ...scoresFor('p6', flat(1)),
   ];
 
-  it('F-017: legs — A and B tie, C is 18 over (TODAY: C pays nothing)', () => {
-    const r = run(gameN(three, { moneyModel: 'legs' }), tieAtTop());
+  it('F-017: legs — A and B tie, C is 18 over, so C pays BOTH', () => {
+    const r = run(gameN(three, { moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20 }),
+      tieAtTop());
     expect(shapeOf(r)).toMatchSnapshot();
     expect(sumMoney(r)).toBeCloseTo(0, 6);
-    // Documented current behaviour: nobody pays, because no leg has a single winner.
-    expect(r.standings.every((s) => s.moneyNet === 0)).toBe(true);
+    // WAS $0 across the board: `winner` is null on a tie, so a side 18 over par owed nothing
+    // because the two ahead of it couldn't separate themselves. Now (§5.aj) C pays each leg to
+    // each side that led it: (10 + 10 + 20) x 2 leaders = $80, and A and B take $40 apiece.
+    expect(Object.fromEntries(r.standings.map((s) => [s.playerId, s.moneyNet])))
+      .toEqual({ A: 40, B: 40, C: -80 });
+  });
+
+  // The consequence Craig accepted knowingly: a tie at the top costs last place MORE than a
+  // clean defeat, because it lost to two sides rather than one. Pinned so the trade-off is
+  // visible in the tests rather than only in the decision log.
+  it('F-017: a tie at the top costs last place MORE than a clean defeat', () => {
+    const tied = run(gameN(three, { moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20 }),
+      tieAtTop());
+    // Same C, same cards, but A beats B outright — so C loses to two sides, one of which is
+    // also ahead of the other.
+    const separated = run(gameN(three, { moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20 }), [
+      ...scoresFor('p1', par()), ...scoresFor('p2', par()),
+      ...scoresFor('p3', flat(1)), ...scoresFor('p4', flat(1)),
+      ...scoresFor('p5', flat(2)), ...scoresFor('p6', flat(2)),
+    ]);
+    const cTied = tied.standings.find((s) => s.playerId === 'C')!.moneyNet;
+    const cClean = separated.standings.find((s) => s.playerId === 'C')!.moneyNet;
+    expect(cTied).toBe(-80);    // pays $40 to each of two leaders
+    expect(cClean).toBe(-40);   // pays $40 to the single winner
+    expect(cTied).toBeLessThan(cClean);
   });
 
   // The same cards under per-point and pot, which ALREADY charge C. These are the reference the

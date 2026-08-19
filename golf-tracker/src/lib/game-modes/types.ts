@@ -106,6 +106,13 @@ export interface TeamLegLine {
   // still emits exactly 'a' or 'b', because the normalizer preserves those ids literally —
   // which is why every existing consumer comparing to 'a'/'b' keeps working.
   winner: string | null;
+  // EVERY side tied at the top of this leg, by side id. One entry when there's an outright
+  // winner (and then it equals [winner]); several when they tie; empty when the leg is unplayed.
+  //
+  // `winner` stays single-valued for DISPLAY (colouring keys on it, and it's null on a tie).
+  // Money reads this instead: each side behind pays the leg to each side that led it
+  // (DECISIONS.md §5.aj). At one leader that is exactly the old rule.
+  leaders: string[];
   thru: number;
   // How many holes this leg SPANS (9 for a nine, 18 for overall, fewer on a 9-hole game).
   // `thru` is how many of them every side has posted, so `thru < holes` means the leg is

@@ -642,7 +642,7 @@ exports[`F-016 (SHOULD MOVE): sides thru unequal hole counts > a side that has n
 }
 `;
 
-exports[`F-017 (SHOULD MOVE, legs only): top sides tie with a third behind > F-017: legs — A and B tie, C is 18 over (TODAY: C pays nothing) 1`] = `
+exports[`F-017 (SHOULD MOVE, legs only): top sides tie with a third behind > F-017: legs — A and B tie, C is 18 over, so C pays BOTH 1`] = `
 {
   "junkLines": undefined,
   "metricLabel": "net",
@@ -684,7 +684,7 @@ exports[`F-017 (SHOULD MOVE, legs only): top sides tie with a third behind > F-0
   "standings": [
     {
       "id": "A",
-      "money": 0,
+      "money": 40,
       "place": 1,
       "points": 72,
       "thru": 18,
@@ -692,7 +692,7 @@ exports[`F-017 (SHOULD MOVE, legs only): top sides tie with a third behind > F-0
     },
     {
       "id": "B",
-      "money": 0,
+      "money": 40,
       "place": 1,
       "points": 72,
       "thru": 18,
@@ -700,7 +700,7 @@ exports[`F-017 (SHOULD MOVE, legs only): top sides tie with a third behind > F-0
     },
     {
       "id": "C",
-      "money": 0,
+      "money": -80,
       "place": 3,
       "points": 90,
       "thru": 18,
