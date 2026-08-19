@@ -1253,12 +1253,34 @@ afterwards, and nothing says so.
 **option A** for the naming asymmetry — see F-015, which is the same root cause on a third
 surface and is the one worth fixing.
 
-**Status: CHOSEN 2026-08-18 — D for the wizard's step 1 (not a defect), A for the naming model.**
-Side names leave the generic settings bag and become one optional field per side that actually
-exists, rendered in the Sides editor where players are assigned. Four keys (`sideCName`..
-`sideFName`) leave the schema, so no future consumer can forget to hide them — this had already
-been forgotten on two of three surfaces (F-015). Closes the step-3 gap: a wizard-built 3-side game
-can currently never name side C. Not yet built.
+**Status: FIXED + VERIFIED (2026-08-18).** D for the wizard's step 1 (measurement showed it wasn't
+a defect), A for the naming model.
+
+All **six** keys left the schema, not just C–F: a static schema cannot express "one field per side
+that exists", which is the root cause rather than the count. Names now live on `GameSide.name`,
+edited via a shared `SideNames` component used by both the wizard's Sides step and the hub — one
+control, so the two can't drift, which is precisely how the settings-bag version went wrong.
+
+**Collapsed by default.** Almost nobody names their sides and the board already reads "Craig &
+Jym", so it's a disclosure, not a field. It opens itself when a side already has a name, so an
+existing game's names are never hidden from whoever is editing them. Placeholders show what the
+board *will* say if left blank, making the consequence of typing nothing visible.
+
+**Compatibility with no migration:** `sidesOfGame` absorbs the legacy `side<Letter>Name` settings
+into each side's own name at the read boundary (`hydrateLegacyNames`). Saved games and saved
+formats both keep their names. `saveSides` strips the legacy keys on write, and a side's own name
+wins even when explicitly `''` — otherwise clearing a name would resurrect the migrated value on
+next load.
+
+Measured effect: wizard step 1 went from 20 controls to **18**, and the Sides step shows **zero**
+name fields until asked. Closes the step-3 gap — a wizard-built 3-side game can now name side C.
+
+Guarded by 5 unit tests on the read path plus rewritten e2e assertions, including one that drives
+a legacy-shaped game end to end and asserts its names survive on both the board and in the editor.
+
+*Note: unit count went 1310 → 1296. That's the all-modes sweep generating one case per setting ×
+size; removing 6 settings removes 18 generated cases whose only claim was "the engine survives a
+text value in a name field". No coverage was lost.*
 
 ---
 

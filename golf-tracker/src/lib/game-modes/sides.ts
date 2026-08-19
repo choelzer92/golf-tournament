@@ -60,11 +60,59 @@ export const LEGACY_SIDE_IDS = ['a', 'b'] as const;
 export function sidesOfGame(game: {
   sides?: GameSide[];
   subTeams?: LegacySubTeams;
+  modeSettings?: Record<string, string | number | boolean>;
 }): GameSide[] {
-  if (game.sides && game.sides.length > 0) return game.sides;
-  if (game.subTeams) return fromLegacySubTeams(game.subTeams);
-  return [];
+  const sides = (game.sides && game.sides.length > 0)
+    ? game.sides
+    : game.subTeams ? fromLegacySubTeams(game.subTeams) : [];
+  return hydrateLegacyNames(sides, game.modeSettings);
 }
+
+/**
+ * Absorb the LEGACY `side<Letter>Name` settings into each side's own `name` (F-014).
+ *
+ * Side names used to live in the generic settings bag as six static keys, `sideAName`..
+ * `sideFName`. They now live on the side itself, because a settings schema is static and
+ * cannot express "one field per side that exists" — which is why four always-blank boxes
+ * leaked onto three separate surfaces (F-014, F-015).
+ *
+ * This is the ONE place the old shape is read, so everything downstream sees a single source
+ * of truth. Games saved with `sideAName: 'The Hogs'` keep their names with no migration step
+ * and no write on read.
+ *
+ * A side's OWN name always wins, including when it is explicitly `''` — that's how clearing a
+ * name in the editor sticks instead of falling back to the legacy value it was migrated from.
+ * (The editor also strips the legacy keys when it writes, so this only matters mid-transition.)
+ */
+export function hydrateLegacyNames(
+  sides: GameSide[],
+  modeSettings?: Record<string, string | number | boolean>,
+): GameSide[] {
+  if (!modeSettings) return sides;
+  let changed = false;
+  const out = sides.map((side, idx) => {
+    if (side.name !== undefined) return side;          // own name wins, '' included
+    const key = legacySideNameKey(idx);
+    const legacy = key ? String(modeSettings[key] ?? '').trim() : '';
+    if (!legacy) return side;
+    changed = true;
+    return { ...side, name: legacy };
+  });
+  return changed ? out : sides;                        // same array when nothing moved
+}
+
+/**
+ * The legacy settings key that held the name for the side in position `idx`.
+ *
+ * Kept only for reading saved games. Nothing writes these any more.
+ */
+export function legacySideNameKey(idx: number): string | null {
+  return idx >= 0 && idx < 6 ? `side${String.fromCharCode(65 + idx)}Name` : null;
+}
+
+/** Every legacy side-name key, for stripping them when the new editor writes. */
+export const LEGACY_SIDE_NAME_KEYS: string[] =
+  Array.from({ length: 6 }, (_, i) => `side${String.fromCharCode(65 + i)}Name`);
 
 /** Widen the legacy two-side shape, keeping 'a' and 'b' as the ids so nothing downstream moves. */
 export function fromLegacySubTeams(subTeams: LegacySubTeams): GameSide[] {

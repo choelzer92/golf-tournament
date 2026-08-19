@@ -7,13 +7,15 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  defaultSideLabel, fromLegacySubTeams, nextSideId, persistedSides, sideMembers,
-  settleRoundRobin, sideOfPlayer, sidesOfGame, toLegacySubTeams, unusedSideNameKeys,
+  LEGACY_SIDE_NAME_KEYS,
+  defaultSideLabel, fromLegacySubTeams, legacySideNameKey, nextSideId,
+  persistedSides, sideMembers, settleRoundRobin, sideOfPlayer, sidesOfGame, toLegacySubTeams,
+  unusedSideNameKeys,
   type GameSide,
 } from '@/lib/game-modes/sides';
 import { buildGameModeContext } from '@/lib/game-modes/context';
 import { getGameMode } from '@/lib/game-modes';
-import { sideNameFrom, sideNameSettingKey } from '@/lib/game-modes/team-game';
+import { sideNameFrom } from '@/lib/game-modes/team-game';
 import type { IndividualResult } from '@/lib/game-modes/types';
 import type { PoolGame } from '@/lib/pool-game';
 import type { GameScore } from '@/lib/game-state';
@@ -468,15 +470,59 @@ describe('three sides in one group', () => {
     expect(r.sideLabels?.map((s) => s.name)).toEqual(['Stored A', 'Setting B']);
   });
 
-  it('hides the name fields for sides a game does not have', () => {
-    // A two-side game must not render four always-blank name boxes on a phone.
+  // F-014: side names LEFT the settings schema. They used to be six static keys, and a static
+  // schema can't say "one field per side that exists" — so every consumer had to remember to hide
+  // the unused ones, and one of three didn't (F-015). `unusedSideNameKeys` therefore has no
+  // callers left; it's kept only because saved games still hold the old keys, which
+  // `hydrateLegacyNames` reads. These assertions pin the READ path instead of the hiding rule.
+  it('a legacy game\'s side<Letter>Name settings become the sides\' own names', () => {
+    const sides = sidesOfGame({
+      subTeams: { a: ['p1', 'p2'], b: ['p3', 'p4'] },
+      modeSettings: { sideAName: 'The Hogs', sideBName: 'The Dawgs' },
+    });
+    expect(sides).toEqual([
+      { id: 'a', playerIds: ['p1', 'p2'], name: 'The Hogs' },
+      { id: 'b', playerIds: ['p3', 'p4'], name: 'The Dawgs' },
+    ]);
+  });
+
+  it('only the positions that HAVE a legacy name gain one', () => {
+    const sides = sidesOfGame({
+      sides: [
+        { id: 'a', playerIds: ['p1'] },
+        { id: 'b', playerIds: ['p2'] },
+        { id: 'c', playerIds: ['p3'] },
+      ],
+      modeSettings: { sideAName: '', sideCName: 'Third' },
+    });
+    // Blank legacy values are ignored, so a side isn't given an empty name.
+    expect(sides.map((s) => s.name)).toEqual([undefined, undefined, 'Third']);
+  });
+
+  // The rule that makes clearing a name STICK. Without it, emptying the field in the editor would
+  // fall back to the legacy setting it was migrated from and the old name would reappear.
+  it('a side\'s own name wins even when it is explicitly blank', () => {
+    const sides = sidesOfGame({
+      sides: [{ id: 'a', name: '', playerIds: ['p1'] }],
+      modeSettings: { sideAName: 'Stale Name' },
+    });
+    expect(sides[0].name).toBe('');
+  });
+
+  it('sidesOfGame is unchanged for a game with no legacy names', () => {
+    const input = { subTeams: { a: ['p1'], b: ['p2'] } };
+    expect(sidesOfGame(input)).toEqual([
+      { id: 'a', playerIds: ['p1'] },
+      { id: 'b', playerIds: ['p2'] },
+    ]);
+  });
+
+  it('unusedSideNameKeys still maps positions, for reading old games', () => {
     expect(unusedSideNameKeys(2)).toEqual(['sideCName', 'sideDName', 'sideEName', 'sideFName']);
-    expect(unusedSideNameKeys(3)).toEqual(['sideDName', 'sideEName', 'sideFName']);
-    expect(unusedSideNameKeys(6)).toEqual([]);
-    // And the key mapping the engine reads matches the schema's keys.
-    expect(sideNameSettingKey(0)).toBe('sideAName');
-    expect(sideNameSettingKey(2)).toBe('sideCName');
-    expect(sideNameSettingKey(6)).toBeNull();
+    expect(legacySideNameKey(0)).toBe('sideAName');
+    expect(legacySideNameKey(2)).toBe('sideCName');
+    expect(legacySideNameKey(6)).toBeNull();
+    expect(LEGACY_SIDE_NAME_KEYS).toHaveLength(6);
   });
 
   it('four sides of one player each is zero-sum too', () => {

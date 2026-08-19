@@ -97,12 +97,12 @@ test.describe('the ORDINARY 2v2 — two guys against two guys, best ball, usual 
     // This is the F-014 measurement: how many controls does an ordinary 2v2 show?
     const details = await countScreen(page, '02-details-side-game');
 
-    // The C-F name boxes must NOT be here for a two-side game.
-    for (const letter of ['C', 'D', 'E', 'F']) {
+    // Side names left this screen entirely (F-014). They were six static settings keys, of which
+    // the wizard hid four and showed two always-blank boxes; they now live in the Sides editor,
+    // one field per side that exists. So step 1 asks about NO names at all.
+    for (const letter of ['A', 'B', 'C', 'D', 'E', 'F']) {
       await expect(page.getByLabel(`Side ${letter} name`)).toHaveCount(0);
     }
-    // A and B are.
-    await expect(page.getByLabel('Side A name')).toBeVisible();
 
     await tap('Next: Select Course', async () => {
       await page.getByRole('button', { name: /Next: Select Course/ }).click();
@@ -144,11 +144,25 @@ test.describe('the ORDINARY 2v2 — two guys against two guys, best ball, usual 
     });
 
     // --- Step 5: Sides ---------------------------------------------------------
-    // The step the N-sides work changed: it gained "+ Add a side".
+    // The step the N-sides work changed: it gained "+ Add a side", and F-014 moved the name
+    // fields here behind a closed disclosure.
     const sides = await countScreen(page, '08-sides');
     const sidesHeading = await page.getByRole('heading', { level: 2 }).innerText();
     console.log(`\nSIDES STEP heading says: ${sidesHeading}\n`);
     expect(sidesHeading).toMatch(/Sides/);
+
+    // Names are available but CLOSED, so an ordinary 2v2 never sees a name field. That's the
+    // "minimum exposed complexity" half of the north star: the capability costs nothing until
+    // it's asked for.
+    await expect(page.getByRole('button', { name: /Name the sides/ })).toBeVisible();
+    await expect(page.getByLabel('Side A')).toHaveCount(0);
+    await page.getByRole('button', { name: /Name the sides/ }).click();
+    // Opened: exactly two fields for a two-side game, not six.
+    await expect(page.getByLabel('Side A')).toBeVisible();
+    await expect(page.getByLabel('Side B')).toBeVisible();
+    await expect(page.getByLabel('Side C')).toHaveCount(0);
+    await countScreen(page, '08b-sides-names-open');
+    await page.getByRole('button', { name: /Name the sides/ }).click();   // close again
 
     await tap('Next: Review & Create', async () => {
       await page.getByRole('button', { name: /Next: Review/ }).click();

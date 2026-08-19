@@ -15,8 +15,9 @@ import {
   type TeamFormat,
 } from '@/lib/game-modes/team-scoring';
 import {
+  LEGACY_SIDE_NAME_KEYS,
   fromLegacySubTeams, incompleteLegsForCloseOut, nextSideId, persistedSides, sideMembers,
-  sideOfPlayer, sidesOfGame, unusedSideNameKeys,
+  sideOfPlayer, sidesOfGame,
   type GameSide, type IncompleteLeg,
 } from '@/lib/game-modes/sides';
 import {
@@ -57,6 +58,7 @@ import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import { getGameMode, GAME_MODES, buildGameModeContext, defaultSettings, settingValue, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
+import { SideNames } from '@/components/side-names';
 import { saveFormat, formatFromGame } from '@/lib/pool-formats';
 import { PairingLocks } from '@/components/pairing-locks';
 import { CaptainsPanel } from '@/components/captains-panel';
@@ -907,8 +909,23 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
     // representation; three or more opts in. The `sides`/`subTeams` pair is cleared first so a
     // game that drops from three sides to two doesn't keep a stale `sides` field that would
     // take precedence over the {a,b} it just wrote.
-    const saveSides = (next: GameSide[]) =>
-      onSave({ ...game, subTeams: undefined, sides: undefined, ...persistedSides(next) });
+    const saveSides = (next: GameSide[]) => {
+      // Drop the legacy `side<Letter>Name` keys on write (F-014). They were absorbed into each
+      // side's own `name` when the game was read, so leaving them would mean two sources of truth
+      // — and clearing a name in the editor would silently resurrect the old one on next load.
+      const settings = { ...(game.modeSettings ?? {}) };
+      let strippedAny = false;
+      for (const key of LEGACY_SIDE_NAME_KEYS) {
+        if (key in settings) { delete settings[key]; strippedAny = true; }
+      }
+      onSave({
+        ...game,
+        subTeams: undefined,
+        sides: undefined,
+        ...persistedSides(next),
+        ...(strippedAny ? { modeSettings: settings } : {}),
+      });
+    };
 
     const assignSide = (pid: string, sideId: string) => {
       // Tapping the side a player is ALREADY on is a no-op — return early rather than
@@ -1013,7 +1030,9 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
               onChangeAction={setModeSetting}
               lockOptionAction={lockModeOption}
               lockNoteAction={lockModeNote}
-              hideKeys={isWithinGroup ? unusedSideNameKeys(sides.length) : undefined}
+              /* No hideKeys any more: side names left the settings schema (F-014), so there is
+                 nothing here to hide. That's the point — the old arrangement needed every
+                 consumer to remember, and one of three didn't. */
             />
           </div>
           {isWithinGroup && (
@@ -1070,6 +1089,10 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
                   on a side — their scores won&apos;t count toward any side until you assign them.
                 </p>
               )}
+              {/* Optional custom names, one field per side that exists (F-014). Same component
+                  the wizard uses, so the two can't drift — which is exactly how the old
+                  settings-bag arrangement went wrong. */}
+              <SideNames sides={sides} players={game.players} onChangeAction={saveSides} idPrefix="hub-side-name" />
             </div>
           )}
         </div>

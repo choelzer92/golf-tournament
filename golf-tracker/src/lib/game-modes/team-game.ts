@@ -81,26 +81,16 @@ const SETTINGS: FormatSetting[] = [
   { key: 'legBack', label: 'Back 9 ($)', type: 'number', defaultValue: 10, showIf: { key: 'moneyModel', in: ['legs'] } },
   { key: 'legOverall', label: 'Overall 18 ($)', type: 'number', defaultValue: 10, showIf: { key: 'moneyModel', in: ['legs'] } },
   { key: 'altShotAllowance', label: 'Alt-shot allowance (%)', type: 'number', defaultValue: 50, hint: 'Alternate shot only: % of the 60/40 combined handicap. USGA default 50.', showIf: { key: 'format', in: ['alternate-shot'] } },
-  // Optional custom side names. A/B are the original two keys and stay exactly as they were, so
-  // every saved game keeps its names; C-F were added with N sides (F-006) — without them a third
-  // side could never be named "The Hogs", which the screenshot made obvious and the code did not.
-  // Six is the ceiling because playersMax is 8 and a side needs at least one player; a game with
-  // fewer sides simply never renders the extra fields (they're inert, defaulting to blank).
-  { key: 'sideAName', label: 'Side A name', type: 'text', defaultValue: '', hint: 'Optional — leave blank to name it after its players.' },
-  { key: 'sideBName', label: 'Side B name', type: 'text', defaultValue: '', hint: 'Optional — leave blank to name it after its players.' },
-  { key: 'sideCName', label: 'Side C name', type: 'text', defaultValue: '', hint: 'Optional — only used when a third side exists.' },
-  { key: 'sideDName', label: 'Side D name', type: 'text', defaultValue: '', hint: 'Optional — only used when a fourth side exists.' },
-  { key: 'sideEName', label: 'Side E name', type: 'text', defaultValue: '', hint: 'Optional — only used when a fifth side exists.' },
-  { key: 'sideFName', label: 'Side F name', type: 'text', defaultValue: '', hint: 'Optional — only used when a sixth side exists.' },
+  // NOTE: side NAMES are deliberately NOT here (F-014). They used to be six static keys,
+  // `sideAName`..`sideFName`, and a static schema cannot express "one field per side that
+  // actually exists" — so a two-side game showed four always-blank boxes, and each surface had to
+  // remember to hide them. Two of three did; the third shipped six empty rows (F-015).
+  //
+  // A name now lives on the side itself (`GameSide.name`), edited where sides are assigned. Saved
+  // games keep their names: `sidesOfGame` absorbs the legacy keys at the read boundary via
+  // `hydrateLegacyNames`, so nothing needs migrating and there is one source of truth downstream.
   ...JUNK_SETTINGS,
 ];
-
-// The settings key holding a side's custom name, by its position on the board. Exported so the
-// hub can hide the fields for sides that don't exist rather than showing six always-blank boxes.
-export function sideNameSettingKey(idx: number): string | null {
-  const letter = String.fromCharCode(65 + idx);   // 'A'..
-  return idx >= 0 && idx < 6 ? `side${letter}Name` : null;
-}
 
 // The ONE place a side gets its display name. Custom name if set, else the side's players'
 // first names ("Craig & Jym"), else "Side A"/"Side B"/"Side C". Exported so the SCORECARD
@@ -140,12 +130,14 @@ export function sideNamesForGame(
   game: PoolGame,
   sides: GameSide[],
 ): { A: string; B: string } {
-  const nameAt = (idx: number, legacySetting: string) => {
+  // No legacy-settings lookup here any more (F-014): `sidesOfGame` has already absorbed
+  // `sideAName`/`sideBName` into each side's own `name`, so this reads one field.
+  const nameAt = (idx: number) => {
     const side = sides[idx];
     if (!side) return idx === 0 ? 'Side A' : 'Side B';
-    return sideNameFrom(game.players, side.playerIds, side.id, side.name || String(game.modeSettings?.[legacySetting] ?? ''));
+    return sideNameFrom(game.players, side.playerIds, side.id, side.name);
   };
-  return { A: nameAt(0, 'sideAName'), B: nameAt(1, 'sideBName') };
+  return { A: nameAt(0), B: nameAt(1) };
 }
 
 function compute(ctx: GameModeContext): IndividualResult {
@@ -171,15 +163,11 @@ function compute(ctx: GameModeContext): IndividualResult {
   const sides: GameSide[] = ctx.sides ?? (ctx.subTeams ? fromLegacySubTeams(ctx.subTeams) : []);
   const sideIds = (idx: number) => sides[idx]?.playerIds ?? [];
 
-  // Custom side names. A side may carry its own `name` (the N-side field), else the
-  // side<Letter>Name setting for its board position — sideAName/sideBName are the original two
-  // keys, so an existing game's names keep working exactly as before.
-  const settingName = (idx: number): string => {
-    const key = sideNameSettingKey(idx);
-    return key ? stringSetting(SETTINGS, ctx.settings, key).trim() : '';
-  };
+  // Custom side names come off the side itself (F-014). The legacy `side<Letter>Name` settings
+  // were absorbed into `GameSide.name` by `sidesOfGame`, so there is no settings lookup here —
+  // one field, one source of truth, and an existing game's names still resolve.
   const nameFor = (idx: number): string =>
-    sideNameFrom(ctx.players, sideIds(idx), sides[idx]?.id ?? '?', sides[idx]?.name || settingName(idx));
+    sideNameFrom(ctx.players, sideIds(idx), sides[idx]?.id ?? '?', sides[idx]?.name);
 
   // Team handicap for the single-ball formats (0 for best-ball/combined), per side.
   const isSingleBall = format === 'scramble' || format === 'alternate-shot';

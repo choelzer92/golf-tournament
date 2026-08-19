@@ -67,13 +67,14 @@ import {
   type TeamFormat,
 } from '@/lib/game-modes/team-scoring';
 import {
-  fromLegacySubTeams, nextSideId, persistedSides, sideMembers, sideOfPlayer,
+  fromLegacySubTeams, nextSideId, persistedSides, sideMembers, sideOfPlayer, sidesOfGame,
   unusedSideNameKeys, type GameSide,
 } from '@/lib/game-modes/sides';
 import { TEAM_MODES } from '@/lib/formats';
 import { POOL_GROUP_SEED_KEY } from '@/lib/group-seed';
 import { GAME_MODES, getGameMode, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
+import { SideNames } from '@/components/side-names';
 
 const WIZARD_KEY = 'pool_wizard_draft';
 // Set by the Format Library's "Start a game" to preconfigure the wizard once.
@@ -331,9 +332,16 @@ export default function NewPoolGamePage() {
     if (typeof d.gameMode === 'string') setGameMode(d.gameMode);
     if (d.modeSettings && typeof d.modeSettings === 'object') setModeSettings(d.modeSettings);
     // Restore either shape: a draft saved before N sides holds subTeams, a newer one holds
-    // sides. Both normalize to the same thing.
-    if (Array.isArray(d.sides) && d.sides.length > 0) setSides(d.sides as GameSide[]);
-    else if (d.subTeams && Array.isArray(d.subTeams.a) && Array.isArray(d.subTeams.b)) setSides(fromLegacySubTeams(d.subTeams));
+    // sides. Both normalize to the same thing — and `sidesOfGame` also absorbs a saved FORMAT's
+    // legacy side<Letter>Name settings (F-014), so a format saved before names moved off the
+    // settings bag still brings its names in.
+    if ((Array.isArray(d.sides) && d.sides.length > 0) || d.subTeams) {
+      setSides(sidesOfGame({
+        sides: d.sides as GameSide[] | undefined,
+        subTeams: d.subTeams,
+        modeSettings: d.modeSettings,
+      }));
+    }
   }
 
   // Parse the match-config inputs into a PoolMatchConfig (per-player $/leg + junk
@@ -2887,6 +2895,10 @@ function SubTeamsStep({
           );
         })}
       </div>
+
+      {/* Optional custom names, one field per side that exists (F-014). Collapsed by default —
+          the board already reads "Craig & Jym", so almost nobody opens this. */}
+      <SideNames sides={effective} players={players} onChangeAction={setSides} idPrefix="wizard-side-name" />
 
       {/* Add / remove a side. Hidden behind nothing, but deliberately below the assignment
           list: two sides is the default and most groups never touch this. */}

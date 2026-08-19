@@ -1005,20 +1005,32 @@ test.describe('F-006: three sides in one group', () => {
     await expect(cRow.locator('span.text-red-400')).toHaveCount(1);
   });
 
+  // F-014 moved names out of the generic settings bag and into the Sides editor, one field per
+  // side that exists. The INTENT of this test is unchanged — naming side C must reach the board —
+  // only the control moved.
   test('a third side can be NAMED, and unused name boxes stay hidden', async ({ page }) => {
     const id = await seed(page, 'Three sides in one group');
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
     await expect(page.getByText('Sides (within group) options')).toBeVisible();
 
-    // Three sides => three name fields, and no boxes for sides that don't exist.
-    await expect(page.getByLabel('Side A name')).toBeVisible();
-    await expect(page.getByLabel('Side C name')).toBeVisible();
-    await expect(page.getByLabel('Side D name')).toHaveCount(0);
+    // The names are no longer settings, so the settings editor must not offer them at all.
+    for (const letter of ['A', 'B', 'C', 'D', 'E', 'F']) {
+      await expect(page.getByLabel(`Side ${letter} name`)).toHaveCount(0);
+    }
+
+    // They live behind a disclosure in the Sides editor, closed by default — almost nobody
+    // names their sides, so "just the usual game" never sees these fields.
+    await page.getByRole('button', { name: /Name the sides/ }).click();
+    // Exactly three fields, for the three sides this game HAS. No box for a side that
+    // doesn't exist, which is what the old six-static-keys arrangement couldn't express.
+    await expect(page.getByLabel('Side A')).toBeVisible();
+    await expect(page.getByLabel('Side C')).toBeVisible();
+    await expect(page.getByLabel('Side D')).toHaveCount(0);
 
     // Naming side C actually reaches the leaderboard.
-    await page.getByLabel('Side C name').fill('The Cats');
-    await page.getByLabel('Side C name').blur();
+    await page.getByLabel('Side C').fill('The Cats');
+    await page.getByLabel('Side C').blur();
     await page.goto(`${BASE}/pool/${id}/leaderboard`);
     // Appears in BOTH the standings row and the player-details side tag — that consistency is
     // the point (a name that reached one surface and not the other is the F-006 "Team A" bug).
@@ -1218,19 +1230,33 @@ test.describe('F-015: a read-only summary prints no empty rows', () => {
     }
   });
 
-  test('a NAMED side still shows its name', async ({ page }) => {
-    // This seed sets sideAName 'The Hogs' / sideBName 'The Dawgs'.
+  // F-014 migration, end to end: a game SAVED with the old `sideAName`/`sideBName` settings must
+  // still show its names everywhere, with no migration step. This is the compatibility claim the
+  // whole change rests on, so it's asserted on real screens rather than only in a unit test.
+  test('a game saved with the LEGACY name settings keeps its names', async ({ page }) => {
+    // This seed sets sideAName 'The Hogs' / sideBName 'The Dawgs' — the pre-F-014 shape.
     const id = await seed(page, '2v2 on a nine — complete');
+
+    // The leaderboard names the sides from the migrated values.
+    await page.goto(`${BASE}/pool/${id}/leaderboard`);
+    await page.waitForLoadState('networkidle');
+    const board = await page.locator('body').innerText();
+    expect(board).toContain('The Hogs');
+    expect(board).toContain('The Dawgs');
+
+    // And the Sides editor shows them as editable values, not as empty boxes over a stale
+    // setting — proving they were absorbed onto the sides rather than merely displayed.
     await page.goto(`${BASE}/pool/${id}`);
     await page.waitForLoadState('networkidle');
-    const body = await page.locator('body').innerText();
-    // The row appears BECAUSE it has a value — the fix keys on emptiness, not on the key name.
-    expect(body).toContain('Side A name');
-    expect(body).toContain('The Hogs');
-    expect(body).toContain('The Dawgs');
-    // C-F are still unnamed, so they stay hidden.
-    for (const letter of ['C', 'D', 'E', 'F']) {
-      expect(body).not.toContain(`Side ${letter} name`);
+    await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+    // The disclosure opens ITSELF when a side already has a name, so an existing game's names
+    // are never hidden from whoever is editing them.
+    await expect(page.getByLabel('Side A')).toHaveValue('The Hogs');
+    await expect(page.getByLabel('Side B')).toHaveValue('The Dawgs');
+
+    // The old settings rows are gone from the read-only panel entirely.
+    for (const letter of ['A', 'B', 'C', 'D', 'E', 'F']) {
+      expect(await page.getByLabel(`Side ${letter} name`).count()).toBe(0);
     }
   });
 });
