@@ -931,6 +931,46 @@ wrong unit. A projection was also rejected implicitly — it's a guess shown nex
 
 ---
 
+## 5.an Playing groups and sides are INDEPENDENT axes (2026-08-20)
+
+Craig, looking at the printable Teams sheet for a 3-side game:
+
+> "so typically you play golf in foursomes. In some cases it would be threesomes, maybe a random
+> person included. Shouldnt we break down the teams sheet by tee time/teams?"
+
+I had filed this (F-019) as a labelling problem on one sheet. It's a modelling gap, and his
+question named it exactly.
+
+**Two different groupings, both real:**
+- a **playing group** — who walks the course together: one tee slot, one scorecard, 3 or 4 players
+- a **side** — who your money is with
+
+**Decision: they are INDEPENDENT.** A side game gets real playing groups, chosen separately from
+the sides, and a partner may be in the other foursome. That's not an edge case — it's how a
+two-foursome 2v2 has always been played.
+
+**What was wrong.** The classic pool axis already models playing groups (N foursomes, each with
+its own `teeTime` and `matchupId`). The side axis collapsed them to ONE `PoolTeam` holding
+everybody, because that's the cheapest way to hand the engine a single matchup. At `playersMax` 8
+the app therefore claimed "1 foursome" containing eight players, printed one scorecard for all of
+them, and offered a single tee time for two groups. The Teams sheet listed everyone sorted by
+**handicap**, which looks like a pairing and isn't one — worse than showing nothing.
+
+**How to apply — the generalisable lesson.** When a mode is widened, check every axis the ORIGINAL
+axis already had, not just the one being widened. F-006 generalised the side count and inherited a
+one-group assumption that was invisible while the count was two: at 4 players, "one group" and "the
+whole field" are the same set, so nothing looked broken until 6. Ask what stops being true at N.
+
+Also: **`isSingleGroupGame()` is now a suspect abstraction** (7 call sites). It conflates "scored on
+one device" with "one playing group", which were the same thing only while side games were capped
+at four players.
+
+**Sequencing:** documented now, built next session, at Craig's call — it changes how every side
+game's scores are read (one matchup → N), so it needs a plan he's reviewed rather than one invented
+mid-change.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

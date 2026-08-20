@@ -1550,52 +1550,77 @@ text and were correct, which is exactly why it survived review.
 
 ---
 
-### F-019 — The printable "Teams" sheet doesn't show the sides at all  [P2] [start]
+### F-019 — A side game has no PLAYING GROUPS, so it can't express a real day of golf  [P1] [start]
 
-**Where:** `src/app/pool/[id]/teams/page.tsx` — renders `game.teams`, which for a side game is a
-single team named "Group"
-**Screen:** `/pool/[id]/teams`, three-sides seed · `e2e/screenshots/audit-25-teams-page-3side.png`
-**Violates:** north star — *starting* a game; and §5.al (say "side" in a side game)
+**Where:** `src/app/pool/[id]/page.tsx:~529` (the wizard/hub build ONE `PoolTeam` for a side game),
+surfacing on `teams/page.tsx`, `scorecards/page.tsx`, and anywhere `teeTime` is shown
+**Screens:** `e2e/screenshots/audit-25-teams-page-3side.png`, `audit-27-scorecards-3side.png`
+**Violates:** north star — *starting* a game, and "more possibilities than any other app"
 
-Found while fixing the vocabulary (§5.al), by opening the page rather than grepping for the label.
-The Teams tab exists to produce a sheet you screenshot and send to your group. For a 3-side game
-it shows:
+**Craig, 2026-08-20, and he's right:**
+
+> "so typically you play golf in foursomes. In some cases it would be threesomes, maybe a random
+> person included. Shouldnt we break down the teams sheet by tee time/teams?"
+
+I had filed this as a labelling problem on one printable sheet. It isn't. **The app conflates two
+independent things**, and the side axis only models one of them:
+
+| | What it is | Lives on | Example |
+|---|---|---|---|
+| **Playing group** | Who walks together — one tee slot, one scorecard, 3 or 4 players | `PoolTeam` (+ `teeTime`, `matchupId`) | 4 + 4, or 3 + 4 with a random |
+| **Side** | Who your MONEY is with | `GameSide` | Craig & Jym vs Dave & Rick |
+
+They are **independent**: your best-ball partner can be in the other foursome. That's how a
+two-foursome 2v2 works, and the classic pool axis already models playing groups correctly (N
+foursomes, each with its own tee time and card).
+
+**The side axis throws that away.** A side game creates exactly one `PoolTeam` holding everybody,
+because that's how the engine gets its single matchup (`context.ts:25` — `game.teams[0].matchupId`).
+Consequences, all verified on screen:
 
 ```
-Group
-  Craig Hoelzer   Blue  4
-  Sam Ortiz       Blue  6
-  Dave Miller     Blue  8
-  Jym Youngberg   Blue  12
-  Tony Belmont    Blue  14
-  Rick Tanaka     Blue  16
-6 players · 1 foursome · (C) = captain · number after each name = strokes this game
+6-player side game, Teams sheet:   one box "Group", 6 names sorted by HANDICAP,
+                                   footer "6 players · 1 foursome"
+Scorecards page:                   "1 foursome", ONE card with every player on it
+Tee times:                         exactly one, for what is really two groups
+At playersMax 8:                   "1 foursome" containing EIGHT players
 ```
 
-All six players in one box, **sorted by handicap**, with the sides nowhere on the page — and a
-footer claiming "1 foursome". The one thing this sheet exists to communicate is who's playing with
-whom, and for a side game it communicates the opposite: an ordering that isn't the pairing.
+Eight players in a foursome is not a display bug; it's the model saying something impossible. And
+the sheet sorted by handicap actively misinforms — it looks like a pairing and isn't one.
 
-A side game runs as ONE `PoolTeam` holding everybody (that's how the engine gets its single
-matchup), so a page that renders `game.teams` is structurally blind to sides. This is the same
-shape as F-013 and F-018: a surface that predates N sides and reads the wrong field.
+**Craig's decision (2026-08-20): the two axes are INDEPENDENT.** A side game gains real playing
+groups — own tee time, own scorecard, 3–4 players — chosen separately from the sides. Partners in
+different groups must be allowed, because that's the common case.
 
-**Options**
-- **A. Render `sidesOfGame(game)` when the game is a side game**, one box per side, named as the
-  leaderboard names it, and retitle the page "Sides". The classic pool keeps `game.teams`
-  untouched. Mirrors exactly what F-018 did to the review step.
-- **B. Group within the single box** — sub-headings per side inside "Group". Less code, but the
-  box's title is still "Group" and the footer still counts foursomes.
-- **C. Hide the Teams tab for side games.** Honest (it can't express the game) and cheap, but it
-  removes the send-to-the-group sheet from precisely the format most likely to want it.
-- **D. Leave it.**
+#### Design (approved 2026-08-20; NOT built — build next session)
 
-**Recommendation:** **A**. The same fix as F-018 on a second surface, and the printable sheet is
-arguably the more valuable of the two — it's what gets sent to people who aren't holding the phone.
-Not urgent: no money is wrong, and the leaderboard shows the sides correctly.
+**1. Storage.** Reuse `PoolTeam` as the playing group; it already carries `teeTime`, `matchupId`
+and `captainId`. A side game today has one, so *nothing existing changes shape* — it's the same
+"absent means today's behaviour" pattern as `voidedLegs`, `sides` and `teamFormat`.
 
-**Status:** open. Found 2026-08-19 while applying §5.al; not fixed, because renaming the tab
-without fixing the page would just relabel a sheet that's showing the wrong thing.
+**2. Scoring is the real work.** `buildGameModeContext` takes `game.teams[0].matchupId` and filters
+`ctx.players` to that one team. With N groups it must read **across every matchup** — the union of
+all groups' scores — while the SIDES stay the money grouping. The classic pool already reads N
+matchups (`computePoolResult`), so the pattern exists; it just isn't wired into the side path.
+Only two callers to change (`result.ts:23`, `pool/[id]/page.tsx:2724`).
+
+**3. UI.** The wizard needs a "who's in which group" step for a side game (the pool's
+`TeamsStep` already does exactly this — reuse, don't rebuild). Teams sheet and Scorecards then
+render groups with their tee times, and the sides get their own block. Support **3-player groups**
+explicitly, and a guest/random who's in a group but on nobody's side.
+
+**4. What must not move.** Every existing side game has one group and must settle identically —
+pin it first, as with F-016/F-017. `isSingleGroupGame()` (7 call sites) becomes questionable as a
+concept: a side game may no longer be one group. That's the riskiest part of the change, since
+those branches decide which leaderboard and scorecard a game gets.
+
+**Why P1 rather than P2:** it isn't wrong money, but it blocks the ordinary real-world case — eight
+guys, two tee times, playing sides — which is exactly the game this mode was widened for. And the
+sheets that misinform are the ones sent to people who aren't holding the phone.
+
+**Status:** designed and approved 2026-08-20, not built. Craig chose to document first and build
+next session, because it changes how every side game's scores are read.
 
 ---
 
