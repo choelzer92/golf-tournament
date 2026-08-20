@@ -1633,12 +1633,100 @@ real work is the UI (a group-assignment step, and the two sheets).
 guys, two tee times, playing sides — which is exactly the game this mode was widened for. And the
 sheets that misinform are the ones sent to people who aren't holding the phone.
 
+**5. Group formation — Craig's answers, 2026-08-20.** Both open questions from the session prompt:
+
+> "groups would theoretically be balanced, but if 5 players then we would need to figure out if it
+> is a 1 v 1 v 1 v 1 v 1 situation, or a 3 v 2, or something else. but that could be manually
+> adjusted."
+
+- **Auto-balance by default, manually adjustable.** Same as the pool's team builder, so there's one
+  mental model for "the app proposes, you adjust".
+- **An uneven count is a QUESTION, not a silent default.** Today `defaultSubTeams`
+  (`pool-game.ts:1303`) special-cases exactly 4 and otherwise alternates low/high — so 5 players
+  silently become 3 v 2, with nothing on screen saying a choice was made. At 5 the honest options
+  are 3v2, 2v2 + a solo, or five singles, and only the group knows which.
+
+The second half of his answer is a bigger idea and became **F-020** — the player count should
+*recommend* games rather than reject them after the fact.
+
 **Status:** designed and approved 2026-08-20, not built. Craig chose to document first and build
 next session, because it changes how every side game's scores are read.
 
 ---
 
-### F-001 — Nassau segment "thru" reads as a hole number  [P3] [track]
+### F-020 — The player count validates games instead of recommending them  [P2] [start]
+
+**Where:** `src/app/pool/new/page.tsx:915` (the mode description), `:3115` (the review-step
+warning), and `defaultSubTeams` (`pool-game.ts:1303`)
+**Violates:** north star — *maximum possibility, minimum exposed complexity*; and "starting a game
+as easy as possible"
+
+**Craig, 2026-08-20**, extending the F-019 discussion:
+
+> "The point is with x amount of players, certain games or modes would be either recommended or
+> make the team splitting as easy as possible"
+
+**The inversion.** Every mode already declares `playersMin`/`playersMax`. Today those are used
+**only to scold**, and only at the end:
+
+```
+step 1 (game picker)  "Played within a single group of 4–8."     <- fine print, before you
+                                                                    know the field
+step 6 (review)       "Wolf is played in a single group of 4–4
+                       players — you have 5. Go back to Field."  <- five steps too late
+```
+
+You choose the game **before** the field, so the app knows the constraint and says nothing useful,
+then blocks you after you've done the work. It has the data to help and uses it to refuse.
+
+Current mode ranges, for reference:
+
+```
+skins / quota / stableford / low-total   2–4
+nines                                    3–4
+wolf                                     4 only
+sides (within group)                     4–8
+classic pool                             any (foursomes)
+```
+
+**Second half: an uneven count silently picks for you.** `defaultSubTeams` special-cases exactly 4
+(1&4 vs 2&3 — the balanced split) and otherwise alternates low/high into two sides. So 5 players
+become **3 v 2** with nothing on screen saying a choice was made, when the group might have wanted
+2v2 with a solo, or five singles. Craig: *"we would need to figure out if it is a 1 v 1 v 1 v 1 v 1
+situation, or a 3 v 2, or something else. but that could be manually adjusted."*
+
+**Options**
+- **A. Count-first: ask "how many are playing?" before the game.** Then the picker only offers what
+  fits, ranked by fit. Cleanest fit with the north star — the impossible options never appear.
+  Cost: reorders the wizard (game ← → field), the most-touched screen, and the count isn't always
+  known up front ("someone might join at the turn").
+- **B. Keep the order; annotate the picker live.** Once the field exists, each game shows fit
+  ("✓ 6 players", "needs exactly 4"), with unfittable games disabled and explained. Coming back to
+  step 1 after building the field is already a normal move. Cheapest change that removes the
+  late-refusal.
+- **C. Recommend at the split step only.** Leave the picker alone; when sides are formed, propose
+  the sensible splits for that count and let the group choose. Fixes the silent 3v2 but not the
+  "Wolf needs 4" surprise.
+- **D. Both B and C.** They solve different halves: B stops you picking a game that can't work, C
+  stops the app quietly choosing your teams.
+
+**Recommendation:** **D**, built as two small pieces (B then C), each shippable alone. Explicitly
+**not A** — reordering the wizard is a bigger bet on the count being known early, and
+`WIZARD_REDESIGN.md` §8 already warns that the 44-game sample is one organizer's habits, not
+evidence about everyone.
+
+**Design notes for whoever builds it**
+- Fit is derivable from the registry — no new per-mode data needed beyond what
+  `playersMin`/`playersMax` already say. A mode that wants finer advice ("best with an even count")
+  can gain one optional field rather than a switch statement.
+- The **split proposals** belong next to `defaultSubTeams` as a pure function returning candidate
+  shapes for N (e.g. 5 → `[3,2]`, `[2,2,1]`, `[1,1,1,1,1]`), so the rule is unit-tested and both
+  the wizard and the hub can offer the same choices.
+- Composes with **F-019**: playing groups also need proposing for odd counts (5 → 3 + 2 tee slots),
+  and that's the same "shapes for N" helper.
+
+**Status:** open, approved as its own finding 2026-08-20. Build AFTER F-019, since playing groups
+change what "split" means.
 
 **Screen:** `/pool/[id]/leaderboard`, 2-player skins w/ Nassau ·
 `e2e/screenshots/skins-2p.png`

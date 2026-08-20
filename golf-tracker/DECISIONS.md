@@ -979,6 +979,43 @@ mid-change.
 
 ---
 
+## 5.ao The player count should RECOMMEND games, not reject them (2026-08-20)
+
+Asked whether playing groups should auto-form or be manual, Craig answered both that and something
+larger:
+
+> "groups would theoretically be balanced, but if 5 players then we would need to figure out if it
+> is a 1 v 1 v 1 v 1 v 1 situation, or a 3 v 2, or something else. but that could be manually
+> adjusted. The point is with x amount of players, certain games or modes would be either
+> recommended or make the team splitting as easy as possible"
+
+**Three decisions in that.**
+
+1. **Auto-balance, manually adjustable** — for playing groups and sides alike. The app proposes,
+   the group adjusts. Same mental model as the pool's team builder, so there's one pattern rather
+   than two.
+
+2. **An uneven count is a QUESTION, not a silent default.** `defaultSubTeams` special-cases exactly
+   four and otherwise alternates low/high, so five players silently become 3 v 2 with nothing on
+   screen admitting a choice was made. At five, 3v2 / 2v2+solo / five singles are all legitimate and
+   only the group knows which.
+
+3. **The count should recommend the game.** This is the inversion worth keeping: every mode already
+   declares `playersMin`/`playersMax`, and the app uses them **only to refuse** — at the review
+   step, five steps after the game was picked ("Wolf is played in a single group of 4–4 players —
+   you have 5. Go back to Field."). It has the data to help and spends it on a rejection. Filed as
+   F-020.
+
+**How to apply.** When the app holds a constraint the user doesn't, the default use of it is
+guidance, not validation. A rule that can only say "no, go back" is a rule that made the user do
+work before telling them it was wasted. Prefer: narrow the options up front, or annotate them live —
+and if neither is possible, say the constraint at the moment of choosing, not at the end.
+
+**Sequencing:** F-020 after F-019, since playing groups change what "split" means, and both need the
+same "what shapes fit N players" helper.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

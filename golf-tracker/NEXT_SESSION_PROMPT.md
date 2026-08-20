@@ -47,6 +47,26 @@ Don't take my word for the sizing — verify it — but the last session's read 
 
 Support **3-player groups**, and a guest who's in a group but on nobody's side.
 
+## Group formation — already decided, don't re-ask
+
+§5.ao. **Auto-balance by default, manually adjustable** (same as the pool's team builder). And an
+uneven count is a **question, not a silent default**: today `defaultSubTeams` special-cases exactly
+4 and otherwise alternates low/high, so 5 players silently become 3 v 2 with nothing admitting a
+choice was made. Propose the shapes; let the group pick.
+
+Write the "what shapes fit N players" rule as a **pure function next to `defaultSubTeams`**
+(5 → `[3,2]`, `[2,2,1]`, `[1,1,1,1,1]`), unit-tested, because **F-020 needs the same helper** for
+tee groups and for side splits. That's the one piece of shared groundwork between the two findings.
+
+## Then F-020, if there's time (or the session after)
+
+`FINDINGS.md` F-020 + `DECISIONS.md` §5.ao. The player count currently **validates** games instead
+of recommending them: every mode declares `playersMin`/`playersMax`, and the app uses them only to
+refuse — at the review step, five steps after you picked the game ("Wolf is played in a single group
+of 4–4 players — you have 5. Go back to Field."). Craig chose **option D**, built as two
+independently shippable pieces: annotate the picker with live fit, then propose splits at the split
+step. Explicitly **not** reordering the wizard.
+
 ## Rules
 
 - **Pin before you change money.** `n-side-golden.test.ts` is the pattern: label cases
@@ -58,16 +78,18 @@ Support **3-player groups**, and a guest who's in a group but on nobody's side.
   `e2e/screenshots/`. Four defects last session were invisible in the code and obvious in a
   screenshot — including this one. **Add an 8-player, 2-group, 4-side seed early**, because
   nothing in the fixtures currently exercises the case being built.
-- Ask before anything with more than one defensible answer. **Two things I'd expect to need a
-  call:** whether an existing 1-group side game should be silently re-split when a 5th player is
-  added, and whether groups should auto-form (balanced, like the pool) or always be manual.
-- **Don't re-decide what's settled:** the two axes are independent (§5.an), the pot arithmetic
-  (§5.ag), round-robin money (§5.ae), pairwise ties (§5.aj), contested-hole legs (§5.ai).
+- Ask before anything with more than one defensible answer. **The one I'd still expect to need a
+  call:** what happens to an existing, already-scored 1-group side game when a 5th player is added
+  mid-round — re-split silently, prompt, or refuse.
+- **Don't re-decide what's settled:** the two axes are independent (§5.an), auto-balance +
+  manual override and "uneven counts ask" (§5.ao), the pot arithmetic (§5.ag), round-robin money
+  (§5.ae), pairwise ties (§5.aj), contested-hole legs (§5.ai).
 - `npm run verify` must exit 0 before each commit. One focused commit per piece.
 
-## Also open, if there's time after
+## Also open, further out
 
 - **§7 q5** — how much config belongs on the first screen. Now has numbers: an ordinary 2v2 is
-  **6 mode controls and 13 taps** end to end. Craig hasn't ruled on whether that's right.
+  **6 mode controls and 13 taps** end to end. Craig hasn't ruled on whether that's right. Note
+  F-020 option B touches this screen, so the two are related.
 - **§7 q4** — dark = live, light = setup. Probably just needs confirming.
 - **F-013's remainder** — the tournament still has its own copy of the team-score math.
