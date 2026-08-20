@@ -131,16 +131,17 @@ test.describe('the ORDINARY 2v2 — two guys against two guys, best ball, usual 
       });
     }
     await countScreen(page, '06-field-four');
-    // NOTE the wording: the FIELD step's forward button says "Set Teams" and the TEES
-    // step's says "Teams", but for a side game the step it leads to is called "Sides".
-    await tap('Next: Set Teams', async () => {
-      await page.getByRole('button', { name: 'Next: Set Teams' }).click();
+    // §5.al: in a SIDE game these buttons say "Sides", matching the step they lead to. They
+    // used to say "Set Teams" then "Teams" on the way to a step labelled "Sides".
+    await expect(page.getByRole('button', { name: 'Next: Set Sides' })).toBeVisible();
+    await tap('Next: Set Sides', async () => {
+      await page.getByRole('button', { name: 'Next: Set Sides' }).click();
     });
 
     // --- Step 4: Tees ----------------------------------------------------------
     await countScreen(page, '07-tees');
-    await tap('Next: Teams', async () => {
-      await page.getByRole('button', { name: 'Next: Teams' }).click();
+    await tap('Next: Sides', async () => {
+      await page.getByRole('button', { name: 'Next: Sides' }).click();
     });
 
     // --- Step 5: Sides ---------------------------------------------------------

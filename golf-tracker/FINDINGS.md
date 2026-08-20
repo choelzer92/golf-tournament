@@ -1550,6 +1550,55 @@ text and were correct, which is exactly why it survived review.
 
 ---
 
+### F-019 — The printable "Teams" sheet doesn't show the sides at all  [P2] [start]
+
+**Where:** `src/app/pool/[id]/teams/page.tsx` — renders `game.teams`, which for a side game is a
+single team named "Group"
+**Screen:** `/pool/[id]/teams`, three-sides seed · `e2e/screenshots/audit-25-teams-page-3side.png`
+**Violates:** north star — *starting* a game; and §5.al (say "side" in a side game)
+
+Found while fixing the vocabulary (§5.al), by opening the page rather than grepping for the label.
+The Teams tab exists to produce a sheet you screenshot and send to your group. For a 3-side game
+it shows:
+
+```
+Group
+  Craig Hoelzer   Blue  4
+  Sam Ortiz       Blue  6
+  Dave Miller     Blue  8
+  Jym Youngberg   Blue  12
+  Tony Belmont    Blue  14
+  Rick Tanaka     Blue  16
+6 players · 1 foursome · (C) = captain · number after each name = strokes this game
+```
+
+All six players in one box, **sorted by handicap**, with the sides nowhere on the page — and a
+footer claiming "1 foursome". The one thing this sheet exists to communicate is who's playing with
+whom, and for a side game it communicates the opposite: an ordering that isn't the pairing.
+
+A side game runs as ONE `PoolTeam` holding everybody (that's how the engine gets its single
+matchup), so a page that renders `game.teams` is structurally blind to sides. This is the same
+shape as F-013 and F-018: a surface that predates N sides and reads the wrong field.
+
+**Options**
+- **A. Render `sidesOfGame(game)` when the game is a side game**, one box per side, named as the
+  leaderboard names it, and retitle the page "Sides". The classic pool keeps `game.teams`
+  untouched. Mirrors exactly what F-018 did to the review step.
+- **B. Group within the single box** — sub-headings per side inside "Group". Less code, but the
+  box's title is still "Group" and the footer still counts foursomes.
+- **C. Hide the Teams tab for side games.** Honest (it can't express the game) and cheap, but it
+  removes the send-to-the-group sheet from precisely the format most likely to want it.
+- **D. Leave it.**
+
+**Recommendation:** **A**. The same fix as F-018 on a second surface, and the printable sheet is
+arguably the more valuable of the two — it's what gets sent to people who aren't holding the phone.
+Not urgent: no money is wrong, and the leaderboard shows the sides correctly.
+
+**Status:** open. Found 2026-08-19 while applying §5.al; not fixed, because renaming the tab
+without fixing the page would just relabel a sheet that's showing the wrong thing.
+
+---
+
 ### F-001 — Nassau segment "thru" reads as a hole number  [P3] [track]
 
 **Screen:** `/pool/[id]/leaderboard`, 2-player skins w/ Nassau ·
@@ -1584,12 +1633,25 @@ stalled at hole 9. It's money display, so ambiguity reads as a bug.
 **Recommendation:** B — smallest change, removes the collision, and doesn't risk
 the not-started logic that keeps the board zero-sum.
 
-**Status: CHOSEN 2026-08-18 — option B ("9 of 9 holes").** Also closes `DECISIONS.md` §7 q7, which
-was this same item logged twice. Craig chose the count over converting to a hole number
-specifically because it needs no data change, so the `thru === 0` not-started guard that keeps the
-board zero-sum is untouched. The side game's leg board already words it this way
-(`leaderboard/page.tsx:1054`), so this makes the two axes agree rather than inventing a third
-wording. Not yet built.
+**Status: ALREADY FIXED (option B) — verified on screen 2026-08-19.** Also closes `DECISIONS.md`
+§7 q7, which was this same item logged twice.
+
+The status line was stale, like F-012's and F-008's. `NassauPayoutBoard` already renders
+`${leg.thru} of ${segmentHoles(...)} holes`, and the seeded 2-player skins board reads:
+
+```
+Front 9   $10 pot · 9 of 9 holes    All tied · splits
+Back 9    $10 pot · 9 of 9 holes    All tied · splits
+Total     $20 pot · 18 of 18 holes  All tied · splits
+```
+
+Craig independently chose the same option the code had taken, and for the reason the code took it:
+no data change, so the `thru === 0` not-started guard that keeps the board zero-sum is untouched.
+Both axes now word it identically (`leaderboard/page.tsx:1054` and `:1129`).
+
+**Third stale status found this session.** Worth a process note: statuses in this file are written
+when a fix is *proposed*, and three of them were never updated when the fix landed. Checking the
+code (or better, the screen) before starting work has now saved three redundant implementations.
 
 ---
 

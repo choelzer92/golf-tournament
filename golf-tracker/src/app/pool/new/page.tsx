@@ -517,6 +517,8 @@ export default function NewPoolGamePage() {
             onGroupLoaded={setSourceGroupId}
             preselectedGroupId={sourceGroupId}
             formatSeedApplied={formatSeedApplied}
+            // "Set Tees" for an individual game, which has no team/side step after tees at all.
+            nextLabel={modeCategory === 'individual' ? 'Tees' : isWithinGroup ? 'Sides' : 'Teams'}
             onNext={() => setStep('tees')}
             onBack={() => setStep('course')}
           />
@@ -530,6 +532,9 @@ export default function NewPoolGamePage() {
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             handicapBasis={handicapBasis}
             nine={wizardNine}
+            // An INDIVIDUAL game skips team-building entirely and goes straight to money, so the
+            // button has to say that rather than promise a step that never comes.
+            nextLabel={modeCategory === 'individual' ? 'Money' : isWithinGroup ? 'Sides' : 'Teams'}
             onNext={() => {
               // Single-group games (individual + 2v2) run as ONE team holding every
               // player. Auto-build it now. Individual → straight to Create;
@@ -1469,7 +1474,7 @@ function CourseStep({
 }
 
 function FieldStep({
-  course, players, setPlayers, handicapAllowance, handicapBasis, nine, getGroupDefaults, applyGroupDefaults, onGroupLoaded, preselectedGroupId, formatSeedApplied, onNext, onBack,
+  course, players, setPlayers, handicapAllowance, handicapBasis, nine, getGroupDefaults, applyGroupDefaults, onGroupLoaded, preselectedGroupId, formatSeedApplied, nextLabel, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
@@ -1483,6 +1488,9 @@ function FieldStep({
       isn't asked twice. */
   preselectedGroupId?: string;
   formatSeedApplied: boolean;
+  /** What the step after tees is CALLED for this game — "Sides" in a side game, "Teams" in a
+      pool (§5.al). The button used to say "Set Teams" on the way to a step labelled "Sides". */
+  nextLabel: string;
   onNext: () => void; onBack: () => void;
 }) {
   const [rosterQuery, setRosterQuery] = useState('');
@@ -2192,7 +2200,7 @@ function FieldStep({
         disabled={!canProceed}
         className="w-full rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Next: Set Teams
+        Next: Set {nextLabel}
       </button>
     </div>
   );
@@ -2213,13 +2221,16 @@ function makeTeam(index: number, playerIds: string[], captainId?: string): PoolT
 // tap a player to move them to a different (same-gender) tee. Purely for setting/
 // reviewing tees before forming teams — tees remain editable in the Teams step too.
 function TeesStep({
-  course, players, setPlayers, handicapAllowance, handicapBasis, nine, onNext, onBack,
+  course, players, setPlayers, handicapAllowance, handicapBasis, nine, nextLabel, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
   handicapAllowance: number;
   handicapBasis: 'course' | 'index';
   nine: 'front9' | 'back9' | null;
+  /** What the next step is CALLED for this game — "Sides" in a side game, "Teams" in a pool
+      (§5.al). Passed in rather than derived, since only the caller knows the mode. */
+  nextLabel: string;
   onNext: () => void; onBack: () => void;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -2321,7 +2332,7 @@ function TeesStep({
         onClick={onNext}
         className="w-full mt-4 rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800"
       >
-        Next: Teams
+        Next: {nextLabel}
       </button>
     </div>
   );

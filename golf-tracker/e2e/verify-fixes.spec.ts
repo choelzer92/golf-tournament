@@ -1289,8 +1289,9 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
       await page.getByPlaceholder('HCP').fill(hcp);
       await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
     }
-    await page.getByRole('button', { name: 'Next: Set Teams' }).click();
-    await page.getByRole('button', { name: 'Next: Teams' }).click();
+    // §5.al: a side game says "Sides" on the way to the Sides step, not "Teams".
+    await page.getByRole('button', { name: 'Next: Set Sides' }).click();
+    await page.getByRole('button', { name: 'Next: Sides' }).click();
     if (opts.thirdSide) {
       await page.getByRole('button', { name: '+ Add a side' }).click();
       for (const nm of [opts.players[4][0], opts.players[5][0]]) {

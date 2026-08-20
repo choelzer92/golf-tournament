@@ -1747,8 +1747,18 @@ export default function PlayGamePage() {
                           {scoredAny && (
                             /* Rank + margin in the game's OWN unit — "1st · −4" for strokes,
                                "1st · 42 pts" for Stableford, "1st · 5 holes" for match play. A
-                               two-side "2 UP" badge means nothing against two opponents. */
-                            <span className="ml-1 text-[9px] font-bold px-1 py-0.5 rounded text-gray-700 bg-gray-200 whitespace-nowrap">
+                               two-side "2 UP" badge means nothing against two opponents.
+                               §5.ak: the badge is coloured by RANK, not by the side's identity
+                               colour, so leading and losing don't read the same. It was grey for
+                               every side, which made "1st · −4" and "3rd · +18" look alike — the
+                               same defect the leaderboard's to-par column already fixed. Rank is
+                               unit-free, so this is right under strokes, points and match play
+                               alike (which is why it doesn't key on the sign of the margin). */
+                            <span className={`ml-1 text-[9px] font-bold px-1 py-0.5 rounded whitespace-nowrap ${
+                              side.place === 1 ? 'text-green-800 bg-green-100'
+                                : side.place === engineSideRows.length ? 'text-red-800 bg-red-100'
+                                  : 'text-gray-700 bg-gray-200'
+                            }`}>
                               {side.status}
                             </span>
                           )}
