@@ -1296,6 +1296,101 @@ export function sortPlayerIdsByHcap(
   });
 }
 
+// ---------------------------------------------------------------------------
+// "What shapes fit N players?" — the shared rule behind BOTH groupings
+// ---------------------------------------------------------------------------
+//
+// One helper, two callers, because the question is the same one twice (F-019 + F-020):
+//   PLAYING GROUPS — who walks together: 8 players -> [4,4] or [3,3,2]
+//   SIDES          — who your money is with: 5 players -> [3,2] or [2,2,1] or five singles
+//
+// It exists because the app used to answer this silently. `defaultSubTeams` special-cases exactly
+// four players and otherwise alternates low/high into two sides, so five players became 3 v 2 with
+// nothing on screen admitting a choice had been made — when 3v2, 2v2-plus-a-solo and five singles
+// are all legitimate and only the group knows which (DECISIONS.md §5.ao).
+//
+// WHAT IT DELIBERATELY DOES NOT DO: return every integer partition of N. Five has 7 partitions
+// and eight has 22 — a list nobody can choose from, which is a worse answer than the silent
+// default it replaces. Instead it offers the BALANCED shape for each possible group count, one
+// per count. That's what makes the result a recommendation rather than a data dump, and manual
+// adjustment (§5.ao: "the app proposes, the group adjusts") covers the exotic cases a list of 22
+// would be needed for.
+//
+// So for 5 players, unconstrained, it returns exactly the shapes Craig named:
+//   [3,2]  ->  [2,2,1]  ->  [2,1,1,1]  ->  [1,1,1,1,1]
+export interface GroupShapeOptions {
+  /** Hard floor on the smallest group. Sides may be 1 (a solo); a tee group wants 2+. */
+  min?: number;
+  /** Largest allowed group. 4 for a playing group — a fivesome is not a tee slot. */
+  max?: number;
+  /**
+   * Soft floor: the size all groups but ONE must reach. This is what separates "a remainder"
+   * from "a silly shape". A tee sheet may read 3 + 3 + 2 — one short group is ordinary — but
+   * four players are a foursome, not two twosomes, and eight are never four pairs. With
+   * min 2 / typical 3 / max 4:
+   *   4 -> [4]              ([2,2] rejected: TWO groups under 3)
+   *   5 -> [3,2]            (one short group is fine)
+   *   8 -> [4,4], [3,3,2]   ([2,2,2,2] rejected)
+   * Defaults to `min`, i.e. no extra constraint — which is what the side axis wants, since
+   * "everyone plays for themselves" is a real game.
+   */
+  typical?: number;
+  /** Fewest groups to offer. 2 for sides (one side is not a game); 1 for tee groups. */
+  minGroups?: number;
+}
+
+// Candidate shapes for N players, each a list of group SIZES descending, best-first.
+//
+// "Best-first" = fewest groups first: fewer tee slots and fewer sides are both the simpler
+// answer, and it puts the ordinary case ([4,4] for eight, [3,2] for five) at the top where a
+// default belongs. Returns [] when nothing fits (1 player in tee groups of min 2).
+export function groupShapesFor(n: number, opts: GroupShapeOptions = {}): number[][] {
+  const { min = 1, max = n, minGroups = 1 } = opts;
+  const typical = opts.typical ?? min;
+  if (n <= 0 || min < 1 || max < min) return [];
+
+  const shapes: number[][] = [];
+  for (let k = Math.max(1, minGroups); k <= n; k++) {
+    // The balanced split of n into k groups: everyone gets floor(n/k), and the first
+    // (n mod k) groups get one extra. Sizes therefore never differ by more than 1.
+    const base = Math.floor(n / k);
+    const extra = n % k;
+    if (base < 1) break;                    // more groups than players
+    const shape = Array.from({ length: k }, (_, i) => base + (i < extra ? 1 : 0));
+    if (shape[0] > max) continue;           // biggest group too big — try more groups
+    if (shape[shape.length - 1] < min) continue;  // smallest below the hard floor
+    // At most one group may sit below `typical` — see the option's note.
+    if (shape.filter((size) => size < typical).length > 1) continue;
+    shapes.push(shape);
+  }
+  return shapes;
+}
+
+/**
+ * The options the PLAYING-GROUP (tee sheet) axis uses. Named so both the wizard and the hub ask
+ * the question the same way, and so "what counts as a playing group" is stated once: 3 or 4
+ * players, with a single short group of 2 tolerated as a remainder.
+ */
+export const TEE_GROUP_SHAPE_OPTS: GroupShapeOptions = { min: 2, typical: 3, max: 4, minGroups: 1 };
+
+/**
+ * The options the SIDE (money) axis uses: a solo side is legal, but one side is not a game.
+ */
+export const SIDE_SHAPE_OPTS: GroupShapeOptions = { min: 1, minGroups: 2 };
+
+// Plain-words label for a shape, for a button or a radio row: [3,2] -> "3 + 2".
+// Used on both the tee-group step and the side-split step so one vocabulary covers both.
+export function groupShapeLabel(shape: number[]): string {
+  return shape.join(' + ');
+}
+
+// True when N players have exactly one sensible shape, so the app should just use it rather than
+// ask. Four players in tee groups is the case that matters: asking "how do you want to walk?"
+// when there is only one answer is the kind of exposed complexity the north star argues against.
+export function groupShapeIsObvious(n: number, opts: GroupShapeOptions = {}): boolean {
+  return groupShapesFor(n, opts).length <= 1;
+}
+
 // A balanced default 2v2 split for a group: sort by course handicap, then pair
 // the lowest with the highest (side A) against the two middle players (side B) —
 // the standard way to even up a two-on-two. Handles 3 players (2v1) and other
