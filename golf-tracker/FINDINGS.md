@@ -1611,9 +1611,23 @@ render groups with their tee times, and the sides get their own block. Support *
 explicitly, and a guest/random who's in a group but on nobody's side.
 
 **4. What must not move.** Every existing side game has one group and must settle identically —
-pin it first, as with F-016/F-017. `isSingleGroupGame()` (7 call sites) becomes questionable as a
-concept: a side game may no longer be one group. That's the riskiest part of the change, since
-those branches decide which leaderboard and scorecard a game gets.
+pin it first, as with F-016/F-017.
+
+**Correction (2026-08-20), after actually reading the call sites.** I first wrote that
+`isSingleGroupGame()` (7 call sites) was "the riskiest part" because a side game might no longer be
+one group. That was wrong on both counts and shouldn't be carried into the build:
+
+- **The side leaderboard already handles N groups.** `leaderboard/page.tsx:64,78` maps over *every*
+  `matchupId` and fetches them all. It never assumed one.
+- **The three `isSingleGroupGame` branches ask the right question already.** They mean "does this
+  game have per-player/side standings, or classic team-vs-team standings?" — a question about the
+  MONEY model, which this change doesn't touch. A side game wants the side leaderboard whether it
+  tees off in one group or two.
+
+The one-group assumption is **12 lines in one function**: `context.ts:25–32` takes
+`game.teams[0].matchupId` and filters `ctx.players` to that team's members. Everything downstream
+already operates on whatever player set it's handed. So the engine change is small and local; the
+real work is the UI (a group-assignment step, and the two sheets).
 
 **Why P1 rather than P2:** it isn't wrong money, but it blocks the ordinary real-world case — eight
 guys, two tee times, playing sides — which is exactly the game this mode was widened for. And the

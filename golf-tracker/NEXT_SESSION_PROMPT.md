@@ -1,60 +1,73 @@
-# Next session: did we overcomplicate it?
+# Next session: playing groups for a side game
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 ---
 
-Read `AGENTS.md` and `DECISIONS.md` §1 (the north star). Skim `FINDINGS.md` F-006 for what the
-last session built. That's enough reading — a long reading list is its own kind of complexity.
+Read `AGENTS.md`, then **`FINDINGS.md` F-019** (the design) and **`DECISIONS.md` §5.an** (the
+decision and why). That's the whole reading list — F-019 has the file references you need.
 
-**State:** branch `ui-consistency-and-compute-tests`, 60 commits ahead of `main`, NOT merged, NOT
-pushed. Merging is my call; don't ask, don't push. `npm run verify` is green (1222 unit tests,
-typecheck, build, 71 e2e) and starts its own sandbox, so there's no setup.
+**State:** branch `ui-consistency-and-compute-tests`, 73 commits ahead of `main`, NOT merged, NOT
+pushed. Merging is my call; don't ask, don't push. `npm run verify` is green (1296 unit tests,
+typecheck, build, 83 e2e) and starts its own sandbox, so there's no setup.
 
-## The question
+## The job
 
-The last session generalized the 2v2 game to 2–6 sides. **I want to know whether that made setting
-up the NORMAL game worse.** The normal game is two guys against two guys, best ball, usual money.
-Almost nobody will ever play three sides.
+A side game currently forces every player into ONE playing group. Give it real ones — own tee
+time, own scorecard, 3 or 4 players — chosen **separately** from the sides, because a partner may
+be in the other foursome.
 
-The north star is "maximum possibility, **minimum exposed complexity**". Nobody has checked the
-second half since this branch started.
+```
+TEE TIMES (logistics)          SIDES (money)
+  8:10  Craig, Dave, Sam         The Hogs   Craig & Jym
+  8:20  Jym, Rick, Tony          The Dawgs  Dave & Rick
+                                 The Cats   Sam & Tony
+```
 
-## What to do
+Today an 8-player side game claims "1 foursome" containing eight players, prints one scorecard for
+all of them, offers a single tee time for two groups, and its Teams sheet lists everyone sorted by
+**handicap** — which looks like a pairing and isn't one.
 
-1. **Set up the ordinary 2v2 from scratch on a phone viewport.** Empty state → playing. Screenshot
-   every screen. Count the taps and count the options visible on each one.
+## Where the work actually is
 
-2. **Do the same on `main`** (before this branch). Same game, same counts.
+Don't take my word for the sizing — verify it — but the last session's read was:
 
-3. **Tell me the difference, in numbers.** More taps? More options on screen? Words that got
-   vaguer? If the answer is "identical for the normal game", say that plainly — that's a good
-   result, not a boring one.
+- **The engine change is 12 lines**, in `buildGameModeContext` (`context.ts:25–32`): it takes
+  `game.teams[0].matchupId` and filters `ctx.players` to that one team. Everything downstream
+  already works on whatever player set it's handed. Two callers (`result.ts:23`,
+  `pool/[id]/page.tsx:2724`).
+- **Storage needs nothing new.** `PoolTeam` already carries `teeTime`, `matchupId`, `captainId`. A
+  side game today has exactly one, so existing games keep their shape — the same "absent means
+  today's behaviour" pattern as `voidedLegs` and `sides`.
+- **Most of the work is UI:** a group-assignment step in the wizard (the classic pool's `TeamsStep`
+  already asks exactly this — reuse it, don't rebuild), then the Teams sheet and Scorecards page
+  rendering groups + tee times with the sides as their own block.
+- **`isSingleGroupGame()` is NOT the risk.** I said it was and was wrong; §5.an records why. The
+  side leaderboard already fetches every matchup, and those branches are about the money model.
 
-4. **Tell me what to cut.** Ranked. If three sides should be hidden, or the pot model shouldn't be
-   there, or a setting should go — say so. Include the cost of each cut.
-
-**One lead to start from**, found by counting rather than reading: the side game now has 26
-settings, 10 always visible, and four of those are "Side C name" through "Side F name". The hub
-hides the unused ones; the wizard hard-codes a two-side hide, so the common case *may* be fine and
-the exposure may be in the hub instead. Logged as **F-014** — needs a screenshot before it's called
-a defect. Assume there are more like it.
-
-Also worth an honest look: the mode was renamed from "2 vs 2 (within group)" to "Sides (within
-group)". Is that clearer for someone playing 2v2, or is it vaguer in service of a case they'll
-never hit?
+Support **3-player groups**, and a guest who's in a group but on nobody's side.
 
 ## Rules
 
-- **Document, don't fix.** Write findings into `FINDINGS.md` in the existing format (observation +
-  options + recommendation) and bring me the ranked list. Exception: a live money bug — tell me
-  immediately.
-- **Look at the screen.** `/sandbox` seeds any state in one click; `npx playwright test` writes to
-  `e2e/screenshots/`. Seeds exist for 2v2, three sides, classic pool, Stableford and scramble
-  pools. Three defects last session were invisible in the code and obvious in a screenshot.
-- Ask before anything with more than one defensible answer.
-- Don't re-decide what's settled: PACE (§7 q8), the pot arithmetic (§5.ag), the round-robin money
-  (§5.ae), or F-013's remaining half. You may recommend **cutting or hiding** any of them on UX
-  grounds — that's the point — but don't reopen the math.
-- Before trusting a green money test, re-introduce the bug it claims to catch and watch it fail
-  (`DECISIONS.md` §5.z — one mutation survived 164 passing tests last session).
+- **Pin before you change money.** `n-side-golden.test.ts` is the pattern: label cases
+  `MUST NOT MOVE` vs `SHOULD MOVE` so a deliberate change is distinguishable from a regression.
+  Every existing side game has one group and must settle **byte-identically**.
+- **Mutation-prove any money test before trusting it** (`DECISIONS.md` §5.z). Last session a
+  hard-coded ball count survived all 54 pins on the first draft.
+- **Look at the screen.** `/sandbox` seeds state in one click; `npx playwright test` writes to
+  `e2e/screenshots/`. Four defects last session were invisible in the code and obvious in a
+  screenshot — including this one. **Add an 8-player, 2-group, 4-side seed early**, because
+  nothing in the fixtures currently exercises the case being built.
+- Ask before anything with more than one defensible answer. **Two things I'd expect to need a
+  call:** whether an existing 1-group side game should be silently re-split when a 5th player is
+  added, and whether groups should auto-form (balanced, like the pool) or always be manual.
+- **Don't re-decide what's settled:** the two axes are independent (§5.an), the pot arithmetic
+  (§5.ag), round-robin money (§5.ae), pairwise ties (§5.aj), contested-hole legs (§5.ai).
+- `npm run verify` must exit 0 before each commit. One focused commit per piece.
+
+## Also open, if there's time after
+
+- **§7 q5** — how much config belongs on the first screen. Now has numbers: an ordinary 2v2 is
+  **6 mode controls and 13 taps** end to end. Craig hasn't ruled on whether that's right.
+- **§7 q4** — dark = live, light = setup. Probably just needs confirming.
+- **F-013's remainder** — the tournament still has its own copy of the team-score math.

@@ -961,9 +961,17 @@ axis already had, not just the one being widened. F-006 generalised the side cou
 one-group assumption that was invisible while the count was two: at 4 players, "one group" and "the
 whole field" are the same set, so nothing looked broken until 6. Ask what stops being true at N.
 
-Also: **`isSingleGroupGame()` is now a suspect abstraction** (7 call sites). It conflates "scored on
-one device" with "one playing group", which were the same thing only while side games were capped
-at four players.
+**A correction I made the same day, worth keeping as a process note.** I told Craig
+`isSingleGroupGame()` (7 call sites) was "the riskiest part" of this change. He pushed back — "im
+confused why that is such a potential issue" — and reading the call sites showed he was right to:
+
+- the side leaderboard already fetches EVERY matchup (`leaderboard/page.tsx:64,78`)
+- those branches ask "per-side standings or classic team standings?", a question about the money
+  model, which this change doesn't touch
+
+The whole one-group assumption is 12 lines in `context.ts:25–32`. I had inferred risk from a call
+count instead of reading the calls, and hedged accordingly. **Grep tells you where a name appears,
+not what it means** — read the branches before calling something load-bearing.
 
 **Sequencing:** documented now, built next session, at Craig's call — it changes how every side
 game's scores are read (one matchup → N), so it needs a plan he's reviewed rather than one invented
