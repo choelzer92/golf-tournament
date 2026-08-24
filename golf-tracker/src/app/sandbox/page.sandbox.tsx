@@ -185,6 +185,101 @@ const SCENARIOS: Scenario[] = [
       return { game, goTo: (id) => `/pool/${id}/leaderboard` };
     },
   },
+  // --- F-019: playing groups and sides are INDEPENDENT axes -------------------------
+  //
+  // Nothing else in this file exercises the case: every other side-game seed above stores ONE
+  // team ({id:'st1', name:'Group', playerIds: everybody}), which is exactly the shape F-019 is
+  // about. These three seed what a real day of golf looks like — separate tee times, separate
+  // scorecards, and sides whose members SPAN them.
+  {
+    key: 'two-groups-four-sides',
+    label: 'F-019: 8 players, TWO tee times, four sides',
+    detail: 'The headline case. Two foursomes at 8:10 and 8:20, four sides that CROSS the two groups (your partner is in the other foursome). Check the Teams sheet and Scorecards — today they claim "1 foursome" of eight.',
+    build: () => {
+      const ps = players([4, 12, 8, 16, 6, 14, 10, 2]);
+      const game = baseGame({
+        players: ps,
+        name: 'Two Tee Times',
+        gameMode: 'team-2v2',
+        // Every side pairs a player from group 1 with one from group 2 — the crossing IS the
+        // finding. A leaderboard that only reads teams[0] shows half a field.
+        sides: [
+          { id: 'a', name: 'The Hogs', playerIds: ['sp1', 'sp5'] },
+          { id: 'b', name: 'The Dawgs', playerIds: ['sp2', 'sp6'] },
+          { id: 'c', name: 'The Cats', playerIds: ['sp3', 'sp7'] },
+          { id: 'd', name: 'The Rats', playerIds: ['sp4', 'sp8'] },
+        ],
+        modeSettings: {
+          format: 'best-ball', scoring: 'stroke', result: 'total',
+          moneyModel: 'per-point', dollarsPerPoint: 1,
+          junkEnabled: true, junkBirdie: 2, junkEagle: 5, junkAlbatross: 10, junkBasis: 'gross',
+        },
+        teams: [
+          { id: 'st1', name: 'Group 1', playerIds: ['sp1', 'sp2', 'sp3', 'sp4'], matchupId: 'sm1', teeTime: '8:10' },
+          { id: 'st2', name: 'Group 2', playerIds: ['sp5', 'sp6', 'sp7', 'sp8'], matchupId: 'sm2', teeTime: '8:20' },
+        ],
+      });
+      // Scores live under BOTH matchups — the union the engine has to read. Group 2 is a hole
+      // behind, the ordinary state of two tee times.
+      saveGameScores('sm1', scores(['sp1', 'sp2', 'sp3', 'sp4'], [0, 1, 2, 3], ALL18));
+      saveGameScores('sm2', scores(['sp5', 'sp6', 'sp7', 'sp8'], [1, 0, 3, 2], ALL18.slice(0, 17)));
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+  {
+    key: 'threesome-plus-guest',
+    label: 'F-019: 7 players as 4 + 3, one guest on no side',
+    detail: 'A threesome is a real tee group, and the random who joined is in a group but on nobody\'s side. Checks 3-player groups and that a sideless player still appears on the card.',
+    build: () => {
+      const ps = players([4, 12, 8, 16, 6, 14, 10]);
+      const game = baseGame({
+        players: ps,
+        name: 'Foursome And A Threesome',
+        gameMode: 'team-2v2',
+        // sp7 (Will) is deliberately on NO side — he's along for the round, not the money.
+        sides: [
+          { id: 'a', name: 'The Hogs', playerIds: ['sp1', 'sp5'] },
+          { id: 'b', name: 'The Dawgs', playerIds: ['sp2', 'sp6'] },
+          { id: 'c', name: 'The Cats', playerIds: ['sp3', 'sp4'] },
+        ],
+        modeSettings: {
+          format: 'best-ball', scoring: 'stroke', result: 'total',
+          moneyModel: 'per-point', dollarsPerPoint: 1,
+        },
+        teams: [
+          { id: 'st1', name: 'Group 1', playerIds: ['sp1', 'sp2', 'sp3', 'sp4'], matchupId: 'sm1', teeTime: '9:00' },
+          { id: 'st2', name: 'Group 2', playerIds: ['sp5', 'sp6', 'sp7'], matchupId: 'sm2', teeTime: '9:10' },
+        ],
+      });
+      saveGameScores('sm1', scores(['sp1', 'sp2', 'sp3', 'sp4'], [0, 1, 2, 1], ALL18));
+      saveGameScores('sm2', scores(['sp5', 'sp6', 'sp7'], [1, 2, 0], ALL18));
+      return { game, goTo: (id) => `/pool/${id}/teams` };
+    },
+  },
+  {
+    key: 'one-group-side-game',
+    label: 'F-019 control: 4 players, ONE group (must not change)',
+    detail: 'The shape every existing side game has. Pinned in one-group-golden.test.ts and here for eyeballing: it must look and settle exactly as it does today.',
+    build: () => {
+      const ps = players([4, 12, 8, 16]);
+      const game = baseGame({
+        players: ps,
+        name: 'Ordinary 2v2',
+        gameMode: 'team-2v2',
+        sides: [
+          { id: 'a', playerIds: ['sp1', 'sp4'] },
+          { id: 'b', playerIds: ['sp2', 'sp3'] },
+        ],
+        modeSettings: {
+          format: 'best-ball', scoring: 'stroke', result: 'total',
+          moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20,
+        },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1', teeTime: '8:30' }],
+      });
+      saveGameScores('sm1', scores(ps.map((p) => p.id), [0, 1, 2, 1], ALL18));
+      return { game, goTo: (id) => `/pool/${id}/teams` };
+    },
+  },
   {
     key: 'walk-in-legs',
     label: 'Three sides, LEGS money — side C walked in at 12',
