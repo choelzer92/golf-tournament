@@ -861,7 +861,11 @@ function IndividualLeaderboard({ id }: { id: string }) {
   if (!game) return null;
   const mode = getGameMode(game.gameMode);
   const isWithinGroup = mode?.category === 'team-within-group';
-  const players = teamDetails[0]?.players ?? [];
+  // EVERY playing group's players, not just the first (F-019). A side game may tee off in two
+  // groups with partners split across them, so `teamDetails[0]` showed half the field in the grid
+  // below while the money rows above were complete — four names under a board settling eight
+  // players. computePoolPlayerDetails returns one entry per group, in group order.
+  const players = teamDetails.flatMap((td) => td.players);
 
   // Signed points (9s/quota, match pts) read better with a leading +. But a
   // stroke-total metric is a raw net/gross (e.g. 72) that must NOT be +-prefixed.

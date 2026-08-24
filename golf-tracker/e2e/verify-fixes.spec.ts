@@ -1341,3 +1341,158 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
     await page.screenshot({ path: 'e2e/screenshots/f018-review-three-sides.png', fullPage: true });
   });
 });
+
+// ---------------------------------------------------------------------------
+// F-019 — playing groups and sides are INDEPENDENT axes (DECISIONS.md §5.an)
+// ---------------------------------------------------------------------------
+//
+// A side game used to force every player into ONE playing group, so at eight players it claimed
+// "1 foursome" of eight, printed one card for all of them, and — the part the code review missed —
+// settled four sides off FOUR players' scores, each side's group-2 partner silently absent.
+//
+// These tests drive the two-tee-time seed, which is the ordinary real-world case: eight guys, two
+// tee times, playing sides across them.
+test.describe('F-019: a side game with two playing groups', () => {
+  test('F-019: the money reads BOTH groups — a partner in the other foursome counts', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const id = await seed(page, 'F-019: 8 players, TWO tee times, four sides');
+    await page.goto(`${BASE}/pool/${id}/leaderboard`);
+    await expect(page.getByText('STANDINGS')).toBeVisible();
+
+    const body = await page.locator('body').innerText();
+    // All four sides on the board, by their names.
+    for (const side of ['The Hogs', 'The Dawgs', 'The Cats', 'The Rats']) {
+      expect(body).toContain(side);
+    }
+
+    // THE ASSERTION THAT WOULD HAVE CAUGHT THE BUG. Each side pairs a group-1 player with a
+    // group-2 player, and the seed gives group 2 the low ball for two of the four sides. Reading
+    // group 1 alone made every side's total its group-1 member's card, so The Hogs led on Craig's
+    // 68 alone. With both groups read, The Dawgs win on their group-2 partner's 59.
+    //
+    // Scoped to the STANDINGS block: the player-details grid further down lists raw per-player
+    // gross/net totals, and matching against the whole page picks those up instead (the first
+    // draft of this test did exactly that and failed for the wrong reason).
+    const standings = body.slice(body.indexOf('STANDINGS'), body.indexOf('FRONT'));
+    // The winning side, and its winning number, in the same row.
+    expect(standings).toMatch(/1\s+The Dawgs\s+59/);
+    // The Hogs are SECOND now — under the old behaviour they led.
+    expect(standings).toMatch(/2\s+The Hogs/);
+
+    // Zero-sum, on screen: the dollar column must cancel. This is the invariant AGENTS.md asks
+    // for, asserted where a golfer would read it rather than only in the compute layer.
+    const money = [...body.matchAll(/([+−-])\$(\d+)/g)]
+      .map(([, sign, n]) => (sign === '+' ? 1 : -1) * Number(n));
+    expect(money.length).toBeGreaterThanOrEqual(4);
+    expect(money.reduce((s, x) => s + x, 0)).toBe(0);
+
+    await page.screenshot({ path: 'e2e/screenshots/f019-two-groups-leaderboard.png', fullPage: true });
+  });
+
+  test('F-019: the player grid lists EVERY group, not just the first', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const id = await seed(page, 'F-019: 8 players, TWO tee times, four sides');
+    await page.goto(`${BASE}/pool/${id}/leaderboard`);
+    await expect(page.getByText('PLAYER DETAILS')).toBeVisible();
+
+    const body = await page.locator('body').innerText();
+    // Group 1 (was the only group shown) AND group 2 (was missing entirely) — eight names under a
+    // board that settles eight players.
+    for (const name of ['Craig', 'Jym', 'Dave', 'Rick', 'Sam', 'Tony', 'Will', 'Gary']) {
+      expect(body).toContain(name);
+    }
+  });
+
+  test('F-019: the teams sheet prints a box per tee time', async ({ page }) => {
+    const id = await seed(page, 'F-019: 8 players, TWO tee times, four sides');
+    await page.goto(`${BASE}/pool/${id}/teams`);
+    await expect(page.getByText('Two Tee Times', { exact: false }).first()).toBeVisible();
+
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('Group 1');
+    expect(body).toContain('Group 2');
+    // The two tee times, which a single-group game could not express.
+    expect(body).toContain('8:10');
+    expect(body).toContain('8:20');
+    await page.screenshot({ path: 'e2e/screenshots/f019-teams-two-groups.png', fullPage: true });
+  });
+
+  test('F-019: a threesome and a guest on nobody\'s side', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const id = await seed(page, 'F-019: 7 players as 4 + 3');
+    await page.goto(`${BASE}/pool/${id}/leaderboard`);
+    await expect(page.getByText('STANDINGS')).toBeVisible();
+
+    const body = await page.locator('body').innerText();
+    // Will is in a playing group but on NO side: he must appear as a player...
+    expect(body).toContain('Will');
+    // ...and the money must still be zero-sum across the three sides that do exist.
+    const money = [...body.matchAll(/([+−-])\$(\d+)/g)]
+      .map(([, sign, n]) => (sign === '+' ? 1 : -1) * Number(n));
+    expect(money.reduce((s, x) => s + x, 0)).toBe(0);
+    await page.screenshot({ path: 'e2e/screenshots/f019-threesome-guest.png', fullPage: true });
+  });
+
+  // The regression direction that matters most: every side game in the live database has one
+  // group, and must look and settle exactly as it did.
+  test('F-019: an ordinary ONE-group 2v2 is unchanged', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const id = await seed(page, 'F-019 control: 4 players, ONE group');
+    await page.goto(`${BASE}/pool/${id}/leaderboard`);
+    await expect(page.getByText('STANDINGS')).toBeVisible();
+
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('Craig & Rick');
+    expect(body).toContain('Jym & Dave');
+    // The pinned figures from one-group-golden: A wins the front by 4, the back by 6, overall 10.
+    expect(body).toMatch(/Craig & Rick by 4/);
+    expect(body).toMatch(/Craig & Rick by 10/);
+    const money = [...body.matchAll(/([+−-])\$(\d+)/g)]
+      .map(([, sign, n]) => (sign === '+' ? 1 : -1) * Number(n));
+    expect(money.reduce((s, x) => s + x, 0)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F-019 — the SCORECARD's side totals also span every group
+// ---------------------------------------------------------------------------
+//
+// Separate describe because it drives the scorecard rather than a read-only sheet. §5.ah made the
+// card read side totals FROM THE ENGINE so the card and the money can never disagree — but it
+// handed the engine only its OWN group's scores. With two tee times that made each side's total
+// its in-my-group member alone, so a card in group 1 and the leaderboard showed different numbers
+// for the same side. The card must assemble every group's rows, as PoolOverviewPanel does.
+test.describe('F-019: the scorecard agrees with the leaderboard across groups', () => {
+  test('F-019: side totals on the card match the board when partners are split', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const id = await seed(page, 'F-019: 8 players, TWO tee times, four sides');
+
+    // What the BOARD says each side scored — the engine's answer, over both groups.
+    await page.goto(`${BASE}/pool/${id}/leaderboard`);
+    await expect(page.getByText('STANDINGS')).toBeVisible();
+    const boardBody = await page.locator('body').innerText();
+    const standings = boardBody.slice(boardBody.indexOf('STANDINGS'), boardBody.indexOf('FRONT'));
+    const boardDawgs = standings.match(/The Dawgs\s+(\d+)/)?.[1];
+    expect(boardDawgs).toBeTruthy();
+
+    // Now the CARD for group 1. The Dawgs' low ball belongs to their group-2 member, so a card
+    // that reads only group 1 must show a different (worse) figure — this is the disagreement.
+    await page.goto(`${BASE}/pool/${id}`);
+    await page.getByRole('button', { name: /enter scores/i }).first().click();
+    await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+
+    const cardBody = await page.locator('body').innerText();
+    // The card names all four sides (it reads them from the engine).
+    expect(cardBody).toContain('The Dawgs');
+    // And its figure for the Dawgs is the SAME number the board showed. The card's side row reads
+    // "The Dawgs <per-hole cells> <IN> <TOT><rank>", so match the total anywhere in that row.
+    const dawgsRow = cardBody.split('\n').find((l) => l.includes('The Dawgs')) ?? '';
+    expect(dawgsRow).toContain(boardDawgs!);
+    // A card reading only its OWN group would show The Hogs leading (Craig's 68) — assert the
+    // card's own ranking agrees with the board's instead.
+    expect(dawgsRow).toContain('1st');
+
+    await page.screenshot({ path: 'e2e/screenshots/f019-scorecard-two-groups.png', fullPage: true });
+  });
+});

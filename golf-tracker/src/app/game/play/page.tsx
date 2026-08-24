@@ -325,10 +325,22 @@ export default function PlayGamePage() {
   //
   // Scoped to the pool side-game path only. This card ALSO serves a 2-team tournament, which has
   // no PoolGame and therefore no engine to ask — that path keeps its own math untouched.
+  // A side game may tee off in SEVERAL playing groups with partners split across them (F-019), so
+  // the card must hand the engine every group's rows — my own live scores for my group, the cache
+  // for the others (the same assembly PoolOverviewPanel does, and kept live by the poolOtherTick
+  // subscription above). Passing only my own group made each side's total its in-my-group member
+  // alone, so a card in group 2 showed different side totals than the leaderboard.
   const sideBreakdown = (() => {
     if (!poolGame || !poolCtx || !isSingleGroupGame(poolGame)) return null;
     if (getGameMode(poolGame.gameMode)?.category !== 'team-within-group') return null;
-    const result = computeGameResult(poolGame, new Map([[poolCtx.matchupId, scores]]));
+    void poolOtherTick;   // recompute when another group posts a score
+    const byMatchup = new Map<string, GameScore[]>([[poolCtx.matchupId, scores]]);
+    for (const t of poolGame.teams) {
+      if (t.matchupId === poolCtx.matchupId) continue;
+      const cached = loadGameScores(t.matchupId);
+      if (Array.isArray(cached)) byMatchup.set(t.matchupId, cached);
+    }
+    const result = computeGameResult(poolGame, byMatchup);
     return result.kind === 'individual' ? result.sideBreakdown ?? null : null;
   })();
 
