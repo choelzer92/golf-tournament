@@ -334,9 +334,15 @@ describe('GOLDEN: explicit matchupId selects that group (MUST NOT MOVE)', () => 
     expect(sumMoney(r)).toBeCloseTo(0, 6);
   });
 
-  // The DEFAULT (no matchupId) with two teams present: today it silently takes team ONE. This
-  // is the exact line F-019 changes, so today's answer is written down before it moves.
-  it('omitting the matchupId takes the FIRST team today', () => {
+  // THE ONE CASE IN THIS FILE THAT MOVED, and the only one that should have.
+  //
+  // Before F-019, omitting the matchupId with two teams present silently took team ONE. That was
+  // the whole one-group assumption, and it is now "the whole field": a side game whose partners
+  // sit in different foursomes has to settle on everybody's scores.
+  //
+  // Kept as a SHOULD MOVE record rather than deleted, so the diff that changed it stays legible
+  // — the n-side-golden convention (label intent, don't just re-record).
+  it('SHOULD MOVE — omitting the matchupId now spans EVERY group', () => {
     const game = makeGame({
       gameMode: 'skins',
       indexes: [0, 4, 8, 12, 16, 20, 24, 28],
@@ -346,8 +352,20 @@ describe('GOLDEN: explicit matchupId selects that group (MUST NOT MOVE)', () => 
       ],
       modeSettings: { dollarsPerSkin: 5, carryover: true },
     });
-    const r = run(game, spreadCards(['p1', 'p2', 'p3', 'p4']));
-    expect(r.standings.map((s) => s.playerId).sort()).toEqual(['p1', 'p2', 'p3', 'p4']);
+    // Both groups' rows, under their own matchup keys — what the leaderboard fetches.
+    const scores = scoreMap(
+      ['m1', spreadCards(['p1', 'p2', 'p3', 'p4'])],
+      ['m2', spreadCards(['p5', 'p6', 'p7', 'p8'])],
+    );
+    const mode = getGameMode('skins')!;
+    const r = mode.compute(buildGameModeContext(game, scores));
+
+    // WAS: ['p1','p2','p3','p4'] — half the field.
+    expect(r.standings.map((s) => s.playerId).sort())
+      .toEqual(['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8']);
+    expect(sumMoney(r)).toBeCloseTo(0, 6);
+    // Every player has a real card, so nobody is sitting at thru 0 having been dropped.
+    expect(r.standings.every((s) => s.thru === 18)).toBe(true);
   });
 });
 
