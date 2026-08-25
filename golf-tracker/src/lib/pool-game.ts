@@ -1384,6 +1384,49 @@ export function groupShapeLabel(shape: number[]): string {
   return shape.join(' + ');
 }
 
+/**
+ * Deal handicap-sorted players into a shape so the groups come out EVEN.
+ *
+ * `sortedIds` must be ordered by handicap (low → high); `shape` comes from `groupShapesFor`.
+ *
+ * SERPENTINE, not round-robin, and the difference is the whole reason this is a named function
+ * with tests. Dealing 1-2-1-2 through eight players gives group 1 every odd-ranked player:
+ *
+ *   round-robin  g1 = 2, 6, 10, 14 (32)   g2 = 4, 8, 12, 16 (40)   <- 8 apart
+ *   serpentine   g1 = 2, 8, 10, 16 (36)   g2 = 4, 6, 12, 14 (36)   <- dead even
+ *
+ * A snake draft pairs each low handicap with a high one, which is what "balanced" has to mean
+ * here. The round-robin version shipped in a screenshot before anyone noticed the totals.
+ *
+ * Groups may be uneven in SIZE (3 + 2), so a group that is already full is skipped and the snake
+ * continues through the rest — otherwise the last player lands in a group with no room.
+ */
+export function dealBalancedIntoShape(sortedIds: string[], shape: number[]): string[][] {
+  const buckets: string[][] = shape.map(() => []);
+  if (buckets.length === 0) return [];
+  let i = 0;                 // index into sortedIds
+  let dir = 1;               // +1 walking down the groups, -1 walking back up
+  let g = 0;                 // current group
+  while (i < sortedIds.length) {
+    if (buckets[g].length < shape[g]) {
+      buckets[g].push(sortedIds[i]);
+      i++;
+    }
+    // Step to the next group, reversing at each end — the snake. When a group is full it is
+    // simply passed over on the way through.
+    const next = g + dir;
+    if (next < 0 || next >= buckets.length) {
+      dir = -dir;            // turn around WITHOUT moving, so the end group gets two in a row
+    } else {
+      g = next;
+    }
+    // Guard against a shape that cannot hold everyone (sum(shape) < ids.length): if every group
+    // is full, stop rather than spin.
+    if (buckets.every((b, k) => b.length >= shape[k])) break;
+  }
+  return buckets;
+}
+
 // True when N players have exactly one sensible shape, so the app should just use it rather than
 // ask. Four players in tee groups is the case that matters: asking "how do you want to walk?"
 // when there is only one answer is the kind of exposed complexity the north star argues against.

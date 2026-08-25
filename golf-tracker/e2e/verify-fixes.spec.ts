@@ -1289,9 +1289,18 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
       await page.getByPlaceholder('HCP').fill(hcp);
       await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
     }
-    // §5.al: a side game says "Sides" on the way to the Sides step, not "Teams".
-    await page.getByRole('button', { name: 'Next: Set Sides' }).click();
-    await page.getByRole('button', { name: 'Next: Sides' }).click();
+    // F-019: a side game with MORE THAN FOUR players now picks its playing groups first (they
+    // can't all walk together), so the path to the Sides step runs through the Groups step. At
+    // four or fewer it goes straight there, exactly as before.
+    //
+    // §5.al: either way a side game says "Sides"/"Groups" on the way, never "Teams".
+    const viaGroups = opts.players.length > 4;
+    await page.getByRole('button', { name: viaGroups ? 'Next: Set Groups' : 'Next: Set Sides' }).click();
+    await page.getByRole('button', { name: viaGroups ? 'Next: Groups' : 'Next: Sides' }).click();
+    if (viaGroups) {
+      // Accept the proposed groups untouched — this helper is about the SIDES steps.
+      await page.getByRole('button', { name: 'Next: Sides' }).click();
+    }
     if (opts.thirdSide) {
       await page.getByRole('button', { name: '+ Add a side' }).click();
       for (const nm of [opts.players[4][0], opts.players[5][0]]) {
@@ -1494,5 +1503,136 @@ test.describe('F-019: the scorecard agrees with the leaderboard across groups', 
     expect(dawgsRow).toContain('1st');
 
     await page.screenshot({ path: 'e2e/screenshots/f019-scorecard-two-groups.png', fullPage: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F-019 — the wizard asks WHO WALKS WITH WHOM before it asks about sides
+// ---------------------------------------------------------------------------
+//
+// The engine can settle two groups, but until now nothing in the UI could CREATE one: the tees
+// step auto-built a single "Group" holding the whole field. A side game with more than four
+// players now gets a Groups step first — and, critically, one with four or fewer does NOT, so the
+// ordinary 2v2 gains no taps.
+test.describe('F-019: the wizard builds real playing groups', () => {
+  async function startSideGame(page: import('@playwright/test').Page, players: [string, string][]) {
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Past games (for recent-course' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await card.getByRole('button', { name: 'Open →' }).click();
+    await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
+
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Groups Test');
+    await page.locator('select').first().selectOption({ label: 'Sides (within group)' });
+    await page.getByRole('button', { name: /Next: Select Course/ }).click();
+    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+    await page.getByRole('button', { name: /Next: Build Field/ }).click();
+    for (const [nm, hcp] of players) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+  }
+
+  const EIGHT: [string, string][] = [
+    ['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'],
+    ['Sam', '6'], ['Tony', '14'], ['Will', '10'], ['Gary', '2'],
+  ];
+
+  test('F-019: eight players are asked how they split, and get two tee times', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await startSideGame(page, EIGHT);
+
+    // The field step now promises GROUPS for an 8-player side game, not Sides.
+    await page.getByRole('button', { name: 'Next: Set Groups' }).click();
+    await page.getByRole('button', { name: 'Next: Groups' }).click();
+
+    // The Groups step: it says why it is asking, and offers the shapes that fit eight.
+    await expect(page.getByRole('heading', { name: /playing together/ })).toBeVisible();
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('4 + 4');
+    expect(body).toContain('3 + 3 + 2');
+    // It never offers a shape golf does not play (§5.ao / groupShapesFor's `typical` rule).
+    expect(body).not.toContain('2 + 2 + 2 + 2');
+    // And it names the independence explicitly, since that is the surprising part.
+    expect(body).toMatch(/partner can be in the other group/i);
+
+    // Two groups, each with its own tee time input.
+    expect(body).toContain('Group 1');
+    expect(body).toContain('Group 2');
+    const times = page.locator('input[type="time"]');
+    await expect(times).toHaveCount(2);
+    await times.nth(0).fill('08:10');
+    await times.nth(1).fill('08:20');
+
+    await page.screenshot({ path: 'e2e/screenshots/f019-wizard-groups.png', fullPage: true });
+
+    // On to the sides, then create — and the saved game must hold TWO teams with those tee times.
+    await page.getByRole('button', { name: 'Next: Sides' }).click();
+    await expect(page.getByRole('button', { name: /Next: Review/ })).toBeVisible();
+    await page.getByRole('button', { name: /Next: Review/ }).click();
+    await page.getByRole('button', { name: /Create Pool Game/i }).click();
+    await page.waitForURL(/\/pool\/[^/]+$/, { timeout: 15_000 });
+
+    // The teams sheet must show two groups with those tee times — the sheet Craig was looking at.
+    // Navigate by CLICKING, not page.goto: the fake backend lives in this tab's JS heap for a
+    // wizard-built game (it was never seeded into sessionStorage), so a reload would wipe it and
+    // the sheet would render empty. This is the trap the seed() helper documents at the top.
+    await page.getByRole('button', { name: 'Teams', exact: true }).click();
+    await page.waitForURL(/\/teams/, { timeout: 15_000 });
+    const sheet = await page.locator('body').innerText();
+    expect(sheet).toContain('8:10');
+    expect(sheet).toContain('8:20');
+    expect(sheet).toContain('Group 1');
+    expect(sheet).toContain('Group 2');
+  });
+
+  test('F-019: choosing 3 + 3 + 2 gives three groups', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await startSideGame(page, EIGHT);
+    await page.getByRole('button', { name: 'Next: Set Groups' }).click();
+    await page.getByRole('button', { name: 'Next: Groups' }).click();
+
+    await page.getByRole('button', { name: /3 \+ 3 \+ 2/ }).click();
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('Group 3');
+    await expect(page.locator('input[type="time"]')).toHaveCount(3);
+  });
+
+  // THE REGRESSION GUARD THAT MATTERS. An ordinary 2v2 must not gain a step: four players walk
+  // together, there is nothing to ask, and asking would be the exposed complexity the north star
+  // argues against.
+  test('F-019: an ordinary 2v2 is NOT asked about groups', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await startSideGame(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']]);
+
+    // Still says Sides, as it always did (§5.al).
+    await expect(page.getByRole('button', { name: 'Next: Set Sides' })).toBeVisible();
+    await page.getByRole('button', { name: 'Next: Set Sides' }).click();
+    await page.getByRole('button', { name: 'Next: Sides' }).click();
+
+    // Lands straight on the Sides step — no Groups step, no tee-time inputs.
+    const body = await page.locator('body').innerText();
+    expect(body).not.toMatch(/playing together/i);
+    expect(body).not.toContain('Group 1');
+    await expect(page.getByRole('button', { name: /Next: Review/ })).toBeVisible();
+  });
+
+  test('F-019: five players get 3 + 2 without being asked (only one shape fits)', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await startSideGame(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
+    await page.getByRole('button', { name: 'Next: Set Groups' }).click();
+    await page.getByRole('button', { name: 'Next: Groups' }).click();
+
+    await expect(page.getByRole('heading', { name: /playing together/ })).toBeVisible();
+    const body = await page.locator('body').innerText();
+    // Two groups exist...
+    expect(body).toContain('Group 1');
+    expect(body).toContain('Group 2');
+    // ...but no shape CHOICE is offered, because 3+2 is the only thing that fits five under the
+    // tee rules. groupShapeIsObvious(5, TEE) is true — see group-shapes.test.ts.
+    expect(body).not.toContain('How do they split?');
   });
 });

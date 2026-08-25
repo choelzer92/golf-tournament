@@ -36,6 +36,10 @@ import {
   orderPlayerIdsWithCaptain,
   teeOptionsForPlayer,
   defaultSubTeams,
+  groupShapesFor,
+  groupShapeLabel,
+  dealBalancedIntoShape,
+  TEE_GROUP_SHAPE_OPTS,
 } from '@/lib/pool-game';
 import {
   type RosterPlayer,
@@ -81,7 +85,10 @@ const WIZARD_KEY = 'pool_wizard_draft';
 // Set by the Format Library's "Start a game" to preconfigure the wizard once.
 const FORMAT_SEED_KEY = 'pool_format_seed';
 
-type Step = 'details' | 'course' | 'field' | 'tees' | 'teams' | 'create';
+// 'groups' is the PLAYING-GROUP step, shown only for a side game whose field is too big to walk
+// together (F-019). 'teams' then holds the SIDES for a side game and the foursomes for a pool —
+// the two axes are separate steps because they're separate questions (§5.an).
+type Step = 'details' | 'course' | 'field' | 'tees' | 'groups' | 'teams' | 'create';
 
 function getToken() {
   return sessionStorage.getItem('ghin_token');
@@ -211,6 +218,15 @@ export default function NewPoolGamePage() {
   const modeCategory = getGameMode(gameMode)?.category;
   const isSingleGroup = modeCategory === 'individual' || modeCategory === 'team-within-group';
   const isWithinGroup = modeCategory === 'team-within-group';
+
+  // F-019: a side game's PLAYING GROUPS are chosen separately from its sides, because a partner
+  // may be in the other foursome. More than four players cannot walk together, so they need real
+  // tee groups — and then the wizard asks for them (the 'groups' step) before asking for sides.
+  //
+  // At four or fewer this is false and nothing changes: the ordinary 2v2 keeps its exact flow and
+  // gains no taps, which is the point (an option that appears when it can't matter is the
+  // "exposed complexity" the north star argues against). §5.ao: the app proposes, you adjust.
+  const needsPlayingGroups = isWithinGroup && players.length > 4;
 
   // Hydrate wizard draft on mount
   useEffect(() => {
@@ -452,7 +468,7 @@ export default function NewPoolGamePage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6">
-        <StepIndicator current={step} course={course} individualGame={modeCategory === 'individual'} withinGroup={isWithinGroup} />
+        <StepIndicator current={step} course={course} individualGame={modeCategory === 'individual'} withinGroup={isWithinGroup} playingGroups={needsPlayingGroups} />
 
         {step === 'details' && (
           <DetailsStep
@@ -518,7 +534,7 @@ export default function NewPoolGamePage() {
             preselectedGroupId={sourceGroupId}
             formatSeedApplied={formatSeedApplied}
             // "Set Tees" for an individual game, which has no team/side step after tees at all.
-            nextLabel={modeCategory === 'individual' ? 'Tees' : isWithinGroup ? 'Sides' : 'Teams'}
+            nextLabel={modeCategory === 'individual' ? 'Tees' : needsPlayingGroups ? 'Groups' : isWithinGroup ? 'Sides' : 'Teams'}
             onNext={() => setStep('tees')}
             onBack={() => setStep('course')}
           />
@@ -534,23 +550,28 @@ export default function NewPoolGamePage() {
             nine={wizardNine}
             // An INDIVIDUAL game skips team-building entirely and goes straight to money, so the
             // button has to say that rather than promise a step that never comes.
-            nextLabel={modeCategory === 'individual' ? 'Money' : isWithinGroup ? 'Sides' : 'Teams'}
+            nextLabel={modeCategory === 'individual' ? 'Money' : needsPlayingGroups ? 'Groups' : isWithinGroup ? 'Sides' : 'Teams'}
             onNext={() => {
               // Single-group games (individual + 2v2) run as ONE team holding every
               // player. Auto-build it now. Individual → straight to Create;
               // within-group → the SubTeamsStep (shown in the 'teams' slot).
               if (isSingleGroup) {
-                setTeams([{
-                  id: crypto.randomUUID(),
-                  name: 'Group',
-                  playerIds: players.map((p) => p.id),
-                  matchupId: crypto.randomUUID(),
-                }]);
+                // A side game too big to walk together gets REAL playing groups, proposed
+                // balanced and adjustable on the 'groups' step (F-019). Everything else keeps
+                // the single "Group" holding the whole field — the shape every existing game has.
+                setTeams(needsPlayingGroups
+                  ? proposePlayingGroups(players, course, parseFloat(handicapAllowance) || 100, handicapBasis)
+                  : [{
+                    id: crypto.randomUUID(),
+                    name: 'Group',
+                    playerIds: players.map((p) => p.id),
+                    matchupId: crypto.randomUUID(),
+                  }]);
                 if (isWithinGroup) {
                   setSides((prev) => prev && prev.length > 0
                     ? prev
                     : fromLegacySubTeams(defaultSubTeams(players.map((p) => p.id), players, course, parseFloat(handicapAllowance) || 100, handicapBasis)));
-                  setStep('teams');
+                  setStep(needsPlayingGroups ? 'groups' : 'teams');
                 } else {
                   setStep('create');
                 }
@@ -559,6 +580,25 @@ export default function NewPoolGamePage() {
               }
             }}
             onBack={() => setStep('field')}
+          />
+        )}
+
+        {/* F-019: WHO WALKS WITH WHOM — a side game's tee sheet, asked separately from its sides.
+            Reuses the classic pool's TeamsStep verbatim (it already does exactly this: balanced
+            proposal, drag between groups, tee time per group, reorder, add/remove) rather than
+            growing a second editor for the same question. Captains are off: a side game's money
+            has no captain role, and the panel would be noise. */}
+        {step === 'groups' && needsPlayingGroups && (
+          <PlayingGroupsStep
+            course={course}
+            players={players}
+            teams={teams}
+            setTeams={setTeams}
+            handicapAllowance={parseFloat(handicapAllowance) || 100}
+            handicapBasis={handicapBasis}
+            nine={wizardNine}
+            onNext={() => setStep('teams')}
+            onBack={() => setStep('tees')}
           />
         )}
 
@@ -572,7 +612,9 @@ export default function NewPoolGamePage() {
             sides={sides}
             setSides={setSides}
             onNext={() => setStep('create')}
-            onBack={() => setStep('tees')}
+            // Back goes to the groups step when there is one, so the wizard's back button
+            // retraces the way in rather than skipping a step the organizer just filled in.
+            onBack={() => setStep(needsPlayingGroups ? 'groups' : 'tees')}
           />
         )}
 
@@ -642,12 +684,16 @@ export default function NewPoolGamePage() {
   );
 }
 
-function StepIndicator({ current, course, individualGame, withinGroup }: { current: Step; course: CourseSelection | null; individualGame?: boolean; withinGroup?: boolean }) {
+function StepIndicator({ current, course, individualGame, withinGroup, playingGroups }: { current: Step; course: CourseSelection | null; individualGame?: boolean; withinGroup?: boolean; playingGroups?: boolean }) {
   const steps = [
     { key: 'details', label: 'Details' },
     { key: 'course', label: course?.courseName || 'Course' },
     { key: 'field', label: 'Field' },
     { key: 'tees', label: 'Tees' },
+    // A side game whose field is too big to walk together picks its playing groups first, then
+    // its sides — two steps because they're two independent questions (F-019, §5.an). Absent for
+    // every other flow, so nothing else gains a step.
+    ...(playingGroups ? [{ key: 'groups', label: 'Groups' }] : []),
     // Individual games skip team-building entirely; 2v2 within-group replaces it
     // with a "Sides" step; classic pool keeps "Teams".
     ...(individualGame ? [] : [{ key: 'teams', label: withinGroup ? 'Sides' : 'Teams' }]),
@@ -2217,6 +2263,38 @@ function makeTeam(index: number, playerIds: string[], captainId?: string): PoolT
   };
 }
 
+// F-019: the proposed TEE SHEET for a side game — who walks with whom, before anyone says a word
+// about money. `groupShapesFor` supplies the shape (8 → 4+4, 7 → 4+3, 5 → 3+2, and never a group
+// of five), and the field is dealt into it low→high so the groups are balanced by handicap. §5.ao:
+// the app proposes, the organizer adjusts.
+//
+// Named "Group N" rather than "Team N" because on this axis they are not teams — the money teams
+// are the sides, and calling both "team" is exactly the conflation F-019 is about (§5.al).
+function proposePlayingGroups(
+  players: Player[],
+  course: CourseSelection | null,
+  allowance: number,
+  basis: 'course' | 'index',
+): PoolTeam[] {
+  const shape = groupShapesFor(players.length, TEE_GROUP_SHAPE_OPTS)[0];
+  const ids = sortPlayerIdsByHcap(players.map((p) => p.id), players, course, allowance, basis);
+  // No shape fits (1 player, or a count the tee rules can't express): keep everyone together
+  // rather than invent a split. The step isn't shown in that case anyway.
+  if (!shape) {
+    return [{ id: crypto.randomUUID(), name: 'Group', playerIds: ids, matchupId: crypto.randomUUID(), teeTime: '' }];
+  }
+  // Snake-deal so each group gets a spread of handicaps — the same "even them out" intent as the
+  // pool's balance, without the optimizer. See dealBalancedIntoShape for why it must snake rather
+  // than go round-robin (round-robin gave group 1 every odd-ranked player: 32 vs 40 at eight).
+  return dealBalancedIntoShape(ids, shape).map((playerIds, i) => ({
+    id: crypto.randomUUID(),
+    name: `Group ${i + 1}`,
+    playerIds,
+    matchupId: crypto.randomUUID(),
+    teeTime: '',
+  }));
+}
+
 // Visual "who's playing from where" step: players grouped by their assigned tee,
 // tap a player to move them to a different (same-gender) tee. Purely for setting/
 // reviewing tees before forming teams — tees remain editable in the Teams step too.
@@ -2333,6 +2411,194 @@ function TeesStep({
         className="w-full mt-4 rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800"
       >
         Next: {nextLabel}
+      </button>
+    </div>
+  );
+}
+
+// F-019 — WHO WALKS WITH WHOM. A side game's tee sheet, asked separately from its sides because
+// the two are independent: your partner may be in the other foursome (§5.an).
+//
+// WHY NOT REUSE TeamsStep, which the design suggested. It answers the same question but is built
+// around the classic pool's needs: a captains panel (a side game has no captain role), three
+// team-building methods with an optimizer, pairing locks, and "Set Teams" vocabulary throughout —
+// which is the exact team/side conflation F-019 is about (§5.al). Reusing it would mean threading
+// a mode flag through ~10 labels and hiding three panels. The genuine reuse is of the pure
+// helpers, which is where the logic lives: groupShapesFor, sortPlayerIdsByHcap,
+// proposePlayingGroups. This component is the thin phone-first shell over them.
+function PlayingGroupsStep({
+  course, players, teams, setTeams, handicapAllowance, handicapBasis, nine, onNext, onBack,
+}: {
+  course: CourseSelection | null;
+  players: Player[];
+  teams: PoolTeam[]; setTeams: (t: PoolTeam[]) => void;
+  handicapAllowance: number;
+  handicapBasis: 'course' | 'index';
+  nine: 'front9' | 'back9' | null;
+  onNext: () => void; onBack: () => void;
+}) {
+  // The player being moved. Tap a player, then tap the group to move them to — the same
+  // two-tap idiom the sides step already uses, so there's one gesture to learn.
+  const [moving, setMoving] = useState<string | null>(null);
+
+  const hcapOf = (p: Player): number =>
+    course ? getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine) : (p.handicapIndex ?? 0);
+  const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? 'Unknown';
+
+  // Every shape the field can take (8 → 4+4 or 3+3+2). §5.ao: an uneven count is a QUESTION, not
+  // a silent default, so these are offered rather than decided.
+  const shapes = groupShapesFor(players.length, TEE_GROUP_SHAPE_OPTS);
+  const currentShape = teams.map((t) => t.playerIds.length).sort((a, b) => b - a);
+
+  function applyShape(shape: number[]) {
+    // Rebuild from the balanced proposal for that shape, keeping any tee times already typed
+    // (they belong to the slot, not to the players in it).
+    const times = teams.map((t) => t.teeTime ?? '');
+    const rebuilt = proposePlayingGroups(players, course, handicapAllowance, handicapBasis);
+    // proposePlayingGroups always returns the FIRST shape; re-deal for a different group count
+    // using the same balanced dealer, so every shape on this screen is balanced the same way.
+    const ids = sortPlayerIdsByHcap(players.map((p) => p.id), players, course, handicapAllowance, handicapBasis);
+    setTeams(dealBalancedIntoShape(ids, shape).map((playerIds, i) => ({
+      id: rebuilt[i]?.id ?? crypto.randomUUID(),
+      name: `Group ${i + 1}`,
+      playerIds,
+      matchupId: rebuilt[i]?.matchupId ?? crypto.randomUUID(),
+      teeTime: times[i] ?? '',
+    })));
+    setMoving(null);
+  }
+
+  function moveTo(teamId: string) {
+    if (!moving) return;
+    setTeams(teams.map((t) => {
+      const without = t.playerIds.filter((id) => id !== moving);
+      if (t.id !== teamId) return { ...t, playerIds: without };
+      return {
+        ...t,
+        playerIds: sortPlayerIdsByHcap([...without, moving], players, course, handicapAllowance, handicapBasis),
+      };
+    }));
+    setMoving(null);
+  }
+
+  function setTeeTime(teamId: string, teeTime: string) {
+    setTeams(teams.map((t) => (t.id === teamId ? { ...t, teeTime } : t)));
+  }
+
+  // Nobody may be left out: a player in no group has no scorecard to be on.
+  const assigned = new Set(teams.flatMap((t) => t.playerIds));
+  const unassigned = players.filter((p) => !assigned.has(p.id));
+  const canProceed = unassigned.length === 0 && teams.every((t) => t.playerIds.length > 0);
+
+  return (
+    <div>
+      <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
+      <h2 className="text-lg font-semibold text-gray-900 mb-1">Who&apos;s playing together?</h2>
+      <p className="text-sm text-gray-600 mb-4">
+        {players.length} players can&apos;t walk as one group, so they tee off separately — each group
+        gets its own tee time and scorecard. <span className="text-gray-500">Your sides come next, and
+        a partner can be in the other group.</span>
+      </p>
+
+      {/* The shape choice. Only shown when there IS one — at 4 or 7 players exactly one shape
+          fits, and offering a single button is noise. */}
+      {shapes.length > 1 && (
+        <div className="bg-white rounded-lg shadow p-4 mb-4">
+          <p className="text-sm font-medium text-gray-800 mb-1">How do they split?</p>
+          <p className="text-xs text-gray-500 mb-3">
+            Balanced by handicap either way — you can still move anyone by hand below.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {shapes.map((shape) => {
+              const isCurrent = shape.length === currentShape.length
+                && shape.every((n, i) => n === currentShape[i]);
+              return (
+                <button
+                  key={shape.join('-')}
+                  type="button"
+                  onClick={() => applyShape(shape)}
+                  className={`min-h-[44px] rounded-md border px-4 py-2 text-sm font-medium ${
+                    isCurrent
+                      ? 'border-green-600 bg-green-600 text-white'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                  }`}
+                >
+                  {groupShapeLabel(shape)}
+                  <span className={`ml-1.5 text-xs ${isCurrent ? 'text-green-100' : 'text-gray-500'}`}>
+                    {shape.length} group{shape.length === 1 ? '' : 's'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {teams.map((team) => (
+          <div key={team.id} className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="font-semibold text-gray-900">{team.name}</p>
+              <label className="flex items-center gap-1.5 text-xs text-gray-500">
+                Tee time
+                <input
+                  type="time"
+                  value={team.teeTime ?? ''}
+                  onChange={(e) => setTeeTime(team.id, e.target.value)}
+                  className="rounded border border-gray-300 px-2 py-1 text-sm text-gray-900"
+                />
+              </label>
+            </div>
+            <ul className="divide-y divide-gray-100">
+              {team.playerIds.map((pid) => (
+                <li key={pid}>
+                  <button
+                    type="button"
+                    onClick={() => setMoving(moving === pid ? null : pid)}
+                    className={`w-full flex items-center justify-between gap-2 px-2 py-2 text-left rounded ${
+                      moving === pid ? 'bg-green-50 ring-1 ring-green-500' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="text-sm text-gray-900 truncate">{nameOf(pid)}</span>
+                    <span className="text-xs text-gray-500 tabular-nums">
+                      {hcapOf(players.find((p) => p.id === pid)!)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+              {team.playerIds.length === 0 && (
+                <li className="px-2 py-2 text-xs text-gray-400">Nobody in this group yet.</li>
+              )}
+            </ul>
+            {/* The move target only appears while a player is selected, so the screen is quiet
+                until there's a reason for it to speak. */}
+            {moving && !team.playerIds.includes(moving) && (
+              <button
+                type="button"
+                onClick={() => moveTo(team.id)}
+                className="mt-2 w-full rounded-md border border-green-600 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
+              >
+                Move {nameOf(moving).split(' ')[0]} here
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {unassigned.length > 0 && (
+        <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2">
+          <p className="text-xs font-medium text-amber-800">
+            Not in a group yet: {unassigned.map((p) => p.name).join(', ')}
+          </p>
+        </div>
+      )}
+
+      <button
+        onClick={onNext}
+        disabled={!canProceed}
+        className="w-full mt-4 rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800 disabled:opacity-50"
+      >
+        Next: Sides
       </button>
     </div>
   );

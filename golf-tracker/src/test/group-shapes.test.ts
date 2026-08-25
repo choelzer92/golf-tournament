@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  groupShapesFor, groupShapeLabel, groupShapeIsObvious,
+  groupShapesFor, groupShapeLabel, groupShapeIsObvious, dealBalancedIntoShape,
   TEE_GROUP_SHAPE_OPTS, SIDE_SHAPE_OPTS,
 } from '@/lib/pool-game';
 
@@ -175,6 +175,73 @@ describe('groupShapesFor', () => {
     // relying on this, so it must not claim a choice exists where there is none.
     it('is true when NO shape fits at all', () => {
       expect(groupShapeIsObvious(1, { min: 2, max: 4 })).toBe(true);
+    });
+  });
+
+  // --- dealBalancedIntoShape ---------------------------------------------------------
+  //
+  // ADDED AFTER A SCREENSHOT CAUGHT THE BUG. The first version of the wizard's group proposal
+  // dealt round-robin, and e2e/screenshots/f019-wizard-groups.png showed the result: group 1
+  // holding handicaps 2, 6, 10, 14 (32) against group 2's 4, 8, 12, 16 (40). Every assertion
+  // passed — the groups were the right SIZE, the shape was right, nobody was unassigned — and the
+  // proposal labelled "balanced by handicap" was 8 strokes out. Only the totals showed it.
+  describe('dealBalancedIntoShape', () => {
+    // Ranks 1..n as ids, so the "handicap" of id `pN` is N and a group's total is readable.
+    const ids = (n: number) => Array.from({ length: n }, (_, i) => `p${i + 1}`);
+    const rank = (id: string) => Number(id.slice(1));
+    const totalOf = (group: string[]) => group.reduce((s, id) => s + rank(id), 0);
+
+    it('snakes, so eight players split dead even', () => {
+      const groups = dealBalancedIntoShape(ids(8), [4, 4]);
+      // 1,4,5,8 vs 2,3,6,7 — both 18. Round-robin would give 1,3,5,7 (16) vs 2,4,6,8 (20).
+      expect(groups.map(totalOf)).toEqual([18, 18]);
+      expect(groups[0]).toEqual(['p1', 'p4', 'p5', 'p8']);
+      expect(groups[1]).toEqual(['p2', 'p3', 'p6', 'p7']);
+    });
+
+    it('the group totals stay as close as the count allows', () => {
+      // For every even split, the spread between the strongest and weakest group must be small —
+      // this is the property the screenshot violated. One stroke of slack per group covers the
+      // genuinely unavoidable remainder at odd counts.
+      for (const [n, shape] of [[8, [4, 4]], [6, [3, 3]], [12, [4, 4, 4]], [9, [3, 3, 3]]] as const) {
+        const totals = dealBalancedIntoShape(ids(n), [...shape]).map(totalOf);
+        expect(Math.max(...totals) - Math.min(...totals)).toBeLessThanOrEqual(shape.length);
+      }
+    });
+
+    it('respects UNEVEN group sizes and places everyone', () => {
+      const groups = dealBalancedIntoShape(ids(7), [4, 3]);
+      expect(groups.map((g) => g.length)).toEqual([4, 3]);
+      expect(groups.flat().sort()).toEqual(ids(7).sort());
+
+      const three = dealBalancedIntoShape(ids(8), [3, 3, 2]);
+      expect(three.map((g) => g.length)).toEqual([3, 3, 2]);
+      expect(three.flat().sort()).toEqual(ids(8).sort());
+    });
+
+    it('never drops or duplicates a player', () => {
+      for (const [n, shape] of [[5, [3, 2]], [7, [4, 3]], [8, [4, 4]], [8, [3, 3, 2]], [9, [3, 3, 3]]] as const) {
+        const flat = dealBalancedIntoShape(ids(n), [...shape]).flat();
+        expect(flat.length).toBe(n);
+        expect(new Set(flat).size).toBe(n);
+      }
+    });
+
+    it('a single group takes everybody', () => {
+      expect(dealBalancedIntoShape(ids(4), [4])).toEqual([ids(4)]);
+    });
+
+    // Degenerate input must terminate rather than spin — the loop turns around at each end, so a
+    // shape too small to hold everyone needs its own exit.
+    it('stops when the shape cannot hold everyone', () => {
+      const groups = dealBalancedIntoShape(ids(8), [2, 2]);
+      expect(groups.flat().length).toBe(4);
+      expect(groups.map((g) => g.length)).toEqual([2, 2]);
+    });
+
+    it('handles an empty shape and an empty field', () => {
+      expect(dealBalancedIntoShape(ids(4), [])).toEqual([]);
+      expect(dealBalancedIntoShape([], [2, 2])).toEqual([[], []]);
     });
   });
 
