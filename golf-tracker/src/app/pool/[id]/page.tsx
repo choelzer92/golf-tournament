@@ -314,6 +314,10 @@ export default function PoolHubPage() {
   const teamCount = game.teams.length;
   const hubSubtitle = isSingleGroupHub
     ? `${hubMode!.name} · ${game.players.length} player${game.players.length === 1 ? '' : 's'}`
+      // F-019: a side game can now tee off in several groups, and how many tee times there are is
+      // the first thing an organizer wants confirmed. Only added when there's more than one, so
+      // the ordinary 2v2 subtitle is untouched.
+      + (teamCount > 1 ? ` · ${teamCount} groups` : '')
     : `Pool Money Game · ${teamCount} foursome${teamCount === 1 ? '' : 's'}`;
 
   return (

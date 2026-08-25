@@ -6,6 +6,7 @@ import type { PoolGame, PoolTeamDetail } from '@/lib/pool-game';
 import type { TwoBestBallsVariant } from '@/lib/formats';
 import type { TeeSetOption } from '@/lib/game-state';
 import { loadPoolGame, fetchPoolGame, computePoolPlayerDetails, distinctRankingsForPlayers } from '@/lib/pool-game';
+import { getGameMode } from '@/lib/game-modes';
 
 // Plain-words label for the team's per-hole ball selection, shown on the card so
 // it matches the game's actual scoring (was hardcoded to "1 net + 1 gross").
@@ -80,6 +81,15 @@ export default function PoolScorecardsPage() {
 
   const pages = chunkPairs(details);
 
+  // "Foursome" only when every group actually holds four (§5.al, UI_CONVENTIONS §2). A side game
+  // says "groups": its money unit is the side, and F-019 lets it play 4 + 3.
+  const isSideGame = getGameMode(game.gameMode)?.category === 'team-within-group';
+  const n = game.teams.length;
+  const allFour = game.teams.length > 0 && game.teams.every((t) => t.playerIds.length === 4);
+  const groupWord = isSideGame || !allFour
+    ? `group${n === 1 ? '' : 's'}`
+    : `foursome${n === 1 ? '' : 's'}`;
+
   return (
     <div className="min-h-full bg-gray-200">
       {/*
@@ -137,7 +147,7 @@ export default function PoolScorecardsPage() {
           <div>
             <h1 className="text-lg font-bold">{game.name} — Scorecards</h1>
             <p className="text-xs text-green-200">
-              {game.teams.length} foursome{game.teams.length === 1 ? '' : 's'} · 2 cards per page (landscape)
+              {game.teams.length} {groupWord} · 2 cards per page (landscape)
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -156,7 +166,7 @@ export default function PoolScorecardsPage() {
 
       <div className="max-w-5xl mx-auto p-3 space-y-4 print:p-0 print:space-y-0 print:max-w-none">
         {pages.length === 0 ? (
-          <p className="text-center text-gray-500 py-10 bg-white rounded-lg">No foursomes to print yet.</p>
+          <p className="text-center text-gray-500 py-10 bg-white rounded-lg">No {groupWord} to print yet.</p>
         ) : (
           pages.map((pair, pageIdx) => (
             <div key={pageIdx} className="sc-page space-y-4 print:space-y-0">
@@ -321,7 +331,9 @@ function DrawnScorecard({ game, team }: { game: PoolGame; team: PoolTeamDetail }
       </div>
 
       <div className="px-3 py-1 text-[8px] text-gray-500 border-t border-gray-300 print:flex-shrink-0">
-        • = a stroke on that hole (off each player&apos;s own tee). {ballSelectionLabel(game.ballSelection)} per foursome.
+        {/* "per foursome" was wrong on any card that isn't four players — this one knows its own
+            size, so it says "group" unless it really is a foursome (§5.al). */}
+        • = a stroke on that hole (off each player&apos;s own tee). {ballSelectionLabel(game.ballSelection)} per {team.players.length === 4 ? 'foursome' : 'group'}.
       </div>
     </div>
   );

@@ -1426,6 +1426,63 @@ test.describe('F-019: a side game with two playing groups', () => {
     await page.screenshot({ path: 'e2e/screenshots/f019-teams-two-groups.png', fullPage: true });
   });
 
+  // Craig's actual question — "Shouldnt we break down the teams sheet by tee time/teams?" — was
+  // about BOTH axes. The groups were already there; the SIDES were not, so the sheet that gets
+  // sent out showed who walks together and nothing about who plays whom.
+  test('F-019: the teams sheet carries the SIDES as well as the tee groups', async ({ page }) => {
+    const id = await seed(page, 'F-019: 8 players, TWO tee times, four sides');
+    await page.goto(`${BASE}/pool/${id}/teams`);
+    await expect(page.getByText('Two Tee Times', { exact: false }).first()).toBeVisible();
+
+    const body = await page.locator('body').innerText();
+    // A Sides block, naming all four.
+    expect(body).toContain('Sides');
+    for (const side of ['The Hogs', 'The Dawgs', 'The Cats', 'The Rats']) {
+      expect(body).toContain(side);
+    }
+    // And it says the surprising part out loud, because the sheet is read without the app.
+    expect(body).toMatch(/partners may be in different groups/i);
+    // Each side names which group its members walk with, so a crossing side is legible.
+    expect(body).toMatch(/Craig[\s\S]{0,30}\(Group 1\)/);
+
+    // §5.al / UI_CONVENTIONS §2: a side game never prints "foursome", and the captain key is
+    // absent when no captain is set (the old footer always claimed "(C) = captain").
+    expect(body).toContain('8 players · 2 groups');
+    expect(body).not.toContain('foursome');
+    expect(body).not.toContain('(C) = captain');
+  });
+
+  test('F-019: a 3-player group is never called a foursome', async ({ page }) => {
+    const id = await seed(page, 'F-019: 7 players as 4 + 3');
+    await page.goto(`${BASE}/pool/${id}/teams`);
+    await expect(page.getByText('Foursome And A Threesome', { exact: false }).first()).toBeVisible();
+    const sheet = await page.locator('body').innerText();
+    expect(sheet).toContain('7 players · 2 groups');
+    expect(sheet).not.toContain('foursome');
+    // The guest on nobody's side is named rather than silently absent from the money.
+    expect(sheet).toMatch(/Playing along, not on a side:[\s\S]{0,30}Will/);
+    await page.screenshot({ path: 'e2e/screenshots/f019-teams-threesome.png', fullPage: true });
+
+    // The printable scorecards say it too — one card per group, and no "per foursome" caption on
+    // the threesome's card.
+    await page.goto(`${BASE}/pool/${id}/scorecards`);
+    const cards = await page.locator('body').innerText();
+    expect(cards).toContain('2 groups');
+    expect(cards).toContain('Group 1');
+    expect(cards).toContain('Group 2');
+  });
+
+  // The classic pool must keep saying "foursome" — the vocabulary rule is per-axis, not a global
+  // find-and-replace (§5.al: the pool keeps "team" and "foursome" unchanged).
+  test('F-019: a classic pool of foursomes still says foursomes', async ({ page }) => {
+    const id = await seed(page, 'Classic pool — 2 foursomes, mid-round');
+    await page.goto(`${BASE}/pool/${id}/teams`);
+    const sheet = await page.locator('body').innerText();
+    expect(sheet).toContain('2 foursomes');
+    // And no Sides block, because a pool has none.
+    expect(sheet).not.toMatch(/partners may be in different groups/i);
+  });
+
   test('F-019: a threesome and a guest on nobody\'s side', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     const id = await seed(page, 'F-019: 7 players as 4 + 3');
