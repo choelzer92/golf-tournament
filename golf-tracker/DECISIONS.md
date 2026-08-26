@@ -1016,6 +1016,72 @@ same "what shapes fit N players" helper.
 
 ---
 
+## 5.ap A group that outgrows a tee slot ASKS, and never loses a score (2026-08-26)
+
+Asked what should happen when a 5th player joins an already-scored side game of four —
+re-split silently, prompt, or refuse — Craig chose **prompt, defaulting to keep**:
+
+> "5 players now — keep one group of 5, or split 3 + 2? … Scores already entered are untouched
+> either way."
+
+**Decision, three parts, all load-bearing:**
+
+1. **Prompt, not a silent re-split.** Same principle as §5.ao: an uneven count is a question.
+2. **Default to keep.** "Keep one group" is listed first and styled as the plain action, so
+   dismissing changes nothing. A round being scored must not be reshuffled by a stray tap.
+3. **Scores survive either way.** Splitting moves players between groups, hence between
+   `matchupId`s, so every score row is re-filed under the matchup its player lands in.
+
+**Why this does NOT reuse `applyReshuffle`**, which is the tempting move: that function *clears*
+scores on a scored round, and is right to. It reshuffles pot foursomes, which changes who competes
+with whom, so the old cards genuinely no longer apply. Here the money grouping is the **sides**,
+and the tee sheet moving doesn't touch them — so clearing would destroy data for no reason. **Two
+operations that look alike ("re-deal the field") differ by whether they change who's playing whom.**
+The tests assert the money is byte-identical across the split.
+
+---
+
+## 5.aq Reuse the LOGIC, not always the component (2026-08-26)
+
+F-019's approved design said the wizard's group step should reuse the pool's `TeamsStep` — "it
+already asks exactly this — reuse, don't rebuild". Building it showed that was the wrong reuse.
+
+`TeamsStep` asks the same *question* but is built around the classic pool's answer: a captains panel
+(a side game has no captain role), three build methods with an optimizer, pairing locks, and "Set
+Teams" vocabulary throughout — which is the exact team/side conflation F-019 exists to fix (§5.al).
+Reusing it meant threading a mode flag through ~10 labels and hiding three panels, leaving a
+component serving two axes badly.
+
+**Decision: a thin new step over the SHARED PURE HELPERS** (`groupShapesFor`,
+`dealBalancedIntoShape`, `sortPlayerIdsByHcap`). The logic — where bugs live and where duplication
+actually costs — is shared. The chrome is not.
+
+**How to apply.** When a design says "reuse X", check whether X's *shape* encodes the assumptions
+you're removing. If it does, reuse its logic and write new chrome. Duplicated JSX is cheap and
+visible; a component with a mode flag through every label is neither.
+
+---
+
+## 5.ar A proposal can be valid in every way except the one it promises (2026-08-26)
+
+The wizard's first playing-group proposal dealt round-robin. Result, on screen: group 1 holding
+handicaps 2 + 6 + 10 + 14 = 32 against group 2's 4 + 8 + 12 + 16 = 40.
+
+Every test passed. The groups were the right *size*, matched the chosen *shape*, and left nobody
+unassigned — all the properties the tests checked. The one property nobody asserted was the only
+one the feature claimed: **"balanced by handicap"**, and it was 8 strokes out.
+
+Fixed with `dealBalancedIntoShape`, a snake deal (1,4,5,8 vs 2,3,6,7 — dead even), extracted as a
+pure function with the balance property itself as a test.
+
+**How to apply.** When a feature's label makes a claim ("balanced", "fair", "even"), assert the
+claim, not the scaffolding around it. Structural tests — right count, right shape, nothing missing
+— pass for an answer that is wrong in exactly the way the user cares about. And **look at the
+screen**: two columns of numbers made it obvious in a second, which is the fourth time this session
+a screenshot has caught something the suite could not.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

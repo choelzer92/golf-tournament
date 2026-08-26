@@ -1649,8 +1649,49 @@ sheets that misinform are the ones sent to people who aren't holding the phone.
 The second half of his answer is a bigger idea and became **F-020** — the player count should
 *recommend* games rather than reject them after the fact.
 
-**Status:** designed and approved 2026-08-20, not built. Craig chose to document first and build
-next session, because it changes how every side game's scores are read.
+**Status:** **BUILT and verified 2026-08-26.** Seven commits on `ui-consistency-and-compute-tests`;
+`npm run verify` green (1371 unit tests, 99 e2e). What shipped, and how it differed from the design:
+
+| Piece | Notes |
+|---|---|
+| Pins first | `one-group-golden.test.ts`, 34 cases. 33 byte-identical after the change; the 1 that moved is labelled SHOULD MOVE |
+| `groupShapesFor(N)` | The shared helper F-020 also needs. Plus `dealBalancedIntoShape` — see below |
+| Engine | `context.ts` unions every group's players+scores; explicit `matchupId` still scopes to one |
+| Leaderboard grid | `teamDetails[0]` → all groups |
+| Scorecard side totals | Was computing from its own group only |
+| Wizard | New **Groups** step for a side game over 4 players; 4 or fewer unchanged |
+| Teams sheet | Sides block + side on each name; "foursome" only when a group holds four |
+| Mid-round 5th | Prompt, default keep, scores carried (§5.ap) |
+
+**Three things the design got wrong, all found by doing it:**
+
+1. **This was a MONEY bug, not a labelling bug.** Filed as sheets that misinform. At 8 players the
+   board settled four sides ±$84 off **four** players' cards — each side's group-2 partner silently
+   missing, "The Hogs 68" being Craig alone. Two tee times + sides = wrong money, today.
+
+2. **"Most of the work is UI: the Teams sheet and Scorecards"** — no. Both already iterate
+   `game.teams`, so both were correct the moment the data had two groups. The design named as "most
+   of the work" the part that needed nothing.
+
+3. **The engine was NOT the only non-UI work.** Two more one-group assumptions the sweep found and
+   the design didn't list: `leaderboard/page.tsx:864` (`teamDetails[0]`, so the grid showed 4 names
+   under a board settling 8) and `play/page.tsx:331` (side totals from one matchup, so the card and
+   the board disagreed — reintroducing exactly what §5.ah exists to prevent).
+
+**Also: don't reuse `TeamsStep`.** The design said reuse it, don't rebuild. It asks the same
+question but is built around the pool: captains panel (a side game has no captain role), three
+build methods with an optimizer, pairing locks, "Set Teams" vocabulary throughout — the team/side
+conflation this finding is about. Reuse meant threading a mode flag through ~10 labels and hiding
+three panels. The genuine reuse was of the pure helpers. **"Reuse the component" and "reuse the
+logic" are different instructions**; when a component's shape encodes the other axis's
+assumptions, take the logic.
+
+**And the screenshot caught what the tests could not.** The first group proposal dealt round-robin,
+so group 1 took every odd-ranked player: handicaps 2+6+10+14 = 32 vs 4+8+12+16 = 40. Every
+assertion passed — right sizes, right shape, nobody unassigned — and the thing labelled "balanced
+by handicap" was 8 strokes out. Fixed with `dealBalancedIntoShape` (a snake deal), extracted as a
+tested pure function. **A proposal can be structurally valid and still wrong about the only thing
+it promises.**
 
 ---
 
