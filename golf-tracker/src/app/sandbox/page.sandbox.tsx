@@ -257,6 +257,65 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'fifth-player-mid-round',
+    label: 'F-019: a 5th player joined a SCORED group of 4',
+    detail: 'The mid-round case Craig ruled on: five in one group, holes 1-7 already entered. The hub must PROMPT (default keep), and splitting must carry the scores across. Open the hub.',
+    build: () => {
+      const ps = players([4, 12, 8, 16, 6]);
+      const game = baseGame({
+        players: ps,
+        name: 'A Fifth Joined At The Turn',
+        gameMode: 'team-2v2',
+        sides: [
+          { id: 'a', name: 'The Hogs', playerIds: ['sp1', 'sp2'] },
+          { id: 'b', name: 'The Dawgs', playerIds: ['sp3', 'sp4'] },
+        ],
+        modeSettings: {
+          format: 'best-ball', scoring: 'stroke', result: 'total',
+          moneyModel: 'per-point', dollarsPerPoint: 1,
+        },
+        // ONE group holding five — the impossible tee slot. sp5 is on no side: he turned up and
+        // joined the walk, which is exactly how this happens in real life.
+        teams: [{ id: 'st1', name: 'Group 1', playerIds: ps.map((p) => p.id), matchupId: 'sm1', teeTime: '8:10' }],
+      });
+      saveGameScores('sm1', scores(ps.map((p) => p.id), [0, 1, 2, 1, 0], [1, 2, 3, 4, 5, 6, 7]));
+      return { game, goTo: (id) => `/pool/${id}` };
+    },
+  },
+  {
+    key: 'oversized-and-shrinking',
+    label: 'F-019: 7 players as 5 + 1 + 1, splitting to 4 + 3',
+    detail: 'The case where the group COUNT SHRINKS (3 slots down to 2), so a slot is abandoned. Its stale score rows must be cleared or the engine double-counts them across matchups. Open the hub and split.',
+    build: () => {
+      const ps = players([4, 12, 8, 16, 6, 14, 10]);
+      const game = baseGame({
+        players: ps,
+        name: 'Five Plus Two Strays',
+        gameMode: 'team-2v2',
+        sides: [
+          { id: 'a', name: 'The Hogs', playerIds: ['sp1', 'sp2'] },
+          { id: 'b', name: 'The Dawgs', playerIds: ['sp3', 'sp4'] },
+          { id: 'c', name: 'The Cats', playerIds: ['sp5', 'sp6'] },
+        ],
+        modeSettings: {
+          format: 'best-ball', scoring: 'stroke', result: 'total',
+          moneyModel: 'per-point', dollarsPerPoint: 1,
+        },
+        // A hand-made tee sheet that drifted: one group of five and two singles. The proposal for
+        // seven is 4 + 3, so applying it drops from THREE slots to two.
+        teams: [
+          { id: 'st1', name: 'Group 1', playerIds: ['sp1', 'sp2', 'sp3', 'sp4', 'sp5'], matchupId: 'sm1', teeTime: '8:10' },
+          { id: 'st2', name: 'Group 2', playerIds: ['sp6'], matchupId: 'sm2', teeTime: '8:20' },
+          { id: 'st3', name: 'Group 3', playerIds: ['sp7'], matchupId: 'sm3', teeTime: '8:30' },
+        ],
+      });
+      saveGameScores('sm1', scores(['sp1', 'sp2', 'sp3', 'sp4', 'sp5'], [0, 1, 2, 1, 0], [1, 2, 3, 4, 5, 6, 7]));
+      saveGameScores('sm2', scores(['sp6'], [2], [1, 2, 3, 4, 5, 6, 7]));
+      saveGameScores('sm3', scores(['sp7'], [1], [1, 2, 3, 4, 5, 6, 7]));
+      return { game, goTo: (id) => `/pool/${id}` };
+    },
+  },
+  {
     key: 'one-group-side-game',
     label: 'F-019 control: 4 players, ONE group (must not change)',
     detail: 'The shape every existing side game has. Pinned in one-group-golden.test.ts and here for eyeballing: it must look and settle exactly as it does today.',

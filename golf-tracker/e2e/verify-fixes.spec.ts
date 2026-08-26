@@ -1564,6 +1564,118 @@ test.describe('F-019: the scorecard agrees with the leaderboard across groups', 
 });
 
 // ---------------------------------------------------------------------------
+// F-019 — a group that outgrew its tee slot: PROMPT, defaulting to keep
+// ---------------------------------------------------------------------------
+//
+// Craig's call: adding a 5th to an already-scored group of four must PROMPT, pre-set to keep, and
+// never silently re-split a round being scored. Scores are untouched whichever way it goes.
+test.describe('F-019: a fifth player in a scored group', () => {
+  test('F-019: the hub prompts, and keeping one group changes nothing', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seed(page, 'F-019: a 5th player joined a SCORED group of 4');
+
+    // The prompt names the problem in plain words, and promises the scores are safe.
+    await expect(page.getByText('5 players in Group 1')).toBeVisible();
+    const body = await page.locator('body').innerText();
+    expect(body).toMatch(/More than four can.t play as one group/);
+    expect(body).toMatch(/scores already entered\s*are kept either way/i);
+    await page.screenshot({ path: 'e2e/screenshots/f019-fifth-player-prompt.png', fullPage: true });
+
+    // Keeping is offered FIRST and does nothing but dismiss.
+    await page.getByRole('button', { name: 'Keep one group' }).click();
+    await expect(page.getByText('5 players in Group 1')).toBeHidden();
+    const after = await page.locator('body').innerText();
+    // Still one group, still five players.
+    expect(after).toContain('Group 1');
+    expect(after).not.toContain('Group 2');
+  });
+
+  test('F-019: splitting 3 + 2 CARRIES the scores already entered', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const id = await seed(page, 'F-019: a 5th player joined a SCORED group of 4');
+
+    // What the board says BEFORE the split — the money must be identical after, because splitting
+    // changes the tee sheet and not the sides.
+    await goToGame(page, id, '/leaderboard');
+    await expect(page.getByText('STANDINGS')).toBeVisible();
+    const before = await page.locator('body').innerText();
+    const beforeStandings = before.slice(before.indexOf('STANDINGS'), before.indexOf('FRONT'));
+    expect(beforeStandings).toMatch(/thru|7/);
+
+    // Split into 3 + 2.
+    await goToGame(page, id);
+    await page.getByRole('button', { name: 'Split into groups' }).click();
+    await page.getByRole('button', { name: /3 \+ 2/ }).click();
+
+    // Two groups now.
+    await expect(page.getByText('Group 2')).toBeVisible();
+    const hub = await page.locator('body').innerText();
+    expect(hub).toContain('Group 1');
+    expect(hub).toContain('Group 2');
+    // And the prompt is gone, because nothing is oversized any more.
+    expect(hub).not.toContain('players in Group 1');
+
+    // THE ASSERTION THAT MATTERS: the scores travelled with the players. A split that lost them
+    // would show an unscored game here.
+    await goToGame(page, id, '/leaderboard');
+    await expect(page.getByText('STANDINGS')).toBeVisible();
+    const after = await page.locator('body').innerText();
+    const afterStandings = after.slice(after.indexOf('STANDINGS'), after.indexOf('FRONT'));
+    // Both sides still ranked off seven holes of real scores.
+    expect(afterStandings).toContain('The Hogs');
+    expect(afterStandings).toContain('The Dawgs');
+    expect(after).not.toContain('No scores yet');
+    // The money is unchanged: the sides never moved, only the tee sheet did.
+    const moneyOf = (s: string) => [...s.matchAll(/([+−-])\$(\d+)/g)]
+      .map(([, sign, n]) => (sign === '+' ? 1 : -1) * Number(n)).sort((a, b) => a - b);
+    expect(moneyOf(afterStandings)).toEqual(moneyOf(beforeStandings));
+    await page.screenshot({ path: 'e2e/screenshots/f019-after-split.png', fullPage: true });
+  });
+
+  // The case where the group COUNT SHRINKS — 5 + 1 + 1 re-dealt as 4 + 3 drops the third slot.
+  // This is the harder re-deal: players move between slots in both directions at once.
+  //
+  // HONEST NOTE ON WHAT THIS DOES AND DOESN'T PROVE. It was written to catch a surviving mutation
+  // (deleting the clear-unused-slots loop), and it does NOT — deleting that loop still passes.
+  // Reading the call sites showed why: every reader keys off `game.teams`, so an abandoned
+  // matchup's rows are unreachable, and the clear is defensive rather than load-bearing. Grep told
+  // me where the ids came from; only reading them said what it meant (the §5.an lesson again).
+  //
+  // What it DOES prove is worth keeping: that a re-deal which moves players across three slots
+  // preserves every score and every dollar.
+  test('F-019: splitting to FEWER groups preserves every score', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const id = await seed(page, 'F-019: 7 players as 5 + 1 + 1');
+
+    await goToGame(page, id, '/leaderboard');
+    await expect(page.getByText('STANDINGS')).toBeVisible();
+    const before = await page.locator('body').innerText();
+    const beforeStandings = before.slice(before.indexOf('STANDINGS'), before.indexOf('FRONT'));
+
+    await goToGame(page, id);
+    await page.getByRole('button', { name: 'Split into groups' }).click();
+    await page.getByRole('button', { name: /4 \+ 3/ }).click();
+
+    // Three slots became two.
+    await expect(page.getByText('Group 2')).toBeVisible();
+    const hub = await page.locator('body').innerText();
+    expect(hub).not.toContain('Group 3');
+
+    // Every player is still scored exactly once. A duplicated row would move a side's total, so
+    // compare the money: the sides never changed, so it must be identical.
+    await goToGame(page, id, '/leaderboard');
+    await expect(page.getByText('STANDINGS')).toBeVisible();
+    const after = await page.locator('body').innerText();
+    const afterStandings = after.slice(after.indexOf('STANDINGS'), after.indexOf('FRONT'));
+    const moneyOf = (s: string) => [...s.matchAll(/([+−-])\$(\d+)/g)]
+      .map(([, sign, n]) => (sign === '+' ? 1 : -1) * Number(n)).sort((a, b) => a - b);
+    expect(moneyOf(afterStandings)).toEqual(moneyOf(beforeStandings));
+    // And still zero-sum, the invariant a double-count breaks first.
+    expect(moneyOf(afterStandings).reduce((s, x) => s + x, 0)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // F-019 — the wizard asks WHO WALKS WITH WHOM before it asks about sides
 // ---------------------------------------------------------------------------
 //

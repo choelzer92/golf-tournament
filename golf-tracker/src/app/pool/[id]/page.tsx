@@ -36,6 +36,10 @@ import {
   balanceTeamsWithLocks,
   pickCaptains,
   sortPlayerIdsByHcap,
+  groupShapesFor,
+  groupShapeLabel,
+  dealBalancedIntoShape,
+  TEE_GROUP_SHAPE_OPTS,
   orderPlayerIdsWithCaptain,
   defaultSubTeams,
   teeOptionsForPlayer,
@@ -447,6 +451,10 @@ export default function PoolHubPage() {
             round for every foursome, and CTP/Wolf setup is the organizer's job. */}
         {!poolOnly && (
           <>
+            {/* F-019: a group that has outgrown a tee slot. Craig's call — PROMPT, defaulting to
+                keep, never a silent re-split of a round already being scored. */}
+            <OversizedGroupPrompt game={game} onSave={persist} />
+
             {/* Wolf rotation editor — only for Wolf games. */}
             {game.gameMode === 'wolf' && <WolfRotationEditor game={game} onSave={persist} />}
 
@@ -2553,6 +2561,147 @@ function SwapPanel({ game, onSwap }: { game: PoolGame; onSwap: (a: string, b: st
             className="mt-2 w-full rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800"
           >
             Apply swap
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// F-019 — a PLAYING GROUP that has outgrown a tee slot.
+//
+// Five players can't walk together, so when a side game's group passes four the app has to say
+// something. Craig's call (2026-08-25) was **prompt, defaulting to keep**, and the three parts of
+// that matter:
+//
+//   - PROMPT, not a silent re-split. §5.ao: an uneven count is a question, not a default. The app
+//     proposes; the group decides.
+//   - DEFAULT TO KEEP. Dismissing changes nothing, so a round already being scored can't be
+//     reshuffled by a stray tap.
+//   - SCORES ARE UNTOUCHED EITHER WAY. Splitting moves players between groups, which moves them
+//     between matchupIds — so the scores already entered have to travel with them. That is the
+//     whole reason this doesn't reuse applyReshuffle, which CLEARS scores on a scored round
+//     (correct there: it reshuffles pot foursomes, changing who competes with whom; here the
+//     money grouping is the SIDES and is not touched at all).
+//
+// Not shown for a classic pool: its foursomes are its money teams, and its own re-balance flow
+// already owns that question.
+function OversizedGroupPrompt({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
+  const [dismissed, setDismissed] = useState(false);
+  const [choosing, setChoosing] = useState(false);
+
+  const mode = getGameMode(game.gameMode);
+  const isSideGame = mode?.category === 'team-within-group';
+  const oversized = game.teams.filter((t) => t.playerIds.length > 4);
+  if (!isSideGame || oversized.length === 0 || dismissed) return null;
+
+  // The shapes the whole field could take. Offered from the field size rather than per-group,
+  // because splitting one group of five into 3 + 2 changes the tee sheet as a whole.
+  const shapes = groupShapesFor(game.players.length, TEE_GROUP_SHAPE_OPTS);
+
+  // Re-deal the field into `shape`, CARRYING SCORES. Each new group reuses an existing slot's
+  // matchupId where it can, and every score row is rewritten under the matchup its player ends up
+  // in — so a hole entered before the split is still there after it.
+  function applyShape(shape: number[]) {
+    const ids = sortPlayerIdsByHcap(
+      game.players.map((p) => p.id), game.players, game.course, game.handicapAllowance, game.handicapBasis,
+    );
+    const buckets = dealBalancedIntoShape(ids, shape);
+
+    // Every score currently in play, keyed by player, so it can be re-filed by destination.
+    const scoresByPlayer = new Map<string, GameScore[]>();
+    for (const t of game.teams) {
+      const rows = loadGameScores(t.matchupId);
+      if (!Array.isArray(rows)) continue;
+      for (const row of rows) {
+        const list = scoresByPlayer.get(row.playerId) ?? [];
+        list.push(row);
+        scoresByPlayer.set(row.playerId, list);
+      }
+    }
+
+    const teams: PoolTeam[] = buckets.map((playerIds, i) => ({
+      id: game.teams[i]?.id ?? crypto.randomUUID(),
+      name: `Group ${i + 1}`,
+      playerIds,
+      // Reuse the slot's matchupId so an unchanged group's scores stay exactly where they are.
+      matchupId: game.teams[i]?.matchupId ?? crypto.randomUUID(),
+      teeTime: game.teams[i]?.teeTime ?? '',
+    }));
+
+    // Rewrite each matchup's rows from the new membership. A player who moved takes their holes
+    // with them; a player who didn't is written back unchanged.
+    for (const t of teams) {
+      const rows = t.playerIds.flatMap((pid) => scoresByPlayer.get(pid) ?? []);
+      saveGameScores(t.matchupId, rows);
+    }
+    // Empty any slot that's no longer in use. This is DEFENSIVE, not load-bearing: every reader
+    // keys off `game.teams`, so an abandoned matchup's rows are already unreachable and a mutation
+    // test that deleted this loop passed. Kept anyway, because "unreachable" is a property of
+    // today's call sites rather than of the data — a future reader that enumerates score rows
+    // instead of teams would silently double-count a player. Cheap insurance against a bug class
+    // that has already cost this project real money twice (§5.ac).
+    for (const old of game.teams) {
+      if (!teams.some((t) => t.matchupId === old.matchupId)) saveGameScores(old.matchupId, []);
+    }
+
+    onSave({ ...game, teams });
+    setChoosing(false);
+  }
+
+  const big = oversized[0];
+  return (
+    <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+      <p className="text-sm font-semibold text-amber-900">
+        {big.playerIds.length} players in {big.name}
+      </p>
+      <p className="mt-0.5 text-xs text-amber-800">
+        More than four can&apos;t play as one group. Split them into separate tee times, or keep them
+        together if that&apos;s really the plan — <span className="font-medium">scores already entered
+        are kept either way</span>, and your sides don&apos;t change.
+      </p>
+
+      {!choosing ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {/* Keep-as-is FIRST and styled as the plain action: dismissing must be the easy path. */}
+          <button
+            onClick={() => setDismissed(true)}
+            className="min-h-[44px] rounded-md border border-amber-400 bg-white px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100"
+          >
+            Keep one group
+          </button>
+          <button
+            onClick={() => setChoosing(true)}
+            className="min-h-[44px] rounded-md bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800"
+          >
+            Split into groups
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3">
+          <p className="text-xs font-medium text-amber-900 mb-2">How do they split?</p>
+          <div className="flex flex-wrap gap-2">
+            {shapes.map((shape) => (
+              <button
+                key={shape.join('-')}
+                onClick={() => applyShape(shape)}
+                className="min-h-[44px] rounded-md border border-amber-400 bg-white px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100"
+              >
+                {groupShapeLabel(shape)}
+                <span className="ml-1.5 text-xs text-amber-700">
+                  {shape.length} tee time{shape.length === 1 ? '' : 's'}
+                </span>
+              </button>
+            ))}
+            {shapes.length === 0 && (
+              <p className="text-xs text-amber-800">No split fits this many players.</p>
+            )}
+          </div>
+          <button
+            onClick={() => setChoosing(false)}
+            className="mt-2 text-xs text-amber-800 underline hover:text-amber-900"
+          >
+            Cancel
           </button>
         </div>
       )}
