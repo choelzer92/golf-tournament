@@ -1082,6 +1082,48 @@ a screenshot has caught something the suite could not.
 
 ---
 
+## 5.as A mode's player range is measured against the WHOLE FIELD (2026-08-27) — closes F-020
+
+Every mode declares `playersMin`/`playersMax`, and `types.ts` documented them as **"per group"**.
+That was unambiguous only while a single-group game had exactly one group. F-019 gave side games
+real tee groups, so "4–8" could mean 4–8 in the game or 4–8 per tee slot — and Wolf's "4 only"
+could have meant eight players playing two independent Wolf foursomes.
+
+**Decision: the whole field.** Wolf needs four players in the game, however they walk.
+
+**Why.** The game is picked *before* the tee sheet exists, so the field is the only quantity
+available at the moment the constraint has to be stated — and F-020's whole point is stating it
+there rather than five steps later. The per-group reading would make fit unknowable on the screen
+that most needs to know it.
+
+**What this closes off, knowingly:** two Wolf foursomes settling independently under one game. It's
+a real game and nobody has asked for it; if someone does, this is the decision to revisit first,
+and `fitForMode` (`game-modes/fit.ts`) is the single place it's encoded.
+
+**How to apply.** When a capability change makes an existing field ambiguous, pick the reading the
+UI can actually evaluate at the point of use — and write the ambiguity down, because the next reader
+will re-derive the wrong one from a stale comment.
+
+---
+
+## 5.at A capability change dates every string that described the old limit (2026-08-27)
+
+F-019 made a side game multi-group. Two strings then lied: the picker's "Played within a **single
+group** of 4–8" and the review step's "is played in a **single group** of 4–4 players". Both were
+accurate when written and neither mentioned the word that changed.
+
+This is §5.al's lesson one level up. There, a rename wasn't done until every string naming the
+concept agreed. Here nothing was renamed at all — a *capability* widened, and the stale strings
+described the old **limit**, not the old name. Grepping for "team" would never have found them.
+
+**How to apply.** After widening what the app can do, grep for the CLAIM you just falsified
+("single group", "exactly two", "one card"), not for a noun. Ask what the code used to guarantee
+and search for sentences that promised it. And prefer deriving such sentences from the data — the
+same commit found a heading hard-coding `(2 vs 2)` for any two-side game, which counted from the
+data would never have been wrong.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

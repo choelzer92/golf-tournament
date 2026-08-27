@@ -1766,8 +1766,41 @@ evidence about everyone.
 - Composes with **F-019**: playing groups also need proposing for odd counts (5 → 3 + 2 tee slots),
   and that's the same "shapes for N" helper.
 
-**Status:** open, approved as its own finding 2026-08-20. Build AFTER F-019, since playing groups
-change what "split" means.
+**Status:** **BUILT and verified 2026-08-27.** Two commits; `npm run verify` green (1385 unit
+tests, 107 e2e). Option D, both halves:
+
+| Piece | Where | Notes |
+|---|---|---|
+| The fit rule | `game-modes/fit.ts` | Pure, 14 tests, mutation-proved. One rule so every screen agrees |
+| **B** picker annotates | `pool/new` step 1 | Live badge per game; misfit explained *there*, with an alternative |
+| **C** sides propose | `SubTeamsStep` | `groupShapesFor(n, SIDE_SHAPE_OPTS)` — 3 v 2 / 2 v 2 v 1 / five singles |
+
+**What the range is measured against — Craig's call, 2026-08-26: the WHOLE FIELD.** F-019 had made
+`playersMin`/`playersMax` ambiguous (`types.ts` said "per group", true only while a single-group
+game had one group). Wolf's "4 only" means four players in the game, however they walk. It's the
+only reading available at the moment of choosing, since the game is picked before the tee sheet.
+
+**Two strings F-019 had falsified, now gone.** The picker claimed a side game is "Played within a
+single group of 4–8"; the review step said "is played in a single group of 4–4 players". Both
+described a shape the app can no longer guarantee. **A capability change dates every string that
+described the old limit** — worth grepping for the old claim, not just the old word.
+
+**Not disabled, deliberately.** A misfitting game is explained, not blocked: the organizer may be
+about to add the fifth player. The old review-step warning didn't block either — so "validates
+instead of recommends" was generous. It scolded *and* let you through.
+
+**Two defects a screenshot caught and no test did** (the fifth and sixth this run — see §5.ar):
+
+1. **"Wolf — 1 too many" at five players.** Arithmetic right, sentence wrong: Wolf needs exactly
+   four, so from three the fix is *adding* one. A fixed requirement now states the requirement.
+2. **A pre-existing bug the new control exposed.** The sides heading hard-coded `(2 vs 2)` for any
+   two-side game — true while two sides meant two pairs, false the moment an uneven split was
+   reachable. Five players seeded 3–2 read "Sides (2 vs 2)" directly above a highlighted "3 v 2"
+   button. **Adding a control that makes a state reachable turns a latent lie into a visible one.**
+
+**One thing worth knowing for later:** four players DO get the split choice (2v2, 2+1+1, four
+singles are all real), unlike tee groups where four can only walk one way. That asymmetry is pinned
+by a test, because the tempting simplification is to copy the Groups step's rule.
 
 **Screen:** `/pool/[id]/leaderboard`, 2-player skins w/ Nassau ·
 `e2e/screenshots/skins-2p.png`
