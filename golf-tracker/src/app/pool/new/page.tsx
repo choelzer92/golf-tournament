@@ -40,6 +40,7 @@ import {
   groupShapeLabel,
   dealBalancedIntoShape,
   TEE_GROUP_SHAPE_OPTS,
+  SIDE_SHAPE_OPTS,
 } from '@/lib/pool-game';
 import {
   type RosterPlayer,
@@ -76,7 +77,7 @@ import {
 } from '@/lib/game-modes/sides';
 import { TEAM_MODES } from '@/lib/formats';
 import { POOL_GROUP_SEED_KEY } from '@/lib/group-seed';
-import { GAME_MODES, getGameMode, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
+import { GAME_MODES, getGameMode, defaultSettings, playerRangeSentence, fitBadge, fitExplanation, modeFits, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { SideNames } from '@/components/side-names';
 import { sideNameFrom } from '@/lib/game-modes/team-game';
@@ -472,6 +473,9 @@ export default function NewPoolGamePage() {
 
         {step === 'details' && (
           <DetailsStep
+            // F-020: the picker annotates each game against the field. 0 on a first pass (the
+            // field is built two steps on), which reads as "nothing to say yet".
+            playerCount={players.length}
             name={name}
             setName={setName}
             gameMode={gameMode}
@@ -775,6 +779,7 @@ function DetailsStep({
   junkValues, setJunkValues, teamFormat, setTeamFormat, teamScoreBasis, setTeamScoreBasis,
   moneyMode, setMoneyMode, matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
   applyGroupDefaults, onGroupChosen, chosenGroupId,
+  playerCount,
   onNext,
 }: {
   name: string; setName: (s: string) => void;
@@ -795,6 +800,9 @@ function DetailsStep({
   applyGroupDefaults: (d: GroupDefaults | null) => void;
   onGroupChosen: (groupId: string) => void;
   chosenGroupId: string | undefined;
+  /** How many players are in the field, or 0 on a first pass (the field is built two steps on).
+      Drives the live fit annotation in the picker — F-020. */
+  playerCount: number;
   onNext: () => void;
 }) {
   const selectedMode = getGameMode(gameMode);
@@ -952,15 +960,45 @@ function DetailsStep({
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
           >
             <option value="pool">Team Pool (foursomes vs foursomes)</option>
-            {GAME_MODES.map((m) => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
+            {GAME_MODES.map((m) => {
+              // F-020: annotate each game with how it fits the field you actually have. The badge
+              // is null until there IS a field, so a first pass through the wizard looks exactly
+              // as it always did rather than marking every game with a cross.
+              //
+              // The label carries it because this is a native <select> — options can't hold
+              // styled children, and a listbox rebuilt for badges would be a bigger bet on this
+              // screen than F-020 asked for (option A's mistake). Text in the label works on
+              // every phone and with a screen reader.
+              const badge = fitBadge(m, playerCount);
+              return (
+                <option key={m.id} value={m.id}>
+                  {m.name}{badge ? ` — ${badge}` : ''}
+                </option>
+              );
+            })}
           </select>
           <p className="text-xs text-gray-500 mt-1">
             {selectedMode
-              ? `${selectedMode.description} Played within a single group of ${selectedMode.playersMin}–${selectedMode.playersMax}.`
+              ? `${selectedMode.description} ${playerRangeSentence(selectedMode)}`
               : 'The classic buy-in pool or head-to-head match across foursomes.'}
           </p>
+          {/* The one thing the old flow never said HERE: this game can't be played by this field.
+              It used to wait until the review step, five steps on. Not disabled — the organizer may
+              be about to add the missing player — but it can no longer be a surprise at the end. */}
+          {fitExplanation(selectedMode, playerCount) && (
+            <p className="mt-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+              {fitExplanation(selectedMode, playerCount)}
+              {' '}
+              {(() => {
+                // Point at what WOULD work, so the constraint arrives with an option attached
+                // rather than as a dead end. §5.ao: guidance, not validation.
+                const alternatives = GAME_MODES.filter((m) => modeFits(m, playerCount)).map((m) => m.name);
+                return alternatives.length > 0
+                  ? `${alternatives.length === 1 ? 'This one fits' : 'These fit'} ${playerCount}: ${alternatives.join(', ')}.`
+                  : `A team pool works with any number.`;
+              })()}
+            </p>
+          )}
         </div>
 
         {/* Game options for ANY registered mode — individual AND 2v2 within-group
@@ -3174,18 +3212,80 @@ function SubTeamsStep({
   const counts = effective.map((side) => side.playerIds.length);
   const balanced = counts.every((c) => c === counts[0]);
   const unassigned = players.filter((p) => sideIdOf(p.id) === null);
+
+  // F-020 option C. The shapes this field could split into, and the one it's currently in.
+  // Sorted descending to match `groupShapesFor`'s output so "is this the current shape?" is a
+  // plain array compare rather than a set comparison.
+  const shapeOptions = groupShapesFor(players.length, SIDE_SHAPE_OPTS);
+  const currentShape = [...counts].sort((a, b) => b - a);
+
+  /** Re-deal every player into `shape`, balanced by handicap, KEEPING each side's custom name. */
+  function applySideShape(shape: number[]) {
+    const ids = sortPlayerIdsByHcap(players.map((p) => p.id), players, course, handicapAllowance, handicapBasis);
+    const buckets = dealBalancedIntoShape(ids, shape);
+    setSides(buckets.map((playerIds, i) => ({
+      // Reuse the existing side's id and name where there is one, so a side called "The Hogs"
+      // survives a reshape — the ids are identity, not position (game-modes/sides.ts), and
+      // re-lettering them would silently relabel money rows.
+      id: effective[i]?.id ?? nextSideId(effective.slice(0, i)),
+      ...(effective[i]?.name ? { name: effective[i].name } : {}),
+      playerIds,
+    })));
+  }
   const emptySides = effective.filter((side) => side.playerIds.length === 0);
   const chcp = (p: Player) => Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine));
 
   return (
     <div>
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
+      {/* Count the sides from the DATA, always. This used to hard-code "(2 vs 2)" for any two-side
+          game, which was true while two sides meant two pairs — and became a lie the moment an
+          uneven split was reachable: five players split 3–2 read "Sides (2 vs 2)" directly above a
+          highlighted "3 v 2" button. Caught in a screenshot, not by a test. */}
       <h2 className="text-lg font-semibold text-gray-900 mb-1">
-        Sides {effective.length === 2 ? '(2 vs 2)' : `(${counts.join(' vs ')})`}
+        Sides ({counts.join(' vs ')})
       </h2>
       <p className="text-sm text-gray-500 mb-4">
         Assign each player to a side. Seeded to balance handicaps — adjust as you like.
       </p>
+
+      {/* F-020 option C: PROPOSE the splits instead of picking one silently.
+          `defaultSubTeams` special-cases exactly four players and otherwise alternates low/high,
+          so five became 3 v 2 with nothing on screen admitting a choice had been made — when 3v2,
+          2v2-plus-a-solo and five singles are all legitimate and only the group knows which
+          (§5.ao). Same control as the Groups step, so there's one pattern for "the app proposes,
+          you adjust". Hidden when only one shape fits, since a lone button is noise. */}
+      {shapeOptions.length > 1 && (
+        <div className="bg-white rounded-lg shadow p-4 mb-3">
+          <p className="text-sm font-medium text-gray-800 mb-1">How do the sides split?</p>
+          <p className="text-xs text-gray-500 mb-3">
+            Balanced by handicap whichever you pick — then move anyone below.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {shapeOptions.map((shape) => {
+              const isCurrent = shape.length === currentShape.length
+                && shape.every((n, i) => n === currentShape[i]);
+              return (
+                <button
+                  key={shape.join('-')}
+                  type="button"
+                  onClick={() => applySideShape(shape)}
+                  className={`min-h-[44px] rounded-md border px-4 py-2 text-sm font-medium ${
+                    isCurrent
+                      ? 'border-green-600 bg-green-600 text-white'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                  }`}
+                >
+                  {shape.join(' v ')}
+                  <span className={`ml-1.5 text-xs ${isCurrent ? 'text-green-100' : 'text-gray-500'}`}>
+                    {shape.length} side{shape.length === 1 ? '' : 's'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
         {players.map((p) => {
@@ -3374,13 +3474,20 @@ function CreateStep({
                 <p className="text-lg font-bold text-gray-900">{players.length}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500">Group size</p>
-                <p className="text-lg font-bold text-gray-900">{mode!.playersMin}–{mode!.playersMax}</p>
+                {/* "Group size" was wrong twice over: it's the count the GAME needs (measured
+                    against the whole field, 2026-08-26), and since F-019 a side game's field can
+                    span several groups, so nothing here describes a group. */}
+                <p className="text-xs text-gray-500">This game needs</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {mode!.playersMin === mode!.playersMax ? mode!.playersMin : `${mode!.playersMin}–${mode!.playersMax}`}
+                </p>
               </div>
             </div>
-            {(players.length < mode!.playersMin || players.length > mode!.playersMax) && (
+            {fitExplanation(mode, players.length) && (
               <p className="text-xs text-amber-700 mt-2">
-                {mode!.name} is played in a single group of {mode!.playersMin}–{mode!.playersMax} players — you have {players.length}. Go back to Field to adjust.
+                {/* No "go back to Field" any more: F-020's point is that the constraint is stated
+                    at the moment of choosing, so by here it should never be a surprise. */}
+                {fitExplanation(mode, players.length)}
               </p>
             )}
           </div>

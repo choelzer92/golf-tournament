@@ -1280,7 +1280,9 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
     await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
 
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Review Test');
-    await page.locator('select').first().selectOption({ label: 'Sides (within group)' });
+    // Select by VALUE, not label: F-020 appends a fit badge to option labels once a field
+    // exists, so a label match is fragile even where it happens to work today.
+    await page.locator('select').first().selectOption('team-2v2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
     await page.getByRole('button', { name: /Next: Build Field/ }).click();
@@ -1564,6 +1566,230 @@ test.describe('F-019: the scorecard agrees with the leaderboard across groups', 
 });
 
 // ---------------------------------------------------------------------------
+// F-020 — the player count RECOMMENDS games instead of refusing them late
+// ---------------------------------------------------------------------------
+//
+// Every mode declares playersMin/playersMax, and the app used them only to scold, five steps after
+// the game was picked: "Wolf is played in a single group of 4–4 players — you have 5. Go back to
+// Field." It held the constraint and spent it on a rejection (§5.ao).
+//
+// Craig chose option D, built as two pieces; this is B — annotate the picker live.
+test.describe('F-020: the game picker annotates fit', () => {
+  async function startWizard(page: import('@playwright/test').Page) {
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Past games (for recent-course' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await card.getByRole('button', { name: 'Open →' }).click();
+    await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
+  }
+
+  async function buildField(page: import('@playwright/test').Page, players: [string, string][]) {
+    await page.getByRole('button', { name: /Next: Select Course/ }).click();
+    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+    await page.getByRole('button', { name: /Next: Build Field/ }).click();
+    for (const [nm, hcp] of players) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+  }
+
+  // Back to step 1 — the move the whole feature relies on being normal.
+  async function backToPicker(page: import('@playwright/test').Page) {
+    await page.getByRole('button', { name: /Back/ }).first().click();
+    await page.waitForTimeout(200);
+    await page.getByRole('button', { name: /Back/ }).first().click();
+    await expect(page.getByText('Which game are you playing?')).toBeVisible();
+  }
+
+  // THE REGRESSION GUARD. The picker comes BEFORE the field, so on a first pass there is nothing
+  // to judge — and marking every game with a cross before anyone has been added would be noise at
+  // exactly the wrong moment.
+  test('F-020: says NOTHING about fit before there is a field', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await startWizard(page);
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Fit Test');
+
+    const body = await page.locator('body').innerText();
+    expect(body).not.toContain('✓');
+    expect(body).not.toMatch(/too many/);
+    expect(body).not.toMatch(/needs \d+ more/);
+    expect(body).not.toMatch(/needs exactly/);
+    // And no misfit banner, obviously — there's no field to misfit.
+    expect(body).not.toMatch(/you have 0/);
+    await page.screenshot({ path: 'e2e/screenshots/f020-first-pass.png', fullPage: true });
+  });
+
+  test('F-020: with a field, every game says how it fits', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await startWizard(page);
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Fit Test');
+    await buildField(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
+    await backToPicker(page);
+
+    const body = await page.locator('body').innerText();
+    // Five players: a side game fits (4–8); the 2–4 and 3–4 modes don't.
+    expect(body).toMatch(/Sides \(within group\) — ✓ 5 players/);
+    expect(body).toMatch(/Skins — 1 too many/);
+    // Wolf needs EXACTLY four, so it states the requirement rather than a delta — "1 too many"
+    // reads as though dropping a player is the fix, and at three the fix is the opposite.
+    expect(body).toMatch(/Wolf — needs exactly 4/);
+    await page.screenshot({ path: 'e2e/screenshots/f020-annotated.png', fullPage: true });
+  });
+
+  test('F-020: picking a game that cannot work explains it HERE, and names one that can', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await startWizard(page);
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Fit Test');
+    await buildField(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
+    await backToPicker(page);
+
+    // Select by VALUE — labels now carry the fit badge.
+    await page.locator('select').first().selectOption('wolf');
+    const body = await page.locator('body').innerText();
+
+    // The constraint, at the moment of choosing.
+    expect(body).toContain('Wolf needs exactly 4 players — you have 5.');
+    // With an alternative attached, so it's guidance rather than a dead end (§5.ao).
+    expect(body).toMatch(/This one fits 5: Sides \(within group\)/);
+    // And it does NOT send them back a step — that was the old copy's whole problem.
+    expect(body).not.toMatch(/go back/i);
+    await page.screenshot({ path: 'e2e/screenshots/f020-wolf-misfit.png', fullPage: true });
+  });
+
+  // F-019 falsified two strings that claimed a side game is played "within a single group". A side
+  // game can now be 8 players across two tee times, so nothing may claim how the field walks.
+  test('F-020: no screen claims a side game is played in a single group', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await startWizard(page);
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Fit Test');
+    await page.locator('select').first().selectOption('team-2v2');
+
+    const picker = await page.locator('body').innerText();
+    expect(picker).not.toMatch(/single group/i);
+    expect(picker).toContain('For 4–8 players.');
+
+    // And the review step, which said "is played in a single group of 4–4 players".
+    await buildField(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
+    await page.getByRole('button', { name: 'Next: Set Groups' }).click();
+    await page.getByRole('button', { name: 'Next: Groups' }).click();
+    await page.getByRole('button', { name: 'Next: Sides' }).click();
+    await page.getByRole('button', { name: /Next: Review/ }).click();
+    const review = await page.locator('body').innerText();
+    expect(review).not.toMatch(/single group/i);
+    expect(review).not.toMatch(/go back to field/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F-020 option C — the sides step PROPOSES splits instead of picking one
+// ---------------------------------------------------------------------------
+//
+// `defaultSubTeams` special-cases exactly four players and otherwise alternates low/high, so five
+// silently became 3 v 2 with nothing on screen admitting a choice had been made — when 3v2,
+// 2v2-plus-a-solo and five singles are all legitimate and only the group knows which (§5.ao).
+test.describe('F-020: the sides step proposes splits', () => {
+  async function toSidesStep(page: import('@playwright/test').Page, players: [string, string][]) {
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Past games (for recent-course' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    // Wait for the seed to land before clicking Open — without this the click can fire while the
+    // button is still absent, and the test times out two steps later looking like a wizard bug.
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+    await card.getByRole('button', { name: 'Open →' }).click();
+    await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
+
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Split Test');
+    await page.locator('select').first().selectOption('team-2v2');
+    await page.getByRole('button', { name: /Next: Select Course/ }).click();
+    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+    await page.getByRole('button', { name: /Next: Build Field/ }).click();
+    for (const [nm, hcp] of players) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    // Five players need tee groups (F-019), so the path runs through the Groups step.
+    const viaGroups = players.length > 4;
+    await page.getByRole('button', { name: viaGroups ? 'Next: Set Groups' : 'Next: Set Sides' }).click();
+    await page.getByRole('button', { name: viaGroups ? 'Next: Groups' : 'Next: Sides' }).click();
+    if (viaGroups) await page.getByRole('button', { name: 'Next: Sides' }).click();
+  }
+
+  test('F-020: five players are OFFERED the splits, not given one', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await toSidesStep(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
+
+    await expect(page.getByText('How do the sides split?')).toBeVisible();
+    const body = await page.locator('body').innerText();
+    // The shapes Craig named for five, all on screen (§5.ao).
+    expect(body).toContain('3 v 2');
+    expect(body).toContain('2 v 2 v 1');
+    expect(body).toContain('1 v 1 v 1 v 1 v 1');
+
+    // A PRE-EXISTING BUG THE SCREENSHOT EXPOSED. The heading hard-coded "(2 vs 2)" for any
+    // two-side game — true while two sides meant two pairs, and a lie the moment an uneven split
+    // was reachable. Five players seeded 3–2 read "Sides (2 vs 2)" directly above a highlighted
+    // "3 v 2" button. It now counts the sides from the data.
+    await expect(page.getByRole('heading', { name: /Sides \(3 vs 2\)/ })).toBeVisible();
+    expect(body).not.toContain('Sides (2 vs 2)');
+    await page.screenshot({ path: 'e2e/screenshots/f020-side-splits.png', fullPage: true });
+  });
+
+  test('F-020: choosing 2 v 2 v 1 really makes three sides', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await toSidesStep(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
+
+    await page.getByRole('button', { name: /2 v 2 v 1/ }).click();
+    // The heading counts the sides, so it must now read 2 vs 2 vs 1.
+    await expect(page.getByRole('heading', { name: /Sides \(2 vs 2 vs 1\)/ })).toBeVisible();
+    // Three assignment buttons per player: A, B, C.
+    const firstRow = page.locator('div.flex.items-center.justify-between', { hasText: 'Craig' }).first();
+    await expect(firstRow.getByRole('button', { name: 'C', exact: true })).toBeVisible();
+
+    // And it carries through to the review step — the split is real, not just a label.
+    await page.getByRole('button', { name: /Next: Review/ }).click();
+    const review = await page.locator('body').innerText();
+    expect(review).toContain('Sides (2 vs 2 vs 1)');
+  });
+
+  // An ordinary 2v2 must not gain a control: with four players the honest options are 2v2, 2+1+1
+  // and four singles — so the chooser DOES appear. Four is the case where §5.ao's "only the group
+  // knows" still applies, unlike tee groups where four can only walk one way. This test pins the
+  // distinction so nobody "simplifies" it away by copying the Groups step's rule.
+  test('F-020: four players still get the choice (2v2 is not the only answer)', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await toSidesStep(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']]);
+    await expect(page.getByText('How do the sides split?')).toBeVisible();
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('2 v 2');
+    expect(body).toContain('1 v 1 v 1 v 1');
+    // 2v2 is the seeded default, so it is the one highlighted.
+    await expect(page.getByRole('heading', { name: /Sides \(2 vs 2\)/ })).toBeVisible();
+  });
+
+  // A custom side name is identity, and the ids are identity too (game-modes/sides.ts) — reshaping
+  // must not silently relabel a money row.
+  test('F-020: a named side keeps its name across a reshape', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await toSidesStep(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
+
+    await page.getByRole('button', { name: /Name the sides/ }).click();
+    await page.getByLabel('Side A').fill('The Hogs');
+    // Reshape AFTER naming.
+    await page.getByRole('button', { name: /2 v 2 v 1/ }).click();
+
+    await page.getByRole('button', { name: /Next: Review/ }).click();
+    const review = await page.locator('body').innerText();
+    expect(review).toContain('The Hogs');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // F-019 — a group that outgrew its tee slot: PROMPT, defaulting to keep
 // ---------------------------------------------------------------------------
 //
@@ -1694,7 +1920,9 @@ test.describe('F-019: the wizard builds real playing groups', () => {
     await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
 
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Groups Test');
-    await page.locator('select').first().selectOption({ label: 'Sides (within group)' });
+    // Select by VALUE, not label: F-020 appends a fit badge to option labels once a field
+    // exists, so a label match is fragile even where it happens to work today.
+    await page.locator('select').first().selectOption('team-2v2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
     await page.getByRole('button', { name: /Next: Build Field/ }).click();
