@@ -21,6 +21,9 @@ export type {
   SettingValue,
 } from './types';
 export { buildGameModeContext } from './context';
+export {
+  fitForMode, modeFits, playerRangeSentence, fitBadge, fitExplanation, type FitVerdict,
+} from './fit';
 export { defaultSettings, settingValue, numberSetting, boolSetting, stringSetting, parseVector } from './settings';
 
 // Registered game modes (order = display order in the wizard).

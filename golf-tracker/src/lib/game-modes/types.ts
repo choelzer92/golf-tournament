@@ -31,7 +31,13 @@ export interface GameModeDescriptor {
   description: string;
   category: GameCategory;
   inputType: GameInputType;
-  playersMin: number;         // per group
+  // How many players the game needs, measured against the WHOLE FIELD — not per playing group
+  // (Craig, 2026-08-26). This used to read "per group", which was unambiguous only while a
+  // single-group game had exactly one group. F-019 gave side games real tee groups, so 4–8 could
+  // have meant "4–8 in the game" or "4–8 per tee slot"; the field is the answer, because it's the
+  // only one available at the moment the game is picked (the picker comes before the tee sheet).
+  // Read it through `fitForMode` (game-modes/fit.ts) rather than comparing by hand.
+  playersMin: number;
   playersMax: number;
   settings: FormatSetting[];  // toggleable options, each with a norm default
   compute(ctx: GameModeContext): IndividualResult;  // pure — no I/O
