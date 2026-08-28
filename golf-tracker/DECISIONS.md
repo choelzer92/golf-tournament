@@ -1196,6 +1196,39 @@ a one-time cost" only holds if the saved config is offered at the moment of choo
 
 ---
 
+## 5.aw A group LISTS the formats it plays; one tap to the usual one (2026-08-27)
+
+Craig, refining §5.av:
+
+> "a group should just list the standard options that they play, and then other options. weekend
+> warriors should be able to choose their saved format easily if they arent trying something new,
+> one tap"
+
+**Answering the question I'd actually asked, differently and better.** I asked whether a group should
+*carry* a style — merging the two concepts. His answer keeps them separate: a group **offers a list**
+of the formats it plays, and picking one is a tap. Players and style stay distinct; the group is a
+shortcut to its usuals, not a container for one.
+
+**Almost all of this is already built.** `GroupDefaults.formatIds` attaches Format Library entries to
+a player group; `groupFormatsFor` reads them; the group page's "Casual round" already opens a format
+picker when the group has any, with "New / custom format →" as the escape hatch. Members come from
+the group, settings from the format, composed through two independent session seeds.
+
+**What's missing is smaller than it looked:**
+1. **No fixture ever attaches a format to a group**, so the one-tap path has never been seen on
+   screen or covered by a test. Every seeded group shows the empty state — which is why I had never
+   watched it work.
+2. The group page says it correctly (*"Import the games this group plays, so they're one tap away"*)
+   but nothing seeds that state, so the feature reads as unbuilt.
+3. §5.av's wizard picker is still needed for the path that does NOT start from a group.
+
+**How to apply.** When a feature looks unbuilt, check whether it's merely un-seeded. A capability with
+no fixture is indistinguishable from a missing one — and it will be re-specified, re-designed, or
+re-implemented by someone who never saw it run. **Seeding a state is how a feature becomes real to
+the next reader**, which is the same argument AGENTS.md makes for looking at the screen.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch
