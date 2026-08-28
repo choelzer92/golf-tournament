@@ -15,11 +15,11 @@ import {
 } from '@/lib/game-modes/sides';
 import { buildGameModeContext } from '@/lib/game-modes/context';
 import { getGameMode } from '@/lib/game-modes';
-import { sideNameFrom } from '@/lib/game-modes/team-game';
+import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 import type { IndividualResult } from '@/lib/game-modes/types';
 import type { PoolGame } from '@/lib/pool-game';
 import type { GameScore } from '@/lib/game-state';
-import { makeGame, parScores, scoresFor, singleMatchup, TEST_PARS } from './fixtures';
+import { allEighteen, makeGame, makeTeam, parScores, scoresFor, singleMatchup, TEST_PARS } from './fixtures';
 
 describe('reading a legacy two-side game', () => {
   it('widens {a,b} while keeping the ids literally', () => {
@@ -925,6 +925,14 @@ describe('side display names by size', () => {
   it('a SOLO side says solo, so it is not mistaken for a player row', () => {
     // The board's other rows are sides; a bare "Tony" read as a person.
     expect(sideNameFrom(ps, ['p1'], 'c')).toBe('Craig (solo)');
+    // ...but ONLY when it contrasts with something. In a 1v1 (or a field each playing for
+    // themselves) every row is one player, so the suffix distinguishes nothing and the board
+    // should read "Craig vs Jym" the way golfers say it. The flag is passed by callers that can
+    // see the whole side collection — see allSidesAreSolo.
+    expect(sideNameFrom(ps, ['p1'], 'a', undefined, true)).toBe('Craig');
+    expect(sideNameFrom(ps, ['p2'], 'b', undefined, true)).toBe('Jym');
+    // A custom name still wins over both.
+    expect(sideNameFrom(ps, ['p1'], 'a', 'The Hog', true)).toBe('The Hog');
   });
 
   it('THREE or more counts the rest instead of chaining ampersands', () => {
@@ -940,5 +948,104 @@ describe('side display names by size', () => {
 
   it('an EMPTY side falls back to its letter', () => {
     expect(sideNameFrom(ps, [], 'c')).toBe('Side C');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 1 v 1 — a singles match (Craig, 2026-08-27)
+// ---------------------------------------------------------------------------
+//
+// The engine always handled this: one player per side is just a side of one, and the pairwise
+// settlement treats it like any other. `playersMin: 4` was refusing a game that already worked, so
+// a singles Nassau — the most common two-player bet in golf — was inexpressible.
+
+describe('allSidesAreSolo', () => {
+  it('is true only when EVERY side is a single player', () => {
+    expect(allSidesAreSolo([{ id: 'a', playerIds: ['p1'] }, { id: 'b', playerIds: ['p2'] }])).toBe(true);
+    expect(allSidesAreSolo([
+      { id: 'a', playerIds: ['p1'] }, { id: 'b', playerIds: ['p2'] },
+      { id: 'c', playerIds: ['p3'] }, { id: 'd', playerIds: ['p4'] },
+    ])).toBe(true);
+    // A solo AGAINST a pair keeps the "(solo)" suffix, because there it distinguishes something.
+    expect(allSidesAreSolo([{ id: 'a', playerIds: ['p1', 'p2'] }, { id: 'b', playerIds: ['p3'] }])).toBe(false);
+    expect(allSidesAreSolo([{ id: 'a', playerIds: ['p1', 'p2'] }, { id: 'b', playerIds: ['p3', 'p4'] }])).toBe(false);
+  });
+
+  it('a lone side is NOT "all solo" — one side is not a game', () => {
+    expect(allSidesAreSolo([{ id: 'a', playerIds: ['p1'] }])).toBe(false);
+    expect(allSidesAreSolo([])).toBe(false);
+  });
+});
+
+describe('a 1 v 1 match settles', () => {
+  const H = allEighteen();
+  const par = H.map((h) => TEST_PARS[h - 1]);
+  const overBy = (n: number) => H.map((h) => TEST_PARS[h - 1] + n);
+
+  function oneOnOne(settings: Record<string, string | number | boolean>) {
+    return makeGame({
+      gameMode: 'team-2v2',
+      indexes: [0, 0],                 // scratch, so net == gross and the numbers are hand-checkable
+      players: [
+        { id: 'p1', name: 'Craig Hoelzer', handicapIndex: 0, gender: 'M' as const, teeSetId: 1 },
+        { id: 'p2', name: 'Jym Youngberg', handicapIndex: 0, gender: 'M' as const, teeSetId: 1 },
+      ],
+      teams: [makeTeam(1, ['p1', 'p2'])],
+      sides: [{ id: 'a', playerIds: ['p1'] }, { id: 'b', playerIds: ['p2'] }],
+      modeSettings: {
+        format: 'best-ball', scoring: 'stroke', result: 'total',
+        legFront: 10, legBack: 10, legOverall: 20, dollarsPerPoint: 1, dollarsPerHole: 2,
+        sideBuyIn: 20, potSplit: '100',
+        ...settings,
+      },
+    });
+  }
+
+  const run1 = (game: ReturnType<typeof oneOnOne>, scores: ReturnType<typeof scoresFor>) =>
+    getGameMode('team-2v2')!.compute(buildGameModeContext(game, singleMatchup(scores)));
+
+  for (const moneyModel of ['legs', 'per-hole', 'per-point', 'pot'] as const) {
+    it(`${moneyModel}: the better player is paid, and it is zero-sum`, () => {
+      const r = run1(oneOnOne({ moneyModel }), [
+        ...scoresFor('p1', par), ...scoresFor('p2', overBy(1)),
+      ]);
+      expect(r.standings.length).toBe(2);
+      expect(r.standings.reduce((s, x) => s + x.moneyNet, 0)).toBeCloseTo(0, 6);
+      // Craig shot par against Jym's +18, so Craig collects.
+      const byId = Object.fromEntries(r.standings.map((s) => [s.playerId, s.moneyNet]));
+      expect(byId.A).toBeGreaterThan(0);
+      expect(byId.B).toBeLessThan(0);
+    });
+  }
+
+  // The label change: with both sides solo the board reads the way a golfer would say it.
+  it('names the sides after the players, with no "(solo)" noise', () => {
+    const r = run1(oneOnOne({ moneyModel: 'per-point' }), [
+      ...scoresFor('p1', par), ...scoresFor('p2', overBy(1)),
+    ]);
+    expect(r.sideLabels?.map((s) => s.name)).toEqual(['Craig', 'Jym']);
+    expect(JSON.stringify(r.sideLabels)).not.toContain('solo');
+  });
+
+  // A singles NASSAU — the thing that was inexpressible. Front, back and overall settle separately.
+  it('settles front, back and overall as separate legs', () => {
+    const r = run1(oneOnOne({ moneyModel: 'legs' }), [
+      // Craig wins the front, Jym wins the back, Craig takes the overall by one.
+      ...scoresFor('p1', [...par.slice(0, 9).map((p) => p - 1), ...par.slice(9)]),
+      ...scoresFor('p2', [...par.slice(0, 9), ...par.slice(9).map((p) => p - 1)]),
+    ]);
+    const legs = Object.fromEntries((r.teamLegs ?? []).map((l) => [l.key, l.winner]));
+    expect(legs.front).toBe('a');
+    expect(legs.back).toBe('b');
+    expect(r.standings.reduce((s, x) => s + x.moneyNet, 0)).toBeCloseTo(0, 6);
+  });
+
+  it('a tied 1v1 pays nobody', () => {
+    for (const moneyModel of ['legs', 'per-hole', 'per-point'] as const) {
+      const r = run1(oneOnOne({ moneyModel }), [
+        ...scoresFor('p1', par), ...scoresFor('p2', par),
+      ]);
+      expect(r.standings.every((s) => s.moneyNet === 0)).toBe(true);
+    }
   });
 });

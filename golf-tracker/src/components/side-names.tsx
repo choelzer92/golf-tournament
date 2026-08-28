@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { GameSide } from '@/lib/game-modes/sides';
-import { sideNameFrom } from '@/lib/game-modes/team-game';
+import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 import type { Player } from '@/lib/game-state';
 
 // Optional custom names for the sides a game ACTUALLY has (F-014).
@@ -61,7 +61,9 @@ export function SideNames({
             const fieldId = `${idPrefix}-${side.id}`;
             // The placeholder shows what the board WILL say if this is left blank, so the
             // consequence of not typing anything is visible rather than implied.
-            const auto = sideNameFrom(players, side.playerIds, side.id, undefined);
+            // Pass the solo flag so the placeholder promises what the board will ACTUALLY
+            // say — in a 1v1 that's "Craig", not "Craig (solo)".
+            const auto = sideNameFrom(players, side.playerIds, side.id, undefined, allSidesAreSolo(sides));
             return (
               <div key={side.id} className="flex items-center gap-2">
                 <label htmlFor={fieldId} className="w-14 shrink-0 text-sm font-medium text-gray-700">

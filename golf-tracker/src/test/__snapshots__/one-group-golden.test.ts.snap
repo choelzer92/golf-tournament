@@ -478,6 +478,80 @@ exports[`GOLDEN: every mode at one group (MUST NOT MOVE) > stableford-ind / 4 pl
 }
 `;
 
+exports[`GOLDEN: every mode at one group (MUST NOT MOVE) > team-2v2 / 2 players (playersMin) 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1",
+      "status": "1st · 14 holes",
+      "total": 36,
+    },
+    {
+      "id": "b",
+      "name": "Player2",
+      "status": "2nd · 0 holes",
+      "total": 22,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1",
+    },
+    {
+      "id": "b",
+      "name": "Player2",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 30,
+      "place": 1,
+      "points": 16,
+      "thru": 18,
+      "toPar": undefined,
+    },
+    {
+      "id": "B",
+      "money": -30,
+      "place": 2,
+      "points": 2,
+      "thru": 18,
+      "toPar": undefined,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 5 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 9 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 14 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
 exports[`GOLDEN: every mode at one group (MUST NOT MOVE) > team-2v2 / 4 players (playersMin) 1`] = `
 {
   "junkLines": undefined,

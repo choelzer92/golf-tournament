@@ -196,7 +196,7 @@ export default function PoolHubPage() {
     let teamMode: GameSetup['teamMode'] = 'two-best-balls';
     let handicapAllowance = game!.handicapAllowance;
 
-    // 2v2 within group: ALWAYS tag each player with their side (.team) so the
+    // A side game: ALWAYS tag each player with their side (.team) so the
     // scorecard shows who's on which side. Previously only the one-ball formats
     // were tagged, so a 2v2 best-ball/combined round gave no on-card indication
     // of the sides at all — you had to open the leaderboard to find out.

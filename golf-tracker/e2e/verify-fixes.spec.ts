@@ -121,10 +121,11 @@ test.describe('single-group vocabulary', () => {
     const body = await page.locator('body').innerText();
     expect(body).not.toContain('1 foursomes');
     expect(body).not.toContain('Pool Money Game · 1');
-    // Names the mode instead. The mode was renamed "2 vs 2 (within group)" → "Sides (within
-    // group)" when it was generalized to N sides (F-006): two sides is still the default, but
-    // the name can no longer claim there are exactly two.
-    expect(body).toMatch(/Sides \(within group\)/i);
+    // Names the mode instead. Renamed twice as the mode widened: "2 vs 2 (within group)" →
+    // "Sides (within group)" when F-006 generalized the side count, then → "Sides / Match" when
+    // F-019 gave it real playing groups and 1v1 became reachable (§5.at — a capability change
+    // dates every string that described the old limit).
+    expect(body).toMatch(/Sides \/ Match/i);
     await page.screenshot({ path: 'e2e/screenshots/hub-2v2.png', fullPage: true });
   });
 
@@ -910,7 +911,7 @@ test.describe('F-012: the same rule, in the 2v2 editor', () => {
 
     // Assert we're on the 2v2 editor, not the classic pool one — this page renders two
     // different settings panels and an early version of this test could pass on the wrong one.
-    await expect(page.getByText('Sides (within group) options')).toBeVisible();
+    await expect(page.getByText('Sides / Match options')).toBeVisible();
 
     const picker = page.locator('select').filter({ hasText: 'Best ball (low net counts)' }).first();
     await expect(picker).toBeVisible();
@@ -1012,7 +1013,7 @@ test.describe('F-006: three sides in one group', () => {
     const id = await seed(page, 'Three sides in one group');
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
-    await expect(page.getByText('Sides (within group) options')).toBeVisible();
+    await expect(page.getByText('Sides / Match options')).toBeVisible();
 
     // The names are no longer settings, so the settings editor must not offer them at all.
     for (const letter of ['A', 'B', 'C', 'D', 'E', 'F']) {
@@ -1043,7 +1044,7 @@ test.describe('F-006: three sides in one group', () => {
     const id = await seed(page, 'Three sides in one group');
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
-    await expect(page.getByText('Sides (within group) options')).toBeVisible();
+    await expect(page.getByText('Sides / Match options')).toBeVisible();
 
     // Three side buttons per player row, and the controls to change that.
     await expect(page.getByRole('button', { name: 'Remove side C' })).toBeVisible();
@@ -1631,7 +1632,7 @@ test.describe('F-020: the game picker annotates fit', () => {
 
     const body = await page.locator('body').innerText();
     // Five players: a side game fits (4–8); the 2–4 and 3–4 modes don't.
-    expect(body).toMatch(/Sides \(within group\) — ✓ 5 players/);
+    expect(body).toMatch(/Sides \/ Match — ✓ 5 players/);
     expect(body).toMatch(/Skins — 1 too many/);
     // Wolf needs EXACTLY four, so it states the requirement rather than a delta — "1 too many"
     // reads as though dropping a player is the fix, and at three the fix is the opposite.
@@ -1653,7 +1654,7 @@ test.describe('F-020: the game picker annotates fit', () => {
     // The constraint, at the moment of choosing.
     expect(body).toContain('Wolf needs exactly 4 players — you have 5.');
     // With an alternative attached, so it's guidance rather than a dead end (§5.ao).
-    expect(body).toMatch(/This one fits 5: Sides \(within group\)/);
+    expect(body).toMatch(/This one fits 5: Sides \/ Match/);
     // And it does NOT send them back a step — that was the old copy's whole problem.
     expect(body).not.toMatch(/go back/i);
     await page.screenshot({ path: 'e2e/screenshots/f020-wolf-misfit.png', fullPage: true });
@@ -1669,7 +1670,9 @@ test.describe('F-020: the game picker annotates fit', () => {
 
     const picker = await page.locator('body').innerText();
     expect(picker).not.toMatch(/single group/i);
-    expect(picker).toContain('For 4–8 players.');
+    // 2–8 since a singles match became reachable (2026-08-27) — the sentence states what the game
+    // needs and never how the field walks.
+    expect(picker).toContain('For 2–8 players.');
 
     // And the review step, which said "is played in a single group of 4–4 players".
     await buildField(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
@@ -1680,6 +1683,104 @@ test.describe('F-020: the game picker annotates fit', () => {
     const review = await page.locator('body').innerText();
     expect(review).not.toMatch(/single group/i);
     expect(review).not.toMatch(/go back to field/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A 1 v 1 SINGLES MATCH (Craig, 2026-08-27)
+// ---------------------------------------------------------------------------
+//
+// Craig, going through the flow: "what would i do for a 1 v 1 match?" — and the honest answer was
+// nothing. The engine always handled it (a side of one is just a side of one, and the pairwise
+// settlement treats it like any other), but `playersMin: 4` refused it in the wizard, so a singles
+// Nassau — the most common two-player bet in golf — was inexpressible.
+test.describe('a 1 v 1 singles match', () => {
+  test('1v1: the board names the players and settles a real Nassau', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seed(page, '1 v 1 singles match');
+    await expect(page.getByText('STANDINGS')).toBeVisible();
+
+    const body = await page.locator('body').innerText();
+    // Named after the players, with no "(solo)" suffix: in a 1v1 every row is one player, so the
+    // suffix distinguishes nothing and reads like a bug report.
+    expect(body).toMatch(/1\s+Jym\s+53/);
+    expect(body).toMatch(/2\s+Craig\s+57/);
+    expect(body).not.toContain('(solo)');
+    expect(body).not.toContain('Side A');
+
+    // The Nassau: three legs settling separately, which is the whole point.
+    expect(body).toContain('Craig by 4');      // front
+    expect(body).toMatch(/Jym by 8/);          // back
+    // Zero-sum on screen.
+    const money = [...body.matchAll(/([+−-])\$(\d+)/g)]
+      .map(([, sign, n]) => (sign === '+' ? 1 : -1) * Number(n));
+    expect(money.length).toBeGreaterThanOrEqual(2);
+    expect(money.reduce((s, x) => s + x, 0)).toBe(0);
+
+    await page.screenshot({ path: 'e2e/screenshots/oneone-board.png', fullPage: true });
+  });
+
+  test('1v1: the wizard offers Sides at two players and builds 1 vs 1', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Past games (for recent-course' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+    await card.getByRole('button', { name: 'Open →' }).click();
+    await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
+
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Craig v Jym');
+    await page.locator('select').first().selectOption('team-2v2');
+    await page.getByRole('button', { name: /Next: Select Course/ }).click();
+    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+    await page.getByRole('button', { name: /Next: Build Field/ }).click();
+    for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']]) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+
+    // Back to the picker: the mode must now say it FITS two players. This is the assertion that
+    // fails on the old playersMin: 4.
+    await page.getByRole('button', { name: /Back/ }).first().click();
+    await page.waitForTimeout(200);
+    await page.getByRole('button', { name: /Back/ }).first().click();
+    await expect(page.getByText('Which game are you playing?')).toBeVisible();
+    const picker = await page.locator('body').innerText();
+    expect(picker).toMatch(/Sides \/ Match — ✓ 2 players/);
+    // And the mode no longer calls itself "within group" — F-019 falsified that, and at two
+    // players a 1v1 has no group to be within (§5.at).
+    expect(picker).not.toContain('within group');
+
+    // Forward to the sides step: 1 vs 1, seeded one player each, and no split chooser because
+    // 1v1 is the only shape two players can take.
+    await page.getByRole('button', { name: /Next: Select Course/ }).click();
+    await page.getByRole('button', { name: /Next: Build Field/ }).click();
+    await page.getByRole('button', { name: 'Next: Set Sides' }).click();
+    await page.getByRole('button', { name: 'Next: Sides' }).click();
+    await expect(page.getByRole('heading', { name: /Sides \(1 vs 1\)/ })).toBeVisible();
+    expect(await page.locator('body').innerText()).not.toContain('How do the sides split?');
+    await page.screenshot({ path: 'e2e/screenshots/oneone-sides.png', fullPage: true });
+
+    // The review step shows each player once — the heading used to repeat the name above its own
+    // member list ("Craig" with "Craig" under it), which only showed up on screen.
+    await page.getByRole('button', { name: /Next: Review/ }).click();
+    const review = await page.locator('body').innerText();
+    expect(review).toContain('Sides (1 vs 1)');
+    expect(review).toMatch(/\$10 front/);
+    expect((review.match(/Craig/g) ?? []).length).toBe(2);  // the game name + one row
+    await page.screenshot({ path: 'e2e/screenshots/oneone-review.png', fullPage: true });
+  });
+
+  // A solo side AGAINST a pair keeps its "(solo)" marker — there it distinguishes something.
+  test('1v1: a solo against a pair still says (solo)', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const id = await seed(page, 'Three sides playing a POT (uneven 3/2/1)');
+    await goToGame(page, id, '/leaderboard');
+    await expect(page.getByText('STANDINGS')).toBeVisible();
+    expect(await page.locator('body').innerText()).toContain('(solo)');
   });
 });
 

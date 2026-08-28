@@ -86,11 +86,12 @@ test.describe('the ORDINARY 2v2 — two guys against two guys, best ball, usual 
     });
 
     // Pick the side game. This is the mode that was renamed from "2 vs 2 (within
-    // group)" to "Sides (within group)".
+    // group)" to "Sides (within group)" to "Sides / Match" (F-019 + 1v1). Select by VALUE so a
+    // future rename can't break this, and because F-020 appends a fit badge to the labels.
     const gamePicker = page.locator('select').first();
     console.log(`\nGAME PICKER OPTIONS: ${(await gamePicker.locator('option').allInnerTexts()).join(' | ')}\n`);
     await tap('choose the side game', async () => {
-      await gamePicker.selectOption({ label: 'Sides (within group)' });
+      await gamePicker.selectOption('team-2v2');
     });
 
     // --- Step 1: Details, AFTER picking the side game --------------------------

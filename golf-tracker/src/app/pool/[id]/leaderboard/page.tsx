@@ -96,7 +96,7 @@ export default function PoolLeaderboardPage() {
 
   if (!game) return null;
 
-  // Single-group game (9s / skins / quota / 2v2 within group): render the
+  // Single-group game (9s / skins / quota / sides — 1v1 up to four-a-side): render the
   // per-player/side leaderboard. The team path below is untouched for classic
   // pot/match pools.
   if (isSingleGroupGame(game)) {

@@ -6,7 +6,7 @@ import type { PoolGame } from '@/lib/pool-game';
 import { loadPoolGame, fetchPoolGame, computePoolPlayerDetails } from '@/lib/pool-game';
 import { getGameMode } from '@/lib/game-modes';
 import { sidesOfGame, sideOfPlayer } from '@/lib/game-modes/sides';
-import { sideNameFrom } from '@/lib/game-modes/team-game';
+import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 
 // A clean teams sheet the organizer can screenshot or print and send out —
 // replacing the spreadsheet he used to make by hand. Foursomes in their set
@@ -64,7 +64,7 @@ export default function PoolTeamsPage() {
   const sides = isSideGame ? sidesOfGame(game) : [];
   const sideNameOf = (sideId: string) => {
     const s = sides.find((x) => x.id === sideId);
-    return s ? sideNameFrom(game.players, s.playerIds, s.id, s.name) : null;
+    return s ? sideNameFrom(game.players, s.playerIds, s.id, s.name, allSidesAreSolo(sides)) : null;
   };
   // Which side a player is on, or null for a guest playing no money (F-019 supports that).
   const sideLabelFor = (playerId: string) => {

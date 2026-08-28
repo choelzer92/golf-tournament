@@ -103,6 +103,13 @@ export function sideNameFrom(
   ids: string[],
   sideId: string,
   customName?: string,
+  /**
+   * True when EVERY side in the game is a single player (a 1v1, or four players each for
+   * themselves). Then "(solo)" is noise: it distinguishes nothing, because there is no pair to
+   * contrast with, and "Craig vs Jym" is how golfers say it. Defaults false so every existing
+   * caller keeps today's labels.
+   */
+  allSidesSolo = false,
 ): string {
   const custom = (customName ?? '').trim();
   if (custom) return custom;
@@ -114,7 +121,11 @@ export function sideNameFrom(
   // it read "Craig & Jym & Dave" — a run of ampersands that gets worse with every player — and a
   // ONE-player side read as a bare "Tony", indistinguishable from a player name on a board whose
   // other rows are sides. Both were only obvious in a screenshot.
-  if (names.length === 1) return `${names[0]} (solo)`;
+  //
+  // The "(solo)" suffix earns its place only when it CONTRASTS with something: a lone player up
+  // against a pair. In a 1v1 every row is one player, so the suffix marks nothing and just makes
+  // the board read like a bug report.
+  if (names.length === 1) return allSidesSolo ? names[0] : `${names[0]} (solo)`;
   if (names.length === 2) return names.join(' & ');
   // Three or more: name it after the first two and count the rest, so the column stays readable
   // on a phone. A group that cares can set a custom name.
@@ -126,16 +137,28 @@ export function sideNameFrom(
 //
 // Two, not N, because the scorecard's team slot is a two-value field (Player.team: 'A' | 'B').
 // A 3+ side game is deliberately left untagged upstream, so this is only ever called with two.
+/**
+ * True when every side holds exactly one player — a 1v1, or a field each playing for themselves.
+ *
+ * Exported so the naming decision is made in ONE place: "(solo)" only earns its place when a lone
+ * player contrasts with a pair, and each screen deciding that for itself is how the same side ends
+ * up labelled two ways (the bug §5.al is about).
+ */
+export function allSidesAreSolo(sides: GameSide[]): boolean {
+  return sides.length > 1 && sides.every((s) => s.playerIds.length === 1);
+}
+
 export function sideNamesForGame(
   game: PoolGame,
   sides: GameSide[],
 ): { A: string; B: string } {
   // No legacy-settings lookup here any more (F-014): `sidesOfGame` has already absorbed
   // `sideAName`/`sideBName` into each side's own `name`, so this reads one field.
+  const solo = allSidesAreSolo(sides);
   const nameAt = (idx: number) => {
     const side = sides[idx];
     if (!side) return idx === 0 ? 'Side A' : 'Side B';
-    return sideNameFrom(game.players, side.playerIds, side.id, side.name);
+    return sideNameFrom(game.players, side.playerIds, side.id, side.name, solo);
   };
   return { A: nameAt(0), B: nameAt(1) };
 }
@@ -166,8 +189,9 @@ function compute(ctx: GameModeContext): IndividualResult {
   // Custom side names come off the side itself (F-014). The legacy `side<Letter>Name` settings
   // were absorbed into `GameSide.name` by `sidesOfGame`, so there is no settings lookup here —
   // one field, one source of truth, and an existing game's names still resolve.
+  const soloSides = allSidesAreSolo(sides);
   const nameFor = (idx: number): string =>
-    sideNameFrom(ctx.players, sideIds(idx), sides[idx]?.id ?? '?', sides[idx]?.name);
+    sideNameFrom(ctx.players, sideIds(idx), sides[idx]?.id ?? '?', sides[idx]?.name, soloSides);
 
   // Team handicap for the single-ball formats (0 for best-ball/combined), per side.
   const isSingleBall = format === 'scramble' || format === 'alternate-shot';
@@ -651,11 +675,18 @@ export const teamGame: GameModeDescriptor = {
   // two overlapping team engines in the registry (the design smell AGENTS.md names, and the
   // reason option B was rejected in F-006).
   id: 'team-2v2',
-  name: 'Sides (within group)',
-  description: 'Split the group into sides and play them off against each other — best ball, combined, scramble, or alternate shot. Two sides by default; three or more supported.',
+  // NOT "Sides (within group)" any more. F-019 gave this mode real playing groups, so it spans
+  // several tee times and "within group" described a limit that no longer exists (§5.at). At two
+  // players it read worse still: a 1v1 has no "group" to be within.
+  name: 'Sides / Match',
+  description: 'Pick sides and play them off against each other — 1v1 up to four-a-side, best ball, combined, scramble, or alternate shot. Front, back and overall settle separately.',
   category: 'team-within-group',
   inputType: 'gross',
-  playersMin: 4,
+  // TWO, so a singles match is reachable (Craig, 2026-08-27). The engine always handled it — one
+  // player per side is just a side of one, which `sides.ts` supports and the pairwise settlement
+  // treats like any other — so `playersMin: 4` was refusing a game that already worked. A singles
+  // Nassau is the most common two-player bet in golf and was inexpressible.
+  playersMin: 2,
   // Raised from 4 so three pairs from six, or four singles, is reachable. Two sides remains
   // the default, so "just the usual 2v2" is unaffected.
   playersMax: 8,

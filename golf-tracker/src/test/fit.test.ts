@@ -12,7 +12,7 @@ import { fitForMode, modeFits, playerRangeSentence, fitBadge, fitExplanation } f
 
 const wolf = getGameMode('wolf')!;          // exactly 4
 const skins = getGameMode('skins')!;        // 2–4
-const sides = getGameMode('team-2v2')!;     // 4–8
+const sides = getGameMode('team-2v2')!;     // 2–8 (2 = a singles match)
 const nines = getGameMode('nines')!;        // 3–4
 
 describe('fitForMode', () => {
@@ -35,7 +35,8 @@ describe('fitForMode', () => {
   it('names the GAP, not just the failure', () => {
     // "needs 1 more" is actionable; "too few" isn't.
     expect(fitForMode(wolf, 3)).toEqual({ kind: 'too-few', need: 1 });
-    expect(fitForMode(sides, 2)).toEqual({ kind: 'too-few', need: 2 });
+    // Sides now starts at TWO (a singles match, 2026-08-27), so one player is the too-few case.
+    expect(fitForMode(sides, 1)).toEqual({ kind: 'too-few', need: 1 });
     expect(fitForMode(wolf, 5)).toEqual({ kind: 'too-many', over: 1 });
     expect(fitForMode(skins, 8)).toEqual({ kind: 'too-many', over: 4 });
   });
@@ -57,7 +58,7 @@ describe('fitForMode', () => {
   it('measures the WHOLE FIELD, not the biggest playing group', () => {
     expect(fitForMode(wolf, 8).kind).toBe('too-many');
     expect(fitForMode(nines, 8).kind).toBe('too-many');
-    // And a side game's 4–8 is 4–8 in the game, so eight fits however they walk.
+    // And a side game's 2–8 is 2–8 in the game, so eight fits however they walk.
     expect(fitForMode(sides, 8).kind).toBe('fits');
     expect(fitForMode(sides, 9).kind).toBe('too-many');
   });
@@ -85,7 +86,7 @@ describe('playerRangeSentence', () => {
   it('reads naturally for an exact requirement', () => {
     // "4–4" is how a machine says it.
     expect(playerRangeSentence(wolf)).toBe('Exactly 4 players.');
-    expect(playerRangeSentence(sides)).toBe('For 4–8 players.');
+    expect(playerRangeSentence(sides)).toBe('For 2–8 players.');
     expect(playerRangeSentence(skins)).toBe('For 2–4 players.');
   });
 });
@@ -97,8 +98,10 @@ describe('fitBadge', () => {
 
   it('confirms a fit, and names the gap for a RANGE', () => {
     expect(fitBadge(sides, 6)).toBe('✓ 6 players');
-    expect(fitBadge(sides, 2)).toBe('needs 2 more');
+    expect(fitBadge(sides, 1)).toBe('needs 1 more');
     expect(fitBadge(sides, 10)).toBe('2 too many');
+    // A 1v1 FITS: the range starts at two so a singles match is offered, not refused.
+    expect(fitBadge(sides, 2)).toBe('✓ 2 players');
   });
 
   // CAUGHT BY A SCREENSHOT. The first draft rendered "Wolf — 1 too many" at five players, which

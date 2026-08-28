@@ -80,7 +80,7 @@ import { POOL_GROUP_SEED_KEY } from '@/lib/group-seed';
 import { GAME_MODES, getGameMode, defaultSettings, playerRangeSentence, fitBadge, fitExplanation, modeFits, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { SideNames } from '@/components/side-names';
-import { sideNameFrom } from '@/lib/game-modes/team-game';
+import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 
 const WIZARD_KEY = 'pool_wizard_draft';
 // Set by the Format Library's "Start a game" to preconfigure the wizard once.
@@ -3698,13 +3698,24 @@ function CreateStep({
               Sides ({sides.map((s) => s.playerIds.length).join(' vs ')})
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
-              {sides.map((side) => (
-                <div key={side.id} className="rounded-lg border border-gray-200 p-2">
-                  <p className="text-sm font-medium text-gray-900 mb-1">
-                    {/* Named exactly as the board will name it — same resolver, so the review
-                        can't promise a label the leaderboard won't use. */}
-                    {sideNameFrom(players, side.playerIds, side.id, side.name)}
-                  </p>
+              {sides.map((side) => {
+                const sideLabel = sideNameFrom(players, side.playerIds, side.id, side.name, allSidesAreSolo(sides));
+                // When a side IS one player and hasn't been given a custom name, its label and its
+                // only member are the same string — so the box printed "Craig" with "Craig" under
+                // it. Show the heading only when it says something the member list doesn't.
+                const soloName = side.playerIds.length === 1
+                  ? playerById.get(side.playerIds[0])?.name
+                  : undefined;
+                const headingIsRedundant = soloName !== undefined && sideLabel === soloName.split(' ')[0];
+                return (
+                  <div key={side.id} className="rounded-lg border border-gray-200 p-2">
+                  {!headingIsRedundant && (
+                    <p className="text-sm font-medium text-gray-900 mb-1">
+                      {/* Named exactly as the board will name it — same resolver, so the review
+                          can't promise a label the leaderboard won't use. */}
+                      {sideLabel}
+                    </p>
+                  )}
                   {side.playerIds.map((pid) => {
                     const p = playerById.get(pid);
                     if (!p) return null;
@@ -3723,7 +3734,8 @@ function CreateStep({
                     );
                   })}
                 </div>
-              ))}
+                );
+              })}
             </div>
             {/* The stakes, in words. A review step that shows the pairings but not what they're
                 playing for is only half a confirmation. */}

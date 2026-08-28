@@ -316,6 +316,37 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'one-v-one-nassau',
+    label: '1 v 1 singles match — Nassau, thru 14',
+    detail: 'The two-player match that used to be impossible (playersMin was 4). Front/back/overall settle separately. Check the board reads "Craig" not "Craig (solo)".',
+    build: () => {
+      const ps = players([4, 12]);
+      const game = baseGame({
+        players: ps,
+        name: 'Craig v Jym',
+        gameMode: 'team-2v2',
+        sides: [
+          { id: 'a', playerIds: ['sp1'] },
+          { id: 'b', playerIds: ['sp2'] },
+        ],
+        modeSettings: {
+          format: 'best-ball', scoring: 'stroke', result: 'total',
+          moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20,
+          junkEnabled: true, junkBirdie: 2, junkEagle: 5, junkAlbatross: 10, junkBasis: 'gross',
+        },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1', teeTime: '8:10' }],
+      });
+      // Craig wins the front, Jym takes some of the back — a real match still in progress.
+      saveGameScores('sm1', [
+        ...scores(['sp1'], [0], [1, 2, 3, 4, 5, 6, 7, 8, 9]),
+        ...scores(['sp2'], [1], [1, 2, 3, 4, 5, 6, 7, 8, 9]),
+        ...scores(['sp1'], [1], [10, 11, 12, 13, 14]),
+        ...scores(['sp2'], [0], [10, 11, 12, 13, 14]),
+      ]);
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+  {
     key: 'one-group-side-game',
     label: 'F-019 control: 4 players, ONE group (must not change)',
     detail: 'The shape every existing side game has. Pinned in one-group-golden.test.ts and here for eyeballing: it must look and settle exactly as it does today.',
