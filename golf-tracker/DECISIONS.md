@@ -1161,6 +1161,41 @@ step (`applyGroupDefaults` from two call sites), and a saved group carries `game
 
 ---
 
+## 5.av A saved format is a CHOICE AT THE GAME STEP, not a detour before it (2026-08-27)
+
+Craig, immediately after §5.au:
+
+> "my idea about groups is that you make the game, or a group. Then the game style you chose is
+> usable forever if you want it to be, and then youre just choosing players. if you want to play a
+> different game, you just choose that at the game choosing step instead of one of your saved
+> formats"
+
+**The machinery for this already exists and is in the wrong place.** A saved format stores the whole
+style (`gameMode`, `modeSettings`, money, handicaps, sides) and seeds the wizard through
+`FORMAT_SEED_KEY`; the hub can create one from a game you just played (`formatFromGame`). What's
+missing is a single link: **the format library is invisible from the wizard.** Its only entry point
+is a "Game Formats" button on `/pool`, a different screen, reached before you've decided to start
+anything (`pool/page.tsx:89` — one call site in the whole app).
+
+So in practice the library is unreachable at the moment it would help, and every round re-answers
+14 questions.
+
+**Decision: one picker at the game step — saved formats first, the built-in modes below.** Choosing
+a format fills everything and skips the settings questions; choosing a raw mode configures fresh.
+"Then you're just choosing players" is the recurring case, exactly as Craig describes.
+
+**Why this outranks §5.au's reorder, and comes first.** The reorder resequences 14 questions; this
+one *removes* them for every round after the first of a given style. Both are worth doing — money
+still belongs after the field so a pot is computable — but most rounds will never reach those
+questions, which changes what "step 1 has 18 controls" actually costs: it's paid once per new style,
+not once per round.
+
+**How to apply.** Before resequencing a flow, check whether the flow is even necessary. Reuse that
+exists but isn't surfaced where the decision is made is reuse that doesn't exist — §5.e's "config is
+a one-time cost" only holds if the saved config is offered at the moment of choosing.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch
