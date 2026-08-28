@@ -1746,7 +1746,31 @@ discards their value.
 - **§5.au** — the reorder (field first, money after teams). Still right, but F-021 lowers its
   urgency: a collapsed step 1 is 2 controls whatever the order, and most rounds never expand it.
 
-**Status:** open, found 2026-08-27 by seeding the state and walking it. Not built.
+**Status:** **BUILT and verified 2026-08-28** (§5.ax). `npm run verify` green — 1481 unit tests, 116
+e2e. Measured on the Weekend Warriors path:
+
+| | before | after |
+|---|---|---|
+| visible controls | 24 | **10** |
+| visible labels | 15 | **2** |
+| page height | 2080px | **844px** (no scroll to reach Next) |
+
+Built as §5.ax specified: money-relevant summary, per-section `[Change]`, editable title that forks
+a new style, original never rewritten. A from-scratch game is untouched (test).
+
+**Two defects only the screenshot showed**, both mine and both instructive:
+1. **Two name inputs bound to the same value** — the summary's title duplicated the "What should we
+   call it?" field.
+2. **The sections didn't close at all.** `useState(!appliedFormat)` reads the prop on the FIRST
+   render, but the format seed is consumed in a mount effect in the parent — so every section
+   initialised open and the panel closed nothing. The counts said 24 controls while the summary sat
+   right there looking correct. **A derived initial value can't be seeded from a prop that arrives
+   later**; track the user's action ("opened by hand") and derive visibility from it.
+
+**And the pure function caught a money bug on its first run:** skins reported "$1 a point", because
+the draft defaulted `moneyModel` to `per-point` for individual modes so skins never reached its own
+branch. A confident sentence about the wrong currency — which is precisely why the summary is tested
+separately from the screen (§5.ar).
 
 ---
 

@@ -1,62 +1,76 @@
-# Next session: no finding is queued — pick from the open list
+# Next session: reuse is surfaced — what's left of the wizard
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 ---
 
-Read `AGENTS.md` first. **F-019 and F-020 are both done**, so unlike the last few sessions there is
-no designed-and-approved finding waiting. The job is to agree what's next with Craig before
-building.
+Read `AGENTS.md`, then **`DECISIONS.md` §5.au–§5.ax** (four decisions from one conversation, in
+order — each revises the previous) and **`FINDINGS.md` F-021**. That's the reading list.
 
-**State:** branch `ui-consistency-and-compute-tests`, 86 commits ahead of `main`, NOT merged, NOT
-pushed. Merging is Craig's call; don't ask, don't push. `npm run verify` is green (1385 unit tests,
-typecheck, build, 107 e2e) and starts its own sandbox, so there's no setup.
+**State:** branch `ui-consistency-and-compute-tests`, ~93 commits ahead of `main`, NOT merged, NOT
+pushed. Merging is Craig's call; don't ask, don't push. `npm run verify` is green (1481 unit tests,
+typecheck, build, 116 e2e) and starts its own sandbox, so there's no setup.
 
-## What's open, roughly in the order I'd raise it
+## Where the wizard got to
 
-1. **§7 q5 — how much config belongs on the first screen.** The longest-standing open question,
-   with numbers attached: an ordinary 2v2 is **6 mode controls on step 1 and 13 taps** end to end
-   (`e2e/nsides-audit.spec.ts`). F-020 just added a misfit banner to that same screen, so it's a
-   little busier than when the count was taken. Craig has never been asked to rule on the number.
-   **Needs his decision, not a build.**
+Craig asked why setup isn't "a few questions — how many players, what game, what money". Measuring it
+gave 14 questions / 18 controls on step 1 before anyone is in the field. Four decisions followed, and
+**each one made the next smaller**:
 
-2. **§7 q4 — dark = live, light = setup.** Written up as deliberate; probably just needs confirming.
+| | Decision | Built? |
+|---|---|---|
+| §5.au | Reorder: field first, money after teams | **no** |
+| §5.av | Saved formats belong AT the game step, not on a separate screen | **no** |
+| §5.aw | A group LISTS the formats it plays; one tap to the usual | **yes** — fixture only |
+| §5.ax | An applied format CONFIRMS instead of re-asking (F-021) | **yes** |
 
-3. **F-013's remainder** — the tournament still carries its own copy of the team-score math. Real
-   duplication, no user-visible symptom, nobody has complained. Safe, unglamorous, and the kind of
-   thing that bites during a later change.
+Weekend Warriors → Casual round → Saturday Nassau is now **two taps to a correctly configured game**,
+landing on a 10-control confirmation instead of a 24-control form.
 
-4. **Editing a side game's tee sheet from the hub.** F-019 left this out by design: a side game's
-   playing groups can only be changed in the wizard or via the oversized-group prompt, whereas a
-   pool has `EditFoursomes`. Noting it so the gap stays a decision rather than a surprise.
+## What's actually left
 
-5. **Offline / PWA resilience** — §6 item 4 on Craig's own list, untouched. `sw.js` exists with no
-   offline caching, which is a real gap for a "continuing"-focused product on cart-path wifi.
+1. **§5.av — saved formats in the wizard's own game picker.** Still needed for a game NOT started
+   from a group. Note the picker is a native `<select>` and formats want a summary line, so this is
+   probably a real list, not another `<option>`. `formatSummaryLine` (`game-modes/summary.ts`)
+   already produces the line.
+
+2. **§5.au — the reorder.** Still right, and now much less urgent: a confirmed format is ~10 controls
+   whatever the order, and most rounds never expand them. It matters for the FIRST game of a new
+   style, which still faces all 21. **Warning recorded while sizing it:** `applyGroupDefaults` is
+   called from both step 1 and the field step, and a format carries `gameMode` + `modeSettings` +
+   `sides` — moving the field earlier changes which lands first. Pin the group-load path before
+   touching order (the §5.aw tests are that pin).
+
+3. **Saving a forked format.** F-021 lets you rename an edited format, and the summary says "based on
+   Saturday Nassau" — but nothing yet offers to SAVE it. §5.ax part 4 says the review step should.
+   Small, and it closes the loop: play → save format → group lists it → two taps next week.
 
 ## Rules that keep earning their place
 
-- **Pin before you change money**, and **mutation-prove every pin** (§5.z). Across the last two
-  sessions five mutations survived first drafts. Every one was the same shape: **a field that only
-  varies under a setting no test set** (a pot read by one mode in one money model; a stroke
-  threshold masked by best-ball; a defensive clear whose rows no reader reaches).
-- **Look at the screen.** Six defects across these two findings were invisible in the code and
-  obvious in a screenshot — including two where every assertion passed and the label was simply
-  false (§5.ar, §5.at). `/sandbox` seeds state in one click; `npx playwright test` writes to
-  `e2e/screenshots/`.
-- **Watch each new test fail** against the code it guards before trusting it. One test written
-  specifically to catch a surviving mutation didn't, and reading the call sites explained why.
-- **Read the call sites before believing a design's sizing.** F-019's approved design was wrong
-  three ways about where the work was — verify, don't inherit.
-- **`.next` can corrupt.** A truncated `.next/dev/types/routes.d.ts` produced a hard 404 on
-  `/pool/new` that looked exactly like a broken component. `rm -rf .next` and restart before
-  debugging a route that vanished.
-- **Don't re-decide what's settled:** independent axes (§5.an), auto-balance + "uneven counts ask"
-  (§5.ao), the mid-round prompt (§5.ap), reuse-the-logic (§5.aq), fit measured against the whole
-  field (§5.as), pot arithmetic (§5.ag), round-robin money (§5.ae), pairwise ties (§5.aj).
+- **Look at the screen.** Eight defects across F-019/F-020/F-021 were invisible in code and obvious
+  in a screenshot — including two in F-021 itself (a duplicated name input; sections that didn't
+  close at all while the panel looked right). The counting helper in `verify-fixes.spec.ts` is
+  cheap: assert control/label counts, not just presence.
+- **A capability with no fixture is indistinguishable from a missing one** (§5.aw). The whole
+  group→format→wizard path was built and unreachable because nothing seeded it. When something looks
+  unbuilt, check whether it's un-seeded first.
+- **Mutation-prove any claim a user acts on** (§5.z, §5.ar). The summary line's tests caught skins
+  reporting "$1 a point" on their first run.
+- **Watch each new test fail** against the code it guards. And when a test fails, read the artifact
+  before forming a theory — I diagnosed one failure as an ordering bug when the page snapshot
+  already showed the right value selected.
+- **Don't re-decide what's settled:** §5.an (independent axes), §5.ao (uneven counts ask), §5.ap
+  (mid-round prompt), §5.aq (reuse the logic, not the component), §5.as (fit vs the whole field),
+  §5.at (a capability change dates old strings), §5.au–§5.ax above.
 - `npm run verify` must exit 0 before each commit. One focused commit per piece.
 
-## A note on the branch
+## Also open
 
-86 commits, none of it merged, all of it behind a green gate. At some point the size of the branch
-is its own risk — worth asking Craig whether he wants to review and merge before more lands on top,
-since §5.ab makes the timing his call based on who's mid-round.
+- **§7 q4** — dark = live, light = setup. The last open question in the table; probably just needs
+  confirming.
+- **Individual games can't span tee times.** Verified: an 8-player skins game already settles
+  correctly across two groups (zero-sum, 630/−90×7), blocked only by `playersMax: 4` and a
+  side-game-only Groups step. Same shape as the 1v1 gap Craig found. Nobody has asked for it.
+- **F-013's remainder** — the tournament still has its own copy of the team-score math.
+- **The branch is ~93 commits.** All green, none reviewed by anyone but us. Worth asking whether to
+  merge before more lands on top; §5.ab makes the timing Craig's.
