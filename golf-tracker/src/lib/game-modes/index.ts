@@ -24,6 +24,9 @@ export { buildGameModeContext } from './context';
 export {
   fitForMode, modeFits, playerRangeSentence, fitBadge, fitExplanation, type FitVerdict,
 } from './fit';
+export {
+  gameSummary, stakesSummary, handicapSummary, formatSummaryLine, type HandicapSummaryInput,
+} from './summary';
 export { defaultSettings, settingValue, numberSetting, boolSetting, stringSetting, parseVector } from './settings';
 
 // Registered game modes (order = display order in the wizard).

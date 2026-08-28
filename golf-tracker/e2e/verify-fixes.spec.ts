@@ -1749,40 +1749,137 @@ test.describe('a group offers the formats it plays', () => {
     // page text — the first draft of this test read innerText and passed only when a stale wizard
     // draft happened to leave the same words visible elsewhere, so it failed once the audit spec
     // ran first. Values are what the format actually set.
-    await expect(page.getByPlaceholder('e.g. Saturday Pool')).toHaveValue('Saturday Nassau');
+    // With a format applied the name is the summary panel's editable TITLE (F-021), not the
+    // "What should we call it?" field — that one only exists for a from-scratch game.
+    await expect(page.getByLabel('Game style name')).toHaveValue('Saturday Nassau');
     await expect(page.locator('select').first()).toHaveValue('team-2v2');
-    // The Nassau: money model + all three legs, straight off the format.
+    // The stakes and the handicap rule now live in F-021's summary line rather than in 15 fields,
+    // so read them there — that IS the confirmation the user sees.
+    const summary = await page.locator('body').innerText();
+    expect(summary).toContain('$10 / $10 / $20');
+    expect(summary).toContain('off the low');
+
+    // And the underlying fields still hold the format's values once revealed — the summary is a
+    // view of the state, not a substitute for it.
+    await page.getByRole('button', { name: 'Change Game' }).click();
     await expect(page.getByLabel('Money', { exact: true })).toHaveValue('legs');
     await expect(page.getByLabel('Front 9 ($)')).toHaveValue('10');
     await expect(page.getByLabel('Back 9 ($)')).toHaveValue('10');
     await expect(page.getByLabel('Overall 18 ($)')).toHaveValue('20');
-    // And the handicap rules: off-the-low is the selected button, not just present on the page.
+    await page.getByRole('button', { name: 'Change Handicaps' }).click();
     await expect(page.getByRole('button', { name: 'Only above the best player' }))
       .toHaveClass(/bg-green-700|bg-green-600/);
     await page.screenshot({ path: 'e2e/screenshots/ww-wizard-prefilled.png', fullPage: true });
   });
 
-  // F-021, asserted as the CURRENT state so the fix has something to move. The format answers ~15
-  // questions and step 1 still shows all of them — that's the defect, not the pre-fill.
-  test('F-021 (current state): step 1 still asks everything the format answered', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
+  // F-021 / §5.ax — an applied format CONFIRMS instead of re-asking.
+  //
+  // These replace a test that asserted the opposite: it pinned the 21-control state so the fix had
+  // something to move. Inverted rather than deleted, so the diff shows the change.
+  async function openSaturdayNassau(page: import('@playwright/test').Page) {
     await openWeekendWarriors(page);
     await page.getByText('Casual round').click();
     await page.getByRole('button', { name: 'Saturday Nassau' }).click();
     await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
     await page.waitForLoadState('networkidle');
+  }
 
-    const counts = await page.evaluate(() => {
-      const onScreen = (el: Element) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-      return {
-        controls: [...document.querySelectorAll('button, input, select, textarea')].filter(onScreen).length,
-        labels: [...document.querySelectorAll('label')].filter(onScreen).filter((l) => (l.textContent ?? '').trim()).length,
-      };
-    });
-    // Measured 2026-08-27: 21 controls, 15 labels. Asserted loosely so it fails when F-021 is
-    // FIXED (a collapsed summary is a handful of controls) rather than on incidental drift.
-    expect(counts.controls).toBeGreaterThan(10);
-    expect(counts.labels).toBeGreaterThan(8);
+  const countScreen = (page: import('@playwright/test').Page) => page.evaluate(() => {
+    const onScreen = (el: Element) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    return {
+      controls: [...document.querySelectorAll('button, input, select, textarea')].filter(onScreen).length,
+      labels: [...document.querySelectorAll('label')].filter(onScreen).filter((l) => (l.textContent ?? '').trim()).length,
+      height: document.body.scrollHeight,
+    };
+  });
+
+  test('F-021: an applied format shows a summary, not 15 questions', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openSaturdayNassau(page);
+
+    // WAS 21 controls / 15 labels / 1906px. The point is that it now reads at a glance, and is
+    // short enough that Next needs no scrolling on a phone.
+    const counts = await countScreen(page);
+    expect(counts.controls).toBeLessThan(14);
+    expect(counts.labels).toBeLessThan(5);
+    expect(counts.height).toBeLessThanOrEqual(900);
+
+    // The summary states what moves money: game, format, stakes, handicap rule (§5.ax part 2).
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('Your saved game style');
+    expect(body).toContain('Sides · best ball');
+    expect(body).toContain('$10 / $10 / $20');
+    expect(body).toContain('off the low');
+    await page.screenshot({ path: 'e2e/screenshots/f021-summary.png', fullPage: true });
+  });
+
+  test('F-021: nothing is hidden — each section reopens on its own', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openSaturdayNassau(page);
+
+    await expect(page.getByRole('button', { name: 'Change Game' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Change Handicaps' })).toBeVisible();
+
+    // Per-section, not one button reopening all 15 — otherwise it is today's screen plus a tap.
+    await page.getByRole('button', { name: 'Change Handicaps' }).click();
+    let body = await page.locator('body').innerText();
+    expect(body).toContain('How much handicap counts?');
+    expect(body).not.toContain('Team format');
+
+    // And the revealed fields really are the same ones, still carrying the format's values.
+    await page.getByRole('button', { name: 'Change Game' }).click();
+    body = await page.locator('body').innerText();
+    expect(body).toContain('Team format');
+    await expect(page.getByLabel('Front 9 ($)')).toHaveValue('10');
+  });
+
+  test('F-021: editing a value invites a rename, and never rewrites the original', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openSaturdayNassau(page);
+
+    await page.getByRole('button', { name: 'Change Handicaps' }).click();
+    await page.getByRole('button', { name: 'Everyone, in full' }).click();
+
+    // The summary follows the edit...
+    let body = await page.locator('body').innerText();
+    expect(body).toContain('full handicap');
+    expect(body).not.toContain('off the low');
+    // ...and points at the rename rather than dead-ending in a badge.
+    expect(body).toMatch(/Changed from your saved Saturday Nassau/);
+    await page.screenshot({ path: 'e2e/screenshots/f021-edited.png', fullPage: true });
+
+    // Renaming forks a new style, and the origin stays visible.
+    await page.getByLabel('Game style name').fill('Saturday Big Nassau');
+    body = await page.locator('body').innerText();
+    expect(body).toContain('based on Saturday Nassau');
+    expect(body).not.toMatch(/Changed from your saved/);
+
+    // THE SAFETY PROPERTY (§5.ax part 4): the library entry is untouched. Formats attach to groups,
+    // so rewriting one would change what the whole group sees next week.
+    const rewroteLibrary = await page.evaluate(() =>
+      Object.keys(sessionStorage)
+        .filter((k) => k.includes('roster_groups'))
+        .some((k) => (sessionStorage.getItem(k) ?? '').includes('Saturday Big Nassau')));
+    expect(rewroteLibrary).toBe(false);
+  });
+
+  test('F-021: a game built from SCRATCH is unchanged — no summary, all questions', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Past games (for recent-course' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+    await card.getByRole('button', { name: 'Open →' }).click();
+    await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
+
+    // No format applied: the step is exactly as it always was, including the name field that moves
+    // into the summary panel when there IS one.
+    const body = await page.locator('body').innerText();
+    expect(body).not.toContain('Your saved game style');
+    expect(body).toContain('What should we call it?');
+    expect(body).toContain('How much handicap counts?');
   });
 });
 

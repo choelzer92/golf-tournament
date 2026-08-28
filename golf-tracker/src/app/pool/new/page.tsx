@@ -77,7 +77,7 @@ import {
 } from '@/lib/game-modes/sides';
 import { TEAM_MODES } from '@/lib/formats';
 import { POOL_GROUP_SEED_KEY } from '@/lib/group-seed';
-import { GAME_MODES, getGameMode, defaultSettings, playerRangeSentence, fitBadge, fitExplanation, modeFits, type SettingsBag, type SettingValue } from '@/lib/game-modes';
+import { GAME_MODES, getGameMode, defaultSettings, playerRangeSentence, fitBadge, fitExplanation, modeFits, formatSummaryLine, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { SideNames } from '@/components/side-names';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
@@ -194,6 +194,11 @@ export default function NewPoolGamePage() {
   // library). Tells the FieldStep group-seed loader to bring in members WITHOUT
   // re-applying the group's own default settings (which would clobber the format).
   const [formatSeedApplied, setFormatSeedApplied] = useState(false);
+  // F-021: the NAME of the saved format this game started from, or undefined when configured from
+  // scratch. Drives step 1's summary-instead-of-form. `formatDirty` flips the first time any of the
+  // format's own values is edited, which is what turns the title into "rename to fork" (§5.ax).
+  const [appliedFormat, setAppliedFormat] = useState<string | undefined>(undefined);
+  const [formatDirty, setFormatDirty] = useState(false);
 
   // Teams
   const [teams, setTeams] = useState<PoolTeam[]>([]);
@@ -275,7 +280,7 @@ export default function NewPoolGamePage() {
       if (seedRaw) {
         sessionStorage.removeItem(FORMAT_SEED_KEY);
         const seed = JSON.parse(seedRaw) as { name?: string; defaults?: GroupDefaults };
-        if (seed.name && seed.name.trim()) setName(seed.name);
+        if (seed.name && seed.name.trim()) { setName(seed.name); setAppliedFormat(seed.name.trim()); }
         if (seed.defaults) applyGroupDefaults(seed.defaults);
         setFormatSeedApplied(true);
       }
@@ -476,6 +481,10 @@ export default function NewPoolGamePage() {
             // F-020: the picker annotates each game against the field. 0 on a first pass (the
             // field is built two steps on), which reads as "nothing to say yet".
             playerCount={players.length}
+            // F-021: when a saved format was applied, step 1 confirms rather than re-asks.
+            appliedFormat={appliedFormat}
+            formatDirty={formatDirty}
+            onFormatEdited={() => setFormatDirty(true)}
             name={name}
             setName={setName}
             gameMode={gameMode}
@@ -780,6 +789,7 @@ function DetailsStep({
   moneyMode, setMoneyMode, matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
   applyGroupDefaults, onGroupChosen, chosenGroupId,
   playerCount,
+  appliedFormat, formatDirty, onFormatEdited,
   onNext,
 }: {
   name: string; setName: (s: string) => void;
@@ -803,6 +813,13 @@ function DetailsStep({
   /** How many players are in the field, or 0 on a first pass (the field is built two steps on).
       Drives the live fit annotation in the picker — F-020. */
   playerCount: number;
+  /** The saved format this game started from, or undefined when built from scratch. When set, this
+      step shows a SUMMARY with per-section [Change] instead of ~15 fields (F-021, §5.ax). */
+  appliedFormat: string | undefined;
+  /** True once any of the format's values has been edited — turns the title into "rename to fork". */
+  formatDirty: boolean;
+  /** Called on the first edit to a format-owned value. */
+  onFormatEdited: () => void;
   onNext: () => void;
 }) {
   const selectedMode = getGameMode(gameMode);
@@ -818,6 +835,24 @@ function DetailsStep({
       .then(() => setGroups(getPlayerGroups()))
       .catch(() => {});
   }, []);
+
+  // F-021: which sections the user has EXPANDED by hand. Nothing is ever unreachable — every
+  // section has its own [Change] button.
+  //
+  // Stored as "opened by hand", not "is open", because `useState(!appliedFormat)` was wrong: the
+  // format seed is consumed in a mount effect in the parent, so on the first render appliedFormat is
+  // still undefined and every section initialised OPEN — the panel rendered and closed nothing. A
+  // derived value can't be seeded from a prop that arrives later.
+  const [openedGame, setOpenedGame] = useState(false);
+  const [openedMoney, setOpenedMoney] = useState(false);
+  const [openedHandicaps, setOpenedHandicaps] = useState(false);
+  // With no format applied this step is exactly as it always was: everything visible.
+  const showModeSettings = !appliedFormat || openedGame;
+  const showMoney = !appliedFormat || openedMoney;
+  const showHandicaps = !appliedFormat || openedHandicaps;
+  const setShowModeSettings = setOpenedGame;
+  const setShowMoney = setOpenedMoney;
+  const setShowHandicaps = setOpenedHandicaps;
 
   // Choosing a group applies its saved settings now and stamps the game, so the
   // money/handicap answers below arrive pre-filled. Members load on the Field step,
@@ -939,6 +974,9 @@ function DetailsStep({
       )}
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
+        {/* The name lives in the F-021 summary panel when a format was applied — TWO inputs bound
+            to the same value is the kind of thing only a screenshot shows. */}
+        {!appliedFormat && (
         <div>
           <label className="block text-sm font-medium text-gray-800 mb-1">What should we call it?</label>
           <input
@@ -949,6 +987,7 @@ function DetailsStep({
             className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
           />
         </div>
+        )}
 
         {/* Game picker: classic team pool, or a registered individual game.
             Choosing an individual game reveals only that game's options below. */}
@@ -1001,15 +1040,85 @@ function DetailsStep({
           )}
         </div>
 
+        {/* F-021 / §5.ax — WHEN A FORMAT WAS APPLIED, THIS IS A CONFIRMATION, NOT A FORM.
+            A saved format answers ~15 questions in one tap, and step 1 used to re-ask every one:
+            21 controls, 15 labels, 1900px of scroll, every value already correct. §5.e asked for
+            "questions become confirmations" back in August; this is it.
+
+            Nothing is hidden — each [Change] reveals the very same fields, per section, so the taps
+            are only spent by someone actually changing something. And editing anything turns the
+            TITLE into the affordance: rename it and it's a new style, with the original left
+            untouched (§5.ax part 4 — formats are attached to groups, so silently rewriting one
+            would change what a whole group sees next week). */}
+        {appliedFormat && (
+          <div className="pt-2 border-t">
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-green-800">Your saved game style</p>
+                  {/* The title is an INPUT, always — that's what makes "call it something else"
+                      the natural next move rather than a buried option. */}
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    aria-label="Game style name"
+                    className="mt-0.5 w-full bg-transparent text-base font-semibold text-gray-900 border-0 border-b border-transparent px-0 py-0 focus:border-green-500 focus:outline-none focus:ring-0"
+                  />
+                  <p className="mt-1 text-xs text-gray-700">
+                    {formatSummaryLine(selectedMode, modeSettings, parseFloat(entryPerPlayer) || 0, {
+                      allowance: parseFloat(handicapAllowance) || 100,
+                      strokeMethod,
+                      handicapBasis,
+                    })}
+                  </p>
+                  {/* Say where it came from once it has diverged, so "based on Saturday Nassau" is
+                      visible rather than the user wondering what they've broken. */}
+                  {formatDirty && appliedFormat !== name.trim() && (
+                    <p className="mt-1 text-xs text-gray-500">↳ based on {appliedFormat}</p>
+                  )}
+                  {formatDirty && appliedFormat === name.trim() && (
+                    <p className="mt-1 text-xs text-amber-700">
+                      Changed from your saved {appliedFormat} — rename it above to keep both.
+                    </p>
+                  )}
+                </div>
+              </div>
+              {/* Per-section reveal (§5.ax part 3). One button that reopened all 15 would just be
+                  today's screen with an extra tap. */}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {([
+                  { key: 'game', label: 'Game', on: showModeSettings, set: setShowModeSettings, when: isRegisteredMode },
+                  { key: 'money', label: 'Money', on: showMoney, set: setShowMoney, when: !isRegisteredMode },
+                  { key: 'hcap', label: 'Handicaps', on: showHandicaps, set: setShowHandicaps, when: true },
+                ] as const).filter((s) => s.when).map((s) => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => s.set(!s.on)}
+                    className={`min-h-[36px] rounded-md border px-3 py-1.5 text-xs font-medium ${
+                      s.on
+                        ? 'border-green-600 bg-white text-green-800'
+                        : 'border-green-300 bg-white text-green-700 hover:bg-green-100'
+                    }`}
+                  >
+                    {s.on ? `Hide ${s.label}` : `Change ${s.label}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Game options for ANY registered mode — individual AND 2v2 within-group
             (2v2's Team format / Hole score / Compare-by / Money live here). */}
-        {isRegisteredMode && selectedMode && (
+        {isRegisteredMode && selectedMode && showModeSettings && (
           <div className="pt-2 border-t">
             <label className="block text-sm font-medium text-gray-800 mb-2">{selectedMode.name} options</label>
             <ModeSettingsEditor
               schema={selectedMode.settings}
               values={modeSettings}
-              onChangeAction={(key, value) => setModeSettings({ ...modeSettings, [key]: value })}
+              onChangeAction={(key, value) => { onFormatEdited(); setModeSettings({ ...modeSettings, [key]: value }); }}
               /* This step runs BEFORE sides are chosen, so the side count isn't known yet —
                  hide the C-F name fields here (two sides is the default) and let the hub's
                  editor, which does know, show the ones a game actually has. */
@@ -1018,7 +1127,7 @@ function DetailsStep({
           </div>
         )}
 
-        {!isRegisteredMode && (
+        {!isRegisteredMode && showMoney && (
         <div className="pt-2 border-t">
           <label className="block text-sm font-medium text-gray-800 mb-1">How does the money work?</label>
           <div className="flex gap-2">
@@ -1048,6 +1157,7 @@ function DetailsStep({
         </div>
         )}
 
+        {showHandicaps && (
         <div className="grid grid-cols-2 gap-3 pt-2 border-t">
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1">How much handicap counts?</label>
@@ -1055,7 +1165,7 @@ function DetailsStep({
               type="number"
               inputMode="decimal"
               value={handicapAllowance}
-              onChange={(e) => setHandicapAllowance(e.target.value)}
+              onChange={(e) => { onFormatEdited(); setHandicapAllowance(e.target.value); }}
               className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
             />
             {/* State the CONSEQUENCE in strokes, not the percentage — anything under
@@ -1090,7 +1200,9 @@ function DetailsStep({
             )}
           </div>
         </div>
+        )}
 
+        {showHandicaps && (
         <div>
           <label className="block text-sm font-medium text-gray-800 mb-1">Who gets strokes?</label>
           <div className="flex gap-2">
@@ -1101,7 +1213,7 @@ function DetailsStep({
               <button
                 key={v}
                 type="button"
-                onClick={() => setStrokeMethod(v)}
+                onClick={() => { onFormatEdited(); setStrokeMethod(v); }}
                 className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
                   strokeMethod === v
                     ? 'border-green-600 bg-green-600 text-white'
@@ -1118,7 +1230,9 @@ function DetailsStep({
               : 'Everyone keeps their own strokes — a 12 gets 12 and a 4 gets 4, regardless of who else is playing.'}
           </p>
         </div>
+        )}
 
+        {showHandicaps && (
         <div className="pt-2 border-t">
           <label className="block text-sm font-medium text-gray-800 mb-1">How many strokes change hands?</label>
           <div className="flex gap-2">
@@ -1129,7 +1243,7 @@ function DetailsStep({
               <button
                 key={v}
                 type="button"
-                onClick={() => setHandicapBasis(v)}
+                onClick={() => { onFormatEdited(); setHandicapBasis(v); }}
                 className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
                   handicapBasis === v
                     ? 'border-green-600 bg-green-600 text-white'
@@ -1146,9 +1260,7 @@ function DetailsStep({
               : 'Slope-adjusted, so a harder course spreads players further apart — an 8 vs a 2 might play off 7 or 8 strokes instead of 6.'}
           </p>
         </div>
-
-
-
+        )}
 
 
         {!isRegisteredMode && (

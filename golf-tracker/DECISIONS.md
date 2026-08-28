@@ -1229,6 +1229,48 @@ the next reader**, which is the same argument AGENTS.md makes for looking at the
 
 ---
 
+## 5.ax An applied format is a CONFIRMATION, and renaming it forks a new one (2026-08-27) — F-021
+
+Craig, shown that a two-tap format still lands on a 21-control screen, and given the summary
+proposal:
+
+> "yea, i like those adjustments. also, the (changed) portion could be edited, where the user could
+> just call it something else in terms of the game style title"
+
+**Decided, four parts.**
+
+1. **When a format is applied, step 1 shows a SUMMARY, not the form.** One line of what was chosen
+   plus `[Change]`. Nothing is hidden — `[Change]` opens the same fields — but the ~15 questions are
+   only paid for by someone actually changing something. This is §5.e's "questions become
+   confirmations", finally built.
+
+2. **The summary names what moves MONEY**: game, format, stakes, handicap rule. Not tee difficulty
+   or bonus values. Too little is untrustworthy ("did it really set off-the-low?"); too much is the
+   form again.
+
+3. **`[Change]` is per-section** (Game / Money / Handicaps), not one button that reopens everything —
+   otherwise it's just today's screen with an extra tap.
+
+4. **Editing a value renames rather than dead-ends.** A changed format shows as editable *title*,
+   not a `(changed)` badge: the user types a new name and it becomes a new style. **The original is
+   never touched** — Craig's call — and the review step then offers to save the new one.
+
+**Why the original must be safe.** Formats are attached to groups (`formatIds`), so silently
+rewriting one changes what a whole group sees next week. Tweaking today's stake must not mutate
+shared config. `saveFormat(name, defaults, { id })` already supports both "new" and "update in
+place", so the safe default costs nothing to implement — and "update Saturday Nassau" remains
+available from the library, where the consequence is visible.
+
+**How to apply.** When a user edits something derived from saved config, decide whose copy changes
+BEFORE building the edit affordance. Defaulting to "fork" is nearly always right for shared config;
+defaulting to "update in place" is right only where the user can see who else is affected.
+
+**Still open, deliberately:** this only helps once a format exists. A brand-new style still faces all
+21 controls — that's §5.au's reorder, which stays worth doing. F-021 makes the recurring case fast;
+the reorder makes the first-time case sane.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch
