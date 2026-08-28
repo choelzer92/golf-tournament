@@ -1687,6 +1687,106 @@ test.describe('F-020: the game picker annotates fit', () => {
 });
 
 // ---------------------------------------------------------------------------
+// A GROUP'S USUAL GAME IS TWO TAPS (§5.aw)
+// ---------------------------------------------------------------------------
+//
+// Craig: "weekend warriors should be able to choose their saved format easily if they arent trying
+// something new, one tap". The machinery was already built — GroupDefaults.formatIds, the group
+// page's format picker, two composing session seeds — but NO FIXTURE attached a format to a group,
+// so the path had never been seen on screen or covered by a test and read as unbuilt.
+//
+// These tests exist so it can't go invisible again.
+test.describe('a group offers the formats it plays', () => {
+  async function openWeekendWarriors(page: import('@playwright/test').Page) {
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Groups — 61-member standing group' }).first();
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+    // This is a `buildDomain` seed: it writes several tables through fire-and-forget `void
+    // seedTable(...)` calls, so "Seeded ✓" appears before the rows have landed. Wait for the URL
+    // rather than networkidle — a client-side router.push may have no network to settle.
+    await card.getByRole('button', { name: 'Open →' }).click();
+    await page.waitForURL(/\/home\/groups\//, { timeout: 15_000 });
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Weekend Warriors' })).toBeVisible();
+  }
+
+  test('§5.aw: the group lists its formats instead of the empty state', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openWeekendWarriors(page);
+
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('Saturday Nassau');
+    expect(body).toContain('Skins with carryovers');
+    // The empty state is what every seeded group showed before — the reason the feature looked
+    // unbuilt when it was only un-seeded.
+    expect(body).not.toContain('No formats attached yet');
+    await page.screenshot({ path: 'e2e/screenshots/ww-formats-listed.png', fullPage: true });
+  });
+
+  test('§5.aw: two taps from the group to a correctly pre-filled game', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openWeekendWarriors(page);
+
+    // TAP 1 — Casual round opens the picker (rather than going straight in on the group default,
+    // which is what happens when a group has no attached formats).
+    await page.getByText('Casual round').click();
+    await expect(page.getByRole('heading', { name: 'Pick a format' })).toBeVisible();
+    // Trying something new is always available — the escape hatch, not a dead end.
+    await expect(page.getByText(/New \/ custom format/)).toBeVisible();
+    await page.screenshot({ path: 'e2e/screenshots/ww-format-picker.png', fullPage: true });
+
+    // TAP 2 — the usual game.
+    await page.getByRole('button', { name: 'Saturday Nassau' }).click();
+    await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
+    await page.waitForLoadState('networkidle');
+
+    // Everything the format stores has been applied: the mode, the Nassau legs, and the handicap
+    // rules. This is the assertion that would catch a broken seed composition.
+    // Assert on VALUES, not innerText. A <select>'s chosen option and an <input>'s value are not
+    // page text — the first draft of this test read innerText and passed only when a stale wizard
+    // draft happened to leave the same words visible elsewhere, so it failed once the audit spec
+    // ran first. Values are what the format actually set.
+    await expect(page.getByPlaceholder('e.g. Saturday Pool')).toHaveValue('Saturday Nassau');
+    await expect(page.locator('select').first()).toHaveValue('team-2v2');
+    // The Nassau: money model + all three legs, straight off the format.
+    await expect(page.getByLabel('Money', { exact: true })).toHaveValue('legs');
+    await expect(page.getByLabel('Front 9 ($)')).toHaveValue('10');
+    await expect(page.getByLabel('Back 9 ($)')).toHaveValue('10');
+    await expect(page.getByLabel('Overall 18 ($)')).toHaveValue('20');
+    // And the handicap rules: off-the-low is the selected button, not just present on the page.
+    await expect(page.getByRole('button', { name: 'Only above the best player' }))
+      .toHaveClass(/bg-green-700|bg-green-600/);
+    await page.screenshot({ path: 'e2e/screenshots/ww-wizard-prefilled.png', fullPage: true });
+  });
+
+  // F-021, asserted as the CURRENT state so the fix has something to move. The format answers ~15
+  // questions and step 1 still shows all of them — that's the defect, not the pre-fill.
+  test('F-021 (current state): step 1 still asks everything the format answered', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openWeekendWarriors(page);
+    await page.getByText('Casual round').click();
+    await page.getByRole('button', { name: 'Saturday Nassau' }).click();
+    await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
+    await page.waitForLoadState('networkidle');
+
+    const counts = await page.evaluate(() => {
+      const onScreen = (el: Element) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+      return {
+        controls: [...document.querySelectorAll('button, input, select, textarea')].filter(onScreen).length,
+        labels: [...document.querySelectorAll('label')].filter(onScreen).filter((l) => (l.textContent ?? '').trim()).length,
+      };
+    });
+    // Measured 2026-08-27: 21 controls, 15 labels. Asserted loosely so it fails when F-021 is
+    // FIXED (a collapsed summary is a handful of controls) rather than on incidental drift.
+    expect(counts.controls).toBeGreaterThan(10);
+    expect(counts.labels).toBeGreaterThan(8);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // A 1 v 1 SINGLES MATCH (Craig, 2026-08-27)
 // ---------------------------------------------------------------------------
 //

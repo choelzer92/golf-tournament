@@ -88,6 +88,11 @@ export function groups(players: RosterPlayer[]): RosterGroup[] {
         ballSelection: '1-net-1-gross',
         useCaptains: true,
         junkValues: { birdie: 1, eagle: 2, albatross: 3, groupHug: 1, ctp: 1 },
+        // The games this group actually plays (§5.aw). Nothing attached formats to a group
+        // before, so the "one tap to your usual game" path had never been seen on screen or
+        // covered by a test — every seeded group rendered the empty state, and the feature
+        // read as unbuilt when it was only un-seeded.
+        formatIds: ['f-saturday-nassau', 'f-skins-carry', 'f-2v2-bestball'],
       },
     },
     {
@@ -96,6 +101,39 @@ export function groups(players: RosterPlayer[]): RosterGroup[] {
       ownerGhin: SANDBOX_GHIN,
       playerIds: players.slice(0, 8).map((p) => p.id),
       defaults: { moneyMode: 'match', handicapAllowance: 90, strokeMethod: 'off-the-low' },
+    },
+    {
+      // The group's headline usual: a side game with a Nassau, which is what most of Craig's
+      // rounds actually are.
+      id: 'f-saturday-nassau',
+      name: 'Saturday Nassau',
+      ownerGhin: SANDBOX_GHIN,
+      playerIds: [],
+      defaults: {
+        kind: 'format',
+        gameMode: 'team-2v2',
+        entryPerPlayer: 0,
+        handicapAllowance: 100,
+        strokeMethod: 'off-the-low',
+        handicapBasis: 'course',
+        modeSettings: {
+          format: 'best-ball', scoring: 'stroke', result: 'total',
+          moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20,
+        },
+      },
+    },
+    {
+      id: 'f-skins-carry',
+      name: 'Skins with carryovers',
+      ownerGhin: SANDBOX_GHIN,
+      playerIds: [],
+      defaults: {
+        kind: 'format',
+        gameMode: 'skins',
+        handicapAllowance: 100,
+        strokeMethod: 'full',
+        modeSettings: { dollarsPerSkin: 5, carryover: true, scoreBasis: 'net' },
+      },
     },
     {
       id: 'f-2v2-bestball',

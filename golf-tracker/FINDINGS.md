@@ -1695,6 +1695,61 @@ it promises.**
 
 ---
 
+### F-021 — A saved format answers 15 questions, then the wizard asks them anyway  [P1] [start]
+
+**Where:** `src/app/pool/new/page.tsx` step 1 (`DetailsStep`)
+**Screens:** `e2e/screenshots/ww-formats-listed.png`, `ww-format-picker.png`, `ww-wizard-prefilled.png`
+**Violates:** north star — *starting* a game; and §5.e ("a group's saved setup turns questions into
+confirmations")
+
+**Craig, 2026-08-27:** *"weekend warriors should be able to choose their saved format easily if they
+arent trying something new, one tap"*
+
+**The good news, measured.** That path already works, and needed no app code — only a fixture
+(§5.aw). From the group page:
+
+```
+tap 1   Casual round          -> picker lists the group's 3 formats
+tap 2   Saturday Nassau       -> wizard, correctly pre-filled:
+                                 Sides / Match - best ball - stroke - total
+                                 $10 front / $10 back / $20 overall
+                                 off the low - course handicap - 100%
+```
+
+**The defect.** Having answered ~15 questions, the format lands you on a screen that **still shows
+all of them**: 21 controls, 15 labels, 1906px of scroll. Every value is right and every question is
+still asked. The pre-fill is invisible as a *saving* — it reads as a form someone else filled in,
+which you now have to check.
+
+§5.e called for the opposite: *"a group's saved setup turns questions into confirmations (summary
+line + [Change])"*. That is the piece that was never built, and it is what makes the difference
+between "one tap" and "one tap, then verify 15 fields".
+
+**What it should be.** When a format is applied, step 1 collapses to what §5.e describes:
+
+```
+Saturday Nassau                                    [Change]
+Sides - best ball - $10/$10/$20 - off the low
+                                    [Next: Course ->]
+```
+
+Everything stays configurable behind `[Change]`; nothing is hidden, and the taps only get spent by
+someone actually changing something.
+
+**Why P1:** it's the difference between the reuse machinery paying off and merely existing. Three
+sessions of work (the Format Library, `formatIds`, the group picker) all terminate in a screen that
+discards their value.
+
+**Composes with:**
+- **§5.av** — the wizard's own game picker should list saved formats, for a game not started from a
+  group. Same collapse applies once chosen.
+- **§5.au** — the reorder (field first, money after teams). Still right, but F-021 lowers its
+  urgency: a collapsed step 1 is 2 controls whatever the order, and most rounds never expand it.
+
+**Status:** open, found 2026-08-27 by seeding the state and walking it. Not built.
+
+---
+
 ### F-020 — The player count validates games instead of recommending them  [P2] [start]
 
 **Where:** `src/app/pool/new/page.tsx:915` (the mode description), `:3115` (the review-step
