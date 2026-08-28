@@ -1124,6 +1124,43 @@ data would never have been wrong.
 
 ---
 
+## 5.au The wizard asks the FIELD first: count → game → money → settings (2026-08-27) — closes §7 q5
+
+Craig, going through the flow:
+
+> "but shouldnt setting up the game be like a few questions like how many players, what game,
+> what money, what game settings, and then go from there?"
+
+**Measured, not felt.** Step 1 today asks **14 questions / 18 controls** for a side game (from
+`e2e/nsides-audit.spec.ts`) before a single player is in the field. §5.e recorded the diagnosis back
+on 2026-08-11 — *the interview shape is right; step 1 asking ~12 at once is what breaks it* — and it
+has since grown, F-020's misfit banner included.
+
+**Decision: reorder so the field comes first**, then game, then money, then the mode's settings.
+Step 1 drops to roughly name + game. Money moves to its own step *after* teams, where the count is
+known and a pot is computable.
+
+**This reverses my own recommendation.** F-020 explicitly rejected option A ("count-first, because
+it reorders the wizard") in favour of annotating the picker in place, and `WIZARD_REDESIGN.md` §4
+stopped at thinning step 1 without touching the order. Two things changed:
+
+- The stated objection was *"the count isn't always known up front — someone might join at the
+  turn."* F-019 has since built exactly that path (§5.ap: the mid-round prompt), so a late arrival
+  is no longer a reason to avoid asking early.
+- Asking money before the field means the app **cannot** show "8 players = $200 pot" or check that
+  Wolf needs four. F-020 annotated around that; the reorder removes it.
+
+**How to apply.** Information order should follow *dependency*: never ask a question whose answer the
+app could compute, or validate, from an answer it hasn't asked for yet. When a design rejects a
+reorder for a stated reason, re-check the reason — this one had quietly stopped being true.
+
+**Care needed (found while sizing this):** group/format defaults load on BOTH step 1 and the field
+step (`applyGroupDefaults` from two call sites), and a saved group carries `gameMode` +
+`modeSettings` + `sides`. Moving the field earlier changes which of those is applied first, so the
+"load a group and everything is pre-filled" path is the thing most likely to break silently.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch
@@ -1158,9 +1195,9 @@ Awaiting Craig's call. Inferred answers are marked as guesses.
 | 2 | ~~**Blue/red** is both side identity and win/loss valence — they collide~~ **CLOSED 2026-08-18 (§5.ak)** — side colour on the NAME/row edge, money coloured good/bad. | — |
 | 3 | ~~Green = winning or green = money?~~ **CLOSED 2026-08-18 (§5.ak)** — green = money coming to you. | — |
 | 4 | Dark = live, light = setup — deliberate? | Written up as deliberate; it reads well |
-| 5 | How much configurability belongs on the **first** screen? | **Measured 2026-08-17**: an ordinary 2v2 is 6 mode controls on step 1 and 13 taps end to end (`e2e/nsides-audit.spec.ts`). Craig hasn't been asked to rule on the number yet — still his call |
+| 5 | ~~How much configurability belongs on the **first** screen?~~ **CLOSED 2026-08-27 (§5.au)** — the answer is *almost none*: ask the FIELD first, then game, then money, then settings. Step 1 was measured at 14 questions / 18 controls for a side game. |
 | 6 | ~~Mid-round pot money isn't zero-sum (P1 in the audit)~~ **CLOSED** — this is F-007/F-011, both fixed and verified 2026-08-12. | — |
 | 7 | ~~Nassau "Back 9 · thru 9" reads as hole 9 (P3)~~ **CLOSED 2026-08-18** — same item as F-001. Craig chose **"9 of 9 holes"**, matching the side leg board, rather than converting to a hole number: no data change, so the `thru === 0` not-started guard that keeps the board zero-sum is untouched. | — |
 | 8 | ~~What should a **Stableford** pool's leaderboard show where to-par goes?~~ **FULLY CLOSED 2026-08-18 (§5.am)** — mechanism settled in §5.af; label stays **PACE**; the projected-18 variant is rejected (a guess shown next to real money). | — |
 
-**Only q4 and q5 remain open.** q5 now has numbers attached but no ruling.
+**Only q4 remains open.** q5 closed 2026-08-27 (§5.au).
