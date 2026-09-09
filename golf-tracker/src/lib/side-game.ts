@@ -69,7 +69,7 @@ function getPlayingHandicap(player: Player, course: CourseSelection | null, allo
   }
   const courseHcap = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, tee.totalPar);
   if (isNaN(courseHcap)) return 0;
-  // USGA order: round the Course Handicap, THEN apply the allowance.
+  // USGA/GHIN order: allowance on the unrounded Course Handicap (see applyAllowance).
   return applyAllowance(courseHcap, allowance);
 }
 

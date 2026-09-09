@@ -1354,6 +1354,31 @@ through different GHIN features with genuinely different rounding. See F-022's r
 
 ---
 
+## 5.bb Allowance applies to the UNROUNDED course handicap (2026-09-09)
+
+Craig, resolving F-022 in-session (choosing "switch to unrounded-first now" over waiting for
+screenshots), backed by USGA guidance he pasted:
+
+> "You apply the handicap percentage (allowance) to your unrounded Course Handicap to find your
+> Playing Handicap … Round the Final Number."
+
+**Decided.** `applyAllowance` = `courseHandicap × allowance/100` on the **unrounded** CH; the
+single rounding happens where an integer is needed (getMoneyStrokesOnHole and display sites).
+This supersedes the round-first order from `3e8ace1` — the spec changed, not a regression; the
+round-first tests were rewritten to the GHIN numbers.
+
+**The math is standard round-half-up** (`Math.round`), not round-down: .5 goes up, and a plus
+player's negative CH follows JS `Math.round` (−4.5 → −4). USGA Rule 6.2 says "rounded to the
+nearest whole number"; GHIN's app is the observed reference for the half cases.
+
+**Known tension, accepted:** the 3e8ace1 Cory case (off-the-low front-9, 90%) only reproduces
+with round-first. Craig accepted that reading may have been off and wants the unrounded order
+**re-verified against the GHIN app on the course** ("we need to test this out to make sure — it
+really should match"). If GHIN disagrees again, capture screenshots for both shapes per §5.ba
+before changing anything. Off-the-low keeps its round-each-THEN-subtract order (unchanged).
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

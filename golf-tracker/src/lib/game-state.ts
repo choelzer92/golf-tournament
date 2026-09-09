@@ -99,24 +99,33 @@ export function calcCourseHandicap(
   return handicapIndex * (slopeRating / 113) + (courseRating - par);
 }
 
-// Apply a handicap allowance the way the USGA does (Rules of Handicapping 6.1 →
-// 6.2): Course Handicap is rounded to a whole number FIRST — that integer is
-// what GHIN displays and what a player writes on the card — and the allowance is
-// applied to THAT. Callers round the result when they need an integer.
+// Apply a handicap allowance the way the USGA/GHIN default does (Rules of
+// Handicapping 6.2): the allowance multiplies the UNROUNDED Course Handicap, and
+// the result is rounded ONCE at the end — by the caller, when it needs an
+// integer. Playing Handicap = round(CH × allowance), not round(round(CH) ×
+// allowance).
 //
-// The order matters. round(CH × allowance) and round(CH) × allowance diverge
-// whenever the fractional course handicaps in a field round in different
-// directions, and under off-the-low that difference shows up as a whole stroke.
-// This lives here, next to calcCourseHandicap, because EVERY scoring path (pool,
-// tournament live scoring, money games, side games, the quick-game play page)
-// must apply the allowance identically or the same player gets different strokes
-// on different screens.
+// HISTORY — this order has flipped twice, both times to match the GHIN app
+// (§5.ba: the app is the reference implementation, not our reading of the
+// rules). Commit 3e8ace1 (2026-08-07) switched TO round-first off a Spring
+// Creek off-the-low case; Craig's 2026-09-09 Spring Creek head-to-head report
+// (7.6 vs 2.7 index, 90% → GHIN shows 6 strokes, round-first gives 5) plus the
+// USGA's own guidance flipped it back to unrounded-first (F-022). If a future
+// GHIN mismatch appears, capture app screenshots for BOTH a head-to-head
+// difference and an off-the-low field before touching this again.
+//
+// The order matters. round(CH × allowance) and round(round(CH)) × allowance
+// diverge whenever the fraction straddles the rounding boundary differently in
+// the two orders. This lives here, next to calcCourseHandicap, because EVERY
+// scoring path (pool, tournament live scoring, money games, side games, the
+// quick-game play page) must apply the allowance identically or the same player
+// gets different strokes on different screens.
 //
 // NOTE: this is only for the 'course' handicap basis. The 'index' basis
-// deliberately skips the slope/rating conversion, so there is no Course Handicap
-// to round — applying this there would change what the organizer asked for.
+// deliberately skips the slope/rating conversion — applying this there would
+// change what the organizer asked for.
 export function applyAllowance(courseHandicap: number, allowancePercent: number): number {
-  return Math.round(courseHandicap) * (allowancePercent / 100);
+  return courseHandicap * (allowancePercent / 100);
 }
 
 // Parse a GHIN handicap index into a number with the correct sign. GHIN sends

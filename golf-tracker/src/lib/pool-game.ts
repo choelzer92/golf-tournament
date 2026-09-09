@@ -533,21 +533,13 @@ export function playerHoleStrokeIndexForGame(
 // slope/rating conversion — which is what an organizer means by "play by player
 // handicap, not course handicap". Mirrors live-scoring.ts's handicapBasis.
 //
-// ROUNDING ORDER (USGA Rules of Handicapping 6.1 → 6.2): Course Handicap is
-// rounded to a whole number FIRST — that integer is what GHIN shows and what a
-// player writes on the card — and the allowance is applied to THAT, with the
-// result rounded again. So the correct chain is
-//   round( round(courseHcap) × allowance )
-// not round(courseHcap × allowance).
-//
-// The two diverge whenever the fractional course handicaps in a field round in
-// different directions, and under off-the-low that shows up as a full stroke.
-// Real case (Spring Creek 3 Stars, front 9, 90%, 2026-08-07 "Pride"): Cory's
-// 9-hole CH of 4.20 gave round(4.20×0.9)=4 while GHIN gives round(4)×0.9=3.6→4
-// — same here, but his stroke count came out 3 instead of 2 because the low
-// man's 1.58 rounded UP to 2 under USGA and DOWN to 1 under the old order.
-// This was flagged as "moot at 100%" when the off-the-low round order was fixed
-// in July; it stops being moot the moment an allowance below 100% is used.
+// ROUNDING ORDER (F-022, §5.bb): the allowance multiplies the UNROUNDED Course
+// Handicap and the result is rounded ONCE where an integer is needed —
+//   round( courseHcap × allowance )
+// — the USGA Rule 6.2 default and what the GHIN app shows (Spring Creek, 90%,
+// 2026-09-09: 7.6 vs 2.7 index → 10 and 4, a 6-stroke difference; round-first
+// gave 5). This order has flipped twice, both times to match the GHIN app; see
+// the history note on applyAllowance in game-state.ts before touching it.
 export function getPoolPlayingHandicap(
   player: Player,
   course: CourseSelection | null,
@@ -569,7 +561,7 @@ export function getPoolPlayingHandicap(
   // every other player in the field. Plus handicaps (index below 0) hit the same
   // bug. Only a null/NaN index means "we don't know".
   if (player.handicapIndex == null || Number.isNaN(player.handicapIndex)) return 0;
-  // Apply the allowance to the ROUNDED course handicap (see the note above).
+  // Apply the allowance to the UNROUNDED course handicap (see applyAllowance).
   // Shared with every other scoring path via applyAllowance so the order can't
   // drift between screens.
   const withAllowance = (courseHcap: number) => applyAllowance(courseHcap, allowance);
@@ -642,14 +634,16 @@ export function buildHcapMap(game: PoolGame): Map<string, number> {
   // subtracts, so it's the only one that needs care about round ORDER.
   if (game.strokeMethod !== 'off-the-low' || raw.size === 0) return raw;
 
-  // Match GHIN/USGA: round each player's course handicap to a whole number FIRST
-  // — the integer shown here and typed into GHIN — THEN subtract the field's
-  // lowest rounded course handicap. Rounding BEFORE the subtraction (not once at
-  // the end) is what keeps our strokes-off-the-low identical to GHIN. Doing
-  // round(rawHcap − rawLow) instead handed a player ONE EXTRA stroke vs GHIN's
-  // round(rawHcap) − round(rawLow) whenever the low man's fractional handicap
-  // rounded up while the player's own rounded down (e.g. low 3.6→4, player
-  // 15.4→15: app gave 15.4−3.6=11.8→12, GHIN gives 15−4=11).
+  // Match GHIN/USGA: round each player's PLAYING handicap (CH × allowance, per
+  // applyAllowance) to a whole number FIRST — the integer GHIN displays — THEN
+  // subtract the field's lowest rounded value. Rounding BEFORE the subtraction
+  // (not once at the end) is what keeps our strokes-off-the-low identical to
+  // GHIN. Doing round(raw − rawLow) instead handed a player ONE EXTRA stroke vs
+  // GHIN's round(raw) − round(rawLow) whenever the low man's fraction rounded up
+  // while the player's own rounded down (e.g. low 3.6→4, player 15.4→15: app
+  // gave 15.4−3.6=11.8→12, GHIN gives 15−4=11). Since F-022 the value being
+  // rounded is the unrounded-CH allowance product, but the subtract-after-round
+  // order is unchanged.
   const rounded = new Map<string, number>();
   for (const [id, h] of raw) rounded.set(id, Math.round(h));
   const low = Math.min(...rounded.values());

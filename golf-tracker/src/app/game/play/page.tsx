@@ -453,7 +453,7 @@ export default function PlayGamePage() {
         const par = (playerTee.holes || [])
           .filter((h) => ratingType === 'Front' ? h.number <= 9 : h.number > 9)
           .reduce((sum, h) => sum + h.par, 0) || Math.round(playerTee.totalPar / 2);
-        // USGA order: round the Course Handicap, THEN apply the allowance.
+        // USGA/GHIN order: allowance on the unrounded Course Handicap (see applyAllowance).
         const result = applyAllowance(
           calcCourseHandicap(player.handicapIndex / 2, rating.slopeRating, rating.courseRating, par),
           allowance,

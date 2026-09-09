@@ -51,21 +51,49 @@ const netSum = (payouts: { net: number }[]) => payouts.reduce((s, p) => s + p.ne
 // ---------------------------------------------------------------------------
 
 describe('buildHcapMap', () => {
-  it('rounds the course handicap when applying the allowance', () => {
+  it('keeps the full-method map unrounded (getMoneyStrokesOnHole rounds once)', () => {
     const game = makeGame({
       strokeMethod: 'full',
       players: [makePlayer(1, 10.4), makePlayer(2, 3.6)],
     });
     const m = buildHcapMap(game);
-    // applyAllowance() = round(courseHcap) × allowance%, so a fractional index is
-    // already whole here even at 100%. (Slope 113 + rating == par → CH == index.)
-    expect(m.get('p1')).toBe(10);
-    expect(m.get('p2')).toBe(4);
+    // F-022: applyAllowance() = courseHcap × allowance% on the UNROUNDED course
+    // handicap; the single round happens in getMoneyStrokesOnHole. (Slope 113 +
+    // rating == par → CH == index.)
+    expect(m.get('p1')).toBeCloseTo(10.4, 6);
+    expect(m.get('p2')).toBeCloseTo(3.6, 6);
   });
 
   it('applies the handicap allowance', () => {
     const game = makeGame({ strokeMethod: 'full', handicapAllowance: 90, indexes: [20] });
     expect(buildHcapMap(game).get('p1')).toBeCloseTo(18, 6);
+  });
+
+  // F-022 / §5.ba: the GHIN app's numbers at Spring Creek ("3 star" tees, 90%
+  // allowance, 2026-09-09). GHIN applies the allowance to the UNROUNDED course
+  // handicap and rounds once: 7.6 → CH 10.611 → ×0.9 = 9.55 → 10, and 2.7 → CH
+  // 4.930 → ×0.9 = 4.44 → 4, a head-to-head difference of 6. Round-first gives
+  // 10 and 5 (diff 5) — the mismatch Craig reported from the tee box.
+  it('F-022: 90% allowance matches the GHIN app at Spring Creek (unrounded-first)', () => {
+    const springCreek = makeCourse({
+      teeSets: [makeTee({
+        ratings: [
+          { type: 'Total', courseRating: 73.8, slopeRating: 131 },
+          { type: 'Front', courseRating: 36.9, slopeRating: 131 },
+          { type: 'Back', courseRating: 36.9, slopeRating: 131 },
+        ],
+      })],
+    });
+    const game = makeGame({
+      strokeMethod: 'off-the-low',
+      handicapAllowance: 90,
+      course: springCreek,
+      players: [makePlayer(1, 7.6), makePlayer(2, 2.7)],
+    });
+    const m = buildHcapMap(game);
+    // Off the low: round(9.55)=10, round(4.44)=4 → 10−4 = 6 and the low at 0.
+    expect(m.get('p1')).toBe(6);
+    expect(m.get('p2')).toBe(0);
   });
 
   // REGRESSION (see UI_MODE_AUDIT / off-the-low memory): off-the-low must round

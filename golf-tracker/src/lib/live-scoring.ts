@@ -109,7 +109,7 @@ function getPlayerEffectiveHcap(player: Player, round: TournamentRound, holes: H
       const par = (playerTee.holes || [])
         .filter((h) => ratingType === 'Front' ? h.number <= 9 : h.number > 9)
         .reduce((sum, h) => sum + h.par, 0) || Math.round(playerTee.totalPar / 2);
-      // USGA order: round the Course Handicap, THEN apply the allowance.
+      // USGA/GHIN order: allowance on the unrounded Course Handicap (see applyAllowance).
       const result = applyAllowance(
         calcCourseHandicap(player.handicapIndex / 2, rating.slopeRating, rating.courseRating, par),
         allowance,
@@ -120,7 +120,7 @@ function getPlayerEffectiveHcap(player: Player, round: TournamentRound, holes: H
     const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');
     if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return 0;
     // No 9-hole rating on this tee: halve the 18-hole COURSE handicap first, then
-    // apply the allowance to that (rounding the halved value, per USGA order).
+    // apply the allowance to that halved value (see applyAllowance for the order).
     const full = applyAllowance(
       calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar) / 2,
       allowance,
