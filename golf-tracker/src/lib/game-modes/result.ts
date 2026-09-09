@@ -1,5 +1,5 @@
 import type { GameScore } from '../game-state';
-import type { PoolGame, PoolResult } from '../pool-game';
+import type { PoolGame, PoolGameListItem, PoolResult } from '../pool-game';
 import { computePoolResult } from '../pool-game';
 import type { IndividualResult } from './types';
 import { getGameMode } from './index';
@@ -35,4 +35,19 @@ export function isIndividualGame(game: PoolGame): boolean {
 export function isSingleGroupGame(game: PoolGame): boolean {
   const c = getGameMode(game.gameMode)?.category;
   return c === 'individual' || c === 'team-within-group';
+}
+
+// The game-list card subtitle, mode-aware. A single-group game names its format
+// and counts players — its "teams" are playing groups, and printing them as
+// "N foursomes" broke §5.al ("say side in a side game, team in a pool"). The
+// classic pool keeps its foursome count, pluralized.
+export function gameListSubtitle(item: Pick<PoolGameListItem, 'gameMode' | 'teamCount' | 'playerCount'>): string {
+  const mode = getGameMode(item.gameMode);
+  const c = mode?.category;
+  const players = `${item.playerCount} player${item.playerCount === 1 ? '' : 's'}`;
+  if (mode && (c === 'individual' || c === 'team-within-group')) {
+    // Several tee times is worth confirming (F-019); one group is the norm and says nothing.
+    return `${mode.name} · ${players}` + (item.teamCount > 1 ? ` · ${item.teamCount} groups` : '');
+  }
+  return `Pool · ${item.teamCount} foursome${item.teamCount === 1 ? '' : 's'} · ${players}`;
 }

@@ -9,6 +9,7 @@ import {
   hydratePoolGames,
   type PoolGameListItem,
 } from '@/lib/pool-game';
+import { gameListSubtitle } from '@/lib/game-modes/result';
 import { hydrateGroups, type RosterGroup } from '@/lib/roster-groups';
 import { getPlayerGroups } from '@/lib/pool-formats';
 import { getAccessLevel } from '@/lib/invite-gate';
@@ -51,7 +52,7 @@ function poolToHomeGame(g: PoolGameListItem): HomeGame {
     kind: 'pool',
     name: g.name,
     status: g.status,
-    subtitle: `${new Date(g.createdAt).toLocaleDateString()} · ${g.teamCount} foursome${g.teamCount !== 1 ? 's' : ''} · ${g.playerCount} player${g.playerCount !== 1 ? 's' : ''}`,
+    subtitle: `${new Date(g.createdAt).toLocaleDateString()} · ${gameListSubtitle(g)}`,
     createdAt: g.createdAt,
     href: `/pool/${g.id}`,
   };
@@ -168,8 +169,8 @@ export default function HomePage() {
               onClick={() => router.push('/pool/new')}
               className="flex-1 rounded-lg bg-green-700 px-6 py-5 text-white text-left hover:bg-green-800 shadow-md"
             >
-              <p className="font-bold text-lg">Casual game</p>
-              <p className="text-sm text-green-100 mt-0.5">A single round — money game, skins, 2v2, and more.</p>
+              <p className="font-bold text-lg">New game</p>
+              <p className="text-sm text-green-100 mt-0.5">A single round — pool, skins, 2v2, and more.</p>
             </button>
             <button
               onClick={() => router.push('/tournament/new')}

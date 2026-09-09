@@ -1286,7 +1286,7 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
     await page.locator('select').first().selectOption('team-2v2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
-    await page.getByRole('button', { name: /Next: Build Field/ }).click();
+    await page.getByRole('button', { name: /Next: Add Players/ }).click();
     for (const [nm, hcp] of opts.players) {
       await page.getByPlaceholder('Name', { exact: true }).fill(nm);
       await page.getByPlaceholder('HCP').fill(hcp);
@@ -1589,7 +1589,7 @@ test.describe('F-020: the game picker annotates fit', () => {
   async function buildField(page: import('@playwright/test').Page, players: [string, string][]) {
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
-    await page.getByRole('button', { name: /Next: Build Field/ }).click();
+    await page.getByRole('button', { name: /Next: Add Players/ }).click();
     for (const [nm, hcp] of players) {
       await page.getByPlaceholder('Name', { exact: true }).fill(nm);
       await page.getByPlaceholder('HCP').fill(hcp);
@@ -1932,7 +1932,7 @@ test.describe('a 1 v 1 singles match', () => {
     await page.locator('select').first().selectOption('team-2v2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
-    await page.getByRole('button', { name: /Next: Build Field/ }).click();
+    await page.getByRole('button', { name: /Next: Add Players/ }).click();
     for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']]) {
       await page.getByPlaceholder('Name', { exact: true }).fill(nm);
       await page.getByPlaceholder('HCP').fill(hcp);
@@ -1954,7 +1954,7 @@ test.describe('a 1 v 1 singles match', () => {
     // Forward to the sides step: 1 vs 1, seeded one player each, and no split chooser because
     // 1v1 is the only shape two players can take.
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
-    await page.getByRole('button', { name: /Next: Build Field/ }).click();
+    await page.getByRole('button', { name: /Next: Add Players/ }).click();
     await page.getByRole('button', { name: 'Next: Set Sides' }).click();
     await page.getByRole('button', { name: 'Next: Sides' }).click();
     await expect(page.getByRole('heading', { name: /Sides \(1 vs 1\)/ })).toBeVisible();
@@ -2005,7 +2005,7 @@ test.describe('F-020: the sides step proposes splits', () => {
     await page.locator('select').first().selectOption('team-2v2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
-    await page.getByRole('button', { name: /Next: Build Field/ }).click();
+    await page.getByRole('button', { name: /Next: Add Players/ }).click();
     for (const [nm, hcp] of players) {
       await page.getByPlaceholder('Name', { exact: true }).fill(nm);
       await page.getByPlaceholder('HCP').fill(hcp);
@@ -2223,7 +2223,7 @@ test.describe('F-019: the wizard builds real playing groups', () => {
     await page.locator('select').first().selectOption('team-2v2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
-    await page.getByRole('button', { name: /Next: Build Field/ }).click();
+    await page.getByRole('button', { name: /Next: Add Players/ }).click();
     for (const [nm, hcp] of players) {
       await page.getByPlaceholder('Name', { exact: true }).fill(nm);
       await page.getByPlaceholder('HCP').fill(hcp);
@@ -2268,7 +2268,7 @@ test.describe('F-019: the wizard builds real playing groups', () => {
     await page.getByRole('button', { name: 'Next: Sides' }).click();
     await expect(page.getByRole('button', { name: /Next: Review/ })).toBeVisible();
     await page.getByRole('button', { name: /Next: Review/ }).click();
-    await page.getByRole('button', { name: /Create Pool Game/i }).click();
+    await page.getByRole('button', { name: /Create Game/i }).click();
     await page.waitForURL(/\/pool\/[^/]+$/, { timeout: 15_000 });
 
     // The teams sheet must show two groups with those tee times — the sheet Craig was looking at.

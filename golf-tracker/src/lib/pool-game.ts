@@ -2344,6 +2344,9 @@ export interface PoolGameListItem {
   playerCount: number;
   createdAt: string;
   createdByGhin?: number;
+  // The registered mode id (undefined = classic pool). List cards need it to
+  // avoid printing "N foursomes" for a single-group game (§5.al / §5.az).
+  gameMode?: string;
 }
 
 // All pool games (newest first). Owner/dashboard view.
@@ -2386,6 +2389,7 @@ export function getPoolGameList(): PoolGameListItem[] {
       playerCount: g.players.length,
       createdAt: g.createdAt,
       createdByGhin: g.createdByGhin,
+      gameMode: g.gameMode,
     });
   }
   return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));

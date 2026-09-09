@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { hydratePoolGames, getPoolGameList, getPoolGameListForGhin, type PoolGameListItem } from '@/lib/pool-game';
+import { gameListSubtitle } from '@/lib/game-modes/result';
 import { getAccessLevel } from '@/lib/invite-gate';
 import { saveGhinIdentity, getCreatorGhin, getCreatorName } from '@/lib/pool-identity';
 import { PoolShareButton } from '@/components/pool-share';
@@ -58,7 +59,7 @@ export default function PoolGamesListPage() {
     <div className="min-h-full bg-gray-50">
       <header className="bg-green-800 text-white shadow">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">My Pool Games</h1>
+          <h1 className="text-xl font-bold">My Games</h1>
           <div className="flex items-center gap-4">
             <PoolShareButton className="text-sm text-green-200 hover:text-white font-medium" label="Share" />
             {isOwner && (
@@ -75,7 +76,7 @@ export default function PoolGamesListPage() {
           onClick={() => router.push('/pool/new')}
           className="w-full mb-3 rounded-lg bg-green-700 px-6 py-4 text-white font-bold text-lg hover:bg-green-800 shadow-md"
         >
-          + New Pool Game
+          + New Game
         </button>
         {!needsLogin && (
           <div className="flex flex-col sm:flex-row gap-2 mb-6">
@@ -100,7 +101,7 @@ export default function PoolGamesListPage() {
           <LoginPrompt onLoggedIn={refreshList} />
         ) : games.length === 0 ? (
           <p className="text-sm text-gray-500 bg-white rounded-lg shadow p-4 text-center">
-            No pool games yet. Tap <span className="font-medium">+ New Pool Game</span> to create your first one.
+            No games yet. Tap <span className="font-medium">+ New Game</span> to create your first one.
           </p>
         ) : (
           <div className="space-y-2">
@@ -126,7 +127,7 @@ export default function PoolGamesListPage() {
                   </span>
                 </div>
                 <p className="text-sm text-gray-600 mt-1">
-                  {new Date(g.createdAt).toLocaleDateString()} · {g.teamCount} foursome{g.teamCount !== 1 ? 's' : ''} · {g.playerCount} player{g.playerCount !== 1 ? 's' : ''}
+                  {new Date(g.createdAt).toLocaleDateString()} · {gameListSubtitle(g)}
                 </p>
               </button>
             ))}

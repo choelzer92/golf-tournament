@@ -115,8 +115,8 @@ test.describe('the ORDINARY 2v2 — two guys against two guys, best ball, usual 
       await page.getByRole('button', { name: /Sandbox National|Pebble|Bay Hill/ }).first().click();
     });
     await countScreen(page, '04-course-picked');
-    await tap('Next: Build Field', async () => {
-      await page.getByRole('button', { name: /Next: Build Field/ }).click();
+    await tap('Next: Add Players', async () => {
+      await page.getByRole('button', { name: /Next: Add Players/ }).click();
     });
 
     // --- Step 3: Field ---------------------------------------------------------

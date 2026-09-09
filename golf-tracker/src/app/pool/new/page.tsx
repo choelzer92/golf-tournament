@@ -463,7 +463,7 @@ export default function NewPoolGamePage() {
     <div className="min-h-full bg-gray-50">
       <header className="bg-green-800 text-white shadow">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">New Pool Game</h1>
+          <h1 className="text-xl font-bold">New Game</h1>
           <div className="flex items-center gap-4">
             <PoolShareButton className="text-sm text-green-200 hover:text-white font-medium" label="Share" />
             <button onClick={() => router.push('/pool')} className="text-sm text-green-200 hover:text-white">
@@ -701,7 +701,7 @@ function StepIndicator({ current, course, individualGame, withinGroup, playingGr
   const steps = [
     { key: 'details', label: 'Details' },
     { key: 'course', label: course?.courseName || 'Course' },
-    { key: 'field', label: 'Field' },
+    { key: 'field', label: 'Players' },
     { key: 'tees', label: 'Tees' },
     // A side game whose field is too big to walk together picks its playing groups first, then
     // its sides — two steps because they're two independent questions (F-019, §5.an). Absent for
@@ -998,7 +998,7 @@ function DetailsStep({
             onChange={(e) => pickGame(e.target.value === 'pool' ? undefined : e.target.value)}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
           >
-            <option value="pool">Team Pool (foursomes vs foursomes)</option>
+            <option value="pool">Pool (foursomes vs foursomes)</option>
             {GAME_MODES.map((m) => {
               // F-020: annotate each game with how it fits the field you actually have. The badge
               // is null until there IS a field, so a first pass through the wizard looks exactly
@@ -1663,7 +1663,7 @@ function CourseStep({
         disabled={!course}
         className="w-full rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Next: Build Field
+        Next: Add Players
       </button>
     </div>
   );
@@ -2078,7 +2078,7 @@ function FieldStep({
         onDoneAction={() => { setShowLogin(false); const r = retryRef.current; retryRef.current = null; r?.(); }}
       />
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Build Field ({players.length})</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">Add Players ({players.length})</h2>
 
       {/* Groups — load a saved group (members + format) or save the current field */}
       <div className="bg-white rounded-lg shadow p-4 mb-4">
@@ -3573,7 +3573,7 @@ function CreateStep({
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
         <div>
-          <p className="text-sm text-gray-500">{isIndividual ? mode!.name : 'Pool Game'}</p>
+          <p className="text-sm text-gray-500">{isIndividual ? mode!.name : 'Pool'}</p>
           <p className="text-lg font-bold text-gray-900">{name}</p>
           {isIndividual && <p className="text-xs text-gray-500 mt-0.5">{mode!.description}</p>}
         </div>
@@ -3908,7 +3908,7 @@ function CreateStep({
         onClick={onCreate}
         className="mt-6 w-full rounded-md bg-green-700 px-4 py-3 text-white font-bold text-lg hover:bg-green-800"
       >
-        Create Pool Game
+        Create Game
       </button>
     </div>
   );

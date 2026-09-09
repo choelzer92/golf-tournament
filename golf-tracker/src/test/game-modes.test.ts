@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import { GAME_MODES, getGameMode } from '@/lib/game-modes';
 import { buildGameModeContext } from '@/lib/game-modes/context';
-import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
+import { computeGameResult, gameListSubtitle, isSingleGroupGame } from '@/lib/game-modes/result';
 import type { IndividualResult, PlayerStanding } from '@/lib/game-modes/types';
 import type { PoolGame } from '@/lib/pool-game';
 import type { GameScore } from '@/lib/game-state';
@@ -941,6 +941,40 @@ describe('junk bonuses', () => {
     const p1 = TEST_PARS.slice(); p1[0] -= 1;
     const r = run(game, [...scoresFor('p1', p1), ...scoresFor('p2', TEST_PARS)]);
     expect(r.junkLines).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The game-list card subtitle (§5.al / §5.az) — a claim users act on
+// ---------------------------------------------------------------------------
+
+describe('gameListSubtitle', () => {
+  it('names the format and counts players for a single-group game', () => {
+    expect(gameListSubtitle({ gameMode: 'skins', teamCount: 1, playerCount: 4 }))
+      .toBe('Skins · 4 players');
+  });
+
+  it('never says "foursomes" for ANY registered mode', () => {
+    for (const m of GAME_MODES) {
+      const s = gameListSubtitle({ gameMode: m.id, teamCount: 1, playerCount: m.playersMin });
+      expect(s, m.id).not.toContain('foursome');
+      expect(s, m.id).toContain(m.name);
+    }
+  });
+
+  it('confirms multiple tee times, but stays quiet about one group', () => {
+    expect(gameListSubtitle({ gameMode: 'skins', teamCount: 2, playerCount: 8 }))
+      .toBe('Skins · 8 players · 2 groups');
+    expect(gameListSubtitle({ gameMode: 'skins', teamCount: 1, playerCount: 4 }))
+      .not.toContain('group');
+  });
+
+  it('keeps the pluralized foursome count for the classic pool', () => {
+    expect(gameListSubtitle({ gameMode: undefined, teamCount: 2, playerCount: 8 }))
+      .toBe('Pool · 2 foursomes · 8 players');
+    // Singulars: never "1 foursomes" / "1 players" (the §5.al bug).
+    expect(gameListSubtitle({ gameMode: undefined, teamCount: 1, playerCount: 1 }))
+      .toBe('Pool · 1 foursome · 1 player');
   });
 });
 

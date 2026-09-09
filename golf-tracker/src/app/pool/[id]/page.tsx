@@ -310,7 +310,8 @@ export default function PoolHubPage() {
   // A single-group game (2v2 / skins / Wolf / …) is ONE foursome named "Group",
   // so the classic "Pool Money Game · N foursomes" subtitle read
   // "Pool Money Game · 1 foursomes" — mislabeled AND unpluralized. Name the game
-  // mode instead, and pluralize the foursome count for the real pool.
+  // mode instead, and pluralize the foursome count for the real pool. ("Pool"
+  // here is the FORMAT name, like Skins or Wolf — §5.az.)
   const hubMode = getGameMode(game.gameMode);
   const isSingleGroupHub = hubMode
     ? hubMode.category === 'individual' || hubMode.category === 'team-within-group'
@@ -322,7 +323,7 @@ export default function PoolHubPage() {
       // the first thing an organizer wants confirmed. Only added when there's more than one, so
       // the ordinary 2v2 subtitle is untouched.
       + (teamCount > 1 ? ` · ${teamCount} groups` : '')
-    : `Pool Money Game · ${teamCount} foursome${teamCount === 1 ? '' : 's'}`;
+    : `Pool · ${teamCount} foursome${teamCount === 1 ? '' : 's'}`;
 
   return (
     <div className="min-h-full bg-gray-50">
@@ -746,11 +747,11 @@ function SharePanel({ game, onSave, onClose }: { game: PoolGame; onSave: (g: Poo
         <div className="mt-5 border-t border-gray-200 pt-4">
           <p className="text-sm font-semibold text-gray-800">Organizer link</p>
           <p className="text-xs text-gray-500 mb-2">
-            For a co-organizer who needs to <span className="font-medium">create</span> their own pool games. Opens pool setup, not this game.
+            For a co-organizer who needs to <span className="font-medium">create</span> their own games. Opens game setup, not this game.
           </p>
           <div className="flex gap-2">
             <input readOnly value={organizerLink} className="flex-1 min-w-0 rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-600" onFocus={(e) => e.currentTarget.select()} />
-            <button onClick={() => shareLink(organizerLink, 'Create a pool game', 'organizer')} className="flex-shrink-0 rounded-md bg-gray-200 px-3 py-1.5 text-sm text-gray-700 font-medium hover:bg-gray-300">
+            <button onClick={() => shareLink(organizerLink, 'Create a game', 'organizer')} className="flex-shrink-0 rounded-md bg-gray-200 px-3 py-1.5 text-sm text-gray-700 font-medium hover:bg-gray-300">
               {copiedKey === 'organizer' ? 'Copied!' : 'Share'}
             </button>
           </div>
