@@ -1,15 +1,35 @@
-# Next session: reuse is surfaced — what's left of the wizard
+# Next session: the captains' deal, then the pool→game rename
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 ---
 
-Read `AGENTS.md`, then **`DECISIONS.md` §5.au–§5.ax** (four decisions from one conversation, in
-order — each revises the previous) and **`FINDINGS.md` F-021**. That's the reading list.
+Read `AGENTS.md`, then **`DECISIONS.md` §5.ay and §5.az** (the two decisions this session builds),
+then §5.au–§5.ax for the wizard context. That's the reading list.
 
-**State:** branch `ui-consistency-and-compute-tests`, ~93 commits ahead of `main`, NOT merged, NOT
-pushed. Merging is Craig's call; don't ask, don't push. `npm run verify` is green (1481 unit tests,
-typecheck, build, 116 e2e) and starts its own sandbox, so there's no setup.
+**State:** `ui-consistency-and-compute-tests` was MERGED to `main` and pushed 2026-09-09 (merge
+commit `4dca1b6`, 95 commits) — the live app now has all of it, including HOME_V2 as the landing
+page. **Work starts on a FRESH branch off `main`** (§5.ab: never work on main directly).
+`npm run verify` is green (1482 unit tests, typecheck, build, 116 e2e) and starts its own sandbox,
+so there's no setup.
+
+## The work, in order
+
+1. **§5.ay — the captains' draft becomes a complementary deal.** Craig's spec, recorded with his
+   words in the decision entry: best captain gets the worst remaining player each round, same
+   direction every round (NO serpentine reversal), so the worst captain lands the best non-captain
+   in the final round. The draft pool must rank with the captain comparator — rounded course
+   handicap, then harder tee (rating, yardage), then unrounded — not the rounding-blind `hcapOf`
+   sort `serpentineTeams` (`src/lib/pool-game.ts:1105`) uses today. Rename the "Snake draft"
+   button (both sites: wizard team step + game hub) since it's no longer a snake. Tests must pin
+   the 4-captain/12-pool example (C1 gets P12/P8/P4; C4 gets P9/P5/P1) and the two-players-round-
+   to-2-but-different-tees case. This changes team formation (not money), but watch the existing
+   `serpentineTeams` tests — they pin the OLD behavior and will need rewriting to the new spec,
+   which is expected, not a regression.
+2. **§5.az — "pool" is a format name; the container is a "game".** Copy sweep only: "New Pool
+   Game" → "New Game", home-screen "Casual game"/"money game" phrasing converges on "game".
+   `/pool/*` routes and internal names (`PoolGame`, `pool-game.ts`) STAY — links in group chats
+   must keep working.
 
 ## Where the wizard got to
 
@@ -64,20 +84,6 @@ landing on a 10-control confirmation instead of a 24-control form.
   §5.at (a capability change dates old strings), §5.au–§5.ax above.
 - `npm run verify` must exit 0 before each commit. One focused commit per piece.
 
-## Decided 2026-09-09, queued for after the merge
-
-- **§5.ay — the captains' draft becomes a complementary deal.** Best captain gets the worst
-  remaining player each round, same direction every round (no serpentine reversal), and the
-  draft pool ranks with the captain comparator (rounded course handicap → harder tee → unrounded).
-  Rename the "Snake draft" button to match. Tests must pin the 4-captain/12-pool example and the
-  tee-tiebreak case in the decision entry.
-- **§5.az — "pool" becomes a format name; the container is a "game".** Copy sweep only
-  ("New Pool Game" → "New Game" etc.); `/pool/*` routes and internal names stay.
-- ~~The `legOverall` summary divergence~~ **FIXED pre-merge 2026-09-09** — `stakesSummary` now
-  falls back to the engine default ($10), mutation-proven in `summary.test.ts`. (The suspected
-  `nassau` gap in `sideMoneySummary` was a non-issue: side games don't offer a nassau money
-  model — that value belongs to individual modes like 9s/quota/low-total.)
-
 ## Also open
 
 - **§7 q4** — dark = live, light = setup. The last open question in the table; probably just needs
@@ -86,5 +92,9 @@ landing on a 10-control confirmation instead of a 24-control form.
   correctly across two groups (zero-sum, 630/−90×7), blocked only by `playersMax: 4` and a
   side-game-only Groups step. Same shape as the 1v1 gap Craig found. Nobody has asked for it.
 - **F-013's remainder** — the tournament still has its own copy of the team-score math.
-- **The branch is ~93 commits.** All green, none reviewed by anyone but us. Worth asking whether to
-  merge before more lands on top; §5.ab makes the timing Craig's.
+- **Merge-audit polish list (2026-09-09), none blocking:** "Field"/"Build Field" jargon in the
+  wizard step names (fold into §5.az's sweep); `/pool` and `/home` list cards say "N foursomes"
+  for side games (src/app/pool/page.tsx:129, src/app/home/page.tsx:54 — a §5.al violation);
+  leg results ("The Dawgs by 5") render in loss-red on the dark leaderboard, brushing §5.ak;
+  "Sides / Match" is a category label among game names; "Who gets paid?" takes an unvalidated
+  `70, 30` mini-DSL; three renderings of course handicap (CHcp / Course HCP: / combined HCP).
