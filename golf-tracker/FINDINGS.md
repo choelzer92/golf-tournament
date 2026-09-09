@@ -1935,6 +1935,199 @@ code (or better, the screen) before starting work has now saved three redundant 
 
 ---
 
+### F-022 — 90% allowance applies to the ROUNDED course handicap; GHIN uses the unrounded one  [P1 MONEY] [track]
+
+**Where:** `src/lib/game-state.ts:118` — `applyAllowance` = `Math.round(courseHandicap) × (allowance/100)`
+**Reported:** Craig, 2026-09-09 — at Spring Creek ("3 star" tees, 90% allowance), a 7.6 index vs a
+2.7 index showed **5** strokes in our app where the GHIN app showed **6**.
+**Violates:** "Would a golfer trust this number?" — our strokes disagree with the app golfers check
+against.
+
+**Observed:** `applyAllowance` rounds the Course Handicap FIRST, then applies the allowance; its
+comment claims that is USGA order. The World Handicap System's default is the opposite: *"the
+unrounded course handicap is converted to a playing handicap by applying a handicap allowance"*
+(rounding once, at the end). Rounding first is a permitted regional variation (CONGU/GB&I) — but
+GHIN follows the USGA default, so whenever the two orders diverge our strokes are one off from the
+app in everyone's pocket.
+
+The report reproduces exactly on plausible Spring Creek numbers (slope 131, CR−par ≈ +1.8):
+
+```
+                       7.6 index         2.7 index        head-to-head strokes
+course handicap        10.61 → 11        4.93 → 5
+ours:  round(CH)×0.9   11×0.9=9.9 → 10   5×0.9=4.5 → 5    10−5 = 5
+GHIN:  round(CH×0.9)   10.61×0.9 → 10    4.93×0.9=4.44→4  10−4 = 6
+```
+
+The divergence needs the fraction to straddle the rounding boundary differently in the two orders,
+so it bites intermittently — which is worse than always, because the app "usually agrees with GHIN"
+and then doesn't on game day.
+
+**Blast radius if changed:** `applyAllowance` is deliberately the single shared allowance for every
+scoring path (pool, tournament live scoring, money games, side games, quick game). Changing the
+order changes strokes (and therefore money) on any un-settled game whose fractions straddle the
+boundary. At 100% allowance the two orders agree except for the rounding of CH itself
+(`getMoneyStrokesOnHole` re-rounds, so 100% games are unaffected). Off-the-low has its own
+round-order note in `buildHcapMap` that assumes round-first; it would need re-deriving. Note the
+related, still-unapplied off-the-low finding in the project memory (round-then-subtract).
+
+**Options**
+- **A. Match GHIN: apply allowance to the unrounded CH, round once at the end.**
+  `applyAllowance` becomes `courseHandicap × allowance/100` with callers rounding as today
+  (callers that display integers already round). One function, every path inherits it. Cost:
+  strokes shift by 1 in the straddle cases; existing tests that pin round-first numbers need
+  rewriting to the GHIN numbers; off-the-low order needs re-checking against the GHIN app.
+- **B. Keep round-first, label it.** State "strokes may differ from the GHIN app by 1" somewhere
+  honest. Cheapest, but the number golfers cross-check is the one we chose not to match, and the
+  label reads as a bug admission.
+- **C. Make the order a setting.** Configurable ≠ complicated is the north star, but this is a
+  setting nobody can evaluate ("rounded or unrounded allowance basis?") — it fails the "sane
+  default + showIf" bar. Included for completeness.
+
+**Recommendation:** **A** — the app already defers to GHIN everywhere else (course handicap ==
+what GHIN displays), and a stroke count that disagrees with the GHIN app on the first tee is
+indistinguishable from a bug regardless of which rule book defends it. But this is handicap/money
+math with a real blast radius, so it's **Craig's call**, and the fix should land with tests pinning
+the exact Spring Creek example above.
+
+**Status:** open
+
+---
+
+### F-023 — Some GHIN courses come back without usable slope/rating, and the app falls back SILENTLY  [P1 MONEY] [start]
+
+**Where:** every `ratings?.find((r) => r.type === 'Total')` consumer (~20 sites); parse at
+`app/pool/new/page.tsx:1440`, `getPoolPlayingHandicap` fallback at `lib/pool-game.ts:603-605`
+**Reported:** Craig, 2026-09-09 — "some courses may not work properly in terms of slope and
+rating, like the Meadows Greenbrier course in West Virginia".
+**Violates:** "Would a golfer trust this number?"; §5.ac (prevent impossible data, don't reconcile it)
+
+**Observed (code inspection — needs the real GHIN payload to confirm which case Meadows hits):**
+the course-details parse maps GHIN's `Ratings` array straight through and every consumer looks up
+`type === 'Total'`. When that lookup misses — a tee with no Total row, ratings under a different
+label, nulls, or a 9-hole-only course whose tees carry only Front ratings — the compute paths
+quietly degrade: `getPoolPlayingHandicap` **falls back to the raw handicap index as if slope were
+113 and rating equaled par**, and other paths return 0. Nothing on screen distinguishes "computed
+off this tee's 131 slope" from "slope missing, used your index". The wizard shows `Course
+HCP: N` either way — a number that looks authoritative and is wrong on any course whose slope is
+far from 113.
+
+Also plausible for a resort like The Greenbrier: one GHIN *facility* holding several courses, where
+the search result the user taps resolves to a CourseID whose TeeSets are empty or belong to a
+different course of the facility. The search endpoint already has three fallback attempts
+(`ghin-api.ts`), suggesting this API's shape wobbles.
+
+**What's needed to confirm:** the actual `GetCourseDetails` response for that course (one
+`console.log` away in dev, or Craig searching it in the app with the network tab open). Recorded
+now so the observation isn't lost; the fix options depend on which shape comes back.
+
+**Options**
+- **A. Surface the degradation.** When a player's tee has no usable Total rating, say so where the
+  handicap shows — e.g. "no slope/rating on this tee — using index" — instead of printing a
+  confident number. Doesn't fix the data, but converts silent wrongness into something the
+  organizer can act on. Small, safe, and worth doing under §5.ac regardless of the root cause.
+- **B. Widen the parse.** Tolerate GHIN variants (missing Total but Front+Back present → derive
+  18-hole values; alternate `RatingType` labels; string numbers). Needs the real payload first.
+- **C. Both** — A immediately (it's true whatever the payload says), B once the Meadows response
+  is captured.
+
+**Recommendation:** **C** — A is justified today by the code alone; B waits on evidence rather
+than guessing GHIN's shape.
+
+**Status:** open — blocked on capturing the GHIN response for The Meadows (Greenbrier, WV)
+
+---
+
+### F-024 — The per-person money list can sum to +$4 on screen (rounding half-dollars apart)  [P2 MONEY] [track]
+
+**Screen:** `/pool/[id]/leaderboard` per-person strip · `e2e/screenshots/walk-21-hub-mid-round.png`
+**Where:** `pool/[id]/leaderboard/page.tsx:35` — `money()` = `Math.round` then `Math.abs`
+**Violates:** "Assert money is zero-sum" (the invariant every compute test pins); "Would a golfer
+trust this number?"
+
+**Observed:** the seeded 2-foursome pool mid-round shows `Craig: +$13 · Jym: +$13 · Dave: +$13 ·
+Rick: +$13 · Sam: −$12 · Tony: −$12 · Will: −$12 · Gary: −$12` — which sums to **+$4**. The engine
+is exactly zero-sum (±$12.50 per person); the display rounds +12.5 up to 13 and −12.5 up to −12
+(`Math.round` rounds .5 toward +∞ on both signs, and this game splits $50 pots across 4 players, so
+half-dollars are the COMMON case, not an edge). Anyone in the group who adds the column concludes
+the app lost four dollars.
+
+**Options**
+- **A. Round the magnitude, not the signed value:** `Math.round(Math.abs(n))` — +12.5 → $13 and
+  −12.5 → $13, symmetric, sums to zero whenever the underlying numbers do. One character-level
+  change in one shared helper; winners and losers both read $13.
+- **B. Show cents when the value isn't whole:** `$12.50`. Always exact, but violates the "whole
+  dollars in game UI" convention and adds noise to every line for one case.
+- **C. Leave it** — the settlement ledger (which has cents) is the accounting surface.
+
+**Recommendation:** **A** — it keeps the whole-dollar convention and restores the visible zero-sum.
+Check the same helper pattern anywhere else `Math.round` touches signed money (grep
+`Math.round` in display paths); the scorecard PER PERSON block on the light theme shows the same
++$13/−$12 pairing in the walk-22 text dump, so it shares the bug via its own formatter.
+
+**Status:** open
+
+---
+
+### F-025 — A skins game's review step says "Foursomes", names the group "Group", and totals a meaningless combined handicap  [P2] [start]
+
+**Screen:** `/pool/new` review step, skins, 4 players · `e2e/screenshots/walk-09-game-hub-after-create.png`
+**Where:** `app/pool/new/page.tsx:3864-3866` — `!isWithinGroupReview` gates the "Foursomes" block,
+so INDIVIDUAL games (skins, Wolf, quota…) fall into the classic-pool rendering
+**Violates:** §5.al (never print "foursome" for a single-group game); UI_CONVENTIONS §2
+
+**Observed:** the last screen before Create, on a 4-player skins game, shows a section headed
+**Foursomes** containing a card named **Group** with **CHcp 40** — the players' combined course
+handicap, a number that means something for pool team balance and nothing at all in skins. F-018
+fixed exactly this for `team-within-group` games (the review now shows sides), but the fix's guard
+is `isWithinGroupReview`, so `individual` games kept the classic-pool block. Same class as the
+audit's root finding: one axis fixed, the other left behind.
+
+**Options**
+- **A. For individual games, reuse F-018's treatment:** head the section "Players", drop the
+  combined CHcp (show each player's own, which the card already does), keep the group card only
+  when several playing groups exist (then it's tee times, worth confirming — F-019).
+- **B. Reuse `gameListSubtitle`'s vocabulary** (§5.az's new helper): "Group · 4 players". Smaller,
+  but leaves the meaningless combined handicap on screen.
+- **C. Leave it** — the information is technically true.
+
+**Recommendation:** **A** — F-018 already decided what a review step owes the user ("confirming
+who's playing is the whole job of a review step"); this is the same decision applied to the axis
+it missed.
+
+**Status:** open
+
+---
+
+### F-026 — The review step shows NO stakes for an individual game — the one thing every player asks  [P2 MONEY] [start]
+
+**Screen:** `/pool/new` review step, skins · `e2e/screenshots/walk-08-wizard-after-next-money.png`
+**Violates:** F-018's own principle (the review must confirm what the game is ABOUT); north star
+("track" starts with knowing what you're playing for)
+
+**Observed:** for the classic pool the review step asks the money questions right there (buy-in,
+pot split, who gets paid). For an individual game the money lives in step 1's mode settings
+(skin value etc. — correct per F-021's confirmation design), but the review step then shows
+**Players / This game needs / [player list] / Create Game** — no dollar figure anywhere. The final
+"is this right?" screen omits the one number the group standing on the first tee wants confirmed.
+`formatSummaryLine` (`game-modes/summary.ts`) already produces exactly this string — it's shown on
+step 1 and then never again.
+
+**Options**
+- **A. Render `formatSummaryLine` on the review step** for individual/within-group games — one
+  line under the game name ("Skins · $1 a skin · full handicap"). Reuses the tested summary; no
+  new state.
+- **B. Repeat the full mode-settings block on review.** Complete, but re-creates the 21-control
+  problem F-021 just removed.
+- **C. Leave it** — the user set the stakes one step ago.
+
+**Recommendation:** **A** — one already-tested line, and it also gives §5.ax part 4 (offer to
+"Save this format" at review) the natural place to live: summary line + save button together.
+
+**Status:** open
+
+---
+
 ## Fixed & verified
 
 Findings confirmed fixed with an e2e assertion guarding them. (The 11 fixes from
