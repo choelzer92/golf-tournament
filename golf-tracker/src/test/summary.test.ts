@@ -75,6 +75,15 @@ describe('stakesSummary', () => {
       .toBe('$20 / $5 / $50 front·back·overall');
   });
 
+  it('unset leg fields fall back to the ENGINE defaults ($10/$10/$10), not a guessed shape', () => {
+    // The first version defaulted legOverall to 20 — Nassau habit — while the engine's
+    // defaultValue (team-game.ts SETTINGS) pays 10. A format that never touched the field
+    // showed "$20 overall" on the panel and settled $10 at the end of the round: a summary
+    // claiming money the engine won't pay, the exact failure this file exists to prevent.
+    expect(stakesSummary(sides, { moneyModel: 'legs' }, 0))
+      .toBe('$10 / $10 / $10 front·back·overall');
+  });
+
   it('reads string settings as numbers (the wizard stores them as text)', () => {
     expect(stakesSummary(sides, { moneyModel: 'legs', legFront: '10', legBack: '10', legOverall: '20' }, 0))
       .toBe('$10 / $10 / $20 front·back·overall');

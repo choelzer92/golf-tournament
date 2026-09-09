@@ -91,9 +91,12 @@ export function stakesSummary(mode: GameModeDescriptor | undefined, settings: Se
     : String(settings.moneyModel);
   switch (model) {
     case 'legs': {
+      // Fallbacks MUST match the mode's defaultValue for each key (team-game.ts SETTINGS),
+      // or a format that leaves a field unset gets a summary claiming a stake the engine
+      // won't pay. legOverall's default is 10, not the 10/10/20 shape Nassau habit suggests.
       const f = num(settings, 'legFront', 10);
       const b = num(settings, 'legBack', 10);
-      const o = num(settings, 'legOverall', 20);
+      const o = num(settings, 'legOverall', 10);
       if (f === 0 && b === 0 && o === 0) return null;
       return `$${f} / $${b} / $${o} front·back·overall`;
     }
