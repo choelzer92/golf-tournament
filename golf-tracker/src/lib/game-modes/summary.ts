@@ -83,8 +83,16 @@ export function stakesSummary(mode: GameModeDescriptor | undefined, settings: Se
   // fell into the per-point branch and reported "$1 a point" for a game settled in skins — a
   // plausible sentence about the wrong currency, which is exactly the failure this file exists to
   // prevent. Only trust a money model the settings actually name.
-  const skin = num(settings, 'dollarsPerSkin', 0);
-  if (skin > 0) return `$${skin} a skin`;
+  //
+  // The key skins actually declares is `skinValue` (skins.ts SETTINGS) — the first draft read
+  // `dollarsPerSkin`, a key no mode sets, so a real skins bag silently produced NO stakes line
+  // (F-026's e2e caught it; the unit test had the same wrong key and passed vacuously). Nassau
+  // model must NOT report a skin price: when moneyModel is 'nassau' the skinValue field is hidden
+  // and unpaid, so saying "$5 a skin" there would state a stake the engine won't settle.
+  if (settings.moneyModel !== 'nassau') {
+    const skin = num(settings, 'skinValue', 0) || num(settings, 'dollarsPerSkin', 0);
+    if (skin > 0) return `$${skin} a skin`;
+  }
 
   const model = settings.moneyModel === undefined || settings.moneyModel === ''
     ? (mode.category === 'team-within-group' ? 'legs' : '')

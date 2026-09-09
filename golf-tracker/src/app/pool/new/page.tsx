@@ -62,7 +62,7 @@ import {
   getGroupById,
   upsertGroup,
 } from '@/lib/roster-groups';
-import { getPlayerGroups } from '@/lib/pool-formats';
+import { getPlayerGroups, saveFormat } from '@/lib/pool-formats';
 import {
   formatOfGame,
   persistedTeamScoring,
@@ -381,6 +381,27 @@ export default function NewPoolGamePage() {
     };
   }
 
+  // §5.ax part 4: "Save this format" on the review step. Same shape as
+  // formatFromGame (pool-formats.ts), built from wizard state instead of a saved
+  // game — mode + settings + money + handicap rule, never players or course.
+  async function saveCurrentFormat() {
+    await saveFormat(name || 'Format', {
+      kind: 'format',
+      gameMode,
+      modeSettings: gameMode ? modeSettings : undefined,
+      ...(isWithinGroup && sides && sides.length > 0 ? persistedSides(sides) : {}),
+      moneyMode,
+      junkValues,
+      customBonuses: customBonuses.length > 0 ? customBonuses : undefined,
+      entryPerPlayer: parseFloat(entryPerPlayer) || 0,
+      ...persistedTeamScoring(teamFormat, teamScoreBasis),
+      handicapAllowance: parseFloat(handicapAllowance) || 100,
+      strokeMethod,
+      handicapBasis,
+      matchConfig: moneyMode === 'match' ? buildMatchConfig() : undefined,
+    });
+  }
+
   function createPoolGame() {
     const id = crypto.randomUUID();
     // Effective dollar split: manual override if set, else the standard for this
@@ -688,6 +709,8 @@ export default function NewPoolGamePage() {
             setMatchJunkPerPoint={setMatchJunkPerPoint}
             sides={sides}
             modeSettings={modeSettings}
+            strokeMethod={strokeMethod}
+            onSaveFormat={saveCurrentFormat}
             onCreate={createPoolGame}
             onBack={() => setStep(modeCategory === 'individual' ? 'tees' : 'teams')}
           />
@@ -3482,7 +3505,7 @@ function CreateStep({
   entryPerPlayerText, setEntryPerPlayer, positionSplitText, setPositionSplitText,
   junkValues, setJunkValues, customBonuses, setCustomBonuses,
   matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
-  sides, modeSettings,
+  sides, modeSettings, strokeMethod, onSaveFormat,
   onCreate, onBack,
 }: {
   name: string;
@@ -3519,12 +3542,17 @@ function CreateStep({
   // the thing the game is actually about instead of listing every player in one run.
   sides: GameSide[] | undefined;
   modeSettings: SettingsBag;
+  strokeMethod: 'full' | 'off-the-low';
+  onSaveFormat: () => Promise<void>;
   onCreate: () => void; onBack: () => void;
 }) {
   const mode = getGameMode(gameMode);
   const isIndividual = mode?.category === 'individual' || mode?.category === 'team-within-group';
   const isWithinGroupReview = mode?.category === 'team-within-group';
   const isMatch = moneyMode === 'match';
+  // "Save this format" (§5.ax part 4) — local button state only; the save itself is the parent's.
+  const [savingFormat, setSavingFormat] = useState(false);
+  const [savedFormat, setSavedFormat] = useState(false);
   const playerById = new Map(players.map((p) => [p.id, p]));
   const pot = players.length * entryPerPlayer;
   const teeNameOf = (p: Player) => course?.teeSets.find((t) => t.id === p.teeSetId)?.name ?? null;
@@ -3576,6 +3604,29 @@ function CreateStep({
           <p className="text-sm text-gray-500">{isIndividual ? mode!.name : 'Pool'}</p>
           <p className="text-lg font-bold text-gray-900">{name}</p>
           {isIndividual && <p className="text-xs text-gray-500 mt-0.5">{mode!.description}</p>}
+          {/* THE STAKES (F-026). For an individual/within-group game the money lives in step 1's
+              mode settings, so this last screen showed no dollar figure at all — the one number
+              the group on the first tee wants confirmed. Same tested summary as step 1. */}
+          {isIndividual && (
+            <div className="mt-1 flex items-start justify-between gap-3">
+              <p className="text-sm font-medium text-green-800">
+                {formatSummaryLine(mode, modeSettings, entryPerPlayer, {
+                  allowance: handicapAllowance,
+                  strokeMethod,
+                  handicapBasis,
+                })}
+              </p>
+              {/* §5.ax part 4: the summary line IS the format — offer to keep it, right here. */}
+              <button
+                type="button"
+                onClick={() => { setSavingFormat(true); onSaveFormat().then(() => setSavedFormat(true)).finally(() => setSavingFormat(false)); }}
+                disabled={savingFormat || savedFormat}
+                className="flex-shrink-0 text-xs font-medium text-green-700 hover:text-green-900 disabled:opacity-60"
+              >
+                {savedFormat ? 'Format saved ✓' : savingFormat ? 'Saving…' : 'Save this format'}
+              </button>
+            </div>
+          )}
         </div>
 
         {isIndividual ? (
@@ -3861,7 +3912,52 @@ function CreateStep({
           </div>
         )}
 
-        {!isWithinGroupReview && (
+        {/* WHO'S PLAYING (F-025). An individual game (skins, Wolf, quota…) used to fall through
+            to the classic-pool block below and print "Foursomes" over a card named "Group" with a
+            combined CHcp — a number that means team balance in a pool and nothing in skins. Same
+            class as F-018 (one axis fixed, the other left behind): individual games get the same
+            treatment — the section reads "Players", each player shows their own handicap, and a
+            per-group card appears only when there are several playing groups to confirm. */}
+        {!isWithinGroupReview && isIndividual && (
+        <div className="pt-2 border-t">
+          <p className="text-sm font-semibold text-gray-800 mb-2">Players</p>
+          <div className={teams.length > 1 ? 'grid gap-2 sm:grid-cols-2' : ''}>
+            {(teams.length > 1 ? teams : [null]).map((team) => {
+              const ids = team ? team.playerIds : players.map((p) => p.id);
+              const rows = ids.map((pid) => {
+                const p = playerById.get(pid);
+                if (!p) return null;
+                const chcp = course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine)) : null;
+                const tee = teeNameOf(p);
+                return (
+                  <div key={pid} className="flex items-center gap-2 text-sm text-gray-600 py-0.5">
+                    <span className="truncate min-w-0 flex-1">{p.name}</span>
+                    {tee && <span className="flex-shrink-0 text-xs text-gray-400">{tee}</span>}
+                    {chcp !== null && (
+                      <span className="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums" title="Course handicap on this tee">
+                        {chcp}
+                      </span>
+                    )}
+                  </div>
+                );
+              });
+              return team ? (
+                <div key={team.id} className="rounded-lg border border-gray-200 p-2">
+                  <p className="text-sm font-medium text-gray-900 mb-1">
+                    {team.name}
+                    {team.teeTime ? <span className="ml-2 text-xs text-gray-500">{team.teeTime}</span> : null}
+                  </p>
+                  {rows}
+                </div>
+              ) : (
+                <div key="all-players">{rows}</div>
+              );
+            })}
+          </div>
+        </div>
+        )}
+
+        {!isWithinGroupReview && !isIndividual && (
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-2">Foursomes</p>
           <div className="grid gap-2 sm:grid-cols-2">

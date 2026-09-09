@@ -96,7 +96,13 @@ describe('stakesSummary', () => {
   });
 
   it('reads an individual mode’s own money key', () => {
+    // `skinValue` is the key skins.ts actually declares — the wizard's default settings bag.
+    // (The first draft read only `dollarsPerSkin`, a key no mode sets, so a REAL skins game
+    // showed no stakes on the review step; F-026's e2e caught it. Both keys accepted now.)
+    expect(stakesSummary(skins, { skinValue: 5, moneyModel: 'per-skin' }, 0)).toBe('$5 a skin');
     expect(stakesSummary(skins, { dollarsPerSkin: 5 }, 0)).toBe('$5 a skin');
+    // Under the Nassau pot the skin value is hidden and unpaid — no skin price in the summary.
+    expect(stakesSummary(skins, { skinValue: 5, moneyModel: 'nassau' }, 0)).toBe('Nassau pot');
     expect(stakesSummary(wolf, { dollarsPerPoint: 1 }, 0)).toBe('$1 a point');
   });
 

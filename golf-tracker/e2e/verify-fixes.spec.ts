@@ -2349,3 +2349,59 @@ test.describe('F-019: the wizard builds real playing groups', () => {
     expect(body).not.toContain('How do they split?');
   });
 });
+
+// ---------------------------------------------------------------------------
+// F-025 / F-026 — an INDIVIDUAL game's review step (skins)
+// ---------------------------------------------------------------------------
+//
+// F-025: individual games fell through to the classic-pool review block and printed
+// "Foursomes" over a card named "Group" with a meaningless combined CHcp. F-026: the
+// review step showed no stakes at all for an individual game — the money lives in
+// step 1's mode settings and was never repeated on the "is this right?" screen.
+test.describe('F-025/F-026: skins review step', () => {
+  async function walkToSkinsReview(page: import('@playwright/test').Page) {
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Past games (for recent-course' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await card.getByRole('button', { name: 'Open →' }).click();
+    await page.waitForURL(/pool\/new/, { timeout: 15_000 });
+
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Sunday Skins');
+    // Select by VALUE (F-020 appends fit badges to labels).
+    await page.locator('select').first().selectOption('skins');
+    await page.getByRole('button', { name: /Next: Select Course/ }).click();
+    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+    await page.getByRole('button', { name: /Next: Add Players/ }).click();
+    for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']] as const) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    await page.getByRole('button', { name: /Next: Set Tees/ }).click();
+    await page.getByRole('button', { name: /Next: Money/ }).click();
+    // MUST be the review step, not wherever the last click landed.
+    await expect(page.getByRole('heading', { name: /Review & create/ })).toBeVisible();
+  }
+
+  test('F-025: the review says Players — no Foursomes, no Group, no combined CHcp', async ({ page }) => {
+    await walkToSkinsReview(page);
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('Players');
+    expect(body).not.toContain('Foursomes');
+    // The single playing group's card (named "Group") and its combined handicap must be gone;
+    // each player's own course handicap remains on their row.
+    expect(body).not.toMatch(/CHcp \d/);
+    await page.screenshot({ path: 'e2e/screenshots/f025-skins-review.png', fullPage: true });
+  });
+
+  test('F-026: the review states the stakes for an individual game', async ({ page }) => {
+    await walkToSkinsReview(page);
+    const body = await page.locator('body').innerText();
+    // formatSummaryLine: "Skins · $N a skin · <handicap rule>".
+    expect(body).toMatch(/\$\d+ a skin/);
+    // §5.ax part 4: the offer to keep the format lives next to the summary.
+    await expect(page.getByRole('button', { name: 'Save this format' })).toBeVisible();
+  });
+});
