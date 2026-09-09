@@ -64,6 +64,20 @@ landing on a 10-control confirmation instead of a 24-control form.
   §5.at (a capability change dates old strings), §5.au–§5.ax above.
 - `npm run verify` must exit 0 before each commit. One focused commit per piece.
 
+## Decided 2026-09-09, queued for after the merge
+
+- **§5.ay — the captains' draft becomes a complementary deal.** Best captain gets the worst
+  remaining player each round, same direction every round (no serpentine reversal), and the
+  draft pool ranks with the captain comparator (rounded course handicap → harder tee → unrounded).
+  Rename the "Snake draft" button to match. Tests must pin the 4-captain/12-pool example and the
+  tee-tiebreak case in the decision entry.
+- **§5.az — "pool" becomes a format name; the container is a "game".** Copy sweep only
+  ("New Pool Game" → "New Game" etc.); `/pool/*` routes and internal names stay.
+- ~~The `legOverall` summary divergence~~ **FIXED pre-merge 2026-09-09** — `stakesSummary` now
+  falls back to the engine default ($10), mutation-proven in `summary.test.ts`. (The suspected
+  `nassau` gap in `sideMoneySummary` was a non-issue: side games don't offer a nassau money
+  model — that value belongs to individual modes like 9s/quota/low-total.)
+
 ## Also open
 
 - **§7 q4** — dark = live, light = setup. The last open question in the table; probably just needs

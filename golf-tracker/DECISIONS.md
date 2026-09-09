@@ -1271,6 +1271,66 @@ the reorder makes the first-time case sane.
 
 ---
 
+## 5.ay The captains' draft is a COMPLEMENTARY DEAL, not a serpentine (2026-09-09)
+
+Craig, after being shown how `serpentineTeams` actually drafts (worst captain takes the best
+player first, direction reversing each round):
+
+> "It really isnt quite a snake, I think we need to adjust it. The best captain gets the worst
+> player 2nd best gets 2nd worst, 3rd best gets third worst, then worst captain gets 4th worst
+> player. Then it continues to the point where the 4th captain effectively gets the best player
+> that was outside of captains"
+
+**Decided, two parts — NOT yet built (queued for the next branch):**
+
+1. **The deal is complementary and same-direction every round.** Rank captains best→worst and the
+   remaining pool best→worst. Each round, the BEST captain receives the WORST remaining player,
+   the 2nd-best captain the 2nd-worst, … and the worst captain the best-of-that-round. No
+   serpentine reversal. Over a full draft the worst captain ends up with the best non-captain
+   player, received in the final round. (Round 2 keeps the same pattern against the *remaining*
+   pool — confirmed with Craig in the same conversation: "I agree with all of your points there.")
+
+2. **The pool ranking uses the captain comparator, tees included.** `serpentineTeams` today sorts
+   the pool by `hcapOf` alone; `applyAllowance` rounds the course handicap first, so two players
+   who both round to 2 strokes tie exactly and fall to insertion order. Craig: *"if two players
+   round to getting 2 strokes, but one plays off further tees than the other, the player playing
+   further back tees should be getting ranked as a better player."* The draft pool must rank the
+   way `rankPlayersForCaptain` already does — rounded course handicap, then harder tee (rating,
+   then yardage), then the unrounded number.
+
+**Consequence for copy:** once changed, "Snake draft" is no longer an accurate label. Rename the
+option (candidate: "Captains' deal" or "Balanced draft") and keep the watch-it-happen framing —
+the whole point of this method over the optimizer is that the group can follow the assignment.
+
+**This changes team formation, not money**, but it changes which teams an organizer gets from the
+same field — so it lands on a fresh branch after the merge, with tests pinning the example above
+(4 captains, 12 in the pool: C1 gets P12/P8/P4, C4 gets P9/P5/P1) and the tee-tiebreak case.
+
+---
+
+## 5.az "Pool" is a FORMAT name; the container is a GAME (2026-09-09)
+
+Craig, after walking the 1v1 setup path (which today runs through a screen titled "New Pool
+Game" defaulting to "Team Pool (foursomes vs foursomes)"):
+
+> "so isnt everything effectively a pool? which is fine, but maybe we rename it? I dont see why
+> we need pools, games, money games, etc."
+
+**Decided — NOT yet built (queued for the next branch):**
+
+1. **User-facing copy says "Game".** "New Pool Game" → "New Game"; home-screen "Casual game" and
+   any "money game" phrasing converge on the same word. After the N-side/team-scoring work,
+   everything really is one container: players, optional playing groups, optional sides/teams, a
+   money rule, a scoring rule.
+2. **"Pool" survives only as the name of one format** — the N-foursomes buy-in game — exactly as
+   Skins or Wolf name theirs. This refines §5.al: *side* in a side game, *team* in a pool, and
+   now *game* for the container everywhere.
+3. **Routes and internals stay put.** `/pool/*` URLs live in group chats; renaming them breaks
+   every shared link for zero user benefit. `PoolGame`, `pool-game.ts` etc. can follow in a later
+   cleanup if ever. This is a copy sweep, not a migration.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch
