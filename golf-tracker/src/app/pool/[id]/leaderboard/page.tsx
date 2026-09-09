@@ -32,7 +32,11 @@ const LEG_LABELS: Record<PoolLegKey, string> = {
 // they used to disagree: the single-group board showed a loss as "−$12" while the
 // team board inlined `${n > 0 ? '+' : ''}$${Math.round(n)}` and produced "$-12"
 // (sign inside the amount). One helper, one rendering.
-const money = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}$${Math.abs(Math.round(n))}`;
+//
+// Round the MAGNITUDE, not the signed value (F-024): Math.round(±12.5) rounds the
+// two signs apart (+13 / −12), so a zero-sum field summed to +$4 on screen when a
+// $50 pot split four ways — half-dollars are the common case, not an edge.
+const money = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}$${Math.round(Math.abs(n))}`;
 
 export default function PoolLeaderboardPage() {
   const router = useRouter();

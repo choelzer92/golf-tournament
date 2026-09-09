@@ -132,10 +132,10 @@ function SettlementTable({ ledger, tournament }: { ledger: MoneyLedger; tourname
                     {p.nassauResult > 0 ? '+' : ''}{p.nassauResult !== 0 ? `$${Math.abs(p.nassauResult)}` : '-'}
                   </td>
                   <td className={`text-right px-3 py-2 ${p.skinsResult > 0 ? 'text-green-700' : p.skinsResult < 0 ? 'text-red-600' : 'text-gray-400'}`}>
-                    {p.skinsResult > 0 ? '+' : ''}{p.skinsResult !== 0 ? `$${Math.abs(Math.round(p.skinsResult))}` : '-'}
+                    {p.skinsResult > 0 ? '+' : ''}{p.skinsResult !== 0 ? `$${Math.round(Math.abs(p.skinsResult))}` : '-'}
                   </td>
                   <td className={`text-right px-3 py-2 font-bold bg-gray-50 ${p.netResult > 0 ? 'text-green-700' : p.netResult < 0 ? 'text-red-600' : 'text-gray-400'}`}>
-                    {p.netResult > 0 ? '+' : ''}{p.netResult !== 0 ? `$${Math.abs(Math.round(p.netResult))}` : '-'}
+                    {p.netResult > 0 ? '+' : ''}{p.netResult !== 0 ? `$${Math.round(Math.abs(p.netResult))}` : '-'}
                   </td>
                 </tr>
               );

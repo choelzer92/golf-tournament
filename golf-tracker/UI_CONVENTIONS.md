@@ -91,11 +91,14 @@ add a panel, add it to both axes or write down why it's one-sided.
 **Dollars use one helper. Never inline a currency template literal.**
 
 ```ts
-const money = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}$${Math.abs(Math.round(n))}`;
+const money = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}$${Math.round(Math.abs(n))}`;
 ```
 
 - Sign goes **outside** the `$`: `−$12`, never `$-12`. (Real bug: the two
   leaderboard branches disagreed on this in the same file.)
+- Round the **magnitude**, `Math.round(Math.abs(n))` — never the signed value.
+  `Math.round(±12.5)` rounds the two signs apart (+13 / −12), so a zero-sum
+  field summed to +$4 on screen (F-024). Half-dollars are common ($50 pot ÷ 4).
 - Minus is U+2212 `−`, not a hyphen. It aligns in tabular figures.
 - Money rounds to whole dollars in game UI. Cents appear only in the
   stats/settlement ledger, which is an accounting surface (`toFixed(2)`).

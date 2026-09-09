@@ -1555,7 +1555,7 @@ function SideGamePanel({ tournament }: { tournament: Tournament }) {
                   });
                 }).sort((a, b) => b.amount - a.amount).map((p) => (
                   <span key={p.id} className={`text-xs ${p.amount > 0 ? 'text-green-400 font-medium' : p.amount < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                    {p.name}: {p.amount > 0 ? '+' : ''}${Math.round(p.amount)}
+                    {p.name}: {p.amount > 0 ? '+' : p.amount < 0 ? '−' : ''}${Math.round(Math.abs(p.amount))}
                   </span>
                 ))}
               </div>

@@ -144,6 +144,24 @@ test.describe('money formatting', () => {
     expect(body).not.toMatch(/\$-\d/);      // the old team-path bug
     await page.screenshot({ path: 'e2e/screenshots/pool-leaderboard.png', fullPage: true });
   });
+
+  test('F-024: the Per Person strip sums to zero', async ({ page }) => {
+    const id = await seed(page, 'Classic pool — 2 foursomes, mid-round');
+    await goToGame(page, id, '/leaderboard');
+    // Positive assertion that we're on the strip, not just any page. NOTE: the
+    // heading renders through a CSS `uppercase` class, so innerText says
+    // "PER PERSON" — match case-insensitively.
+    await expect(page.getByText('Per Person', { exact: false })).toBeVisible();
+    const body = await page.locator('body').innerText();
+    // Every "Name: ±$N" entry on the strip. Math.round(±12.5) used to round the
+    // two signs apart (+$13 / −$12), so the zero-sum engine displayed +$4.
+    const strip = body.match(/Per Person[\s\S]*/i);
+    expect(strip).not.toBeNull();
+    const entries = [...strip![0].matchAll(/([+−])\$(\d+)/g)];
+    expect(entries.length).toBeGreaterThan(0);
+    const sum = entries.reduce((s, m) => s + (m[1] === '+' ? 1 : -1) * Number(m[2]), 0);
+    expect(sum).toBe(0);
+  });
 });
 
 test.describe('close out a game (the completion bug)', () => {
