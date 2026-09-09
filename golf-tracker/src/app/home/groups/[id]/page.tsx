@@ -5,6 +5,12 @@ import { useRouter, useParams } from 'next/navigation';
 import { hydrateGroups, getGroupById, addGroupMember, removeGroupMember, type RosterGroup } from '@/lib/roster-groups';
 import { hydrateRoster, searchRoster, getRosterPlayerById, type RosterPlayer } from '@/lib/roster';
 import { getFormats, getGroupFormats, attachFormatToGroup, detachFormatFromGroup } from '@/lib/pool-formats';
+import { hydratePoolGames, loadPoolGame, getPoolGameList, getPoolGameListForGhin } from '@/lib/pool-game';
+import { hydrateTournaments, loadTournament, getTournamentList } from '@/lib/tournament-state';
+import {
+  buildGameLedgers, ledgersForGroup, rollupByPlayer,
+  type GameLedger, type PlayerRollup,
+} from '@/lib/stats-ledger';
 import { getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import { POOL_GROUP_SEED_KEY, TOURNAMENT_GROUP_SEED_KEY, FORMAT_SEED_KEY } from '@/lib/group-seed';
@@ -38,9 +44,42 @@ export default function GroupDetailPage() {
   // When starting a casual round, offer a format picker if the group has formats.
   const [showFormatPicker, setShowFormatPicker] = useState(false);
 
+  // DASHBOARD DATA. This page used to be a member manager — at Craig's real 61-member
+  // group that was a 5,249px phone scroll of 61 cards, each with a full-width Remove,
+  // while the things a group is actually FOR (recent games, money) were absent. Craig:
+  // "make it a group dashboard". See FINDINGS.md F-010.
+  const [recent, setRecent] = useState<GameLedger[]>([]);
+  const [groupNet, setGroupNet] = useState<PlayerRollup[]>([]);
+  // Members are collapsed by default and searchable when open — 61 names is a list to
+  // look something up in, not something to scroll past on the way to everything else.
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [memberQuery, setMemberQuery] = useState('');
+
   function refreshFormats(g: RosterGroup | null) {
     setGroupFormats(g ? getGroupFormats(g) : []);
     setAllFormats(getFormats());
+  }
+
+  // Recent games and per-player money for this group. Mirrors /home/stats's load path.
+  async function loadGroupLedger(g: RosterGroup, ghin: number | null, isOwner: boolean) {
+    try {
+      await Promise.all([hydratePoolGames(), hydrateTournaments()]);
+      const poolItems = isOwner
+        ? getPoolGameList()
+        : ghin !== null ? getPoolGameListForGhin(ghin) : [];
+      const poolGames = poolItems
+        .map((i) => loadPoolGame(i.id))
+        .filter((x): x is NonNullable<typeof x> => !!x);
+      const tournaments = getTournamentList()
+        .map((i) => loadTournament(i.id))
+        .filter((x): x is NonNullable<typeof x> => !!x);
+      const all = await buildGameLedgers(poolGames, tournaments);
+      const mine = ledgersForGroup(all, g);
+      setRecent(mine.slice(0, 5));
+      setGroupNet(rollupByPlayer(mine));
+    } catch {
+      /* a group page is still useful without its ledger */
+    }
   }
 
   // Resolve the group's member ids into roster players (name + handicap to show).
@@ -74,6 +113,11 @@ export default function GroupDetailPage() {
         refreshFormats(g);
         setResults(searchRoster(''));
         setReady(true);
+        // Recent games + money for THIS group. Loaded after the page is usable so the
+        // score fetches don't hold up the render. Money is group-scoped by the same rule
+        // as /home/stats (DECISIONS.md §5h) — a group's page is exactly where field-wide
+        // money is allowed to appear.
+        if (g) void loadGroupLedger(g, ghin, isOwner);
       })
       .catch(() => setReady(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -134,6 +178,9 @@ export default function GroupDetailPage() {
 
   async function removeMember(rp: RosterPlayer) {
     if (!group) return;
+    // Craig: "remove should ask for confirmation". Previously one mis-tap while scrolling
+    // a 61-name list silently dropped someone from the group.
+    if (!confirm(`Remove ${rp.name} from ${group.name}? Their past games and money are unaffected.`)) return;
     await removeGroupMember(group.id, rp.id);
     const g = getGroupById(group.id);
     setGroup(g);
@@ -190,14 +237,6 @@ export default function GroupDetailPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-8">
-        <section>
-          <button
-            onClick={() => router.push(`/home/stats?group=${group.id}`)}
-            className="w-full text-left bg-white rounded-lg shadow p-3 hover:shadow-md transition mb-2"
-          >
-            <p className="font-medium text-gray-900 text-sm">Money &amp; standings for this group →</p>
-          </button>
-        </section>
 
         <section>
           <h2 className="text-lg font-semibold text-gray-900 mb-3">Start something with this group</h2>
@@ -220,6 +259,65 @@ export default function GroupDetailPage() {
             </button>
           </div>
         </section>
+
+        {/* WHO'S UP / MONEY — what a group is actually for. These were absent before:
+            the page led with 61 member cards and linked money as a single line. */}
+        {groupNet.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-gray-900">Money</h2>
+              <button
+                onClick={() => router.push(`/home/stats?group=${group.id}`)}
+                className="text-sm text-green-700 hover:text-green-900 font-medium"
+              >
+                Full ledger →
+              </button>
+            </div>
+            <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
+              {groupNet.slice(0, 5).map((r) => (
+                <div key={r.playerId} className="flex items-center justify-between px-4 py-2.5">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 truncate">{r.playerName}</p>
+                    <p className="text-xs text-gray-500">{r.gamesPlayed} game{r.gamesPlayed !== 1 ? 's' : ''}</p>
+                  </div>
+                  <span className={`font-semibold ${r.net > 0.005 ? 'text-green-700' : r.net < -0.005 ? 'text-red-600' : 'text-gray-500'}`}>
+                    {`${r.net < 0 ? '−' : ''}$${Math.abs(r.net).toFixed(2)}`}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {groupNet.length > 5 && (
+              <p className="text-xs text-gray-400 mt-1">
+                Top 5 of {groupNet.length} — see the full ledger for everyone.
+              </p>
+            )}
+          </section>
+        )}
+
+        {recent.length > 0 && (
+          <section>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">Recent games</h2>
+            <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
+              {recent.map((l) => (
+                <button
+                  key={l.gameId}
+                  onClick={() => router.push(l.gameKind === 'pool' ? `/pool/${l.gameId}` : `/tournament/${l.gameId}`)}
+                  className="w-full text-left flex items-center justify-between px-4 py-2.5 hover:bg-gray-50"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 truncate">{l.gameName}</p>
+                    {l.playedAt && (
+                      <p className="text-xs text-gray-500">{new Date(l.playedAt).toLocaleDateString()}</p>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-xs text-gray-400">
+                    {l.playerIds.length} player{l.playerIds.length !== 1 ? 's' : ''}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Game formats this group plays. Pick one when starting a casual round
             (or start fresh). Import from the saved Format Library. */}
@@ -285,25 +383,64 @@ export default function GroupDetailPage() {
             <p className="text-sm text-gray-500 bg-white rounded-lg shadow p-4">
               No members yet. Add players below.
             </p>
+          ) : !membersOpen ? (
+            /* COLLAPSED BY DEFAULT. 61 members rendered flat made this page a 5,249px
+               phone scroll of destructive buttons, burying everything else. */
+            <button
+              onClick={() => setMembersOpen(true)}
+              className="w-full text-left bg-white rounded-lg shadow p-4 hover:shadow-md transition"
+            >
+              <p className="text-sm font-medium text-gray-900">
+                {members.length} player{members.length !== 1 ? 's' : ''} — tap to view or edit
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5 truncate">
+                {members.slice(0, 4).map((m) => m.name.split(' ')[0]).join(', ')}
+                {members.length > 4 ? `, +${members.length - 4} more` : ''}
+              </p>
+            </button>
           ) : (
-            <div className="space-y-2">
-              {members.map((m) => (
-                <div key={m.id} className="flex items-center justify-between bg-white rounded-lg shadow p-3">
-                  <div className="min-w-0">
-                    <p className="font-medium text-gray-900 truncate">{m.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {m.handicapIndex != null ? `Index ${m.handicapIndex}` : 'No index'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => removeMember(m)}
-                    className="shrink-0 text-sm text-red-600 hover:text-red-800 px-2 py-1"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={memberQuery}
+                  onChange={(e) => setMemberQuery(e.target.value)}
+                  placeholder={`Search ${members.length} members…`}
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+                <button
+                  onClick={() => { setMembersOpen(false); setMemberQuery(''); }}
+                  className="shrink-0 min-h-[44px] rounded-md border border-gray-300 px-3 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  Done
+                </button>
+              </div>
+              <div className="space-y-2">
+                {(() => {
+                  const q = memberQuery.trim().toLowerCase();
+                  const shown = q ? members.filter((m) => m.name.toLowerCase().includes(q)) : members;
+                  if (shown.length === 0) {
+                    return <p className="text-sm text-gray-500 bg-white rounded-lg shadow p-4">No members match “{memberQuery}”.</p>;
+                  }
+                  return shown.map((m) => (
+                    <div key={m.id} className="flex items-center justify-between bg-white rounded-lg shadow p-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{m.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {m.handicapIndex != null ? `Index ${m.handicapIndex}` : 'No index'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => removeMember(m)}
+                        className="shrink-0 text-sm text-red-600 hover:text-red-800 px-2 py-1"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </>
           )}
           {missingCount > 0 && (
             <p className="text-xs text-gray-400 mt-2">

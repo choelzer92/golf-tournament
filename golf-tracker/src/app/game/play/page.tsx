@@ -11,10 +11,12 @@ import { computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, comp
 import { computeSideGameResult } from '@/lib/side-game';
 import type { SideGameResult } from '@/lib/side-game';
 import type { PoolGame, PoolResult, PoolLeg } from '@/lib/pool-game';
-import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores, buildHcapMap, playerHoleStrokeIndexForGame, numHolesForStrokes } from '@/lib/pool-game';
+import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores, buildHcapMap, playerHoleStrokeIndexForGame, numHolesForStrokes, defaultSubTeams, isPoolGameFullyScored } from '@/lib/pool-game';
 import { getMoneyStrokesOnHole } from '@/lib/money-games';
-import { isSingleGroupGame } from '@/lib/game-modes/result';
+import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
 import { getGameMode } from '@/lib/game-modes';
+import { sideNamesForGame } from '@/lib/game-modes/team-game';
+import { fromLegacySubTeams, sidesOfGame } from '@/lib/game-modes/sides';
 import { wolfForHole } from '@/lib/game-modes/wolf';
 import type { WolfHoleDecision } from '@/lib/pool-game';
 
@@ -70,9 +72,36 @@ export default function PlayGamePage() {
     if (poolRaw) {
       const pctx = JSON.parse(poolRaw) as PoolGameContext;
       setPoolCtx(pctx);
+      // A 2v2 game's SIDE names ("Craig & Jym") must match the leaderboard —
+      // teamNames only got populated from a tournament before, so a pool 2v2
+      // scored under the generic "Team A"/"Team B" while its own leaderboard
+      // showed the real side names.
+      const applySideNames = (g: PoolGame) => {
+        // A 2v2 game has real SIDE names and owns both A and B — handle it first, or the
+        // pool-team branch below would overwrite side B with a placeholder.
+        if (getGameMode(g.gameMode)?.category === 'team-within-group') {
+          const stored = sidesOfGame(g);
+          const sides = stored.length > 0 ? stored : fromLegacySubTeams(defaultSubTeams(
+            g.players.map((p) => p.id), g.players, g.course, g.handicapAllowance, g.handicapBasis,
+          ));
+          // Only the first two sides can be named here — the card's team slot holds two. A 3+
+          // side game leaves every player untagged (see pool/[id]/page.tsx), so those names are
+          // never drawn; the leaderboard shows all N.
+          setTeamNames(sideNamesForGame(g, sides));
+          return;
+        }
+        // A classic pool foursome playing a team format is ONE side, named after the
+        // foursome. Without this a scramble pool card read "Team A" while its own hub and
+        // leaderboard called the same group "Team 1". Side B is left as-is: the other
+        // foursomes aren't on this device, and naming it would print a placeholder.
+        const poolTeamName = parsed.formatSettings?.poolTeamName;
+        if (typeof poolTeamName === 'string' && poolTeamName) {
+          setTeamNames((prev) => ({ ...prev, A: poolTeamName }));
+        }
+      };
       const cached = loadPoolGame(pctx.poolGameId);
-      if (cached) setPoolGame(cached);
-      fetchPoolGame(pctx.poolGameId).then((g) => { if (g) setPoolGame(g); });
+      if (cached) { setPoolGame(cached); applySideNames(cached); }
+      fetchPoolGame(pctx.poolGameId).then((g) => { if (g) { setPoolGame(g); applySideNames(g); } });
     }
 
     // Load previously saved scores for this matchup
@@ -289,6 +318,56 @@ export default function PlayGamePage() {
   // gives the correct per-player-tee index (reranked 1–9 only on the USGA basis).
   const poolHcapMap = poolGame ? buildHcapMap(poolGame) : null;
   const poolNumHoles = poolGame ? numHolesForStrokes(poolGame) : 18;
+
+  // SIDE TOTALS COME FROM THE ENGINE for a side game (DECISIONS.md §5.ah). Same reasoning as the
+  // stroke dots above: the card keeping its own copy of "what did this side score" is what
+  // produced two F-006 bugs (a scramble drawn as 1-net-1-gross, Stableford drawn as strokes).
+  //
+  // Scoped to the pool side-game path only. This card ALSO serves a 2-team tournament, which has
+  // no PoolGame and therefore no engine to ask — that path keeps its own math untouched.
+  // A side game may tee off in SEVERAL playing groups with partners split across them (F-019), so
+  // the card must hand the engine every group's rows — my own live scores for my group, the cache
+  // for the others (the same assembly PoolOverviewPanel does, and kept live by the poolOtherTick
+  // subscription above). Passing only my own group made each side's total its in-my-group member
+  // alone, so a card in group 2 showed different side totals than the leaderboard.
+  const sideBreakdown = (() => {
+    if (!poolGame || !poolCtx || !isSingleGroupGame(poolGame)) return null;
+    if (getGameMode(poolGame.gameMode)?.category !== 'team-within-group') return null;
+    void poolOtherTick;   // recompute when another group posts a score
+    const byMatchup = new Map<string, GameScore[]>([[poolCtx.matchupId, scores]]);
+    for (const t of poolGame.teams) {
+      if (t.matchupId === poolCtx.matchupId) continue;
+      const cached = loadGameScores(t.matchupId);
+      if (Array.isArray(cached)) byMatchup.set(t.matchupId, cached);
+    }
+    const result = computeGameResult(poolGame, byMatchup);
+    return result.kind === 'individual' ? result.sideBreakdown ?? null : null;
+  })();
+
+  // Manual bonuses (sandies, barkies, …) the app can't read off a scorecard. The SCORER
+  // taps them for any player in their foursome — Craig: "the scorer can enter any for
+  // anyone in the group". Stored on the pool game (bonusMarks) rather than on GameScore,
+  // which flows through the merge RPC and the audit.
+  const poolBonuses = poolGame?.customBonuses ?? [];
+  function hasBonus(playerId: string, bonusId: string, hole: number): boolean {
+    return !!poolGame?.bonusMarks?.[hole]?.[playerId]?.includes(bonusId);
+  }
+  function toggleBonus(playerId: string, bonusId: string, hole: number) {
+    if (!poolGame) return;
+    const marks = { ...(poolGame.bonusMarks ?? {}) };
+    const atHole = { ...(marks[hole] ?? {}) };
+    const current = atHole[playerId] ?? [];
+    const next = current.includes(bonusId)
+      ? current.filter((b) => b !== bonusId)
+      : [...current, bonusId];
+    if (next.length === 0) delete atHole[playerId];
+    else atHole[playerId] = next;
+    if (Object.keys(atHole).length === 0) delete marks[hole];
+    else marks[hole] = atHole;
+    const updated: PoolGame = { ...poolGame, bonusMarks: marks };
+    setPoolGame(updated);
+    savePoolGame(updated);
+  }
 
   const sortedPlayers = [...setup.players].sort((a, b) => {
     const teamOrder = (t?: 'A' | 'B') => t === 'A' ? 0 : t === 'B' ? 1 : 2;
@@ -696,6 +775,12 @@ export default function PlayGamePage() {
           const activeAllowance = (setup.splitFormat && isBackNine) ? (setup.splitFormat.handicapAllowance ?? 100) : (setup.handicapAllowance ?? 100);
           const activeStrokeMethod = (setup.splitFormat && isBackNine) ? (setup.splitFormat.strokeMethod ?? 'off-the-low') : (setup.strokeMethod ?? 'off-the-low');
           parts.push(formatNames[activeFormatId] || activeFormatId.replace('-', ' '));
+          // Say how many sides are playing when it isn't the usual two. The card otherwise read
+          // "Stroke Play · Best Ball · Full Handicap" for a three-side game — true, but silent
+          // about the thing most likely to surprise someone picking up the phone.
+          if (sideBreakdown && sideBreakdown.length > 2) {
+            parts.push(`${sideBreakdown.length} sides`);
+          }
 
           if (oneBall) {
             if (teamMode === 'scramble') {
@@ -1206,6 +1291,29 @@ export default function PlayGamePage() {
                       </button>
                     ))}
                   </div>
+                  {/* Bonus toggles — only for games whose group plays them, so a group
+                      that doesn't costs zero taps and sees nothing. */}
+                  {poolBonuses.length > 0 && (
+                    <div className="mt-2 flex gap-1.5 flex-wrap">
+                      {poolBonuses.map((b) => {
+                        const on = hasBonus(player.id, b.id, currentHole);
+                        return (
+                          <button
+                            key={b.id}
+                            onClick={() => toggleBonus(player.id, b.id, currentHole)}
+                            title={b.hint}
+                            className={`min-h-[32px] rounded-full border px-2.5 py-1 text-xs font-medium ${
+                              on
+                                ? 'border-amber-600 bg-amber-500 text-white'
+                                : 'border-gray-300 bg-white text-gray-600 hover:border-amber-400'
+                            }`}
+                          >
+                            {on ? '✓ ' : ''}{b.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -1227,9 +1335,35 @@ export default function PlayGamePage() {
           const teamBPlayers = sortedPlayers.filter((p) => p.team === 'B');
           const noTeamPlayers = sortedPlayers.filter((p) => !p.team);
           const hasTeams = teamAPlayers.length > 0 && teamBPlayers.length > 0;
+          // A classic pool foursome playing a TEAM format is ONE side, not two (F-006): the
+          // other foursomes score on their own devices. `hasTeams` requires both A and B, so
+          // a scramble pool card showed four player rows and no team row at all — the number
+          // the money is actually settled on was the one thing missing.
+          const teamRowSides = hasTeams
+            ? ([
+                { players: teamAPlayers, label: teamNames.A, color: 'text-blue-700', team: 'A' as const },
+                { players: teamBPlayers, label: teamNames.B, color: 'text-red-700', team: 'B' as const },
+              ])
+            : teamAPlayers.length > 0 && isTeamMode(teamMode)
+              ? ([{ players: teamAPlayers, label: teamNames.A, color: 'text-blue-700', team: 'A' as const }])
+              : [];
+
+          // A side game with MORE THAN TWO sides can't use the rows above: Player.team holds only
+          // 'A' | 'B', so those players are deliberately left untagged (see pool/[id]/page.tsx).
+          // Draw the rows from the ENGINE instead — one row per side, in board order, with the
+          // side's own hole scores and a rank + margin in the game's own unit (§5.ah).
+          const engineSideRows = sideBreakdown && sideBreakdown.length > 2 ? sideBreakdown : null;
+          // Side colours, matching the leaderboard's palette so one game reads the same on both
+          // screens. Blue/red stay first, so a two-side game is unchanged.
+          const SIDE_ROW_COLORS = ['text-blue-700', 'text-red-700', 'text-amber-700', 'text-emerald-700', 'text-fuchsia-700', 'text-cyan-700'];
 
           const formatId = setup.formatId;
-          const isStablefordFormat = formatId === 'stableford';
+          // A classic pool can now be scored in Stableford points (F-006). It arrives as
+          // formatId 'stroke-play' with teamScoreBasis on formatSettings, so keying only on
+          // formatId drew STROKES in the team row while the money engine counted POINTS —
+          // the same cell showing two different units.
+          const isStablefordFormat = formatId === 'stableford'
+            || setup.formatSettings?.teamScoreBasis === 'stableford';
           const tournamentRound = tournamentCtx ? loadTournament(tournamentCtx.tournamentId)?.rounds.find((r) => r.id === tournamentCtx.roundId) : null;
           const isMatchPlayScoring = tournamentRound ? tournamentRound.scoringMethod === 'match-play' : (formatId === 'match-play' || formatId === 'skins' || formatId === 'nassau');
           const isScramble = teamMode === 'scramble';
@@ -1550,16 +1684,16 @@ export default function PlayGamePage() {
                     );
                   })}
                   {/* Team net/stableford rows */}
-                  {hasTeams && [
-                    { players: teamAPlayers, label: teamNames.A, color: 'text-blue-700', team: 'A' as const },
-                    { players: teamBPlayers, label: teamNames.B, color: 'text-red-700', team: 'B' as const },
-                  ].map(({ players: tp, label, color, team }) => {
+                  {teamRowSides.map(({ players: tp, label, color, team }) => {
                     const getHoleValue = isStablefordFormat ? (h: typeof holes[0]) => getTeamStableford(tp, h) : (h: typeof holes[0]) => getTeamNet(tp, h);
                     const visTotal = visibleHoles.reduce((s, h) => s + (getHoleValue(h) ?? 0), 0);
                     const otherTotal = hasOtherSide ? otherHoles.reduce((s, h) => s + (getHoleValue(h) ?? 0), 0) : 0;
                     const totalValue = holes.reduce((s, h) => s + (getHoleValue(h) ?? 0), 0);
                     const scoredAny = holes.some((h) => getHoleValue(h) !== null);
-                    const matchStatus = getMatchStatus(team);
+                    // getMatchStatus compares side A against side B, which means nothing on a
+                    // one-sided pool card — the other foursomes aren't on this device. Their
+                    // standing lives on the leaderboard.
+                    const matchStatus = hasTeams ? getMatchStatus(team) : null;
 
                     return (
                       <tr key={team} className="border-t border-gray-200 bg-gray-50">
@@ -1580,9 +1714,64 @@ export default function PlayGamePage() {
                         )}
                         <td className="px-1.5 py-1 text-center border-l border-gray-200">
                           <span className={`font-bold ${color}`}>{scoredAny ? totalValue : '–'}</span>
-                          {scoredAny && (
+                          {scoredAny && matchStatus && (
                             <span className={`ml-1 text-[9px] font-bold px-1 py-0.5 rounded ${matchStatus.color}`}>
                               {matchStatus.label}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {/* THREE OR MORE SIDES: rows straight from the engine, so the card can't
+                      disagree with the money (§5.ah). One row per side, in board order. */}
+                  {engineSideRows?.map((side, sideIdx) => {
+                    const color = SIDE_ROW_COLORS[sideIdx % SIDE_ROW_COLORS.length];
+                    const valueAt = (holeNumber: number) => {
+                      const i = holes.findIndex((h) => h.number === holeNumber);
+                      return i < 0 ? null : side.values[i] ?? null;
+                    };
+                    const scoredAny = side.values.some((v) => v !== null);
+                    const otherTotal = hasOtherSide
+                      ? otherHoles.reduce((s, h) => s + (valueAt(h.number) ?? 0), 0)
+                      : 0;
+                    return (
+                      <tr key={side.id} className="border-t border-gray-200 bg-gray-50">
+                        <td className={`px-2 py-1 font-bold text-[10px] whitespace-nowrap ${color}`}>
+                          {side.name}{isStablefordFormat ? ' pts' : ''}
+                        </td>
+                        {visibleHoles.map((h) => {
+                          const val = valueAt(h.number);
+                          const isCurrent = h.number === currentHole;
+                          return (
+                            <td key={h.number} className={`py-1 text-center font-bold ${color} ${isCurrent ? 'bg-yellow-50' : ''}`}>
+                              {val ?? '–'}
+                            </td>
+                          );
+                        })}
+                        {hasOtherSide && (
+                          <td className={`px-1.5 py-1 text-center font-bold border-l border-gray-200 ${color}`}>
+                            {otherTotal || '–'}
+                          </td>
+                        )}
+                        <td className="px-1.5 py-1 text-center border-l border-gray-200">
+                          <span className={`font-bold ${color}`}>{scoredAny ? side.total : '–'}</span>
+                          {scoredAny && (
+                            /* Rank + margin in the game's OWN unit — "1st · −4" for strokes,
+                               "1st · 42 pts" for Stableford, "1st · 5 holes" for match play. A
+                               two-side "2 UP" badge means nothing against two opponents.
+                               §5.ak: the badge is coloured by RANK, not by the side's identity
+                               colour, so leading and losing don't read the same. It was grey for
+                               every side, which made "1st · −4" and "3rd · +18" look alike — the
+                               same defect the leaderboard's to-par column already fixed. Rank is
+                               unit-free, so this is right under strokes, points and match play
+                               alike (which is why it doesn't key on the sign of the margin). */
+                            <span className={`ml-1 text-[9px] font-bold px-1 py-0.5 rounded whitespace-nowrap ${
+                              side.place === 1 ? 'text-green-800 bg-green-100'
+                                : side.place === engineSideRows.length ? 'text-red-800 bg-red-100'
+                                  : 'text-gray-700 bg-gray-200'
+                            }`}>
+                              {side.status}
                             </span>
                           )}
                         </td>
@@ -1883,10 +2072,31 @@ export default function PlayGamePage() {
   async function finishGame() {
     if (!confirm('Finish this game and lock scores? This cannot be undone.')) return;
 
-    // Pool money game: just persist this foursome's scores and return to the hub.
+    // Pool money game: persist this foursome's scores and return to the hub.
     // Pool standings/payouts are computed on the leaderboard from all foursomes.
     if (poolCtx) {
       saveGameScores(poolCtx.matchupId, scores);
+      // Mark the WHOLE game completed once every foursome is fully scored — this
+      // foursome may be the last one in. status:'completed' is what the stats &
+      // money ledger selects on, and nothing used to set it, so finished games
+      // never appeared there. Deliberately a whole-game check: one group
+      // finishing must not close out a pool whose other groups are still playing.
+      const latest = loadPoolGame(poolCtx.poolGameId) ?? poolGame;
+      if (latest && latest.status !== 'completed') {
+        const byMatchup = new Map<string, GameScore[]>();
+        await Promise.all(
+          Array.from(new Set(latest.teams.map((t) => t.matchupId))).map(async (mid) => {
+            // This foursome's scores are the in-memory ones we just saved; the
+            // others come from the server (they may have finished on their own
+            // device since this screen loaded).
+            const s = mid === poolCtx.matchupId ? scores : await fetchGameScores(mid);
+            if (s && Array.isArray(s)) byMatchup.set(mid, s as GameScore[]);
+          }),
+        );
+        if (isPoolGameFullyScored(latest, byMatchup)) {
+          savePoolGame({ ...latest, status: 'completed' });
+        }
+      }
       sessionStorage.removeItem('game_setup');
       sessionStorage.removeItem('game_pool_context');
       router.push(`/pool/${poolCtx.poolGameId}`);
@@ -2106,6 +2316,14 @@ export default function PlayGamePage() {
                 b.type === 'match-winner' ? b : { ...b, result: undefined }
               );
               round.bonuses = computeBonuses(round, tournament);
+            }
+
+            // Roll the ROUND completion up to the TOURNAMENT. Only round.status was
+            // ever set, so tournament.status stayed 'active' forever and the stats
+            // & money ledger (which selects status === 'completed') never saw a
+            // finished event. Same predicate the recap page already uses.
+            if (tournament.rounds.length > 0 && tournament.rounds.every((r) => r.status === 'completed')) {
+              tournament.status = 'completed';
             }
 
             saveTournament(tournament);

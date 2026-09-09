@@ -51,10 +51,20 @@ export function formatFromGame(game: PoolGame): GroupDefaults {
     gameMode: game.gameMode,
     modeSettings: game.modeSettings,
     subTeams: game.subTeams,
+    // N sides, or absent for an ordinary two-side game (F-006). Without this, saving a
+    // three-side game to the library and starting from it would silently give back two sides —
+    // the same class of drop that made teamFormat/teamScoreBasis necessary here.
+    sides: game.sides,
     moneyMode: game.moneyMode,
     junkValues: game.junkValues,
+    customBonuses: game.customBonuses,
     entryPerPlayer: game.entryPerPlayer,
     ballSelection: game.ballSelection,
+    // The generalized format (F-006), or absent for an ordinary stroke game. Without these
+    // two, saving "scramble, most Stableford points wins" to the library and starting a game
+    // from it would silently give back a stroke game with the legacy ball selection.
+    teamFormat: game.teamFormat,
+    teamScoreBasis: game.teamScoreBasis,
     handicapAllowance: game.handicapAllowance,
     strokeMethod: game.strokeMethod,
     handicapBasis: game.handicapBasis,

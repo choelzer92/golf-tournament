@@ -1,6 +1,7 @@
 import type { Player, GameScore } from '../game-state';
 import type { FormatSetting } from '../formats';
 import type { HoleData, WolfHoleDecision } from '../pool-game';
+import type { GameSide } from './sides';
 
 // A game mode's category decides which result axis (and leaderboard) it uses.
 //   'team'              — the classic pool: compare foursomes (computePoolResult).
@@ -30,7 +31,13 @@ export interface GameModeDescriptor {
   description: string;
   category: GameCategory;
   inputType: GameInputType;
-  playersMin: number;         // per group
+  // How many players the game needs, measured against the WHOLE FIELD — not per playing group
+  // (Craig, 2026-08-26). This used to read "per group", which was unambiguous only while a
+  // single-group game had exactly one group. F-019 gave side games real tee groups, so 4–8 could
+  // have meant "4–8 in the game" or "4–8 per tee slot"; the field is the answer, because it's the
+  // only one available at the moment the game is picked (the picker comes before the tee sheet).
+  // Read it through `fitForMode` (game-modes/fit.ts) rather than comparing by hand.
+  playersMin: number;
   playersMax: number;
   settings: FormatSetting[];  // toggleable options, each with a norm default
   compute(ctx: GameModeContext): IndividualResult;  // pure — no I/O
@@ -52,7 +59,14 @@ export interface GameModeContext {
   netOnHole(playerId: string, hole: HoleData): number | null;
   // Team-within-group games only: the two sides' player-id lists (from
   // game.subTeams, else a balanced default). Undefined for individual games.
+  //
+  // LEGACY VIEW, kept so nothing that reads it has to change at once. It holds the first two
+  // sides of `sides` below; for a 3+ side game it is therefore INCOMPLETE — read `sides`.
   subTeams?: { a: string[]; b: string[] };
+  // Team-within-group games only: ALL sides, normalized (F-006). Always populated when
+  // subTeams is, since a legacy {a, b} widens to two sides with the ids 'a' and 'b'. This is
+  // the field the engine should read. See game-modes/sides.ts.
+  sides?: GameSide[];
   // Raw course handicap (allowance 100, no off-the-low) — the input the USGA
   // team-handicap formulas need (scramble/alt-shot, Phase B). Distinct from
   // playingHcap, which is allowance-adjusted, off-the-low-adjusted, and rounded.
@@ -63,6 +77,10 @@ export interface GameModeContext {
   // Kept separate from ctx.players so it drives ONLY who's the default Wolf each
   // hole, not the standings display order or the "all four scored" check.
   wolfOrder?: string[];
+  // Legs the group decided pay nothing because not every side finished them (F-016b,
+  // DECISIONS.md §5.ai). Absent/empty = every leg pays on the holes played, which is what
+  // every existing game does. The leg still SHOWS its margin; it just doesn't settle.
+  voidedLegs?: ('front' | 'back' | 'overall')[];
 }
 
 export interface PlayerStanding {
@@ -74,18 +92,41 @@ export interface PlayerStanding {
   thru: number;                   // holes this player has scored
   place: number;                  // 1-based rank (ties share a place); 0 if unscored
   holesWon?: number[];            // Wolf only: hole numbers this player earned points on (for the expandable standings)
+  // SIDE games under 'total' scoring: score to par — the figure the side is actually RANKED and
+  // PAID on (DECISIONS.md §5.af). `points` stays the real total the side shot; this is that
+  // total minus what playing to expectation would score, so a side thru 5 is comparable to one
+  // thru 18. Under Stableford it's PACE (higher is better); under strokes it's to-par (lower is
+  // better). Absent for match scoring, which is already thru-safe, and for individual games.
+  toPar?: number;
 }
 
-// A front/back/overall sub-result for a 2v2 team game (Nassau-style breakdown).
+// A front/back/overall sub-result for a side game (Nassau-style breakdown).
 // `label` is "Front 9" / "Back 9" / "Overall 18". `status` is a ready-to-show
-// line (e.g. "A 2 UP", "All square", "Side A by 3"). `winner` is which side
-// leads that leg ('a'|'b'|null for tied/none).
+// line (e.g. "A 2 UP", "All square", "Side A by 3").
 export interface TeamLegLine {
   key: 'front' | 'back' | 'overall';
   label: string;
   status: string;
-  winner: 'a' | 'b' | null;
+  // Which SIDE leads that leg, by its stable side id ('a', 'b', 'c', …), or null when tied or
+  // unplayed. Was `'a' | 'b' | null`; widened for N sides (F-006). A legacy two-side game
+  // still emits exactly 'a' or 'b', because the normalizer preserves those ids literally —
+  // which is why every existing consumer comparing to 'a'/'b' keeps working.
+  winner: string | null;
+  // EVERY side tied at the top of this leg, by side id. One entry when there's an outright
+  // winner (and then it equals [winner]); several when they tie; empty when the leg is unplayed.
+  //
+  // `winner` stays single-valued for DISPLAY (colouring keys on it, and it's null on a tie).
+  // Money reads this instead: each side behind pays the leg to each side that led it
+  // (DECISIONS.md §5.aj). At one leader that is exactly the old rule.
+  leaders: string[];
   thru: number;
+  // How many holes this leg SPANS (9 for a nine, 18 for overall, fewer on a 9-hole game).
+  // `thru` is how many of them every side has posted, so `thru < holes` means the leg is
+  // incomplete — the state the close-out prompt asks about (F-016b).
+  holes: number;
+  // True when this leg was voided by the group at close-out: it still shows its margin, but
+  // settles no money (DECISIONS.md §5.ai). Absent/false on every existing game.
+  voided?: boolean;
 }
 
 // One hole's matchup story for the Wolf leaderboard breakdown. Wolf's whole
@@ -117,9 +158,32 @@ export interface IndividualResult {
   pot: number;
   thruHole: number;
   moneyModel: 'per-point' | 'pot';
-  // 2v2 team games only: front/back/overall breakdown for the leaderboard.
+  // Side games only: front/back/overall breakdown for the leaderboard.
   teamLegs?: TeamLegLine[];
+  // The first two sides' names. LEGACY VIEW, kept because several surfaces read it and a
+  // two-side game is still the norm. For a 3+ side game it names only the first two — read
+  // `sideLabels` instead.
   sideNames?: { a: string; b: string };
+  // EVERY side's id and display name, in board order (F-006). Present for any side game,
+  // including two-side ones, so a consumer never has to choose between the two fields based
+  // on side count.
+  sideLabels?: { id: string; name: string }[];
+  // The SCORECARD's team rows, straight from the engine (DECISIONS.md §5.ah). Craig's call: the
+  // card must not keep its own copy of "what did this side score" — that duplication produced two
+  // F-006 bugs (a scramble drawn as 1-net-1-gross, Stableford drawn as strokes).
+  //
+  // `values` is the side's HOLE SCORE per hole (net strokes or Stableford points, by the game's
+  // basis) aligned to ctx.holes — deliberately NOT PlayerStanding.perHole, which holds match
+  // POINTS under match scoring and so can't draw a scorecard row. `status` is a ready-to-show
+  // rank + margin in the game's own unit ("1st · −4", "1st · 42 pts", "1st · 5 holes").
+  sideBreakdown?: {
+    id: string;
+    name: string;
+    values: (number | null)[];
+    total: number;
+    place: number;
+    status: string;
+  }[];
   // Wolf only: per-hole matchup breakdown (Wolf, call, side nets, winner).
   wolfHoles?: WolfHoleLine[];
   // Nassau-pot money model only: the front/back/total segment payout breakdown

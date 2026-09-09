@@ -178,32 +178,41 @@ export function settleJunkFromSettings(
   return lines;
 }
 
-// 2v2 variant: junk is earned by INDIVIDUALS but settled between the two SIDES,
-// because a 2v2 game's money is a head-to-head between sides, not a free-for-all
-// among four players. Side A's total bonus minus side B's is what changes hands,
-// paid per player. Returns the same per-player breakdown for the leaderboard.
+// SIDE variant: junk is earned by INDIVIDUALS but settled between SIDES, because a side game's
+// money is between sides, not a free-for-all among four players. Returns the same per-player
+// breakdown for the leaderboard.
 //
-// Mirrors how the classic pool settles junk in match mode (a differential
-// between the two teams), so the two paths agree conceptually.
+// THE RULE, at N sides: each side COLLECTS ITS OWN JUNK FROM EVERY OTHER SIDE, and pays each
+// other side theirs — `mine × (N−1) − (everyone else's total)`. Craig's call, DECISIONS.md §5.ad.
+//
+// At two sides that reduces to exactly the old straight differential (`mine − theirs`), so no
+// existing 2v2 game moves a cent — pinned by two-side-golden.test.ts. FINDINGS.md F-006 had
+// proposed a field-average settlement here instead; that HALVES the two-side payout ($1 where
+// the shipped tests assert $2), which is why it was rejected. It's also the same shape as
+// settleJunkFromSettings, so the individual and side paths now settle bonuses identically.
 export function settleJunkForSides(
   schema: FormatSetting[],
   bag: SettingsBag,
   ctx: GameModeContext,
   standings: PlayerStanding[],
-  sides: { a: string[]; b: string[] },
+  sides: { id: string; playerIds: string[] }[],
 ): JunkLine[] | null {
   const lines = tallyJunk(schema, bag, ctx);
   if (!lines) return null;
+  const n = sides.length;
+  if (n < 2) return lines;
+
   const sum = (ids: string[]) =>
     ids.reduce((s, id) => s + (lines.find((l) => l.playerId === id)?.dollars ?? 0), 0);
-  const diff = sum(sides.a) - sum(sides.b);
-  if (diff !== 0) {
-    // standings for a 2v2 game are the two SIDES (playerId 'A' / 'B').
-    const a = standings.find((s) => s.playerId === 'A');
-    const b = standings.find((s) => s.playerId === 'B');
-    if (a) a.moneyNet += diff;
-    if (b) b.moneyNet -= diff;
-  }
+  const earned = sides.map((s) => sum(s.playerIds));
+  const total = earned.reduce((s, v) => s + v, 0);
+
+  sides.forEach((side, idx) => {
+    // Standings for a side game are the SIDES, keyed by the side id uppercased ('A','B','C').
+    const st = standings.find((s) => s.playerId === side.id.toUpperCase());
+    if (!st) return;
+    st.moneyNet += earned[idx] * (n - 1) - (total - earned[idx]);
+  });
   return lines;
 }
 

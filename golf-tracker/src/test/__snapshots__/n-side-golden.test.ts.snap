@@ -1,0 +1,5163 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`BLAST RADIUS: neither change may touch these (MUST NOT MOVE) > Wolf, a 2-side consumer of the same engine 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideBreakdown": undefined,
+  "sideLabels": undefined,
+  "standings": [
+    {
+      "id": "p1",
+      "money": 4.5,
+      "place": 1,
+      "points": 7,
+      "thru": 4,
+      "toPar": undefined,
+    },
+    {
+      "id": "p4",
+      "money": 2.5,
+      "place": 2,
+      "points": 6,
+      "thru": 4,
+      "toPar": undefined,
+    },
+    {
+      "id": "p2",
+      "money": -3.5,
+      "place": 3,
+      "points": 3,
+      "thru": 4,
+      "toPar": undefined,
+    },
+    {
+      "id": "p3",
+      "money": -3.5,
+      "place": 3,
+      "points": 3,
+      "thru": 4,
+      "toPar": undefined,
+    },
+  ],
+  "teamLegs": undefined,
+  "thruHole": 4,
+}
+`;
+
+exports[`BLAST RADIUS: neither change may touch these (MUST NOT MOVE) > the classic N-foursome pool (computePoolResult) 1`] = `
+{
+  "payouts": [
+    {
+      "back": 35,
+      "front": 35,
+      "id": "t1",
+      "junk": 35,
+      "net": 90,
+      "overall": 35,
+      "perPerson": 45,
+    },
+    {
+      "back": 15,
+      "front": 15,
+      "id": "t2",
+      "junk": 15,
+      "net": 10,
+      "overall": 15,
+      "perPerson": 5,
+    },
+    {
+      "back": 0,
+      "front": 0,
+      "id": "t3",
+      "junk": 0,
+      "net": -50,
+      "overall": 0,
+      "perPerson": -25,
+    },
+    {
+      "back": 0,
+      "front": 0,
+      "id": "t4",
+      "junk": 0,
+      "net": -50,
+      "overall": 0,
+      "perPerson": -25,
+    },
+  ],
+  "pot": 200,
+}
+`;
+
+exports[`F-016 (SHOULD MOVE): sides thru unequal hole counts > F-016: C plays 3 back holes level; A and B play 9 at +1 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "2nd · +9",
+      "total": 81,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +9",
+      "total": 81,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "1st · E",
+      "total": 47,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "C",
+      "money": 60,
+      "place": 1,
+      "points": 47,
+      "thru": 12,
+      "toPar": 0,
+    },
+    {
+      "id": "A",
+      "money": -30,
+      "place": 2,
+      "points": 81,
+      "thru": 18,
+      "toPar": 9,
+    },
+    {
+      "id": "B",
+      "money": -30,
+      "place": 2,
+      "points": 81,
+      "thru": 18,
+      "toPar": 9,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Tied",
+      "thru": 9,
+      "winner": null,
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player5 & Player6 by 3",
+      "thru": 3,
+      "winner": "c",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player5 & Player6 by 3",
+      "thru": 12,
+      "winner": "c",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`F-016 (SHOULD MOVE): sides thru unequal hole counts > F-016: C walks in after 12 / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +24",
+      "total": 71,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 80,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -40,
+      "place": 3,
+      "points": 71,
+      "thru": 12,
+      "toPar": 24,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 3,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 12",
+      "thru": 12,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`F-016 (SHOULD MOVE): sides thru unequal hole counts > F-016: C walks in after 12 / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +24",
+      "total": 71,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 48,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -24,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -24,
+      "place": 3,
+      "points": 71,
+      "thru": 12,
+      "toPar": 24,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 3,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 12",
+      "thru": 12,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`F-016 (SHOULD MOVE): sides thru unequal hole counts > F-016: C walks in after 12 / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +24",
+      "total": 71,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 42,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -12,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -30,
+      "place": 3,
+      "points": 71,
+      "thru": 12,
+      "toPar": 24,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 3,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 12",
+      "thru": 12,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`F-016 (SHOULD MOVE): sides thru unequal hole counts > F-016: C walks in after 12 / pot 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "pot",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +24",
+      "total": 71,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 40,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -20,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -20,
+      "place": 3,
+      "points": 71,
+      "thru": 12,
+      "toPar": 24,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 3,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 12",
+      "thru": 12,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`F-016 (SHOULD MOVE): sides thru unequal hole counts > a side that has not started neither pays nor collects (MUST NOT MOVE) 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "–",
+      "total": 0,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 0,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": 0,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": 0,
+      "place": 0,
+      "points": 0,
+      "thru": 0,
+      "toPar": 0,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "–",
+      "thru": 0,
+      "winner": null,
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "–",
+      "thru": 0,
+      "winner": null,
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "–",
+      "thru": 0,
+      "winner": null,
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`F-017 (SHOULD MOVE, legs only): top sides tie with a third behind > F-017: legs — A and B tie, C is 18 over, so C pays BOTH 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +18",
+      "total": 90,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 40,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": 40,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "C",
+      "money": -80,
+      "place": 3,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 & Player3 & Player4 tied",
+      "thru": 9,
+      "winner": null,
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 & Player3 & Player4 tied",
+      "thru": 9,
+      "winner": null,
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 & Player3 & Player4 tied",
+      "thru": 18,
+      "winner": null,
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`F-017 (SHOULD MOVE, legs only): top sides tie with a third behind > a clear leg winner collects from each side behind (MUST NOT MOVE) 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 80,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -40,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`F-017 (SHOULD MOVE, legs only): top sides tie with a third behind > per-hole DOES charge a side that loses holes outright (MUST NOT MOVE) 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · 18 holes",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · 0 holes",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "2nd · 0 holes",
+      "total": 108,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 72,
+      "place": 1,
+      "points": 18,
+      "thru": 18,
+      "toPar": undefined,
+    },
+    {
+      "id": "B",
+      "money": -36,
+      "place": 2,
+      "points": 0,
+      "thru": 18,
+      "toPar": undefined,
+    },
+    {
+      "id": "C",
+      "money": -36,
+      "place": 2,
+      "points": 0,
+      "thru": 18,
+      "toPar": undefined,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 9 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 9 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 18 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`F-017 (SHOULD MOVE, legs only): top sides tie with a third behind > per-hole pays nothing on a hole-by-hole tie, by construction (MUST NOT MOVE) 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +18",
+      "total": 90,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 0,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": 0,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "C",
+      "money": 0,
+      "place": 3,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 & Player3 & Player4 tied",
+      "thru": 9,
+      "winner": null,
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 & Player3 & Player4 tied",
+      "thru": 9,
+      "winner": null,
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 & Player3 & Player4 tied",
+      "thru": 18,
+      "winner": null,
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`F-017 (SHOULD MOVE, legs only): top sides tie with a third behind > per-point already charges the side behind (MUST NOT MOVE) 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +18",
+      "total": 90,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 18,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": 18,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "C",
+      "money": -36,
+      "place": 3,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 & Player3 & Player4 tied",
+      "thru": 9,
+      "winner": null,
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 & Player3 & Player4 tied",
+      "thru": 9,
+      "winner": null,
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 & Player3 & Player4 tied",
+      "thru": 18,
+      "winner": null,
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`F-017 (SHOULD MOVE, legs only): top sides tie with a third behind > pot already charges the side behind (MUST NOT MOVE) 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "pot",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +18",
+      "total": 90,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 10,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": 10,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "C",
+      "money": -20,
+      "place": 3,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 & Player3 & Player4 tied",
+      "thru": 9,
+      "winner": null,
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 & Player3 & Player4 tied",
+      "thru": 9,
+      "winner": null,
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 & Player3 & Player4 tied",
+      "thru": 18,
+      "winner": null,
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides under Stableford + match (MUST NOT MOVE) > stableford / match / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · 18 holes",
+      "total": 54,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · 0 holes",
+      "total": 36,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "2nd · 0 holes",
+      "total": 18,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 80,
+      "place": 1,
+      "points": 18,
+      "thru": 18,
+      "toPar": undefined,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "place": 2,
+      "points": 0,
+      "thru": 18,
+      "toPar": undefined,
+    },
+    {
+      "id": "C",
+      "money": -40,
+      "place": 2,
+      "points": 0,
+      "thru": 18,
+      "toPar": undefined,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 9 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 9 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 18 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides under Stableford + match (MUST NOT MOVE) > stableford / match / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · 18 holes",
+      "total": 54,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · 0 holes",
+      "total": 36,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "2nd · 0 holes",
+      "total": 18,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 72,
+      "place": 1,
+      "points": 18,
+      "thru": 18,
+      "toPar": undefined,
+    },
+    {
+      "id": "B",
+      "money": -36,
+      "place": 2,
+      "points": 0,
+      "thru": 18,
+      "toPar": undefined,
+    },
+    {
+      "id": "C",
+      "money": -36,
+      "place": 2,
+      "points": 0,
+      "thru": 18,
+      "toPar": undefined,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 9 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 9 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 18 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides under Stableford + match (MUST NOT MOVE) > stableford / match / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · 18 holes",
+      "total": 54,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · 0 holes",
+      "total": 36,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "2nd · 0 holes",
+      "total": 18,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 36,
+      "place": 1,
+      "points": 18,
+      "thru": 18,
+      "toPar": undefined,
+    },
+    {
+      "id": "B",
+      "money": -18,
+      "place": 2,
+      "points": 0,
+      "thru": 18,
+      "toPar": undefined,
+    },
+    {
+      "id": "C",
+      "money": -18,
+      "place": 2,
+      "points": 0,
+      "thru": 18,
+      "toPar": undefined,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 9 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 9 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 18 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides under Stableford + match (MUST NOT MOVE) > stableford / match / pot 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "pot",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · 18 holes",
+      "total": 54,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · 0 holes",
+      "total": 36,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "2nd · 0 holes",
+      "total": 18,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 40,
+      "place": 1,
+      "points": 18,
+      "thru": 18,
+      "toPar": undefined,
+    },
+    {
+      "id": "B",
+      "money": -20,
+      "place": 2,
+      "points": 0,
+      "thru": 18,
+      "toPar": undefined,
+    },
+    {
+      "id": "C",
+      "money": -20,
+      "place": 2,
+      "points": 0,
+      "thru": 18,
+      "toPar": undefined,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 9 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 9 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 18 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides under Stableford + match (MUST NOT MOVE) > stableford / total / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · 54 pts",
+      "total": 54,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · 36 pts",
+      "total": 36,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · 18 pts",
+      "total": 18,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 80,
+      "place": 1,
+      "points": 54,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "place": 2,
+      "points": 36,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "C",
+      "money": -40,
+      "place": 3,
+      "points": 18,
+      "thru": 18,
+      "toPar": -18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides under Stableford + match (MUST NOT MOVE) > stableford / total / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · 54 pts",
+      "total": 54,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · 36 pts",
+      "total": 36,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · 18 pts",
+      "total": 18,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 72,
+      "place": 1,
+      "points": 54,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "B",
+      "money": -36,
+      "place": 2,
+      "points": 36,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "C",
+      "money": -36,
+      "place": 3,
+      "points": 18,
+      "thru": 18,
+      "toPar": -18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides under Stableford + match (MUST NOT MOVE) > stableford / total / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · 54 pts",
+      "total": 54,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · 36 pts",
+      "total": 36,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · 18 pts",
+      "total": 18,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 54,
+      "place": 1,
+      "points": 54,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "B",
+      "money": 0,
+      "place": 2,
+      "points": 36,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "C",
+      "money": -54,
+      "place": 3,
+      "points": 18,
+      "thru": 18,
+      "toPar": -18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides under Stableford + match (MUST NOT MOVE) > stableford / total / pot 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "pot",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · 54 pts",
+      "total": 54,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · 36 pts",
+      "total": 36,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · 18 pts",
+      "total": 18,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 40,
+      "place": 1,
+      "points": 54,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "B",
+      "money": -20,
+      "place": 2,
+      "points": 36,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "C",
+      "money": -20,
+      "place": 3,
+      "points": 18,
+      "thru": 18,
+      "toPar": -18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 2 sides / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 40,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 2 sides / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 36,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -36,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 2 sides / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 18,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -18,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 2 sides / pot 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "pot",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 20,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -20,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 3 sides / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 80,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -40,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 3 sides / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 72,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -36,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -36,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 3 sides / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 54,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": 0,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -54,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 3 sides / pot 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "pot",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 40,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -20,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -20,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 4 sides / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+      "status": "4th · +54",
+      "total": 126,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 120,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -40,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "D",
+      "money": -40,
+      "place": 4,
+      "points": 126,
+      "thru": 18,
+      "toPar": 54,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 4 sides / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+      "status": "4th · +54",
+      "total": 126,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 108,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -36,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -36,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "D",
+      "money": -36,
+      "place": 4,
+      "points": 126,
+      "thru": 18,
+      "toPar": 54,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 4 sides / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+      "status": "4th · +54",
+      "total": 126,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 108,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": 36,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -36,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "D",
+      "money": -108,
+      "place": 4,
+      "points": 126,
+      "thru": 18,
+      "toPar": 54,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 4 sides / pot 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "pot",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+      "status": "4th · +54",
+      "total": 126,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 60,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -20,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -20,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "D",
+      "money": -20,
+      "place": 4,
+      "points": 126,
+      "thru": 18,
+      "toPar": 54,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 5 sides / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+      "status": "4th · +54",
+      "total": 126,
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+      "status": "5th · +72",
+      "total": 144,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 160,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -40,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "D",
+      "money": -40,
+      "place": 4,
+      "points": 126,
+      "thru": 18,
+      "toPar": 54,
+    },
+    {
+      "id": "E",
+      "money": -40,
+      "place": 5,
+      "points": 144,
+      "thru": 18,
+      "toPar": 72,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 5 sides / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+      "status": "4th · +54",
+      "total": 126,
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+      "status": "5th · +72",
+      "total": 144,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 144,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -36,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -36,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "D",
+      "money": -36,
+      "place": 4,
+      "points": 126,
+      "thru": 18,
+      "toPar": 54,
+    },
+    {
+      "id": "E",
+      "money": -36,
+      "place": 5,
+      "points": 144,
+      "thru": 18,
+      "toPar": 72,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 5 sides / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+      "status": "4th · +54",
+      "total": 126,
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+      "status": "5th · +72",
+      "total": 144,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 180,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": 90,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": 0,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "D",
+      "money": -90,
+      "place": 4,
+      "points": 126,
+      "thru": 18,
+      "toPar": 54,
+    },
+    {
+      "id": "E",
+      "money": -180,
+      "place": 5,
+      "points": 144,
+      "thru": 18,
+      "toPar": 72,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 5 sides / pot 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "pot",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+      "status": "4th · +54",
+      "total": 126,
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+      "status": "5th · +72",
+      "total": 144,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 80,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -20,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -20,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "D",
+      "money": -20,
+      "place": 4,
+      "points": 126,
+      "thru": 18,
+      "toPar": 54,
+    },
+    {
+      "id": "E",
+      "money": -20,
+      "place": 5,
+      "points": 144,
+      "thru": 18,
+      "toPar": 72,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 6 sides / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+      "status": "4th · +54",
+      "total": 126,
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+      "status": "5th · +72",
+      "total": 144,
+    },
+    {
+      "id": "f",
+      "name": "Player11 & Player12",
+      "status": "6th · +90",
+      "total": 162,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+    },
+    {
+      "id": "f",
+      "name": "Player11 & Player12",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 200,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -40,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "D",
+      "money": -40,
+      "place": 4,
+      "points": 126,
+      "thru": 18,
+      "toPar": 54,
+    },
+    {
+      "id": "E",
+      "money": -40,
+      "place": 5,
+      "points": 144,
+      "thru": 18,
+      "toPar": 72,
+    },
+    {
+      "id": "F",
+      "money": -40,
+      "place": 6,
+      "points": 162,
+      "thru": 18,
+      "toPar": 90,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 6 sides / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+      "status": "4th · +54",
+      "total": 126,
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+      "status": "5th · +72",
+      "total": 144,
+    },
+    {
+      "id": "f",
+      "name": "Player11 & Player12",
+      "status": "6th · +90",
+      "total": 162,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+    },
+    {
+      "id": "f",
+      "name": "Player11 & Player12",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 180,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -36,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -36,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "D",
+      "money": -36,
+      "place": 4,
+      "points": 126,
+      "thru": 18,
+      "toPar": 54,
+    },
+    {
+      "id": "E",
+      "money": -36,
+      "place": 5,
+      "points": 144,
+      "thru": 18,
+      "toPar": 72,
+    },
+    {
+      "id": "F",
+      "money": -36,
+      "place": 6,
+      "points": 162,
+      "thru": 18,
+      "toPar": 90,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 6 sides / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+      "status": "4th · +54",
+      "total": 126,
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+      "status": "5th · +72",
+      "total": 144,
+    },
+    {
+      "id": "f",
+      "name": "Player11 & Player12",
+      "status": "6th · +90",
+      "total": 162,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+    },
+    {
+      "id": "f",
+      "name": "Player11 & Player12",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 270,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": 162,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": 54,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "D",
+      "money": -54,
+      "place": 4,
+      "points": 126,
+      "thru": 18,
+      "toPar": 54,
+    },
+    {
+      "id": "E",
+      "money": -162,
+      "place": 5,
+      "points": 144,
+      "thru": 18,
+      "toPar": 72,
+    },
+    {
+      "id": "F",
+      "money": -270,
+      "place": 6,
+      "points": 162,
+      "thru": 18,
+      "toPar": 90,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: N sides x money model, all sides complete (MUST NOT MOVE) > 6 sides / pot 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "pot",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+      "status": "4th · +54",
+      "total": 126,
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+      "status": "5th · +72",
+      "total": 144,
+    },
+    {
+      "id": "f",
+      "name": "Player11 & Player12",
+      "status": "6th · +90",
+      "total": 162,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+    {
+      "id": "c",
+      "name": "Player5 & Player6",
+    },
+    {
+      "id": "d",
+      "name": "Player7 & Player8",
+    },
+    {
+      "id": "e",
+      "name": "Player9 & Player10",
+    },
+    {
+      "id": "f",
+      "name": "Player11 & Player12",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 100,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -20,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -20,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "D",
+      "money": -20,
+      "place": 4,
+      "points": 126,
+      "thru": 18,
+      "toPar": 54,
+    },
+    {
+      "id": "E",
+      "money": -20,
+      "place": 5,
+      "points": 144,
+      "thru": 18,
+      "toPar": 72,
+    },
+    {
+      "id": "F",
+      "money": -20,
+      "place": 6,
+      "points": 162,
+      "thru": 18,
+      "toPar": 90,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: two sides are unaffected by either change (MUST NOT MOVE) > two sides / legs / A wins outright 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 40,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: two sides are unaffected by either change (MUST NOT MOVE) > two sides / per-hole / A wins outright 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 36,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -36,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: two sides are unaffected by either change (MUST NOT MOVE) > two sides / per-point / A wins outright 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 18,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -18,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: two sides are unaffected by either change (MUST NOT MOVE) > two sides / pot / A wins outright 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "pot",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2",
+    },
+    {
+      "id": "b",
+      "name": "Player3 & Player4",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 20,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -20,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: uneven side sizes 3/2/1 (MUST NOT MOVE) > 3/2/1 sides / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 80,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -40,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 +1 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 +1 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 +1 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: uneven side sizes 3/2/1 (MUST NOT MOVE) > 3/2/1 sides / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 72,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -36,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -36,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 +1 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 +1 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 +1 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: uneven side sizes 3/2/1 (MUST NOT MOVE) > 3/2/1 sides / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 54,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": 0,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -54,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 +1 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 +1 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 +1 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: uneven side sizes 3/2/1 (MUST NOT MOVE) > 3/2/1 sides / pot 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "pot",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+      "status": "1st · E",
+      "total": 72,
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+      "status": "2nd · +18",
+      "total": 90,
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+      "status": "3rd · +36",
+      "total": 108,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 40,
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+      "toPar": 0,
+    },
+    {
+      "id": "B",
+      "money": -20,
+      "place": 2,
+      "points": 90,
+      "thru": 18,
+      "toPar": 18,
+    },
+    {
+      "id": "C",
+      "money": -20,
+      "place": 3,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 +1 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 +1 by 9",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 +1 by 18",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: uneven side sizes 3/2/1 (MUST NOT MOVE) > COMBINED at 3/2/1 sides / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+      "status": "2nd · +54",
+      "total": 270,
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+      "status": "2nd · +54",
+      "total": 198,
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+      "status": "1st · +36",
+      "total": 108,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+    },
+  ],
+  "standings": [
+    {
+      "id": "C",
+      "money": 80,
+      "place": 1,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "A",
+      "money": -40,
+      "place": 2,
+      "points": 270,
+      "thru": 18,
+      "toPar": 54,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "place": 2,
+      "points": 198,
+      "thru": 18,
+      "toPar": 54,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player6 (solo) by 9",
+      "thru": 9,
+      "winner": "c",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player6 (solo) by 9",
+      "thru": 9,
+      "winner": "c",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player6 (solo) by 18",
+      "thru": 18,
+      "winner": "c",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: uneven side sizes 3/2/1 (MUST NOT MOVE) > COMBINED at 3/2/1 sides / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+      "status": "2nd · +54",
+      "total": 270,
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+      "status": "2nd · +54",
+      "total": 198,
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+      "status": "1st · +36",
+      "total": 108,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+    },
+  ],
+  "standings": [
+    {
+      "id": "C",
+      "money": 72,
+      "place": 1,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "A",
+      "money": -36,
+      "place": 2,
+      "points": 270,
+      "thru": 18,
+      "toPar": 54,
+    },
+    {
+      "id": "B",
+      "money": -36,
+      "place": 2,
+      "points": 198,
+      "thru": 18,
+      "toPar": 54,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player6 (solo) by 9",
+      "thru": 9,
+      "winner": "c",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player6 (solo) by 9",
+      "thru": 9,
+      "winner": "c",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player6 (solo) by 18",
+      "thru": 18,
+      "winner": "c",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: uneven side sizes 3/2/1 (MUST NOT MOVE) > COMBINED at 3/2/1 sides / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+      "status": "2nd · +54",
+      "total": 270,
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+      "status": "2nd · +54",
+      "total": 198,
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+      "status": "1st · +36",
+      "total": 108,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+    },
+  ],
+  "standings": [
+    {
+      "id": "C",
+      "money": 36,
+      "place": 1,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "A",
+      "money": -18,
+      "place": 2,
+      "points": 270,
+      "thru": 18,
+      "toPar": 54,
+    },
+    {
+      "id": "B",
+      "money": -18,
+      "place": 2,
+      "points": 198,
+      "thru": 18,
+      "toPar": 54,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player6 (solo) by 9",
+      "thru": 9,
+      "winner": "c",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player6 (solo) by 9",
+      "thru": 9,
+      "winner": "c",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player6 (solo) by 18",
+      "thru": 18,
+      "winner": "c",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: uneven side sizes 3/2/1 (MUST NOT MOVE) > COMBINED at 3/2/1 sides / pot 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "pot",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+      "status": "2nd · +54",
+      "total": 270,
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+      "status": "2nd · +54",
+      "total": 198,
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+      "status": "1st · +36",
+      "total": 108,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player2 +1",
+    },
+    {
+      "id": "b",
+      "name": "Player4 & Player5",
+    },
+    {
+      "id": "c",
+      "name": "Player6 (solo)",
+    },
+  ],
+  "standings": [
+    {
+      "id": "C",
+      "money": 40,
+      "place": 1,
+      "points": 108,
+      "thru": 18,
+      "toPar": 36,
+    },
+    {
+      "id": "A",
+      "money": -20,
+      "place": 2,
+      "points": 270,
+      "thru": 18,
+      "toPar": 54,
+    },
+    {
+      "id": "B",
+      "money": -20,
+      "place": 2,
+      "points": 198,
+      "thru": 18,
+      "toPar": 54,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player6 (solo) by 9",
+      "thru": 9,
+      "winner": "c",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player6 (solo) by 9",
+      "thru": 9,
+      "winner": "c",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player6 (solo) by 18",
+      "thru": 18,
+      "winner": "c",
+    },
+  ],
+  "thruHole": 18,
+}
+`;

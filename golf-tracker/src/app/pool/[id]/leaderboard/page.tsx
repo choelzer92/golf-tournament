@@ -13,10 +13,13 @@ import {
   computePoolPlayerDetails,
   filterConcealedScores,
   DEFAULT_MATCH_CONFIG,
+  getGameHoles,
 } from '@/lib/pool-game';
 import { getGameMode, type IndividualResult } from '@/lib/game-modes';
+import type { TeamFormat } from '@/lib/game-modes/team-scoring';
 import type { WolfHoleLine, NassauLegLine, JunkLine } from '@/lib/game-modes/types';
 import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
+import { defaultSideLabel, sideOfPlayer, sidesOfGame } from '@/lib/game-modes/sides';
 
 const LEG_LABELS: Record<PoolLegKey, string> = {
   front: 'Front 9',
@@ -24,6 +27,12 @@ const LEG_LABELS: Record<PoolLegKey, string> = {
   overall: 'Overall 18',
   junk: 'Junk',
 };
+
+// THE money formatter for this page. Both leaderboard branches render dollars, and
+// they used to disagree: the single-group board showed a loss as "−$12" while the
+// team board inlined `${n > 0 ? '+' : ''}$${Math.round(n)}` and produced "$-12"
+// (sign inside the amount). One helper, one rendering.
+const money = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}$${Math.abs(Math.round(n))}`;
 
 export default function PoolLeaderboardPage() {
   const router = useRouter();
@@ -87,7 +96,7 @@ export default function PoolLeaderboardPage() {
 
   if (!game) return null;
 
-  // Single-group game (9s / skins / quota / 2v2 within group): render the
+  // Single-group game (9s / skins / quota / sides — 1v1 up to four-a-side): render the
   // per-player/side leaderboard. The team path below is untouched for classic
   // pot/match pools.
   if (isSingleGroupGame(game)) {
@@ -126,6 +135,10 @@ export default function PoolLeaderboardPage() {
   // play the point tally is the score that matters, not raw strokes.
   const isHoleMatch = isMatch && game.teams.length === 2 && game.matchConfig?.scoring === 'holes';
   const fmtPts = (n: number) => (n % 1 === 0 ? String(n) : `${Math.floor(n)}½`);
+  // Stableford scores POINTS, so every "best on this hole" judgement inverts. Without
+  // this the per-hole grid painted the LOWEST number green — highlighting the worst
+  // foursome on all 18 holes. See FINDINGS.md F-006.
+  const pointsBasis = game.teamScoreBasis === 'stableford';
 
   // A team's match-point cell for a leg (front/back/overall): its points and tone
   // vs the opponent. Returns null when the leg has no match tally (non-match mode).
@@ -148,7 +161,12 @@ export default function PoolLeaderboardPage() {
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold">{game.name}</h1>
-            <p className="text-xs text-gray-400">Thru hole {result.thruHole}</p>
+            {/* Name the format, like the single-group board does — the header used
+                to read only "Thru hole N", so a pot pool and a head-to-head match
+                pool were indistinguishable from the leaderboard. */}
+            <p className="text-xs text-gray-400">
+              {isMatch ? 'Head-to-head match' : 'Pot pool'} · thru hole {result.thruHole}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -208,7 +226,16 @@ export default function PoolLeaderboardPage() {
                     <th key={h.holeNumber} className="text-center px-1 py-1.5 font-medium min-w-[24px]">{h.holeNumber}</th>
                   ))}
                   <th className="text-center px-1.5 py-1.5 font-bold text-gray-400 min-w-[28px]">B</th>
-                  <th className="text-center px-1.5 py-1.5 font-bold text-gray-400 min-w-[32px]">Tot</th>
+                  {/* In hole-match scoring this column holds MATCH points (holes won), not
+                      the Stableford total — so it must not be labelled PTS there, or two
+                      different kinds of point sit under one heading. */}
+                  <th className="text-center px-1.5 py-1.5 font-bold text-gray-400 min-w-[32px]">{pointsBasis && !isHoleMatch ? 'PTS' : 'Tot'}</th>
+                  {/* Under points a raw total can't be compared across differing thru
+                      counts — 27 points from 9 holes is better play than 36 from 18.
+                      PACE is that comparison, and it's what the pot actually ranks on. */}
+                  {pointsBasis && !isHoleMatch && (
+                    <th className="text-center px-1.5 py-1.5 font-bold text-gray-400 min-w-[36px]">PACE</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -229,9 +256,9 @@ export default function PoolLeaderboardPage() {
                       </td>
                       {frontHoles.map((h) => {
                         const score = h.teamScores[r.teamId];
-                        const lowOnHole = lowScoreOnHole(h.teamScores);
-                        const isLow = score !== null && score === lowOnHole;
-                        const tiedLow = isLow && countAtScore(h.teamScores, lowOnHole) > 1;
+                        const bestOnHole = bestScoreOnHole(h.teamScores, pointsBasis);
+                        const isLow = score !== null && score === bestOnHole;
+                        const tiedLow = isLow && countAtScore(h.teamScores, bestOnHole) > 1;
                         return (
                           <td key={h.holeNumber} className="text-center px-1 py-1.5">
                             <div className={`${tiedLow ? 'font-bold text-yellow-400' : isLow ? 'font-bold text-green-400' : 'text-gray-300'}`}>
@@ -247,9 +274,9 @@ export default function PoolLeaderboardPage() {
                       </td>
                       {backHoles.map((h) => {
                         const score = h.teamScores[r.teamId];
-                        const lowOnHole = lowScoreOnHole(h.teamScores);
-                        const isLow = score !== null && score === lowOnHole;
-                        const tiedLow = isLow && countAtScore(h.teamScores, lowOnHole) > 1;
+                        const bestOnHole = bestScoreOnHole(h.teamScores, pointsBasis);
+                        const isLow = score !== null && score === bestOnHole;
+                        const tiedLow = isLow && countAtScore(h.teamScores, bestOnHole) > 1;
                         return (
                           <td key={h.holeNumber} className="text-center px-1 py-1.5">
                             <div className={`${tiedLow ? 'font-bold text-yellow-400' : isLow ? 'font-bold text-green-400' : 'text-gray-300'}`}>
@@ -268,6 +295,13 @@ export default function PoolLeaderboardPage() {
                           ? <div className={`font-bold ${pointToneCls(overallPts.tone)}`}>{overallPts.text}</div>
                           : <div className="font-bold text-white">{r.total || '-'}</div>}
                       </td>
+                      {pointsBasis && !isHoleMatch && (
+                        <td className="text-center px-1.5 py-1.5 bg-gray-750">
+                          <div className={`font-bold ${r.thru === 0 ? 'text-gray-500' : r.toPar > 0 ? 'text-green-400' : r.toPar < 0 ? 'text-red-400' : 'text-gray-200'}`}>
+                            {r.thru === 0 ? '-' : fmtPace(r.toPar)}
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -276,8 +310,8 @@ export default function PoolLeaderboardPage() {
           </div>
           <div className="px-3 py-2 text-[10px] text-gray-500 border-t border-gray-700">
             {isHoleMatch
-              ? <>Holes = {ballSelectionCaption(game.ballSelection)} (lower wins the hole) · F/B/Tot show match points (<span className="text-green-400">ahead</span> / <span className="text-red-400">behind</span> / <span className="text-yellow-400">tied</span>)</>
-              : <>Team score = {ballSelectionCaption(game.ballSelection)} per hole · lowest total wins</>}
+              ? <>Holes = {teamScoringCaption(game)} ({pointsBasis ? 'most points' : 'lower'} wins the hole) · F/B/Tot show match points (<span className="text-green-400">ahead</span> / <span className="text-red-400">behind</span> / <span className="text-yellow-400">tied</span>)</>
+              : <>Team score = {teamScoringCaption(game)} per hole · {pointsBasis ? 'most points wins · PACE = points better than steady pars' : 'lowest total wins'}</>}
           </div>
         </div>
 
@@ -357,7 +391,7 @@ export default function PoolLeaderboardPage() {
                   <div className="flex items-center gap-2">
                     {payout && payout.net !== 0 && (
                       <span className={`text-xs font-medium ${payout.net > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {payout.net > 0 ? '+' : ''}${Math.round(payout.net)}
+                        {money(payout.net)}
                       </span>
                     )}
                     <span className="text-gray-600 text-xs">{isTeamExpanded ? '▾' : '▸'}</span>
@@ -490,7 +524,7 @@ export default function PoolLeaderboardPage() {
               });
             }).sort((a, b) => b.amount - a.amount).map((p) => (
               <span key={p.id} className={`text-sm ${p.amount > 0 ? 'text-green-400 font-medium' : p.amount < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                {p.name}: {p.amount > 0 ? '+' : ''}${Math.round(p.amount)}
+                {p.name}: {money(p.amount)}
               </span>
             ))}
           </div>
@@ -594,6 +628,7 @@ function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult })
   const twoTeams = game.teams.length === 2;
   const isHoleMatch = cfg.scoring === 'holes';
   const teamName = (id: string) => game.teams.find((t) => t.id === id)?.name ?? '?';
+  const pointsBasis = game.teamScoreBasis === 'stableford';
 
   // A 9-hole game has ONE score leg. computePoolResult builds the front/back legs
   // with no holes so they can never settle, but listing them here showed two
@@ -612,7 +647,12 @@ function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult })
       ];
 
   // Winner of a leg. In hole-match scoring the winner is whoever won more holes
-  // (standings carry holesWon); otherwise it's the lower toPar. null = push/halved.
+  // (standings carry holesWon); otherwise it's the best `rankMetric`. null = push/halved.
+  //
+  // rankMetric — never toPar. This mirrors matchLegOutcome in pool-game.ts, and under
+  // Stableford a HIGHER toPar is better, so sorting it ascending here named the losing team
+  // as the leg winner while the money engine (correctly) paid the other one — a board that
+  // contradicted the payout beside it.
   function legWinner(leg: PoolLegKey): { winnerId: string | null; a?: PoolResult['legs'][number]['standings'][number]; b?: PoolResult['legs'][number]['standings'][number] } {
     const l = result.legs.find((x) => x.leg === leg);
     if (!l) return { winnerId: null };
@@ -624,8 +664,8 @@ function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult })
       if ((sorted[0].holesWon ?? 0) === (sorted[1].holesWon ?? 0)) return { winnerId: null, a, b };
       return { winnerId: sorted[0].teamId, a, b };
     }
-    const sorted = [...played].sort((x, y) => x.toPar - y.toPar);
-    if (sorted[0].toPar === sorted[1].toPar) return { winnerId: null, a, b };
+    const sorted = [...played].sort((x, y) => x.rankMetric - y.rankMetric);
+    if (sorted[0].rankMetric === sorted[1].rankMetric) return { winnerId: null, a, b };
     return { winnerId: sorted[0].teamId, a, b };
   }
 
@@ -672,7 +712,14 @@ function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult })
                 <p className="text-[10px] text-gray-500">
                   {matchLine
                     ? matchLine
-                    : a && b ? `${teamName(a.teamId)} ${a.thru ? a.toPar : '–'} vs ${teamName(b.teamId)} ${b.thru ? b.toPar : '–'} (to par)` : '—'}
+                    : a && b
+                      // Under points, "to par" is meaningless and the raw total isn't
+                      // comparable across thru counts — show the points and the pace, which
+                      // is what actually decided the leg.
+                      ? pointsBasis
+                        ? `${teamName(a.teamId)} ${a.thru ? `${a.total} (${fmtPace(a.toPar)})` : '–'} vs ${teamName(b.teamId)} ${b.thru ? `${b.total} (${fmtPace(b.toPar)})` : '–'} (points, vs pars)`
+                        : `${teamName(a.teamId)} ${a.thru ? a.toPar : '–'} vs ${teamName(b.teamId)} ${b.thru ? b.toPar : '–'} (to par)`
+                      : '—'}
                 </p>
               </div>
               <div className="text-right text-sm">
@@ -723,6 +770,50 @@ function ballSelectionCaption(variant: PoolGame['ballSelection'] | undefined): s
   }
 }
 
+// Pace vs steady pars (2 points a hole per ball). Signed like a to-par figure, but the
+// sign MEANS the opposite: ahead of pace is good, so +4 is good news and is drawn green.
+function fmtPace(n: number): string {
+  return n === 0 ? 'E' : n > 0 ? `+${n}` : String(n);
+}
+
+// A side's colour, by its stable side id. ONE definition, because the blue/red pair was
+// hard-coded at three separate call sites and a third side would have been invisible at all of
+// them. Blue and red stay first so every existing two-side game looks exactly as it did.
+//
+// NOTE (DECISIONS.md §7 open question 2): these colours are side IDENTITY, not win/loss
+// valence — that's carried by the numbers. Adding more identity colours doesn't change that
+// tension, but it does make it more visible, so it stays worth resolving.
+const SIDE_TONES = ['text-blue-300', 'text-red-300', 'text-amber-300', 'text-emerald-300', 'text-fuchsia-300', 'text-cyan-300'];
+
+function sideTone(sideId: string, order: string[]): string {
+  const idx = order.indexOf(sideId);
+  // Unknown side (stale id) falls back to neutral rather than colouring it as side A.
+  if (idx < 0) return 'text-gray-400';
+  return SIDE_TONES[idx % SIDE_TONES.length];
+}
+
+// How a foursome's hole score is made, in words. A generalized game (teamFormat set)
+// describes ITS format — the ballSelection caption would otherwise name a rule the game
+// isn't playing. Each phrase says net or gross, because that's decided by the format and
+// is the difference between two legitimate-looking scores.
+function teamFormatCaption(format: TeamFormat): string {
+  switch (format) {
+    case 'best-ball': return 'best ball (net)';
+    case 'two-best-net': return 'best 2 net';
+    case 'two-best-gross': return 'best 2 gross';
+    case 'net-and-gross': return 'best net + best gross';
+    case 'combined': return 'every ball added (net)';
+    case 'scramble': return 'scramble, one ball (net of team handicap)';
+    case 'alternate-shot': return 'alternate shot, one ball (net of team handicap)';
+  }
+}
+
+// The full "how a hole is scored" caption for the per-hole grid footer.
+function teamScoringCaption(game: PoolGame): string {
+  const how = game.teamFormat ? teamFormatCaption(game.teamFormat) : ballSelectionCaption(game.ballSelection);
+  return game.teamScoreBasis === 'stableford' ? `${how}, Stableford points` : how;
+}
+
 // Leaderboard for INDIVIDUAL game modes (9s / skins / quota / …). Runs its own
 // game + score sync (mirrors the team leaderboard's effects), computes the
 // per-player standings via the registry, and shows a standings table + the
@@ -770,9 +861,12 @@ function IndividualLeaderboard({ id }: { id: string }) {
   if (!game) return null;
   const mode = getGameMode(game.gameMode);
   const isWithinGroup = mode?.category === 'team-within-group';
-  const players = teamDetails[0]?.players ?? [];
+  // EVERY playing group's players, not just the first (F-019). A side game may tee off in two
+  // groups with partners split across them, so `teamDetails[0]` showed half the field in the grid
+  // below while the money rows above were complete — four names under a board settling eight
+  // players. computePoolPlayerDetails returns one entry per group, in group order.
+  const players = teamDetails.flatMap((td) => td.players);
 
-  const money = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}$${Math.abs(Math.round(n))}`;
   // Signed points (9s/quota, match pts) read better with a leading +. But a
   // stroke-total metric is a raw net/gross (e.g. 72) that must NOT be +-prefixed.
   const isStrokeMetric = result?.metricLabel === 'net' || result?.metricLabel === 'gross';
@@ -781,9 +875,38 @@ function IndividualLeaderboard({ id }: { id: string }) {
     const s = r % 1 === 0 ? String(r) : r.toFixed(1);
     return isStrokeMetric ? s : (r > 0 ? '+' : '') + s;
   };
+  // Holes this game actually plays — the denominator for segment progress.
+  const holesInPlay = getGameHoles(game).length || 18;
+
   // Side labels ("Alice & Bob") aren't personal names — don't truncate to a first
   // word. Per-player individual games still show first names.
   const displayName = (n: string) => (isWithinGroup ? n : n.split(' ')[0]);
+
+  // 2v2 only: which side a player is on, for the Player Details grid. Every other
+  // panel on this page is side-oriented, but the grid listed all four players flat
+  // with no indication of the sides. Undefined for individual games.
+  // Score to par / PACE, shown when the engine ranks on it rather than on the displayed metric
+  // (side games under 'total' scoring — see DECISIONS.md §5.af). Under Stableford the figure is
+  // PACE, where ahead of pace is GOOD; under strokes it's plain to-par.
+  const showToPar = result?.standings.some((s) => s.toPar !== undefined) ?? false;
+  const paceHigherIsBetter = result?.metricLabel === 'pts';
+  const paceLabel = paceHigherIsBetter ? 'PACE' : 'To par';
+
+  // Which side a player is on, for the Player Details grid. Reads the normalized side
+  // collection so a 3+ side game labels every player, not just the first two (it used to read
+  // game.subTeams directly and hard-code a/b).
+  const gameSides = isWithinGroup ? sidesOfGame(game) : [];
+  const sideOf = isWithinGroup && result?.sideLabels
+    ? (playerId: string): { label: string; sideId: string } | null => {
+        const found = sideOfPlayer(gameSides, playerId);
+        if (!found) return null;
+        const label = result.sideLabels!.find((s) => s.id === found.id)?.name ?? defaultSideLabel(found.id);
+        return { label, sideId: found.id };
+      }
+    : undefined;
+  // Board order for grouping players by side — the order the standings are in, so the grid
+  // reads the same way as the table above it.
+  const sideOrder = result?.sideLabels?.map((s) => s.id) ?? [];
 
   return (
     <div className="min-h-full bg-gray-900">
@@ -818,6 +941,15 @@ function IndividualLeaderboard({ id }: { id: string }) {
                     <th className="text-left px-3 py-1.5 font-medium">#</th>
                     <th className="text-left px-2 py-1.5 font-medium">{isWithinGroup ? 'Side' : 'Player'}</th>
                     <th className="text-center px-2 py-1.5 font-medium">{result.metricLabel}</th>
+                    {/* The figure the board is RANKED and PAID on, when it isn't the metric
+                        itself (DECISIONS.md §5.af). A raw total can't be compared across
+                        differing thru counts, so a side game under 'total' scoring ranks on
+                        score to par — and was doing so without showing it, which made the
+                        order look wrong. Same column the pool board already has: "TO PAR"
+                        under strokes, "PACE" under points, where ahead of pace is good. */}
+                    {showToPar && (
+                      <th className="text-center px-2 py-1.5 font-medium">{paceLabel}</th>
+                    )}
                     <th className="text-center px-2 py-1.5 font-medium">Thru</th>
                     <th className="text-right px-3 py-1.5 font-medium">$</th>
                   </tr>
@@ -840,6 +972,25 @@ function IndividualLeaderboard({ id }: { id: string }) {
                             {canExpand && <span className="ml-1 text-gray-600 text-[10px]">{isOpen ? '▾' : '▸'}</span>}
                           </td>
                           <td className="text-center px-2 py-1.5 font-bold text-white">{fmtMetric(s.points)}</td>
+                          {showToPar && (
+                            <td className="text-center px-2 py-1.5">
+                              {/* Colour keys on the BASIS, not just the sign: under Stableford
+                                  this is PACE and +4 is GOOD (ahead of pars), while under
+                                  strokes +4 is four over. Drawing both grey read as if being
+                                  18 over par were unremarkable. */}
+                              <span className={
+                                s.thru === 0 || s.toPar === undefined
+                                  ? 'text-gray-500'
+                                  : s.toPar === 0
+                                    ? 'text-gray-200'
+                                    : (paceHigherIsBetter ? s.toPar > 0 : s.toPar < 0)
+                                      ? 'text-green-400'
+                                      : 'text-red-400'
+                              }>
+                                {s.thru === 0 || s.toPar === undefined ? '-' : fmtPace(s.toPar)}
+                              </span>
+                            </td>
+                          )}
                           <td className="text-center px-2 py-1.5 text-gray-400">{s.thru || '-'}</td>
                           <td className={`text-right px-3 py-1.5 font-medium ${s.moneyNet > 0 ? 'text-green-400' : s.moneyNet < 0 ? 'text-red-400' : 'text-gray-500'}`}>
                             {money(s.moneyNet)}
@@ -848,7 +999,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
                         {canExpand && isOpen && (
                           <tr className="bg-gray-900/40">
                             <td />
-                            <td colSpan={4} className="px-2 pb-2 text-[11px] text-gray-400">
+                            <td colSpan={showToPar ? 5 : 4} className="px-2 pb-2 text-[11px] text-gray-400">
                               {s.holesWon && s.holesWon.length > 0
                                 ? <>Won holes: <span className="text-gray-300">{s.holesWon.join(', ')}</span></>
                                 : 'No holes won yet.'}
@@ -865,15 +1016,17 @@ function IndividualLeaderboard({ id }: { id: string }) {
               )}
             </div>
 
-            {/* Nassau-pot payout board — front / back / total segment winners. */}
+            {/* Nassau-pot payout board — front / back / total segment winners.
+                fieldSize lets it tell "everyone tied" from "someone leads" in a
+                2- or 3-player game (several modes allow playersMin: 2). */}
             {result.nassauLegs && result.nassauLegs.length > 0 && (
-              <NassauPayoutBoard legs={result.nassauLegs} />
+              <NassauPayoutBoard legs={result.nassauLegs} fieldSize={result.standings.length} holesInPlay={holesInPlay} />
             )}
 
             {/* Birdie / eagle bonus breakdown (any mode with the junk layer on).
                 Already settled into moneyNet above — this shows who earned what. */}
             {result.junkLines && result.junkLines.some((l) => l.birdies || l.eagles || l.albatrosses) && (
-              <JunkBonusBoard lines={result.junkLines} />
+              <JunkBonusBoard lines={result.junkLines} bySide={isWithinGroup} />
             )}
 
             {/* Wolf hole-by-hole matchup breakdown — who was Wolf, their call,
@@ -882,20 +1035,38 @@ function IndividualLeaderboard({ id }: { id: string }) {
               <WolfBreakdown lines={result.wolfHoles} />
             )}
 
-            {/* Front / Back / Overall breakdown (2v2 team games) — Nassau-style. */}
+            {/* Front / Back / Overall breakdown (2v2 team games) — Nassau-style.
+                A 9-hole game collapses to ONE leg (team-game.ts), so derive the
+                caption from the legs actually present instead of hardcoding
+                "Front · Back · Overall" above a lone "Back 9" row. */}
             {result.teamLegs && result.teamLegs.length > 0 && (
               <div className="bg-gray-800 rounded-xl overflow-hidden">
                 <div className="px-4 py-2 border-b border-gray-700">
-                  <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Front · Back · Overall</p>
+                  <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">
+                    {result.teamLegs.length === 1
+                      ? result.teamLegs[0].label
+                      : result.teamLegs.map((l) => l.label.replace(/ (9|18)$/, '')).join(' · ')}
+                  </p>
                 </div>
                 <div className="divide-y divide-gray-700/30">
                   {result.teamLegs.map((leg) => (
                     <div key={leg.key} className="px-4 py-2.5 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-200">{leg.label}</p>
-                        {leg.thru > 0 && <p className="text-[10px] text-gray-500">thru {leg.thru}</p>}
+                        {/* Also a segment-scoped count (see NassauPayoutBoard). */}
+                        {leg.thru > 0 && (
+                          <p className="text-[10px] text-gray-500">{leg.thru} of {segmentHoles(leg.key, holesInPlay)} holes</p>
+                        )}
+                        {/* A voided leg (F-016b) still shows its margin, so say WHY it paid
+                            nothing — otherwise the board contradicts the money beside it. */}
+                        {leg.voided && (
+                          <p className="text-[10px] text-amber-500">pays nothing — unfinished</p>
+                        )}
                       </div>
-                      <span className={`text-sm font-medium ${leg.winner === 'a' ? 'text-blue-300' : leg.winner === 'b' ? 'text-red-300' : 'text-gray-400'}`}>
+                      <span className={`text-sm font-medium ${
+                        leg.voided ? 'text-gray-500 line-through'
+                          : leg.winner ? sideTone(leg.winner, sideOrder) : 'text-gray-400'
+                      }`}>
                         {leg.status}
                       </span>
                     </div>
@@ -910,9 +1081,13 @@ function IndividualLeaderboard({ id }: { id: string }) {
                 <div className="px-4 py-2 border-b border-gray-700">
                   <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Player Details</p>
                 </div>
-                <IndividualPlayerGrid players={players} />
+                <IndividualPlayerGrid players={players} sideOf={sideOf} sideOrder={sideOrder} />
               </div>
             )}
+
+            {/* Score-change audit — was only on the classic board, so a 2v2 /
+                skins / Wolf game had no way to see who edited what. */}
+            <ScoreHistory game={game} />
           </>
         )}
       </main>
@@ -920,9 +1095,19 @@ function IndividualLeaderboard({ id }: { id: string }) {
   );
 }
 
+// How many holes a leg/segment spans. Both the Nassau board and the 2v2 leg board
+// report `thru` as holes played WITHIN the segment, so the denominator makes that
+// unambiguous ("9 of 9 holes") instead of colliding with the app's usual meaning of
+// "thru" as a hole number.
+function segmentHoles(key: 'front' | 'back' | 'overall' | 'total', holesInPlay: number): number {
+  // front/back are always a nine. 'overall'/'total' spans whatever the game plays —
+  // hardcoding 18 would render a finished 9-hole game as "9 of 18".
+  return key === 'front' || key === 'back' ? Math.min(9, holesInPlay) : holesInPlay;
+}
+
 // Nassau-pot payout board. Shows each segment's pot and who's winning it (ties
 // share). A segment not yet started (e.g. the back 9 early on) reads "TBD".
-function NassauPayoutBoard({ legs }: { legs: NassauLegLine[] }) {
+function NassauPayoutBoard({ legs, fieldSize, holesInPlay }: { legs: NassauLegLine[]; fieldSize: number; holesInPlay: number }) {
   const first = (n: string) => n.split(' ')[0];
   return (
     <div className="bg-gray-800 rounded-xl overflow-hidden">
@@ -934,12 +1119,19 @@ function NassauPayoutBoard({ legs }: { legs: NassauLegLine[] }) {
           // Not-started segment = dead heat, pot splits evenly (antes returned).
           const notStarted = leg.thru === 0;
           // A split among everyone (all players lead) reads as "tied" not a winner.
-          const allSplit = leg.winnerNames.length >= 4;
+          // Compare to the ACTUAL field size — hardcoding 4 meant a 2- or 3-player
+          // game's dead heat was announced as "Alice & Bob (leading, split)".
+          const allSplit = fieldSize > 0 && leg.winnerNames.length >= fieldSize;
           return (
             <div key={leg.key} className="px-4 py-2.5 flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-200">{leg.label}</p>
-                <p className="text-[10px] text-gray-500">${Math.round(leg.pot)} pot{leg.thru > 0 ? ` · thru ${leg.thru}` : ''}</p>
+                {/* `thru` here is holes played WITHIN this segment, not a hole
+                    number — a finished back nine is 9, which read as "stopped at
+                    hole 9" next to the header's "thru hole 18". Say it as a count. */}
+                <p className="text-[10px] text-gray-500">
+                  ${Math.round(leg.pot)} pot{leg.thru > 0 ? ` · ${leg.thru} of ${segmentHoles(leg.key, holesInPlay)} holes` : ''}
+                </p>
               </div>
               <span className={`text-sm font-medium ${notStarted || allSplit ? 'text-gray-400' : 'text-green-400'}`}>
                 {notStarted
@@ -1019,7 +1211,14 @@ function WolfBreakdown({ lines }: { lines: WolfHoleLine[] }) {
 // The per-player scorecard grid for individual games — same Out/In/Gross/Net
 // columns and strokes-given box as the team leaderboard's Player Details, but for
 // the single group. Extracted so both paths share the presentation.
-function IndividualPlayerGrid({ players }: { players: PoolPlayerDetail[] }) {
+function IndividualPlayerGrid({ players, sideOf, sideOrder = [] }: {
+  players: PoolPlayerDetail[];
+  // Side games only: resolves a player to their side label + id, so the grid shows the sides
+  // like every other panel on the page. Absent for individual games.
+  sideOf?: (playerId: string) => { label: string; sideId: string } | null;
+  // The sides in board order, for grouping rows and picking each side's colour.
+  sideOrder?: string[];
+}) {
   const allHoles = players[0]?.holes ?? [];
   const frontHoles = allHoles.filter((h) => h.holeNumber <= 9);
   const backHoles = allHoles.filter((h) => h.holeNumber > 9);
@@ -1027,6 +1226,19 @@ function IndividualPlayerGrid({ players }: { players: PoolPlayerDetail[] }) {
     const played = p.holes.filter((h) => pred(h) && h.gross != null);
     return played.length ? played.reduce((s, h) => s + (h.gross ?? 0), 0) : null;
   };
+  // For a side game, group the rows by side (board order) so each partnership reads as a block.
+  // Individual games keep their given order. Works for any number of sides — it used to rank on
+  // a hard-coded a/b pair, so every player of a third side sorted last together.
+  const ordered = sideOf
+    ? [...players].sort((a, b) => {
+        const rank = (pid: string) => {
+          const id = sideOf(pid)?.sideId;
+          const idx = id ? sideOrder.indexOf(id) : -1;
+          return idx < 0 ? sideOrder.length : idx;   // unknown side sinks last
+        };
+        return rank(a.playerId) - rank(b.playerId);
+      })
+    : players;
   return (
     <div className="px-2 pb-3 pt-1 overflow-x-auto">
       <table className="text-xs w-full">
@@ -1042,14 +1254,24 @@ function IndividualPlayerGrid({ players }: { players: PoolPlayerDetail[] }) {
           </tr>
         </thead>
         <tbody>
-          {players.map((player) => {
+          {ordered.map((player, idx) => {
             const outGross = sumGross(player, (h) => h.holeNumber <= 9);
             const inGross = sumGross(player, (h) => h.holeNumber > 9);
+            // Label the first player of each side (the rows are grouped by side),
+            // mirroring how the team grid heads each foursome.
+            const side = sideOf?.(player.playerId) ?? null;
+            const prevSide = idx > 0 ? sideOf?.(ordered[idx - 1].playerId) ?? null : null;
+            const showSide = !!side && side.label !== prevSide?.label;
             return (
-              <tr key={player.playerId} className="border-t border-gray-700/30">
+              <tr key={player.playerId} className={showSide && idx > 0 ? 'border-t-2 border-gray-600' : 'border-t border-gray-700/30'}>
                 <td className="px-1 py-1 text-gray-300 font-medium whitespace-nowrap sticky left-0 bg-gray-800">
                   {player.playerName.split(' ')[0]}
                   <span className="text-[10px] text-gray-500 ml-0.5">({Math.round(player.playingHcap)})</span>
+                  {showSide && (
+                    <span className={`ml-1 text-[9px] font-normal ${sideTone(side!.sideId, sideOrder)}`}>
+                      {side!.label}
+                    </span>
+                  )}
                 </td>
                 {player.holes.filter((h) => h.holeNumber <= 9).map((h) => (
                   <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
@@ -1115,13 +1337,19 @@ function StrokesGivenBox({ players }: { players: PoolPlayerDetail[] }) {
   );
 }
 
-function lowScoreOnHole(teamScores: Record<string, number | null>): number | null {
-  let low: number | null = null;
+// The BEST team score on a hole — lowest under strokes, highest under Stableford points.
+// `pointsBasis` is not optional-by-accident: it defaults to strokes so every legacy caller
+// reads the same as before.
+function bestScoreOnHole(
+  teamScores: Record<string, number | null>,
+  pointsBasis = false,
+): number | null {
+  let best: number | null = null;
   for (const s of Object.values(teamScores)) {
     if (s === null) continue;
-    if (low === null || s < low) low = s;
+    if (best === null || (pointsBasis ? s > best : s < best)) best = s;
   }
-  return low;
+  return best;
 }
 
 // How many teams share a given score on a hole. Used to tell a sole low (green)
@@ -1137,7 +1365,10 @@ function countAtScore(teamScores: Record<string, number | null>, score: number |
 // gross; the actual signed settlement is already folded into the standings' money
 // column (each earner collects from the others), so this is a breakdown, not a
 // second payout.
-function JunkBonusBoard({ lines }: { lines: JunkLine[] }) {
+// `bySide` = a 2v2 game, where junk settles SIDE vs SIDE (settleJunkForSides nets
+// each side's total and moves only the difference), not earner-vs-group. The
+// footer said the latter for both, telling 2v2 players the wrong rule.
+function JunkBonusBoard({ lines, bySide = false }: { lines: JunkLine[]; bySide?: boolean }) {
   const rows = [...lines]
     .filter((l) => l.birdies || l.eagles || l.albatrosses)
     .sort((a, b) => b.dollars - a.dollars);
@@ -1172,7 +1403,9 @@ function JunkBonusBoard({ lines }: { lines: JunkLine[] }) {
         </table>
       </div>
       <p className="px-3 py-1.5 text-[10px] text-gray-500 border-t border-gray-700">
-        Already included in the money column — each earner collects from the rest of the group.
+        {bySide
+          ? 'Already included in the money column — the two sides are netted, so only the difference changes hands.'
+          : 'Already included in the money column — each earner collects from the rest of the group.'}
       </p>
     </div>
   );

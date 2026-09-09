@@ -4,6 +4,12 @@ import { calcCourseHandicap, applyAllowance } from './game-state';
 import { getMoneyStrokesOnHole } from './money-games';
 import { bestBallTeamHoleScore } from './live-scoring';
 import { supabase } from './supabase';
+import { ORGANIZER_TOKEN, generateShareToken } from './invite-gate';
+import {
+  ballsPerHole, betterValue, evenValueOnHole, isOneBall, teamValueOnHole,
+  type ScoreBasis, type TeamFormat,
+} from './game-modes/team-scoring';
+import type { GameSide } from './game-modes/sides';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -26,6 +32,71 @@ export interface PoolJunkValues {
   ctp: number;
 }
 
+// A bonus the app CANNOT derive from a scorecard. Nothing in a gross score says the ball
+// was in a bunker, so sandies/barkies/greenies/longest drive need someone to tap them per
+// hole — the way ctpWinners already works. Craig: "an easy method to click that box as a
+// scorer per hole for a player", and the scorer may mark any player in their foursome.
+//
+// `id` is stable and stored; `label` is what a golfer taps. Groups define their own set
+// (GroupDefaults), so one group's barkie doesn't impose on another's.
+export interface CustomBonus {
+  id: string;
+  label: string;
+  points: number;
+  hint?: string;
+}
+
+// The bonuses most groups actually play, offered as a starting point. Deliberately NOT
+// applied by default — a group that doesn't play barkies shouldn't see them.
+export const COMMON_BONUSES: CustomBonus[] = [
+  { id: 'sandie', label: 'Sandie', points: 1, hint: 'up and down from a bunker' },
+  { id: 'greenie', label: 'Greenie', points: 1, hint: 'on in regulation on a par 3' },
+  { id: 'barkie', label: 'Barkie', points: 1, hint: 'hit a tree and still made par' },
+  { id: 'chip-in', label: 'Chip-in', points: 1, hint: 'holed from off the green' },
+  { id: 'long-drive', label: 'Long drive', points: 1, hint: 'longest in the group' },
+];
+
+// Manual bonus marks: hole number -> player id -> the bonus ids they earned there.
+// Stored on the game like ctpWinners rather than on GameScore, because GameScore flows
+// through the merge RPC, the score audit, and every mode's compute — and because a hole
+// can have SEVERAL players earning the same bonus, which ctpWinners' one-winner shape
+// can't express.
+export type BonusMarks = Record<number, Record<string, string[]>>;
+
+/** Total manual-bonus points a team earned, using this game's bonus definitions. */
+export function customBonusPointsForTeam(game: PoolGame, playerIds: string[]): number {
+  const defs = game.customBonuses ?? [];
+  if (defs.length === 0) return 0;
+  const pointsById = new Map(defs.map((b) => [b.id, b.points]));
+  let total = 0;
+  for (const byPlayer of Object.values(game.bonusMarks ?? {})) {
+    for (const [pid, ids] of Object.entries(byPlayer)) {
+      if (!playerIds.includes(pid)) continue;
+      for (const id of ids) total += pointsById.get(id) ?? 0;
+    }
+  }
+  return total;
+}
+
+/** Per-bonus counts for a team, for display. */
+export function customBonusCountsForTeam(
+  game: PoolGame,
+  playerIds: string[],
+): { id: string; label: string; count: number; points: number }[] {
+  const defs = game.customBonuses ?? [];
+  if (defs.length === 0) return [];
+  const counts = new Map<string, number>();
+  for (const byPlayer of Object.values(game.bonusMarks ?? {})) {
+    for (const [pid, ids] of Object.entries(byPlayer)) {
+      if (!playerIds.includes(pid)) continue;
+      for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  }
+  return defs
+    .map((b) => ({ id: b.id, label: b.label, count: counts.get(b.id) ?? 0, points: (counts.get(b.id) ?? 0) * b.points }))
+    .filter((x) => x.count > 0);
+}
+
 // A record of HOW the current teams were built, so the read-only view can show
 // the organizer exactly what produced these foursomes. Captured at build time —
 // crucially, `excludeCaptains` is the value that was in effect WHEN teams were
@@ -33,7 +104,7 @@ export interface PoolJunkValues {
 // what made teams look like they "changed under the same parameters"). Older
 // games predate this field and render an honest "unknown" fallback.
 export interface PoolTeamBuild {
-  method: 'balanced' | 'sequential' | 'manual';  // balanced = around-captains; sequential = plain foursomes; manual = built by hand
+  method: 'balanced' | 'serpentine' | 'sequential' | 'manual';  // balanced = optimizer (min spread); serpentine = snake draft; sequential = plain foursomes; manual = built by hand
   excludeCaptains?: boolean;   // for 'balanced': whether captains were left out of the balance (snapshot at build time)
   hadCaptains?: boolean;       // for 'balanced': at least one captain slot was set
   hadLocks?: boolean;          // pairing locks were in effect at build time
@@ -132,7 +203,16 @@ export interface PoolGame {
   modeSettings?: Record<string, string | number | boolean>;
   // Team-within-group games only (2v2 in one foursome). ABSENT for every other
   // game. Player-id lists don't fit the flat modeSettings bag, so they live here.
+  //
+  // LEGACY two-side shape. Every existing 2v2 game holds this, and an ordinary two-side
+  // game still SAVES this way, so it computes down the path the golden snapshots pin
+  // (two-side-golden.test.ts). Read it via sidesOfGame(), never directly.
   subTeams?: { a: string[]; b: string[] };
+  // N SIDES (F-006). Absent on every existing game. Set only when the collection can't be
+  // expressed as {a, b} — three or more sides, or a side carrying its own name. `subTeams`
+  // is deliberately absent when this is present: a lossy first-two-sides copy would make an
+  // older client silently settle a different game. See game-modes/sides.ts.
+  sides?: GameSide[];
   // Wolf (and Wolf-family) per-hole decisions: who was the Wolf and whether they
   // took a partner / went lone / blind. Keyed by hole number. Mirrors ctpWinners'
   // storage (whole-JSON, read-latest-merge on write). Absent for other games.
@@ -141,6 +221,37 @@ export interface PoolGame {
   // (hole N → wolfOrder[(N-1) % len]). Absent = fall back to game.players order
   // (today's behavior). Set via the Wolf draw (mini-game / randomize / manual).
   wolfOrder?: string[];
+  // GENERALIZED TEAM SCORING (F-006). ABSENT on every existing game, which keeps them on
+  // the legacy `ballSelection` path — its exact math is pinned by golden snapshots in
+  // pool-game.test.ts. When set, the foursome's hole score comes from the same engine the
+  // 2v2 mode uses, so a pool can play scramble / alternate shot / combined, and score in
+  // Stableford points instead of strokes.
+  teamFormat?: TeamFormat;
+  teamScoreBasis?: ScoreBasis;
+  // Manual bonuses this game plays, and the marks scorers have tapped. Both ABSENT on
+  // every existing game, which keeps them computing identically — the fixed five in
+  // junkValues are unaffected. See CustomBonus / BonusMarks.
+  customBonuses?: CustomBonus[];
+  bonusMarks?: BonusMarks;
+  // Per-game player-share token. The link sent to the other foursomes is
+  // /pool/<id>?key=<shareToken>, so each game's link is individually shareable and
+  // revocable (regenerate to kill it) instead of one constant for every game ever.
+  // ABSENT on games created before this existed — those still work via the legacy
+  // ORGANIZER_TOKEN, and get a token lazily the first time the Share panel opens.
+  shareToken?: string;
+  // Legs the group decided pay NOTHING, because not every side finished them
+  // (DECISIONS.md §5.ai / F-016b). Keys are leg keys: 'front' | 'back' | 'overall'.
+  //
+  // ABSENT on every existing game, and absent means "pay every leg on the holes played" —
+  // today's behaviour, so nothing already saved changes.
+  //
+  // WHY THIS IS STORED rather than recomputed: the answer is a JUDGEMENT, not a fact derivable
+  // from the scores. Craig's call was to ask at close-out — "if someone clicks finish game, and
+  // all legs are not complete, it should prompt the user" — so the group's decision has to
+  // survive, or the leaderboard and the season ledger would disagree the moment someone
+  // reopened the game. Recomputing from hole counts would also silently change a settled
+  // game's money if a late score were added.
+  voidedLegs?: ('front' | 'back' | 'overall')[];
 }
 
 // One hole's Wolf decision. `mode`: 'partner' = Wolf + partnerId vs the other two
@@ -215,8 +326,19 @@ export type PoolLegKey = 'front' | 'back' | 'overall' | 'junk';
 export interface PoolTeamLegStanding {
   teamId: string;
   teamName: string;
-  total: number;   // summed team hole score over scored leg holes
-  toPar: number;   // total minus (2 x par) over scored holes — comparable across thru counts
+  total: number;   // summed team hole score over scored leg holes (strokes, or Stableford points)
+  // Total minus the "even" value over scored holes, so it stays comparable across differing
+  // thru counts. Under strokes that's par × balls per hole and reads as to-par (−3 = 3
+  // under). Under Stableford it's 2 points × balls and reads as PACE (+4 = four points
+  // better than steady pars). Sign convention therefore flips with the basis — never sort
+  // on this; sort on `rankMetric`.
+  toPar: number;
+  // The single ranking number, ALWAYS lower-is-better whatever the basis (it is `toPar`
+  // under strokes and `-toPar` under points). Every consumer — pot payouts, head-to-head
+  // leg outcomes, the leaderboard — must rank on this. Four separate places used to derive
+  // their own comparison from `toPar`, and when Stableford made higher-better, three of
+  // them silently paid the losing team. One field, one direction, no chance of drift.
+  rankMetric: number;
   thru: number;    // leg holes scored
   place: number;
   payout: number;  // gross winnings from this leg's sub-pot
@@ -242,6 +364,7 @@ export interface PoolTeamJunk {
   albatrosses: number;
   groupHugs: number;
   ctps: number;
+  custom: number;  // points from manual bonuses (sandies, barkies, …); 0 when none defined
   total: number;   // total junk points
 }
 
@@ -959,6 +1082,116 @@ export function balanceTeamsWithCaptains(
   return filled.map((ids, i) => [...seeded[i], ...ids]);
 }
 
+// Serpentine (snake draft) team building.
+//
+// Requested by JY, a real organizer: "after the captains are chosen … a straight
+// serpentine sort that takes the next lowest player, using course handicap and put them
+// on the highest captains team and work your way across then back."
+//
+// WHY THIS EXISTS ALONGSIDE balanceTeamsWithCaptains, which already provably minimizes
+// team-handicap spread (greedy LPT -> 2-swap -> exact branch-and-bound): the optimizer
+// answers "make the totals as even as possible", but its assignment is not something an
+// organizer can explain or check by eye. Serpentine is strictly POSITIONAL — deal the
+// best remaining player to the weakest captain, then reverse each round — so a group can
+// watch it happen and agree it was fair. In a money game, explicability is its own
+// feature. JY asked for it while the optimizer already existed.
+//
+// Captains draft in order of HIGHEST HANDICAP AMONG THE CAPTAINS first — which is what
+// JY means by "the highest captains team". Note captains are normally the LOWEST
+// handicaps in the field (see pickCaptains), so this is a relative ordering between
+// already-strong players, not a claim that any captain is weak. Drafting in that order
+// means the captain with the least edge gets first pick, which is what evens the teams
+// out. Locks ride along with their first-drafted member, consuming that team's seats.
+export function serpentineTeams(
+  players: Player[],
+  numTeams: number,
+  hcapOf: (p: Player) => number,
+  captainByTeam: (string | undefined)[],
+  locks: string[][] = [],
+): string[][] {
+  const nt = Math.max(1, numTeams);
+  const byId = new Map(players.map((p) => [p.id, p]));
+  const lockByMember = new Map<string, string[]>();
+  for (const g of locks) {
+    const present = g.filter((id) => byId.has(id));
+    for (const id of present) lockByMember.set(id, present);
+  }
+
+  const teams: string[][] = Array.from({ length: nt }, () => []);
+  const claimed = new Set<string>();
+
+  // Seed captains, then order the SLOTS weakest-captain-first. A slot with no captain
+  // sorts last (it has no anchor to compensate for).
+  for (let i = 0; i < nt; i++) {
+    const capId = captainByTeam[i];
+    if (!capId || !byId.has(capId) || claimed.has(capId)) continue;
+    claimed.add(capId);
+    teams[i].push(capId);
+  }
+  const draftOrder = [...Array(nt).keys()].sort((a, b) => {
+    const ca = teams[a][0], cb = teams[b][0];
+    const ha = ca ? hcapOf(byId.get(ca)!) : -Infinity;
+    const hb = cb ? hcapOf(byId.get(cb)!) : -Infinity;
+    return hb - ha;                       // highest-handicap captain drafts first
+  });
+
+  // Remaining players, best (lowest handicap) first.
+  const pool = players
+    .filter((p) => !claimed.has(p.id))
+    .sort((a, b) => hcapOf(a) - hcapOf(b));
+
+  // Even seat caps, never below what a slot is already seeded with.
+  const total = players.length;
+  const base = Math.floor(total / nt);
+  const extra = total % nt;
+  const caps = Array.from({ length: nt }, (_, i) => {
+    const idx = draftOrder.indexOf(i);
+    return Math.max(base + (idx < extra ? 1 : 0), teams[i].length);
+  });
+
+  let pi = 0;
+  let round = 0;
+  // Deal in alternating directions until the pool is exhausted. The guard is a
+  // belt-and-braces bound: each pass places at least one player unless every slot is
+  // full, in which case the loop exits on `pi`.
+  while (pi < pool.length && round < total + nt) {
+    const order = round % 2 === 0 ? draftOrder : [...draftOrder].reverse();
+    for (const t of order) {
+      if (pi >= pool.length) break;
+      if (teams[t].length >= caps[t]) continue;
+      const p = pool[pi];
+      // A locked group joins together, as far as this slot's seats allow.
+      const lock = lockByMember.get(p.id);
+      const group = lock && lock.length >= 2
+        ? lock.filter((id) => !claimed.has(id))
+        : [p.id];
+      const room = caps[t] - teams[t].length;
+      const take = group.slice(0, Math.max(1, room));
+      for (const id of take) { claimed.add(id); teams[t].push(id); }
+      // Advance past everyone just placed.
+      while (pi < pool.length && claimed.has(pool[pi].id)) pi++;
+    }
+    round++;
+  }
+
+  // NOTE ON ORDER: the returned arrays are in DRAFT sequence. Callers should re-order for
+  // display (orderPlayerIdsWithCaptain / sortPlayerIdsByHcap) so a snake-drafted team
+  // reads lowest-to-highest handicap like every other team in the app — being the one
+  // list that reads differently is more confusing than the draft order is useful.
+
+  // Anyone left over (seat caps exhausted by an oversized lock) goes to the emptiest slot.
+  for (; pi < pool.length; pi++) {
+    const p = pool[pi];
+    if (claimed.has(p.id)) continue;
+    let best = 0;
+    for (let t = 1; t < nt; t++) if (teams[t].length < teams[best].length) best = t;
+    claimed.add(p.id);
+    teams[best].push(p.id);
+  }
+
+  return teams;
+}
+
 // --- Fair player swaps -----------------------------------------------------
 
 // The per-player STROKES-THIS-GAME map — the exact same off-the-low-adjusted
@@ -1061,6 +1294,144 @@ export function sortPlayerIdsByHcap(
     const hb = pb ? getPoolPlayingHandicap(pb, course, allowance, basis) : 0;
     return ha - hb;
   });
+}
+
+// ---------------------------------------------------------------------------
+// "What shapes fit N players?" — the shared rule behind BOTH groupings
+// ---------------------------------------------------------------------------
+//
+// One helper, two callers, because the question is the same one twice (F-019 + F-020):
+//   PLAYING GROUPS — who walks together: 8 players -> [4,4] or [3,3,2]
+//   SIDES          — who your money is with: 5 players -> [3,2] or [2,2,1] or five singles
+//
+// It exists because the app used to answer this silently. `defaultSubTeams` special-cases exactly
+// four players and otherwise alternates low/high into two sides, so five players became 3 v 2 with
+// nothing on screen admitting a choice had been made — when 3v2, 2v2-plus-a-solo and five singles
+// are all legitimate and only the group knows which (DECISIONS.md §5.ao).
+//
+// WHAT IT DELIBERATELY DOES NOT DO: return every integer partition of N. Five has 7 partitions
+// and eight has 22 — a list nobody can choose from, which is a worse answer than the silent
+// default it replaces. Instead it offers the BALANCED shape for each possible group count, one
+// per count. That's what makes the result a recommendation rather than a data dump, and manual
+// adjustment (§5.ao: "the app proposes, the group adjusts") covers the exotic cases a list of 22
+// would be needed for.
+//
+// So for 5 players, unconstrained, it returns exactly the shapes Craig named:
+//   [3,2]  ->  [2,2,1]  ->  [2,1,1,1]  ->  [1,1,1,1,1]
+export interface GroupShapeOptions {
+  /** Hard floor on the smallest group. Sides may be 1 (a solo); a tee group wants 2+. */
+  min?: number;
+  /** Largest allowed group. 4 for a playing group — a fivesome is not a tee slot. */
+  max?: number;
+  /**
+   * Soft floor: the size all groups but ONE must reach. This is what separates "a remainder"
+   * from "a silly shape". A tee sheet may read 3 + 3 + 2 — one short group is ordinary — but
+   * four players are a foursome, not two twosomes, and eight are never four pairs. With
+   * min 2 / typical 3 / max 4:
+   *   4 -> [4]              ([2,2] rejected: TWO groups under 3)
+   *   5 -> [3,2]            (one short group is fine)
+   *   8 -> [4,4], [3,3,2]   ([2,2,2,2] rejected)
+   * Defaults to `min`, i.e. no extra constraint — which is what the side axis wants, since
+   * "everyone plays for themselves" is a real game.
+   */
+  typical?: number;
+  /** Fewest groups to offer. 2 for sides (one side is not a game); 1 for tee groups. */
+  minGroups?: number;
+}
+
+// Candidate shapes for N players, each a list of group SIZES descending, best-first.
+//
+// "Best-first" = fewest groups first: fewer tee slots and fewer sides are both the simpler
+// answer, and it puts the ordinary case ([4,4] for eight, [3,2] for five) at the top where a
+// default belongs. Returns [] when nothing fits (1 player in tee groups of min 2).
+export function groupShapesFor(n: number, opts: GroupShapeOptions = {}): number[][] {
+  const { min = 1, max = n, minGroups = 1 } = opts;
+  const typical = opts.typical ?? min;
+  if (n <= 0 || min < 1 || max < min) return [];
+
+  const shapes: number[][] = [];
+  for (let k = Math.max(1, minGroups); k <= n; k++) {
+    // The balanced split of n into k groups: everyone gets floor(n/k), and the first
+    // (n mod k) groups get one extra. Sizes therefore never differ by more than 1.
+    const base = Math.floor(n / k);
+    const extra = n % k;
+    if (base < 1) break;                    // more groups than players
+    const shape = Array.from({ length: k }, (_, i) => base + (i < extra ? 1 : 0));
+    if (shape[0] > max) continue;           // biggest group too big — try more groups
+    if (shape[shape.length - 1] < min) continue;  // smallest below the hard floor
+    // At most one group may sit below `typical` — see the option's note.
+    if (shape.filter((size) => size < typical).length > 1) continue;
+    shapes.push(shape);
+  }
+  return shapes;
+}
+
+/**
+ * The options the PLAYING-GROUP (tee sheet) axis uses. Named so both the wizard and the hub ask
+ * the question the same way, and so "what counts as a playing group" is stated once: 3 or 4
+ * players, with a single short group of 2 tolerated as a remainder.
+ */
+export const TEE_GROUP_SHAPE_OPTS: GroupShapeOptions = { min: 2, typical: 3, max: 4, minGroups: 1 };
+
+/**
+ * The options the SIDE (money) axis uses: a solo side is legal, but one side is not a game.
+ */
+export const SIDE_SHAPE_OPTS: GroupShapeOptions = { min: 1, minGroups: 2 };
+
+// Plain-words label for a shape, for a button or a radio row: [3,2] -> "3 + 2".
+// Used on both the tee-group step and the side-split step so one vocabulary covers both.
+export function groupShapeLabel(shape: number[]): string {
+  return shape.join(' + ');
+}
+
+/**
+ * Deal handicap-sorted players into a shape so the groups come out EVEN.
+ *
+ * `sortedIds` must be ordered by handicap (low → high); `shape` comes from `groupShapesFor`.
+ *
+ * SERPENTINE, not round-robin, and the difference is the whole reason this is a named function
+ * with tests. Dealing 1-2-1-2 through eight players gives group 1 every odd-ranked player:
+ *
+ *   round-robin  g1 = 2, 6, 10, 14 (32)   g2 = 4, 8, 12, 16 (40)   <- 8 apart
+ *   serpentine   g1 = 2, 8, 10, 16 (36)   g2 = 4, 6, 12, 14 (36)   <- dead even
+ *
+ * A snake draft pairs each low handicap with a high one, which is what "balanced" has to mean
+ * here. The round-robin version shipped in a screenshot before anyone noticed the totals.
+ *
+ * Groups may be uneven in SIZE (3 + 2), so a group that is already full is skipped and the snake
+ * continues through the rest — otherwise the last player lands in a group with no room.
+ */
+export function dealBalancedIntoShape(sortedIds: string[], shape: number[]): string[][] {
+  const buckets: string[][] = shape.map(() => []);
+  if (buckets.length === 0) return [];
+  let i = 0;                 // index into sortedIds
+  let dir = 1;               // +1 walking down the groups, -1 walking back up
+  let g = 0;                 // current group
+  while (i < sortedIds.length) {
+    if (buckets[g].length < shape[g]) {
+      buckets[g].push(sortedIds[i]);
+      i++;
+    }
+    // Step to the next group, reversing at each end — the snake. When a group is full it is
+    // simply passed over on the way through.
+    const next = g + dir;
+    if (next < 0 || next >= buckets.length) {
+      dir = -dir;            // turn around WITHOUT moving, so the end group gets two in a row
+    } else {
+      g = next;
+    }
+    // Guard against a shape that cannot hold everyone (sum(shape) < ids.length): if every group
+    // is full, stop rather than spin.
+    if (buckets.every((b, k) => b.length >= shape[k])) break;
+  }
+  return buckets;
+}
+
+// True when N players have exactly one sensible shape, so the app should just use it rather than
+// ask. Four players in tee groups is the case that matters: asking "how do you want to walk?"
+// when there is only one answer is the kind of exposed complexity the north star argues against.
+export function groupShapeIsObvious(n: number, opts: GroupShapeOptions = {}): boolean {
+  return groupShapesFor(n, opts).length <= 1;
 }
 
 // A balanced default 2v2 split for a group: sort by course handicap, then pair
@@ -1181,6 +1552,9 @@ export function summarizeTeamBuild(game: PoolGame): TeamBuildSummary {
     detail = tb.excludeCaptains
       ? 'Evened out the non-captain players; each captain’s own strokes ride as the edge.'
       : 'Evened out each whole team, captains included.';
+  } else if (tb.method === 'serpentine') {
+    headline = 'Snake draft off the captains';
+    detail = 'Best available player to the weakest captain each round, alternating direction — so the order is checkable by eye.';
   } else if (tb.method === 'sequential') {
     headline = 'Auto-generated foursomes (in list order)';
   } else {
@@ -1257,6 +1631,7 @@ function teamHoleScore(
   variant: TwoBestBallsVariant
 ): number | null {
   const playerScores: { gross: number; net: number }[] = [];
+  const byId = new Map<string, { gross: number; net: number }>();
   for (const pid of team.playerIds) {
     const sc = scores.find((s) => s.playerId === pid && s.hole === hole.number);
     if (!sc) continue;
@@ -1266,8 +1641,38 @@ function teamHoleScore(
     // (game-aware: re-ranked 1–9 on the USGA 9-hole basis).
     const strokeIndex = player ? playerHoleStrokeIndexForGame(game, player, hole.number, hole.handicap) : hole.handicap;
     const strokes = getMoneyStrokesOnHole(hcap, strokeIndex, numHoles);
-    playerScores.push({ gross: sc.grossScore, net: sc.grossScore - strokes });
+    const card = { gross: sc.grossScore, net: sc.grossScore - strokes };
+    playerScores.push(card);
+    byId.set(pid, card);
   }
+
+  // Generalized path — only when the game opted in. Every existing game has no
+  // teamFormat and falls through to the legacy call below, whose exact output is pinned
+  // by golden snapshots.
+  if (game.teamFormat) {
+    const teamHcap = isOneBall(game.teamFormat)
+      ? teamHandicapForFormat(
+          team.playerIds.map((pid) => {
+            const p = game.players.find((x) => x.id === pid);
+            return p ? getPoolPlayingHandicap(p, game.course, 100, game.handicapBasis, gameNineBasis(game)) : 0;
+          }),
+          game.teamFormat === 'scramble' ? 'scramble' : 'alternate-shot',
+        )
+      : 0;
+    return teamValueOnHole(
+      {
+        playerIds: team.playerIds,
+        hole,
+        format: game.teamFormat,
+        grossOnHole: (id) => byId.get(id)?.gross ?? null,
+        netOnHole: (id) => byId.get(id)?.net ?? null,
+        teamHandicap: teamHcap,
+        numHoles,
+      },
+      game.teamScoreBasis ?? 'stroke',
+    );
+  }
+
   return bestBallTeamHoleScore(playerScores, variant);
 }
 
@@ -1277,10 +1682,17 @@ function buildLeg(
   teams: PoolTeam[],
   holeScoresByTeam: Map<string, Map<number, number | null>>,
   subPot: number,
-  positionSplit: number[]
+  positionSplit: number[],
+  // How to measure a hole. Defaults to the legacy shape — strokes, two balls (best net +
+  // best gross) — so every existing game computes exactly as before.
+  scoring: { basis: ScoreBasis; ballsFor: (team: PoolTeam) => number } = {
+    basis: 'stroke',
+    ballsFor: () => 2,
+  },
 ): PoolLeg {
   const standings: PoolTeamLegStanding[] = teams.map((team) => {
     const perHole = holeScoresByTeam.get(team.id)!;
+    const balls = scoring.ballsFor(team);
     let total = 0;
     let toPar = 0;
     let thru = 0;
@@ -1288,33 +1700,50 @@ function buildLeg(
       const s = perHole.get(hole.number);
       if (s === null || s === undefined) continue;
       total += s;
-      toPar += s - hole.par * 2; // two balls contribute (best net + best gross)
+      // Normalize against what this format's ball count makes an "even" hole, so a team
+      // thru 9 stays comparable to one thru 18. See evenValueOnHole.
+      toPar += s - evenValueOnHole(hole, scoring.basis, balls);
       thru++;
     }
-    return { teamId: team.id, teamName: team.name, total, toPar, thru, place: 0, payout: 0 };
+    // Points are higher-is-better, so negate to keep ONE lower-is-better direction for
+    // every consumer downstream (sort, distributePot, tie detection, the leaderboard).
+    const rankMetric = scoring.basis === 'stableford' ? -toPar : toPar;
+    return { teamId: team.id, teamName: team.name, total, toPar, rankMetric, thru, place: 0, payout: 0 };
   });
 
   const complete = standings.every((s) => s.thru === legHoles.length) && legHoles.length > 0;
 
-  // Rank by toPar ascending (lower is better). Teams with no holes sink to the bottom.
+  // Rank by rankMetric ascending (lower is better). Teams with no holes sink to the bottom.
   const ranked = [...standings].sort((a, b) => {
     if (a.thru === 0 && b.thru === 0) return 0;
     if (a.thru === 0) return 1;
     if (b.thru === 0) return -1;
-    return a.toPar - b.toPar;
+    return a.rankMetric - b.rankMetric;
   });
 
+  // A leg NOBODY has started yet is a dead heat — everyone is tied at zero holes, so
+  // the sub-pot splits evenly and each team gets its own ante back (net zero on that
+  // leg). Passing [] instead left the sub-pot undistributed while every team's
+  // entryPaid was already deducted in full, so a mid-round board showed more money
+  // lost than won (a $50 phantom loss on a $200 pot at the turn). settleNassau already
+  // treats an un-started segment this way — see game-modes/types.ts. Once ANY team has
+  // played the leg, only those teams are eligible: a team still on the front nine
+  // can't be tied for the back-nine pot. See FINDINGS.md F-011.
   const eligible = ranked.filter((s) => s.thru > 0);
+  const contenders = eligible.length > 0 ? eligible : ranked;
   const payouts = distributePot(
-    eligible.map((s) => ({ teamId: s.teamId, metric: s.toPar })),
+    contenders.map((s) => ({ teamId: s.teamId, metric: s.rankMetric })),
     subPot,
     positionSplit
   );
 
+  const legStarted = eligible.length > 0;
   let place = 1;
   for (let i = 0; i < ranked.length; i++) {
-    if (ranked[i].thru === 0) { ranked[i].place = 0; continue; }
-    if (i > 0 && ranked[i - 1].thru > 0 && ranked[i].toPar !== ranked[i - 1].toPar) place = i + 1;
+    // Before a leg starts, every team is jointly 1st (and paid) rather than unplaced —
+    // place must agree with the payout or the board pays a team it shows as ranked 0.
+    if (legStarted && ranked[i].thru === 0) { ranked[i].place = 0; continue; }
+    if (i > 0 && ranked[i - 1].thru > 0 && ranked[i].rankMetric !== ranked[i - 1].rankMetric) place = i + 1;
     ranked[i].place = place;
     ranked[i].payout = payouts[ranked[i].teamId] ?? 0;
   }
@@ -1364,27 +1793,36 @@ function computeJunk(
       if (teamId === team.id) ctps++;
     }
 
+    // Manual bonuses (sandies, barkies, …) add on top of the computed five. Zero for any
+    // game that doesn't define them, so existing games are unchanged.
+    const custom = customBonusPointsForTeam(game, team.playerIds);
+
     const total =
       birdies * v.birdie +
       eagles * v.eagle +
       albatrosses * v.albatross +
       groupHugs * v.groupHug +
-      ctps * v.ctp;
+      ctps * v.ctp +
+      custom;
 
-    return { teamId: team.id, teamName: team.name, birdies, eagles, albatrosses, groupHugs, ctps, total };
+    return { teamId: team.id, teamName: team.name, birdies, eagles, albatrosses, groupHugs, ctps, custom, total };
   });
 }
 
 // Head-to-head HOLE tally for a leg between exactly two teams (match-play
-// scoring). For each leg hole where BOTH teams have a team score, the lower
+// scoring). For each leg hole where BOTH teams have a team score, the BETTER
 // score wins the hole; equal scores halve it. Returns holes won by each side,
 // halved holes, and the display points (holesWon × win + halved × tie).
+//
+// "Better" is lower under strokes and HIGHER under Stableford — `basis` carries which.
+// Hard-coded `a < b` here handed a birdies-everything team 0 of 18 holes.
 function computeLegHoleMatch(
   legHoles: HoleData[],
   teamAId: string,
   teamBId: string,
   holeScoresByTeam: Map<string, Map<number, number | null>>,
-  points: { win: number; tie: number; loss: number }
+  points: { win: number; tie: number; loss: number },
+  basis: ScoreBasis = 'stroke',
 ): { aWon: number; bWon: number; tied: number; aPoints: number; bPoints: number } {
   const aMap = holeScoresByTeam.get(teamAId);
   const bMap = holeScoresByTeam.get(teamBId);
@@ -1393,9 +1831,9 @@ function computeLegHoleMatch(
     const a = aMap?.get(hole.number);
     const b = bMap?.get(hole.number);
     if (a === null || a === undefined || b === null || b === undefined) continue;
-    if (a < b) aWon++;
-    else if (b < a) bWon++;
-    else tied++;
+    if (a === b) tied++;
+    else if (betterValue(basis, a, b)) aWon++;
+    else bWon++;
   }
   return {
     aWon, bWon, tied,
@@ -1406,9 +1844,9 @@ function computeLegHoleMatch(
 
 // The winner/loser of a single leg in a HEAD-TO-HEAD match. In match-play
 // ('holes') scoring the leg standings carry `holesWon`, so the leg goes to
-// whoever won more holes (equal = halved = push). Otherwise ranks by toPar
-// (lower is better) — toPar normalizes for differing thru counts. Returns nulls
-// for a push, or when fewer than two teams have any score.
+// whoever won more holes (equal = halved = push). Otherwise ranks by `rankMetric`
+// (always lower-is-better, and already normalized for differing thru counts).
+// Returns nulls for a push, or when fewer than two teams have any score.
 function matchLegOutcome(leg: PoolLeg): { winnerId: string | null; loserId: string | null } {
   const played = leg.standings.filter((s) => s.thru > 0);
   if (played.length < 2) return { winnerId: null, loserId: null };
@@ -1420,8 +1858,10 @@ function matchLegOutcome(leg: PoolLeg): { winnerId: string | null; loserId: stri
     return { winnerId: sorted[0].teamId, loserId: sorted[1].teamId };
   }
 
-  const sorted = [...played].sort((a, b) => a.toPar - b.toPar);
-  if (sorted[0].toPar === sorted[1].toPar) return { winnerId: null, loserId: null }; // push
+  // rankMetric, not toPar: under Stableford a HIGHER toPar is better, and sorting it
+  // ascending paid the losing team the whole leg.
+  const sorted = [...played].sort((a, b) => a.rankMetric - b.rankMetric);
+  if (sorted[0].rankMetric === sorted[1].rankMetric) return { winnerId: null, loserId: null }; // push
   return { winnerId: sorted[0].teamId, loserId: sorted[1].teamId };
 }
 
@@ -1587,9 +2027,19 @@ export function computePoolResult(
   // Pot allocation: 9-hole puts the whole non-junk pot on overall; 18-hole uses
   // the configured front/back/overall split.
   const overallSubPot = nineOnly ? pot * (1 - game.potSplit.junk) : pot * game.potSplit.overall;
-  const front = buildLeg('front', frontHoles, game.teams, holeScoresByTeam, nineOnly ? 0 : pot * game.potSplit.front, game.positionSplit);
-  const back = buildLeg('back', backHoles, game.teams, holeScoresByTeam, nineOnly ? 0 : pot * game.potSplit.back, game.positionSplit);
-  const overall = buildLeg('overall', holes, game.teams, holeScoresByTeam, overallSubPot, game.positionSplit);
+  // How to measure a hole. A legacy game (no teamFormat) keeps strokes and the two balls
+  // every ballSelection plays; a generalized game reports its own basis and ball count so
+  // the leg totals are normalized against the right "even" value. `combined` counts a ball
+  // per member, so ballsFor is per-team rather than a constant.
+  const legScoring: { basis: ScoreBasis; ballsFor: (team: PoolTeam) => number } = game.teamFormat
+    ? {
+        basis: game.teamScoreBasis ?? 'stroke',
+        ballsFor: (team) => ballsPerHole(game.teamFormat!, team.playerIds.length),
+      }
+    : { basis: 'stroke', ballsFor: () => 2 };
+  const front = buildLeg('front', frontHoles, game.teams, holeScoresByTeam, nineOnly ? 0 : pot * game.potSplit.front, game.positionSplit, legScoring);
+  const back = buildLeg('back', backHoles, game.teams, holeScoresByTeam, nineOnly ? 0 : pot * game.potSplit.back, game.positionSplit, legScoring);
+  const overall = buildLeg('overall', holes, game.teams, holeScoresByTeam, overallSubPot, game.positionSplit, legScoring);
 
   // Head-to-head match play (two teams, matchConfig.scoring === 'holes'):
   // annotate each score leg with the hole-by-hole tally so the leg is won by
@@ -1601,7 +2051,7 @@ export function computePoolResult(
     const [tA, tB] = game.teams;
     const pts = matchCfg0.pointsPerHole ?? DEFAULT_MATCH_POINTS;
     const annotate = (leg: PoolLeg, legHoles: HoleData[]) => {
-      const m = computeLegHoleMatch(legHoles, tA.id, tB.id, holeScoresByTeam, pts);
+      const m = computeLegHoleMatch(legHoles, tA.id, tB.id, holeScoresByTeam, pts, legScoring.basis);
       for (const s of leg.standings) {
         const isA = s.teamId === tA.id;
         s.holesWon = isA ? m.aWon : m.bWon;
@@ -1633,9 +2083,15 @@ export function computePoolResult(
   const junkDetails = computeJunk(game, holes, scoresByMatchup);
   const junkSubPot = pot * game.potSplit.junk;
   const junkRanked = [...junkDetails].sort((a, b) => b.total - a.total);
-  const junkHasPoints = junkRanked.some((j) => j.total > 0);
+  // If NOBODY scored junk, every team is tied at zero — which is a tie, not a void.
+  // distributePot already splits a tied field's pot evenly and distributes all of it,
+  // so it just needs to be allowed to run. Passing [] here (the old behavior) paid
+  // nothing while every team's entryPaid was still deducted in full, so the junk
+  // sub-pot — a quarter of the pot by default — silently disappeared. That also broke
+  // the season ledger: settleUp() matches debtors to creditors, so the unmatched debt
+  // was never listed at all and a group would under-collect. See FINDINGS.md F-007.
   const junkPayouts = distributePot(
-    junkHasPoints ? junkRanked.map((j) => ({ teamId: j.teamId, metric: -j.total })) : [],
+    junkRanked.map((j) => ({ teamId: j.teamId, metric: -j.total })),
     junkSubPot,
     game.positionSplit
   );
@@ -1649,8 +2105,13 @@ export function computePoolResult(
       teamName: j.teamName,
       total: j.total,
       toPar: j.total,
+      // Junk has always been points-scored — more is better — hence the negation, matching
+      // the metric handed to distributePot just above.
+      rankMetric: -j.total,
       thru: thruHole,
-      place: junkHasPoints ? junkPlace : 0,
+      // Everyone tied at zero still HAS a place (joint 1st) — it must match the
+      // payout, or the leaderboard pays a team while showing it unplaced.
+      place: junkPlace,
       payout: junkPayouts[j.teamId] ?? 0,
     });
   }
@@ -1756,6 +2217,62 @@ export function computePoolPlayerDetails(
 }
 
 // ---------------------------------------------------------------------------
+// Share tokens
+// ---------------------------------------------------------------------------
+
+// Is `key` a valid share key for this game? Accepts the game's own token OR the
+// legacy shared constant, so links already sent to friends keep working.
+//
+// This gates the UI, not the database — RLS is open by decision (DECISIONS.md §5c).
+// Don't mistake this for an access boundary.
+export function shareTokenMatches(game: PoolGame, key: string | null | undefined): boolean {
+  if (!key) return false;
+  if (key === ORGANIZER_TOKEN) return true;         // legacy links
+  return !!game.shareToken && key === game.shareToken;
+}
+
+// The game's token, creating and persisting one if it doesn't have it yet (older
+// games). Returns the token and whether it had to be created, so callers can
+// decide whether to save.
+export function ensureShareToken(game: PoolGame): { token: string; created: boolean } {
+  if (game.shareToken) return { token: game.shareToken, created: false };
+  return { token: generateShareToken(), created: true };
+}
+
+// ---------------------------------------------------------------------------
+// Completion
+// ---------------------------------------------------------------------------
+
+// Is every player in every foursome scored on every hole this game plays?
+//
+// This is the gate for status:'completed', which is what the stats/money ledger
+// (lib/stats-ledger.ts) selects on. It has to be a WHOLE-GAME check: one
+// foursome tapping "Finish Game" must not complete a multi-foursome pool, since
+// the other groups are still out there and the payouts aren't final.
+//
+// `scoresByMatchup` is the same map the leaderboard builds (matchupId -> scores),
+// so callers pass what they already fetched — this stays pure.
+export function isPoolGameFullyScored(
+  game: PoolGame,
+  scoresByMatchup: Map<string, GameScore[]>,
+): boolean {
+  const holes = getGameHoles(game);
+  if (holes.length === 0 || game.teams.length === 0) return false;
+  for (const team of game.teams) {
+    if (team.playerIds.length === 0) return false;
+    const scores = scoresByMatchup.get(team.matchupId);
+    if (!scores || scores.length === 0) return false;
+    for (const pid of team.playerIds) {
+      const scored = new Set(
+        scores.filter((s) => s.playerId === pid && s.grossScore != null).map((s) => s.hole),
+      );
+      if (holes.some((h) => !scored.has(h.number))) return false;
+    }
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Persistence — mirrors tournament-state.ts (in-memory cache + Supabase).
 // Per-foursome scores reuse the existing game_scores table (keyed by matchupId)
 // via the helpers in tournament-state.ts, so nothing is duplicated here.
@@ -1807,6 +2324,34 @@ export interface PoolGameListItem {
 }
 
 // All pool games (newest first). Owner/dashboard view.
+// Courses this organizer has already played, most recent first.
+//
+// JY (real user): "if it could save previously selected courses so you don't have to
+// type it in every time." No new storage needed — every PoolGame already carries its
+// full CourseSelection (tees, ratings, hole data), so a past game IS a saved course.
+// Returning the whole CourseSelection means picking one skips the GHIN lookup entirely,
+// which also means it works with no GHIN token at all.
+//
+// Scoped to one organizer when `ghin` is given (mirrors getPoolGameListForGhin), so a
+// share-link organizer sees their own courses rather than everyone's. Deduped by
+// courseId, keeping the most recently played copy — that's the one whose tee data is
+// freshest.
+export function getRecentCourses(ghin?: number | null, limit = 5): CourseSelection[] {
+  const games = [...poolGameCache.values()]
+    .filter((g) => g.course != null && (ghin == null || g.createdByGhin === ghin))
+    .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+  const seen = new Set<number>();
+  const out: CourseSelection[] = [];
+  for (const g of games) {
+    const c = g.course!;
+    if (seen.has(c.courseId)) continue;
+    seen.add(c.courseId);
+    out.push(c);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 export function getPoolGameList(): PoolGameListItem[] {
   const list: PoolGameListItem[] = [];
   for (const g of poolGameCache.values()) {

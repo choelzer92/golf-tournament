@@ -9,6 +9,7 @@ import type { RosterGroup, GroupDefaults } from '@/lib/roster-groups';
 import { renameGroup, deleteGroup } from '@/lib/roster-groups';
 import { getFormats, duplicateFormat, setFormatShared } from '@/lib/pool-formats';
 import { getGameMode } from '@/lib/game-modes';
+import { formatOfGame, TEAM_FORMAT_OPTIONS } from '@/lib/game-modes/team-scoring';
 
 const FORMAT_SEED_KEY = 'pool_format_seed';
 
@@ -149,10 +150,16 @@ function summarizeFormat(d: GroupDefaults | null): string {
     if (s.result) parts.push(String(s.result));
     return parts.join(' · ');
   }
-  // Classic pool.
+  // Classic pool. Name the FORMAT (which may be a scramble or combined, not just one of the
+  // three legacy ball selections) and say so when it's scored in points.
   const label = d.moneyMode === 'match' ? 'Head-to-head match' : 'Pool (pot split)';
-  const ball = d.ballSelection ? ` · ${String(d.ballSelection).replace(/-/g, ' ')}` : '';
-  return `${label}${ball}`;
+  const parts = [label];
+  if (d.teamFormat || d.ballSelection) {
+    const fmt = formatOfGame({ teamFormat: d.teamFormat, ballSelection: d.ballSelection });
+    parts.push(TEAM_FORMAT_OPTIONS.find((o) => o.format === fmt)?.label.toLowerCase() ?? fmt);
+  }
+  if (d.teamScoreBasis === 'stableford') parts.push('Stableford points');
+  return parts.join(' · ');
 }
 
 function LoginPrompt({ onLoggedIn }: { onLoggedIn: () => void }) {

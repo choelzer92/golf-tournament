@@ -224,6 +224,94 @@ export function rollupByPlayer(ledgers: GameLedger[]): PlayerRollup[] {
 }
 
 // ---------------------------------------------------------------------------
+// Viewer-scoped rollups — money is PRIVATE TO THE GROUP that played for it
+// ---------------------------------------------------------------------------
+
+// Craig's rule (DECISIONS.md §5h): "you shouldnt be able to look up peoples win/loss
+// rates in other groups in terms of money". So:
+//   - field-wide money exists ONLY inside a single group's view
+//   - a viewer's OWN money crosses groups, because it's theirs
+// The old "Overall" lens showed every player's money across every game the viewer could
+// load, which leaked one group's results to another. These helpers replace it.
+//
+// NOTE this is a DISPLAY boundary while RLS is open by decision (§5c) — it is not
+// enforced, and must become a real policy when security work lands.
+
+/** One group's slice of a viewer's own money. */
+export interface MyGroupNet {
+  groupId: string;
+  groupName: string;
+  net: number;
+  gamesPlayed: number;
+}
+
+/** A viewer's own money: the total, plus where it came from. */
+export interface MyMoney {
+  playerId: string;
+  playerName: string;
+  net: number;
+  gamesPlayed: number;
+  byGroup: MyGroupNet[];      // biggest swing first
+  ungroupedNet: number;       // games not attributable to any group
+  ungroupedGames: number;
+}
+
+// Every net belonging to ONE player across the given ledgers.
+function netsForPlayer(ledgers: GameLedger[], playerId: string): GamePlayerNet[] {
+  return ledgers.flatMap((l) => l.playerNets.filter((n) => n.playerId === playerId));
+}
+
+/**
+ * The viewer's own money across ALL their games, broken down by group.
+ *
+ * `groups` scopes the breakdown; a game matching no group lands in `ungroupedNet` rather
+ * than being dropped, so the parts always sum to the total.
+ */
+export function myMoney(
+  ledgers: GameLedger[],
+  playerId: string,
+  playerName: string,
+  groups: RosterGroup[],
+): MyMoney {
+  const mine = netsForPlayer(ledgers, playerId);
+  const net = mine.reduce((sum, n) => sum + n.net, 0);
+
+  const byGroup: MyGroupNet[] = [];
+  const attributed = new Set<string>();
+  for (const g of groups) {
+    const inGroup = ledgersForGroup(ledgers, g);
+    const nets = netsForPlayer(inGroup, playerId);
+    if (nets.length === 0) continue;
+    for (const l of inGroup) if (l.playerNets.some((n) => n.playerId === playerId)) attributed.add(l.gameId);
+    byGroup.push({
+      groupId: g.id,
+      groupName: g.name,
+      net: nets.reduce((sum, n) => sum + n.net, 0),
+      gamesPlayed: nets.length,
+    });
+  }
+  // Biggest swing first — a −$40 group matters as much as a +$40 one.
+  byGroup.sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
+
+  const ungrouped = mine.filter((n) => !attributed.has(n.gameId));
+  return {
+    playerId,
+    playerName,
+    net,
+    gamesPlayed: mine.length,
+    byGroup,
+    ungroupedNet: ungrouped.reduce((sum, n) => sum + n.net, 0),
+    ungroupedGames: ungrouped.length,
+  };
+}
+
+/** The viewer's game-by-game history, most recent first. */
+export function myGameHistory(ledgers: GameLedger[], playerId: string): GamePlayerNet[] {
+  return netsForPlayer(ledgers, playerId)
+    .sort((a, b) => (b.playedAt ?? '').localeCompare(a.playedAt ?? ''));
+}
+
+// ---------------------------------------------------------------------------
 // Settlement (who-owes-whom) — greedy min-cash-flow
 // ---------------------------------------------------------------------------
 

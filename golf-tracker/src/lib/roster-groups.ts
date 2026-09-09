@@ -1,6 +1,8 @@
 import { supabase } from './supabase';
-import type { PoolJunkValues, PoolMoneyMode, PoolMatchConfig } from './pool-game';
+import type { PoolJunkValues, PoolMoneyMode, PoolMatchConfig, CustomBonus } from './pool-game';
 import type { TwoBestBallsVariant } from './formats';
+import type { ScoreBasis, TeamFormat } from './game-modes/team-scoring';
+import type { GameSide } from './game-modes/sides';
 
 // A saved group = an organizer's "home base": a named set of roster player IDs
 // PLUS the default game settings to prefill when starting a game from it. The
@@ -9,6 +11,10 @@ import type { TwoBestBallsVariant } from './formats';
 export interface GroupDefaults {
   moneyMode?: PoolMoneyMode;
   junkValues?: PoolJunkValues;
+  // Manual bonuses this group plays (sandies, barkies, …) and what they're worth. Craig:
+  // "values are per group configurable" — Warriors play barkies, Tuesday Crew don't. Absent
+  // = the group plays none, which is every existing group.
+  customBonuses?: CustomBonus[];
   entryPerPlayer?: number;
   positionSplitText?: string;
   matchConfig?: PoolMatchConfig;
@@ -16,6 +22,12 @@ export interface GroupDefaults {
   strokeMethod?: 'full' | 'off-the-low';
   handicapBasis?: 'course' | 'index';
   ballSelection?: TwoBestBallsVariant;
+  // Generalized team format (F-006), so a saved group or Format Library entry can carry
+  // "we play a scramble, most Stableford points wins" — the classic pool's three ball
+  // selections couldn't express it. Absent = the legacy ballSelection above, which is every
+  // existing group. Rides the same defaults JSONB; no migration.
+  teamFormat?: TeamFormat;
+  teamScoreBasis?: ScoreBasis;
   useCaptains?: boolean;
   // Game-mode fields (added with the pluggable game-mode library). Let a saved
   // group/format carry a full individual/2v2/decision game, not just the classic
@@ -23,6 +35,10 @@ export interface GroupDefaults {
   gameMode?: string;
   modeSettings?: Record<string, string | number | boolean>;
   subTeams?: { a: string[]; b: string[] };
+  // N sides (F-006), for a saved group/format that plays 3+ sides in one group. Absent =
+  // the legacy two-side subTeams above, which is every existing group. Rides the same
+  // defaults JSONB; no migration. See game-modes/sides.ts.
+  sides?: GameSide[];
   // Marks this roster_groups row as a Format Library entry (a reusable game
   // format, typically with no players) rather than a player Group. Absent = a
   // normal player group (unchanged behavior).

@@ -5,7 +5,21 @@ import { useRouter, useParams } from 'next/navigation';
 import type { GameSetup, Player, TeeSetOption } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
 import type { PoolGame, PoolTeam, PoolTeamDetail, PoolJunkValues, PoolMoneyMode } from '@/lib/pool-game';
-import type { TwoBestBallsVariant } from '@/lib/formats';
+import {
+  formatOfGame,
+  isOneBall,
+  persistedTeamScoring,
+  teamModeForFormat,
+  TEAM_FORMAT_OPTIONS,
+  type ScoreBasis,
+  type TeamFormat,
+} from '@/lib/game-modes/team-scoring';
+import {
+  LEGACY_SIDE_NAME_KEYS,
+  fromLegacySubTeams, incompleteLegsForCloseOut, nextSideId, persistedSides, sideMembers,
+  sideOfPlayer, sidesOfGame,
+  type GameSide, type IncompleteLeg,
+} from '@/lib/game-modes/sides';
 import {
   loadPoolGame,
   fetchPoolGame,
@@ -18,9 +32,14 @@ import {
   getPar3Holes,
   distinctRankingsForPlayers,
   balanceTeamsWithCaptains,
+  serpentineTeams,
   balanceTeamsWithLocks,
   pickCaptains,
   sortPlayerIdsByHcap,
+  groupShapesFor,
+  groupShapeLabel,
+  dealBalancedIntoShape,
+  TEE_GROUP_SHAPE_OPTS,
   orderPlayerIdsWithCaptain,
   defaultSubTeams,
   teeOptionsForPlayer,
@@ -34,12 +53,16 @@ import {
   DEFAULT_JUNK_VALUES,
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
+  isPoolGameFullyScored,
+  ensureShareToken,
 } from '@/lib/pool-game';
+import type { GameScore } from '@/lib/game-state';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
-import { getGameMode, GAME_MODES, defaultSettings, settingValue, type SettingsBag, type SettingValue } from '@/lib/game-modes';
+import { getGameMode, GAME_MODES, buildGameModeContext, defaultSettings, settingValue, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
+import { SideNames } from '@/components/side-names';
 import { saveFormat, formatFromGame } from '@/lib/pool-formats';
 import { PairingLocks } from '@/components/pairing-locks';
 import { CaptainsPanel } from '@/components/captains-panel';
@@ -173,23 +196,75 @@ export default function PoolHubPage() {
     let teamMode: GameSetup['teamMode'] = 'two-best-balls';
     let handicapAllowance = game!.handicapAllowance;
 
-    // Scramble / alternate-shot (2v2 within group) enter ONE ball per side. We
-    // reuse the existing play-page oneBall entry by tagging each player with their
-    // side (.team) and setting teamMode; the format-specific allowance makes the
-    // play page's team-handicap DISPLAY match the leaderboard compute (scramble
-    // uses -1 for USGA tiered; alt-shot uses its % of the 60/40 combined).
+    // A side game: ALWAYS tag each player with their side (.team) so the
+    // scorecard shows who's on which side. Previously only the one-ball formats
+    // were tagged, so a 2v2 best-ball/combined round gave no on-card indication
+    // of the sides at all — you had to open the leaderboard to find out.
+    //
+    // teamMode is set to the side-scoring rule that MATCHES the leaderboard's
+    // compute (team-game.ts sideNet): best-ball = low net of the side, combined =
+    // both nets added. Getting this right matters — leaving it at the default
+    // 'two-best-balls' would have drawn a 1-net-1-gross team row that no 2v2
+    // format actually uses. Scramble / alternate-shot additionally enter ONE ball
+    // per side, and their format-specific allowance makes the play page's
+    // team-handicap DISPLAY match the leaderboard (scramble uses -1 for USGA
+    // tiered; alt-shot uses its % of the 60/40 combined).
     const mode = getGameMode(game!.gameMode);
     if (mode?.category === 'team-within-group') {
       const fmt = String(game!.modeSettings?.format ?? 'best-ball');
+      const storedSides = sidesOfGame(game!);
+      const sides = storedSides.length > 0
+        ? storedSides
+        : fromLegacySubTeams(defaultSubTeams(game!.players.map((p) => p.id), game!.players, game!.course, game!.handicapAllowance, game!.handicapBasis));
+      // The SCORECARD's team slot is a two-value field (Player.team: 'A' | 'B', read at ~27
+      // sites in game/play/page.tsx), so it can only express two sides. With THREE or more we
+      // deliberately tag nobody rather than tagging the first two: a partial tagging would draw
+      // an A-vs-B team row and match badge for a game that isn't A vs B, which is exactly the
+      // class of defect F-006 already hit twice (the card playing a different game from the
+      // engine, DECISIONS.md §5.aa). Untagged means the card shows per-player entry with no team
+      // row — honest and incomplete rather than confident and wrong. The leaderboard still
+      // settles and displays all N sides. Widening the card is tracked as its own finding.
+      if (sides.length <= 2) {
+        players = players.map((p) => {
+          const sideId = sideOfPlayer(sides, p.id)?.id;
+          return { ...p, team: sideId === sides[0]?.id ? 'A' : sideId === sides[1]?.id ? 'B' : undefined };
+        });
+      }
       if (fmt === 'scramble' || fmt === 'alternate-shot') {
-        const sides = game!.subTeams
-          ?? defaultSubTeams(game!.players.map((p) => p.id), game!.players, game!.course, game!.handicapAllowance, game!.handicapBasis);
-        players = players.map((p) => ({
-          ...p,
-          team: sides.a.includes(p.id) ? 'A' : sides.b.includes(p.id) ? 'B' : undefined,
-        }));
         teamMode = fmt;
         handicapAllowance = fmt === 'scramble' ? -1 : Number(game!.modeSettings?.altShotAllowance ?? 50);
+      } else {
+        // Per-player entry; the side's hole score folds at display/compute time.
+        teamMode = fmt === 'combined' ? 'combined' : 'best-ball';
+      }
+    }
+
+    // GENERALIZED TEAM FORMAT (F-006). A classic pool used to hard-code teamMode
+    // 'two-best-balls' and pass only ballSelection, so a scramble or Stableford pool handed
+    // the scorecard a rule it wasn't playing. Two things went wrong, both verified:
+    //
+    //  1. Scramble money depended on the ORDER of team.playerIds. teamNetOnHole reads the
+    //     first member who has a score — right when one ball is entered (all members share
+    //     the gross), but the card did PER-PLAYER entry, so the team score became whoever was
+    //     listed first: the same round paid +$75 or −$75 on a 4-player reorder.
+    //  2. The card's team row (hard-coded 1-net-1-gross) contradicted the payout — scramble
+    //     hole 1 was 4 to the engine and 9 on the card; Stableford drew strokes where the
+    //     money counted points.
+    //
+    // Craig's call: one-ball formats enter ONE shared team score (as the 2v2 mode already
+    // does), and the team row comes from the same engine the money uses.
+    const poolFormat = game!.teamFormat;
+    if (poolFormat) {
+      teamMode = teamModeForFormat(poolFormat);
+      // Tag the whole foursome as ONE side, for EVERY generalized format — not just the
+      // one-ball ones. The card's team row and the one-ball entry UI both group by
+      // player.team, so an untagged foursome gets no team row at all: a multi-ball
+      // Stableford pool would have scored with no sight of the number it's settled on.
+      players = players.map((p) => ({ ...p, team: 'A' as const }));
+      if (isOneBall(poolFormat)) {
+        // Match the leaderboard's team handicap: scramble is USGA tiered (-1 is the play
+        // page's sentinel for that), alternate shot is 50% of the 60/40 combined.
+        handicapAllowance = poolFormat === 'scramble' ? -1 : 50;
       }
     }
 
@@ -209,7 +284,17 @@ export default function PoolHubPage() {
       holesPlaying: game!.holesPlaying ?? '18',
       strokeMethod,
       handicapBasis: game!.handicapBasis ?? 'course',
-      formatSettings: { ballSelection: game!.ballSelection },
+      // ballSelection stays for legacy games and older readers; teamFormat/teamScoreBasis
+      // let the card draw the row the money engine will actually score.
+      formatSettings: {
+        ballSelection: game!.ballSelection,
+        ...(game!.teamFormat ? { teamFormat: game!.teamFormat } : {}),
+        ...(game!.teamScoreBasis ? { teamScoreBasis: game!.teamScoreBasis } : {}),
+        // The foursome's own name, so a one-ball card says "Team 1" rather than the generic
+        // "Team A" the 2v2 sides use. Rides formatSettings (a string bag) like ballSelection,
+        // so no GameSetup schema change.
+        poolTeamName: team.name,
+      },
       matchupId: team.matchupId,
       offTheLowBaseline,
     };
@@ -222,33 +307,62 @@ export default function PoolHubPage() {
 
   const pot = game.players.length * game.entryPerPlayer;
 
+  // A single-group game (2v2 / skins / Wolf / …) is ONE foursome named "Group",
+  // so the classic "Pool Money Game · N foursomes" subtitle read
+  // "Pool Money Game · 1 foursomes" — mislabeled AND unpluralized. Name the game
+  // mode instead, and pluralize the foursome count for the real pool.
+  const hubMode = getGameMode(game.gameMode);
+  const isSingleGroupHub = hubMode
+    ? hubMode.category === 'individual' || hubMode.category === 'team-within-group'
+    : false;
+  const teamCount = game.teams.length;
+  const hubSubtitle = isSingleGroupHub
+    ? `${hubMode!.name} · ${game.players.length} player${game.players.length === 1 ? '' : 's'}`
+      // F-019: a side game can now tee off in several groups, and how many tee times there are is
+      // the first thing an organizer wants confirmed. Only added when there's more than one, so
+      // the ordinary 2v2 subtitle is untouched.
+      + (teamCount > 1 ? ` · ${teamCount} groups` : '')
+    : `Pool Money Game · ${teamCount} foursome${teamCount === 1 ? '' : 's'}`;
+
   return (
     <div className="min-h-full bg-gray-50">
       <header className="bg-green-800 text-white shadow">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold">{game.name}</h1>
-            <p className="text-xs text-green-200">Pool Money Game · {game.teams.length} foursomes</p>
+            <p className="text-xs text-green-200">{hubSubtitle}</p>
           </div>
+          {/* THE LINE IS READ-ONLY vs MUTATING, not organizer vs guest.
+              A share-link player is in a money game: they're entitled to SEE
+              everything — the money structure, the handicap basis, how the teams
+              were built. So MoneySummary, FieldLowBanner and TeamBuildSummaryCard
+              all stay visible below.
+              What they must not do is CHANGE it for everyone else: Edit rebuilds
+              teams, Close out ends the round for all four foursomes, GHIN refresh
+              needs a token they don't have. Those are hidden. */}
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setSharing(true)}
-              className="text-sm font-medium text-green-200 hover:text-white"
-            >
-              Share
-            </button>
-            <button
-              onClick={() => setSavingFormat(true)}
-              className="text-sm font-medium text-green-200 hover:text-white"
-            >
-              Save format
-            </button>
-            <button
-              onClick={() => setEditing((e) => !e)}
-              className={`text-sm font-medium ${editing ? 'text-white' : 'text-green-200 hover:text-white'}`}
-            >
-              {editing ? 'Done editing' : 'Edit'}
-            </button>
+            {!poolOnly && (
+              <>
+                <button
+                  onClick={() => setSharing(true)}
+                  className="text-sm font-medium text-green-200 hover:text-white"
+                >
+                  Share
+                </button>
+                <button
+                  onClick={() => setSavingFormat(true)}
+                  className="text-sm font-medium text-green-200 hover:text-white"
+                >
+                  Save format
+                </button>
+                <button
+                  onClick={() => setEditing((e) => !e)}
+                  className={`text-sm font-medium ${editing ? 'text-white' : 'text-green-200 hover:text-white'}`}
+                >
+                  {editing ? 'Done editing' : 'Edit'}
+                </button>
+              </>
+            )}
             <button onClick={() => router.push(poolOnly ? '/pool' : '/dashboard')} className="text-sm text-green-200 hover:text-white">
               {poolOnly ? 'My Games' : 'Dashboard'}
             </button>
@@ -256,7 +370,7 @@ export default function PoolHubPage() {
         </div>
       </header>
 
-      {sharing && <SharePanel gameId={id} gameName={game.name} onClose={() => setSharing(false)} />}
+      {sharing && <SharePanel game={game} onSave={persist} onClose={() => setSharing(false)} />}
 
       {savingFormat && <SaveFormatModal game={game} onClose={() => setSavingFormat(false)} />}
 
@@ -290,8 +404,12 @@ export default function PoolHubPage() {
         </div>
 
         {/* Handicap refresh — re-pull from GHIN (e.g. teams set up the night
-            before, indexes changed overnight) and offer to re-balance. */}
-        <HandicapRefresh game={game} onRefresh={refreshGameHandicaps} onRebalance={() => setEditing(true)} onNeedsLogin={() => setShowLogin(true)} />
+            before, indexes changed overnight) and offer to re-balance. Organizer
+            only: a share-link guest has no GHIN token, so it could only ever fail
+            for them. */}
+        {!poolOnly && (
+          <HandicapRefresh game={game} onRefresh={refreshGameHandicaps} onRebalance={() => setEditing(true)} onNeedsLogin={() => setShowLogin(true)} />
+        )}
 
         {/* Field-low banner — explains how the low man sets everyone's strokes */}
         <FieldLowBanner game={game} />
@@ -299,14 +417,17 @@ export default function PoolHubPage() {
         {/* Money summary — becomes an editor while in edit mode */}
         {editing ? <GameSettingsEditor game={game} onSave={persist} /> : <MoneySummary game={game} pot={pot} />}
 
-        {/* Foursome cards */}
+        {/* Foursome cards — a single-group game has just the one "Group" card, so
+            "Foursomes" over it reads wrong. */}
         <section>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Foursomes</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-3">{isSingleGroupHub ? 'Players' : 'Foursomes'}</h2>
           {editing ? (
             <EditFoursomes game={game} onSave={persist} />
           ) : (
             <div className="space-y-3">
-              {game.teams.length > 0 && <TeamBuildSummaryCard game={game} />}
+              {/* "How these teams were built" is about balancing N foursomes —
+                  nothing to explain when the game IS one group. */}
+              {game.teams.length > 0 && !isSingleGroupHub && <TeamBuildSummaryCard game={game} />}
               {game.teams.map((team) => (
                 <FoursomeCard
                   key={team.id}
@@ -318,17 +439,32 @@ export default function PoolHubPage() {
                 />
               ))}
               {game.teams.length === 0 && (
-                <p className="text-center text-gray-500 py-8">No foursomes configured yet.</p>
+                <p className="text-center text-gray-500 py-8">
+                  {isSingleGroupHub ? 'No players configured yet.' : 'No foursomes configured yet.'}
+                </p>
               )}
             </div>
           )}
         </section>
 
-        {/* Wolf rotation editor — only for Wolf games. */}
-        {game.gameMode === 'wolf' && <WolfRotationEditor game={game} onSave={persist} />}
+        {/* Organizer-only surfaces. A guest tapping "Close out game" would end the
+            round for every foursome, and CTP/Wolf setup is the organizer's job. */}
+        {!poolOnly && (
+          <>
+            {/* F-019: a group that has outgrown a tee slot. Craig's call — PROMPT, defaulting to
+                keep, never a silent re-split of a round already being scored. */}
+            <OversizedGroupPrompt game={game} onSave={persist} />
 
-        {/* CTP editor / finalize surface */}
-        <CtpEditor game={game} onSave={persist} />
+            {/* Wolf rotation editor — only for Wolf games. */}
+            {game.gameMode === 'wolf' && <WolfRotationEditor game={game} onSave={persist} />}
+
+            {/* CTP editor / finalize surface */}
+            <CtpEditor game={game} onSave={persist} />
+
+            {/* Close out / reopen — the explicit lifecycle control. */}
+            <GameCloseOut game={game} onSave={persist} />
+          </>
+        )}
       </main>
     </div>
   );
@@ -537,16 +673,36 @@ function SaveFormatModal({ game, onClose }: { game: PoolGame; onClose: () => voi
   );
 }
 
-function SharePanel({ gameId, gameName, onClose }: { gameId: string; gameName: string; onClose: () => void }) {
+function SharePanel({ game, onSave, onClose }: { game: PoolGame; onSave: (g: PoolGame) => void; onClose: () => void }) {
   const [copiedKey, setCopiedKey] = useState<'player' | 'organizer' | null>(null);
+  const gameId = game.id;
+  const gameName = game.name;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
+  // This game's OWN share token. Older games have none, so mint one on first open
+  // and persist it — that makes every game's link individually revocable instead of
+  // sharing one constant across every game ever created.
+  useEffect(() => {
+    const { token, created } = ensureShareToken(game);
+    if (created) onSave({ ...game, shareToken: token });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game.id]);
+
+  // NOTE: no "replace link" UI on purpose. Regenerating game.shareToken is all a
+  // revoke needs (see generateShareToken), but exposing a red button on the screen
+  // whose whole job is "send this to your group" solves a problem this app's users
+  // don't have yet — and adds exposed complexity, which the north star treats as
+  // the enemy. Add it when someone actually needs to kill a leaked link.
+
   // Player scoring link: opens THIS game's hub with 'pool' access (the token
   // skips the invite code). The other foursome opens it, taps "Enter scores"
   // for their team, and scores with NO GHIN login. This is what lets each group
   // post their own foursome's scores to the shared leaderboard.
-  const playerLink = `${origin}/pool/${gameId}?key=${ORGANIZER_TOKEN}`;
+  const playerLink = `${origin}/pool/${gameId}?key=${game.shareToken ?? ORGANIZER_TOKEN}`;
   // Organizer link: opens pool setup to create/manage games (a different job —
-  // for a co-organizer, not for players joining THIS game).
+  // for a co-organizer, not for players joining THIS game). Still the shared
+  // constant: it grants a ROLE and exists before any game does, so it can't be
+  // per-game. Goes to co-organizers you trust, not a whole group chat.
   const organizerLink = `${origin}/pool/new?key=${ORGANIZER_TOKEN}`;
   const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(playerLink)}`;
 
@@ -678,11 +834,28 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
   const junk = game.junkValues ?? DEFAULT_JUNK_VALUES;
   const matchCfg = game.matchConfig ?? DEFAULT_MATCH_CONFIG;
 
-  const ballOptions: { value: TwoBestBallsVariant; label: string }[] = [
-    { value: '1-net-1-gross', label: '1 Net + 1 Gross (different players)' },
-    { value: '2-best-net', label: '2 Best Net' },
-    { value: '2-best-gross', label: '2 Best Gross' },
-  ];
+  // ONE BALL MEANS ONE SCORE, so a game that already has PER-PLAYER scores can't become a
+  // scramble or alternate shot mid-round: those scores were entered under a format where
+  // each member plays their own ball, and a one-ball format has no honest way to read four
+  // different numbers as one team score. A pool has a single format for all 18 holes (there
+  // is no PoolGame equivalent of a tournament's splitFormat), so there's no declared
+  // exception to allow for.
+  //
+  // Without this the payout depended on the ORDER of playerIds: the same round settled +$75
+  // or -$75 after reordering four names. The engine now takes the minimum so order can never
+  // matter, but the real fix is not creating the divergence in the first place.
+  const [hasScores, setHasScores] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const ids = Array.from(new Set(game.teams.map((t) => t.matchupId)));
+    Promise.all(ids.map((mid) => fetchGameScores(mid))).then((all) => {
+      if (cancelled) return;
+      setHasScores(all.some((s) => Array.isArray(s) && s.length > 0));
+    });
+    return () => { cancelled = true; };
+  }, [game]);
+  const lockOneBall = hasScores && !isOneBall(formatOfGame(game));
+
   const junkFields: { key: keyof PoolJunkValues; label: string }[] = [
     { key: 'birdie', label: 'Birdie' },
     { key: 'eagle', label: 'Eagle' },
@@ -712,13 +885,77 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
     const modeSettings = game.modeSettings ?? defaultSettings(indMode.settings);
     const setModeSetting = (key: string, value: SettingValue) =>
       onSave({ ...game, modeSettings: { ...modeSettings, [key]: value } });
-    const sides = game.subTeams ?? defaultSubTeams(game.players.map((p) => p.id), game.players, game.course, game.handicapAllowance, game.handicapBasis);
-    const assignSide = (pid: string, side: 'a' | 'b') => {
-      const a = sides.a.filter((x) => x !== pid);
-      const b = sides.b.filter((x) => x !== pid);
-      (side === 'a' ? a : b).push(pid);
-      onSave({ ...game, subTeams: { a, b } });
+
+    // ONE BALL MEANS ONE SCORE, in the 2v2 editor too. The classic pool's format picker below
+    // has had this guard since §5.ac, but this branch returns before reaching it, so a scored
+    // 2v2 game could still be switched to scramble / alternate shot — re-creating exactly the
+    // divergent per-member scores that rule exists to prevent (F-012). Same reasoning, same
+    // wording as the pool side; the engine's min() is the backstop, this is the closed door.
+    const lockModeOption = (settingKey: string, optionValue: string): string | null => {
+      if (!isWithinGroup || settingKey !== 'format' || !hasScores) return null;
+      const current = String(modeSettings.format ?? 'best-ball');
+      const oneBall = (f: string) => f === 'scramble' || f === 'alternate-shot';
+      // Already playing a one-ball format? Staying on one is fine — the scores are shared.
+      if (oneBall(current)) return null;
+      return oneBall(optionValue) ? 'needs a fresh game' : null;
     };
+    // The same rule, said on the page. A disabled <option> can't be seen until the dropdown
+    // is opened, so without this the 2v2 editor silently refused a tap while the classic
+    // pool's picker explained itself — the two halves of one rule reading differently on
+    // screen is the drift this project's audit exists to catch. Wording matches the pool's.
+    const lockModeNote = (settingKey: string): string | null =>
+      lockModeOption(settingKey, 'scramble')
+        ? 'Scramble and alternate shot enter ONE score for the side. This game already has '
+          + 'scores entered per player, so switching now would leave two different numbers on '
+          + 'a hole that can only have one. Start a new game to play a scramble.'
+        : null;
+    // The game's sides, normalized — a legacy {a,b} game reads as two sides with the ids 'a'
+    // and 'b', so nothing about an existing 2v2 changes here.
+    const storedSides = sidesOfGame(game);
+    const sides: GameSide[] = storedSides.length > 0
+      ? storedSides
+      : fromLegacySubTeams(defaultSubTeams(game.players.map((p) => p.id), game.players, game.course, game.handicapAllowance, game.handicapBasis));
+
+    // Save a side collection back onto the game. persistedSides writes the LEGACY shape at
+    // exactly two unnamed sides, so an ordinary 2v2 never leaves the snapshot-pinned
+    // representation; three or more opts in. The `sides`/`subTeams` pair is cleared first so a
+    // game that drops from three sides to two doesn't keep a stale `sides` field that would
+    // take precedence over the {a,b} it just wrote.
+    const saveSides = (next: GameSide[]) => {
+      // Drop the legacy `side<Letter>Name` keys on write (F-014). They were absorbed into each
+      // side's own `name` when the game was read, so leaving them would mean two sources of truth
+      // — and clearing a name in the editor would silently resurrect the old one on next load.
+      const settings = { ...(game.modeSettings ?? {}) };
+      let strippedAny = false;
+      for (const key of LEGACY_SIDE_NAME_KEYS) {
+        if (key in settings) { delete settings[key]; strippedAny = true; }
+      }
+      onSave({
+        ...game,
+        subTeams: undefined,
+        sides: undefined,
+        ...persistedSides(next),
+        ...(strippedAny ? { modeSettings: settings } : {}),
+      });
+    };
+
+    const assignSide = (pid: string, sideId: string) => {
+      // Tapping the side a player is ALREADY on is a no-op — return early rather than
+      // filter-then-push, which silently moved them to the end of the array. Nothing on
+      // screen changed, but under a one-ball format the side's score was read from the
+      // first member, so that invisible reorder moved real money (F-012). The engine now
+      // takes the minimum, and this keeps the stored order stable regardless.
+      if (sideMembers(sides, sideId).includes(pid)) return;
+      saveSides(sides.map((side) => ({
+        ...side,
+        playerIds: side.id === sideId
+          ? [...side.playerIds.filter((x) => x !== pid), pid]
+          : side.playerIds.filter((x) => x !== pid),
+      })));
+    };
+    const addSide = () => saveSides([...sides, { id: nextSideId(sides), playerIds: [] }]);
+    // Removing a side UNASSIGNS its players rather than guessing a new pairing for them.
+    const removeSide = (sideId: string) => saveSides(sides.filter((s) => s.id !== sideId));
 
     // Switch this game to a different mode WITHOUT losing scores (they're gross,
     // stored per player — every mode recomputes from them). Money RESETS to the
@@ -748,8 +985,9 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
         if (!MONEY_KEYS.has(k) && modeSettings[k] !== undefined) carried[k] = modeSettings[k];
       }
       const updated: PoolGame = { ...game, gameMode: newId, modeSettings: carried };
-      // 2v2 needs sides; seed a balanced default if we don't already have them.
-      if (target.category === 'team-within-group' && !updated.subTeams) {
+      // A side game needs sides; seed a balanced default if we don't already have them (in
+      // either storage shape — sidesOfGame reads both).
+      if (target.category === 'team-within-group' && sidesOfGame(updated).length === 0) {
         updated.subTeams = defaultSubTeams(game.players.map((p) => p.id), game.players, game.course, game.handicapAllowance, game.handicapBasis);
       }
       // Wolf-family per-hole decisions don't transfer to a different game.
@@ -798,28 +1036,37 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
           <NineBasisField game={game} onSave={onSave} />
           <div className="pt-2 border-t">
             <p className="text-sm font-semibold text-gray-800 mb-2">{indMode.name} options</p>
-            <ModeSettingsEditor schema={indMode.settings} values={modeSettings} onChangeAction={setModeSetting} />
+            <ModeSettingsEditor
+              schema={indMode.settings}
+              values={modeSettings}
+              onChangeAction={setModeSetting}
+              lockOptionAction={lockModeOption}
+              lockNoteAction={lockModeNote}
+              /* No hideKeys any more: side names left the settings schema (F-014), so there is
+                 nothing here to hide. That's the point — the old arrangement needed every
+                 consumer to remember, and one of three didn't. */
+            />
           </div>
           {isWithinGroup && (
             <div className="pt-2 border-t">
               <p className="text-sm font-semibold text-gray-800 mb-2">Sides</p>
               <div className="divide-y divide-gray-100 rounded-md border border-gray-200">
                 {game.players.map((p) => {
-                  const s = sides.a.includes(p.id) ? 'a' : sides.b.includes(p.id) ? 'b' : null;
+                  const s = sideOfPlayer(sides, p.id)?.id ?? null;
                   return (
                     <div key={p.id} className="flex items-center justify-between px-3 py-2">
                       <span className="text-sm text-gray-800">{p.name}</span>
                       <div className="flex gap-1.5">
-                        {(['a', 'b'] as const).map((side) => (
+                        {sides.map((side) => (
                           <button
-                            key={side}
+                            key={side.id}
                             type="button"
-                            onClick={() => assignSide(p.id, side)}
+                            onClick={() => assignSide(p.id, side.id)}
                             className={`w-8 h-8 rounded-full text-xs font-bold transition ${
-                              s === side ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              s === side.id ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                           >
-                            {side.toUpperCase()}
+                            {side.id.toUpperCase()}
                           </button>
                         ))}
                       </div>
@@ -827,6 +1074,37 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
                   );
                 })}
               </div>
+              {/* Add / remove a side mid-round. Two sides stays the default and most games
+                  never touch this; a group splitting into three pairs at the turn can. */}
+              <div className="mt-2 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={addSide}
+                  disabled={sides.length >= game.players.length}
+                  className="text-xs font-medium text-green-700 hover:text-green-900 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  + Add a side
+                </button>
+                {sides.length > 2 && (
+                  <button
+                    type="button"
+                    onClick={() => removeSide(sides[sides.length - 1].id)}
+                    className="text-xs font-medium text-gray-500 hover:text-gray-800"
+                  >
+                    Remove side {sides[sides.length - 1].id.toUpperCase()}
+                  </button>
+                )}
+              </div>
+              {game.players.some((p) => !sideOfPlayer(sides, p.id)) && (
+                <p className="text-xs text-amber-700 mt-1">
+                  {game.players.filter((p) => !sideOfPlayer(sides, p.id)).map((p) => p.name.split(' ')[0]).join(', ')} not
+                  on a side — their scores won&apos;t count toward any side until you assign them.
+                </p>
+              )}
+              {/* Optional custom names, one field per side that exists (F-014). Same component
+                  the wizard uses, so the two can't drift — which is exactly how the old
+                  settings-bag arrangement went wrong. */}
+              <SideNames sides={sides} players={game.players} onChangeAction={saveSides} idPrefix="hub-side-name" />
             </div>
           )}
         </div>
@@ -867,10 +1145,57 @@ function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
           )}
         </div>
 
+        {/* The hole rule, as ONE picker over the full format list. This editor already let an
+            organizer change ball selection mid-round; it now covers the F-006 formats too.
+            Without this, a Stableford game edited here would show a control that silently did
+            nothing — teamFormat takes precedence over ballSelection wherever both are read. */}
         <div>
-          <label className="block text-sm font-medium text-gray-800 mb-1">Team ball selection</label>
-          <select className={inputCls} value={game.ballSelection} onChange={(e) => onSave({ ...game, ballSelection: e.target.value as TwoBestBallsVariant })}>
-            {ballOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          <label className="block text-sm font-medium text-gray-800 mb-1">Which scores count for the team?</label>
+          <select
+            className={inputCls}
+            value={formatOfGame(game)}
+            onChange={(e) => {
+              const next = e.target.value as TeamFormat;
+              // Guard the handler too, not just the <option disabled>: a disabled option can
+              // still be selected programmatically, and this one changes how money settles.
+              if (lockOneBall && isOneBall(next)) return;
+              onSave({ ...game, ...persistedTeamScoring(next, game.teamScoreBasis ?? 'stroke') });
+            }}
+          >
+            {TEAM_FORMAT_OPTIONS.map((o) => (
+              <option
+                key={o.format}
+                value={o.format}
+                disabled={lockOneBall && isOneBall(o.format)}
+              >
+                {o.label}{lockOneBall && isOneBall(o.format) ? ' — needs a fresh game' : ''}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            {TEAM_FORMAT_OPTIONS.find((o) => o.format === formatOfGame(game))?.hint}
+          </p>
+          {lockOneBall && (
+            <p className="text-xs text-amber-700 mt-1">
+              Scramble and alternate shot enter ONE score for the team. This game already has
+              scores entered per player, so switching now would leave four different numbers
+              on a hole that can only have one. Start a new game to play a scramble.
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-800 mb-1">How is the hole scored?</label>
+          <select
+            className={inputCls}
+            value={game.teamScoreBasis ?? 'stroke'}
+            onChange={(e) => onSave({
+              ...game,
+              ...persistedTeamScoring(formatOfGame(game), e.target.value as ScoreBasis),
+            })}
+          >
+            <option value="stroke">Strokes — lowest total wins</option>
+            <option value="stableford">Stableford points — most points wins</option>
           </select>
         </div>
 
@@ -1077,7 +1402,15 @@ function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
       else if (s.type === 'select') display = s.options?.find((o) => o.value === String(raw))?.label ?? String(raw);
       else display = String(raw);
       return { label: s.label, display };
-    });
+    // A READ-ONLY row with no value says nothing. This panel is what every player sees without
+    // tapping Edit, and on a plain 2v2 six of its eleven rows were empty "Side A name".."Side F
+    // name" labels (F-015) — four for sides that don't exist, two for sides that were never
+    // named. A named side still shows ("Side A · The Hogs").
+    //
+    // Done GENERICALLY rather than by hiding side-name keys here, because that trap has now been
+    // sprung on three surfaces: the editor remembered `unusedSideNameKeys`, the wizard remembered,
+    // this panel didn't. A rule about empty VALUES can't be forgotten by the next setting added.
+    }).filter((r) => r.display.trim() !== '');
     return (
       <section>
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -1641,6 +1974,27 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
     });
   }
 
+  // Snake draft on an EXISTING game. The wizard had this but the hub didn't, so an
+  // organizer who wanted to re-draft after a late arrival had no way to.
+  function autoSerpentine() {
+    const captainByTeam = Array.from({ length: numTeams }, (_, i) =>
+      useCaptains ? (captainIds[i] || undefined) : undefined);
+    const groups = serpentineTeams(
+      game.players,
+      numTeams,
+      (p) => getPoolPlayingHandicap(p, course, game.handicapAllowance, game.handicapBasis, gameNineBasis(game)),
+      captainByTeam,
+      game.lockedGroups ?? [],
+    );
+    applyReshuffle(groups, captainByTeam, {
+      method: 'serpentine',
+      excludeCaptains: false,
+      hadCaptains: captainByTeam.some(Boolean),
+      hadLocks: (game.lockedGroups ?? []).some((g) => g.length >= 2),
+      adjustedAfter: false,
+    });
+  }
+
   function autoGenerate() {
     const groups: string[][] = [];
     for (let i = 0; i < game.players.length; i += 4) {
@@ -1727,11 +2081,18 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
               onClick={autoBalance}
               className="rounded-md border border-green-700 px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50"
             >
-              {useCaptains ? 'Balance around captains' : 'Balance teams by handicap'}
+              {useCaptains ? 'Even out around captains' : 'Even out by handicap'}
+            </button>
+            <button
+              onClick={autoSerpentine}
+              className="min-h-[44px] rounded-md border border-green-700 px-3 py-2.5 text-sm text-green-700 font-medium hover:bg-green-50"
+              title="Best available player to the highest-handicap captain each round, alternating direction"
+            >
+              Snake draft
             </button>
             <button
               onClick={autoGenerate}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 font-medium hover:bg-gray-100"
+              className="min-h-[44px] rounded-md border border-gray-300 px-3 py-2.5 text-sm text-gray-700 font-medium hover:bg-gray-100"
             >
               Auto-generate foursomes
             </button>
@@ -2207,6 +2568,147 @@ function SwapPanel({ game, onSwap }: { game: PoolGame; onSwap: (a: string, b: st
   );
 }
 
+// F-019 — a PLAYING GROUP that has outgrown a tee slot.
+//
+// Five players can't walk together, so when a side game's group passes four the app has to say
+// something. Craig's call (2026-08-25) was **prompt, defaulting to keep**, and the three parts of
+// that matter:
+//
+//   - PROMPT, not a silent re-split. §5.ao: an uneven count is a question, not a default. The app
+//     proposes; the group decides.
+//   - DEFAULT TO KEEP. Dismissing changes nothing, so a round already being scored can't be
+//     reshuffled by a stray tap.
+//   - SCORES ARE UNTOUCHED EITHER WAY. Splitting moves players between groups, which moves them
+//     between matchupIds — so the scores already entered have to travel with them. That is the
+//     whole reason this doesn't reuse applyReshuffle, which CLEARS scores on a scored round
+//     (correct there: it reshuffles pot foursomes, changing who competes with whom; here the
+//     money grouping is the SIDES and is not touched at all).
+//
+// Not shown for a classic pool: its foursomes are its money teams, and its own re-balance flow
+// already owns that question.
+function OversizedGroupPrompt({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
+  const [dismissed, setDismissed] = useState(false);
+  const [choosing, setChoosing] = useState(false);
+
+  const mode = getGameMode(game.gameMode);
+  const isSideGame = mode?.category === 'team-within-group';
+  const oversized = game.teams.filter((t) => t.playerIds.length > 4);
+  if (!isSideGame || oversized.length === 0 || dismissed) return null;
+
+  // The shapes the whole field could take. Offered from the field size rather than per-group,
+  // because splitting one group of five into 3 + 2 changes the tee sheet as a whole.
+  const shapes = groupShapesFor(game.players.length, TEE_GROUP_SHAPE_OPTS);
+
+  // Re-deal the field into `shape`, CARRYING SCORES. Each new group reuses an existing slot's
+  // matchupId where it can, and every score row is rewritten under the matchup its player ends up
+  // in — so a hole entered before the split is still there after it.
+  function applyShape(shape: number[]) {
+    const ids = sortPlayerIdsByHcap(
+      game.players.map((p) => p.id), game.players, game.course, game.handicapAllowance, game.handicapBasis,
+    );
+    const buckets = dealBalancedIntoShape(ids, shape);
+
+    // Every score currently in play, keyed by player, so it can be re-filed by destination.
+    const scoresByPlayer = new Map<string, GameScore[]>();
+    for (const t of game.teams) {
+      const rows = loadGameScores(t.matchupId);
+      if (!Array.isArray(rows)) continue;
+      for (const row of rows) {
+        const list = scoresByPlayer.get(row.playerId) ?? [];
+        list.push(row);
+        scoresByPlayer.set(row.playerId, list);
+      }
+    }
+
+    const teams: PoolTeam[] = buckets.map((playerIds, i) => ({
+      id: game.teams[i]?.id ?? crypto.randomUUID(),
+      name: `Group ${i + 1}`,
+      playerIds,
+      // Reuse the slot's matchupId so an unchanged group's scores stay exactly where they are.
+      matchupId: game.teams[i]?.matchupId ?? crypto.randomUUID(),
+      teeTime: game.teams[i]?.teeTime ?? '',
+    }));
+
+    // Rewrite each matchup's rows from the new membership. A player who moved takes their holes
+    // with them; a player who didn't is written back unchanged.
+    for (const t of teams) {
+      const rows = t.playerIds.flatMap((pid) => scoresByPlayer.get(pid) ?? []);
+      saveGameScores(t.matchupId, rows);
+    }
+    // Empty any slot that's no longer in use. This is DEFENSIVE, not load-bearing: every reader
+    // keys off `game.teams`, so an abandoned matchup's rows are already unreachable and a mutation
+    // test that deleted this loop passed. Kept anyway, because "unreachable" is a property of
+    // today's call sites rather than of the data — a future reader that enumerates score rows
+    // instead of teams would silently double-count a player. Cheap insurance against a bug class
+    // that has already cost this project real money twice (§5.ac).
+    for (const old of game.teams) {
+      if (!teams.some((t) => t.matchupId === old.matchupId)) saveGameScores(old.matchupId, []);
+    }
+
+    onSave({ ...game, teams });
+    setChoosing(false);
+  }
+
+  const big = oversized[0];
+  return (
+    <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+      <p className="text-sm font-semibold text-amber-900">
+        {big.playerIds.length} players in {big.name}
+      </p>
+      <p className="mt-0.5 text-xs text-amber-800">
+        More than four can&apos;t play as one group. Split them into separate tee times, or keep them
+        together if that&apos;s really the plan — <span className="font-medium">scores already entered
+        are kept either way</span>, and your sides don&apos;t change.
+      </p>
+
+      {!choosing ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {/* Keep-as-is FIRST and styled as the plain action: dismissing must be the easy path. */}
+          <button
+            onClick={() => setDismissed(true)}
+            className="min-h-[44px] rounded-md border border-amber-400 bg-white px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100"
+          >
+            Keep one group
+          </button>
+          <button
+            onClick={() => setChoosing(true)}
+            className="min-h-[44px] rounded-md bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800"
+          >
+            Split into groups
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3">
+          <p className="text-xs font-medium text-amber-900 mb-2">How do they split?</p>
+          <div className="flex flex-wrap gap-2">
+            {shapes.map((shape) => (
+              <button
+                key={shape.join('-')}
+                onClick={() => applyShape(shape)}
+                className="min-h-[44px] rounded-md border border-amber-400 bg-white px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100"
+              >
+                {groupShapeLabel(shape)}
+                <span className="ml-1.5 text-xs text-amber-700">
+                  {shape.length} tee time{shape.length === 1 ? '' : 's'}
+                </span>
+              </button>
+            ))}
+            {shapes.length === 0 && (
+              <p className="text-xs text-amber-800">No split fits this many players.</p>
+            )}
+          </div>
+          <button
+            onClick={() => setChoosing(false)}
+            className="mt-2 text-xs text-amber-800 underline hover:text-amber-900"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Wolf rotation editor. Sets the order the Wolf rotates through the group
 // (hole N → order[(N-1) % 4]). Stored on game.wolfOrder; absent = field-entry
 // order (the game.players sequence). Three paths: randomize, reorder by hand,
@@ -2337,6 +2839,176 @@ function WolfRotationEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
         ))}
       </div>
       <p className="text-[11px] text-gray-400 mt-2">Wraps after hole {orderIds.length} · you can still override any single hole while scoring.</p>
+    </section>
+  );
+}
+
+// Close out / reopen a game — the explicit lifecycle control.
+//
+// status:'completed' is what the stats & money ledger selects on, and until now
+// nothing ever set it, so no game ever reached Stats & money. Finish Game now
+// auto-completes when the LAST foursome finishes, but that only fires if someone
+// taps it on the final card — the organizer needs a way to close the game out
+// regardless (and to reopen it if a score needs fixing).
+function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
+  const [fullyScored, setFullyScored] = useState<boolean | null>(null);
+  // Legs not every side finished (F-016b). Empty unless this game settles per leg.
+  const [shortLegs, setShortLegs] = useState<IncompleteLeg[]>([]);
+  // The confirmation step. null = not asking; otherwise the leg keys the organizer has marked
+  // as paying nothing. Starts with EVERY short leg voided, because that's the answer a group
+  // reaching for this is most likely to want — but each one is individually togglable.
+  const [asking, setAsking] = useState<('front' | 'back' | 'overall')[] | null>(null);
+
+  // Fetch every foursome's scores to report whether the game is fully scored, and to ask the
+  // engine which legs are short. The engine is the only thing that knows how a leg is scored,
+  // so the prompt reads its answer rather than recomputing hole counts here (§5.aa: one source
+  // of truth for anything the money depends on).
+  useEffect(() => {
+    let cancelled = false;
+    const ids = Array.from(new Set(game.teams.map((t) => t.matchupId)));
+    Promise.all(ids.map(async (mid) => [mid, await fetchGameScores(mid)] as const)).then((pairs) => {
+      if (cancelled) return;
+      const byMatchup = new Map<string, GameScore[]>();
+      for (const [mid, s] of pairs) if (s && Array.isArray(s)) byMatchup.set(mid, s as GameScore[]);
+      setFullyScored(isPoolGameFullyScored(game, byMatchup));
+
+      const mode = getGameMode(game.gameMode);
+      if (mode?.category !== 'team-within-group') { setShortLegs([]); return; }
+      const result = mode.compute(buildGameModeContext(game, byMatchup));
+      const s = game.modeSettings ?? {};
+      setShortLegs(incompleteLegsForCloseOut(
+        result.teamLegs ?? [],
+        String(s.moneyModel ?? 'legs'),
+        {
+          front: Number(s.legFront ?? 10),
+          back: Number(s.legBack ?? 10),
+          overall: Number(s.legOverall ?? 10),
+        },
+      ));
+    });
+    return () => { cancelled = true; };
+  }, [game]);
+
+  const isDone = game.status === 'completed';
+
+  function closeOut(voidedLegs?: ('front' | 'back' | 'overall')[]) {
+    // Only WRITE the field when something is voided, so an ordinary game's saved shape is
+    // untouched — same principle as persistedSides keeping the legacy two-side shape.
+    const next: PoolGame = { ...game, status: 'completed' };
+    if (voidedLegs && voidedLegs.length > 0) next.voidedLegs = voidedLegs;
+    else delete next.voidedLegs;
+    onSave(next);
+    setAsking(null);
+  }
+
+  function onCloseOutTapped() {
+    // Nothing short, or nothing at stake → close out immediately, exactly as before.
+    if (shortLegs.length === 0) { closeOut(); return; }
+    setAsking(shortLegs.map((l) => l.key));
+  }
+
+  return (
+    <section className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="px-4 py-3 bg-gray-100 border-b">
+        <h2 className="font-semibold text-gray-900">{isDone ? 'Game closed out' : 'Close out game'}</h2>
+        <p className="text-xs text-gray-500">
+          {isDone
+            ? 'Final — this game now counts in Stats & money. Reopen it if a score needs fixing.'
+            : 'Marks the game final and includes it in Stats & money. Scores stay editable if you reopen it.'}
+        </p>
+        {/* Say it on the page. Without this, a closed-out game whose back nine paid nothing looks
+            like a money bug to anyone who wasn't there when the choice was made. */}
+        {isDone && (game.voidedLegs?.length ?? 0) > 0 && (
+          <p className="text-xs text-amber-700 mt-1">
+            {game.voidedLegs!.length === 1 ? 'One leg pays' : `${game.voidedLegs!.length} legs pay`} nothing —
+            not every side finished {game.voidedLegs!.length === 1 ? 'it' : 'them'}.
+          </p>
+        )}
+      </div>
+
+      {/* THE PROMPT (F-016b, DECISIONS.md §5.ai). Craig: "if someone clicks finish game, and all
+          legs are not complete, it should prompt the user." Asked here, at close-out, rather than
+          pre-declared in settings — the person tapping this knows whose knee gave out, and a
+          default nobody chose is worse than a question asked once.
+
+          PER LEG, so a completed front still pays while a short back nine can be written off. */}
+      {asking !== null && !isDone && (
+        <div className="p-4 border-b bg-amber-50">
+          <p className="text-sm font-semibold text-amber-900">
+            {shortLegs.length === 1
+              ? 'One leg wasn’t finished by every side.'
+              : 'Some legs weren’t finished by every side.'}
+          </p>
+          <p className="text-xs text-amber-800 mt-1">
+            Untick a leg to pay it on the holes everyone played. Leave it ticked and it pays nothing.
+          </p>
+          <div className="mt-3 space-y-2">
+            {shortLegs.map((leg) => {
+              const off = asking.includes(leg.key);
+              return (
+                <label key={leg.key} className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={off}
+                    onChange={(e) => setAsking(
+                      e.target.checked
+                        ? [...asking, leg.key]
+                        : asking.filter((k) => k !== leg.key),
+                    )}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-gray-900">
+                      {leg.label} — ${Math.round(leg.dollars)} pays nothing
+                    </span>
+                    <span className="block text-xs text-gray-600">
+                      {leg.thru} of {leg.holes} holes played by every side
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          <div className="mt-4 flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => closeOut(asking)}
+              className="text-sm font-semibold rounded-md px-4 py-2 bg-green-700 text-white hover:bg-green-800"
+            >
+              Close out game
+            </button>
+            <button
+              onClick={() => setAsking(null)}
+              className="text-sm font-medium rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden while the prompt is open, so there is only ever ONE "Close out game" button on
+          screen. Two would leave the second one looking like a way to skip the question. */}
+      {asking === null && (
+        <div className="p-4 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-xs text-gray-600">
+            {fullyScored === null
+              ? 'Checking scores…'
+              : fullyScored
+                ? 'Every player is scored on every hole.'
+                : 'Some holes are still missing scores — you can close out anyway.'}
+          </p>
+          <button
+            onClick={() => (isDone ? onSave({ ...game, status: 'active' }) : onCloseOutTapped())}
+            className={`text-sm font-semibold rounded-md px-4 py-2 ${
+              isDone
+                ? 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                : 'bg-green-700 text-white hover:bg-green-800'
+            }`}
+          >
+            {isDone ? 'Reopen game' : 'Close out game'}
+          </button>
+        </div>
+      )}
     </section>
   );
 }

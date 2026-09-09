@@ -20,7 +20,10 @@ import { SOLO_ROUNDS } from '@/lib/flags';
 // "start something" chooser that opens the existing wizards. Nothing here
 // writes to Supabase. Reachable only by a `full` user (a `pool` share-link
 // visitor is redirected off non-/pool routes by InviteGate). Flag-gated via
-// HOME_V2; see .claude/plans/adaptive-squishing-locket.md.
+// This is the DEFAULT landing page for a logged-in `full` user as of 2026-08-12
+// (HOME_V2 = true). It is no longer the read-only Phase 1 it was written as: the group
+// page it links to is a dashboard, and Stats & money enforces the group-scoped money rule
+// (DECISIONS.md §5h). A "Classic dashboard" link stays for anyone who prefers /dashboard.
 
 // One row in the merged "Your golf" list. Pool games and tournaments have very
 // different shapes, so we normalize each to a common card here.

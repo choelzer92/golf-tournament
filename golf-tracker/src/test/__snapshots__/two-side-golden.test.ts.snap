@@ -1,0 +1,4829 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > a nine collapses to one leg, on both handicap bases 1`] = `
+{
+  "basis": "18",
+  "shape": {
+    "junkLines": undefined,
+    "metricLabel": "match pts",
+    "moneyModel": "per-point",
+    "sideNames": {
+      "a": "Player1 & Player2",
+      "b": "Player3 & Player4",
+    },
+    "standings": [
+      {
+        "id": "B",
+        "money": 20,
+        "name": "Player3 & Player4",
+        "perHole": [
+          1,
+          0,
+          0,
+          1,
+          1,
+          0,
+        ],
+        "place": 1,
+        "points": 5,
+        "thru": 9,
+      },
+      {
+        "id": "A",
+        "money": -20,
+        "name": "Player1 & Player2",
+        "perHole": [
+          0,
+          1,
+          1,
+          0,
+          0,
+          1,
+        ],
+        "place": 2,
+        "points": 4,
+        "thru": 9,
+      },
+    ],
+    "teamLegs": [
+      {
+        "key": "back",
+        "label": "Back 9",
+        "status": "Player3 & Player4 1 up",
+        "thru": 9,
+        "winner": "b",
+      },
+    ],
+    "thruHole": 18,
+  },
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > a nine collapses to one leg, on both handicap bases 2`] = `
+{
+  "basis": "9",
+  "shape": {
+    "junkLines": undefined,
+    "metricLabel": "match pts",
+    "moneyModel": "per-point",
+    "sideNames": {
+      "a": "Player1 & Player2",
+      "b": "Player3 & Player4",
+    },
+    "standings": [
+      {
+        "id": "B",
+        "money": 20,
+        "name": "Player3 & Player4",
+        "perHole": [
+          1,
+          0,
+          0,
+          1,
+          1,
+          0,
+        ],
+        "place": 1,
+        "points": 5,
+        "thru": 9,
+      },
+      {
+        "id": "A",
+        "money": -20,
+        "name": "Player1 & Player2",
+        "perHole": [
+          0,
+          1,
+          1,
+          0,
+          0,
+          1,
+        ],
+        "place": 2,
+        "points": 4,
+        "thru": 9,
+      },
+    ],
+    "teamLegs": [
+      {
+        "key": "back",
+        "label": "Back 9",
+        "status": "Player3 & Player4 1 up",
+        "thru": 9,
+        "winner": "b",
+      },
+    ],
+    "thruHole": 18,
+  },
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > alternate-shot / stableford / match / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 40,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0.5,
+        1,
+        0.5,
+        0.5,
+        0,
+        0.5,
+      ],
+      "place": 1,
+      "points": 11,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "name": "Player3 & Player4",
+      "perHole": [
+        0.5,
+        0,
+        0.5,
+        0.5,
+        1,
+        0.5,
+      ],
+      "place": 2,
+      "points": 7,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 1 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 3 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 4 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > alternate-shot / stableford / match / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 8,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0.5,
+        1,
+        0.5,
+        0.5,
+        0,
+        0.5,
+      ],
+      "place": 1,
+      "points": 11,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -8,
+      "name": "Player3 & Player4",
+      "perHole": [
+        0.5,
+        0,
+        0.5,
+        0.5,
+        1,
+        0.5,
+      ],
+      "place": 2,
+      "points": 7,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 1 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 3 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 4 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > alternate-shot / stableford / match / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 4,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0.5,
+        1,
+        0.5,
+        0.5,
+        0,
+        0.5,
+      ],
+      "place": 1,
+      "points": 11,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -4,
+      "name": "Player3 & Player4",
+      "perHole": [
+        0.5,
+        0,
+        0.5,
+        0.5,
+        1,
+        0.5,
+      ],
+      "place": 2,
+      "points": 7,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 1 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 3 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 4 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > alternate-shot / stableford / total / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 30,
+      "name": "Player1 & Player2",
+      "perHole": [
+        3,
+        3,
+        3,
+        2,
+        1,
+        2,
+      ],
+      "place": 1,
+      "points": 36,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -30,
+      "name": "Player3 & Player4",
+      "perHole": [
+        3,
+        2,
+        3,
+        2,
+        3,
+        2,
+      ],
+      "place": 2,
+      "points": 33,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Tied",
+      "thru": 9,
+      "winner": null,
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 3",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > alternate-shot / stableford / total / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 8,
+      "name": "Player1 & Player2",
+      "perHole": [
+        3,
+        3,
+        3,
+        2,
+        1,
+        2,
+      ],
+      "place": 1,
+      "points": 36,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -8,
+      "name": "Player3 & Player4",
+      "perHole": [
+        3,
+        2,
+        3,
+        2,
+        3,
+        2,
+      ],
+      "place": 2,
+      "points": 33,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Tied",
+      "thru": 9,
+      "winner": null,
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 3",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > alternate-shot / stableford / total / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 3,
+      "name": "Player1 & Player2",
+      "perHole": [
+        3,
+        3,
+        3,
+        2,
+        1,
+        2,
+      ],
+      "place": 1,
+      "points": 36,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -3,
+      "name": "Player3 & Player4",
+      "perHole": [
+        3,
+        2,
+        3,
+        2,
+        3,
+        2,
+      ],
+      "place": 2,
+      "points": 33,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Tied",
+      "thru": 9,
+      "winner": null,
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 3",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > alternate-shot / stroke / match / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 40,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0.5,
+        1,
+        0.5,
+        0.5,
+        0,
+        0.5,
+      ],
+      "place": 1,
+      "points": 11,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "name": "Player3 & Player4",
+      "perHole": [
+        0.5,
+        0,
+        0.5,
+        0.5,
+        1,
+        0.5,
+      ],
+      "place": 2,
+      "points": 7,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 1 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 3 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 4 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > alternate-shot / stroke / match / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 8,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0.5,
+        1,
+        0.5,
+        0.5,
+        0,
+        0.5,
+      ],
+      "place": 1,
+      "points": 11,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -8,
+      "name": "Player3 & Player4",
+      "perHole": [
+        0.5,
+        0,
+        0.5,
+        0.5,
+        1,
+        0.5,
+      ],
+      "place": 2,
+      "points": 7,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 1 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 3 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 4 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > alternate-shot / stroke / match / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 4,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0.5,
+        1,
+        0.5,
+        0.5,
+        0,
+        0.5,
+      ],
+      "place": 1,
+      "points": 11,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -4,
+      "name": "Player3 & Player4",
+      "perHole": [
+        0.5,
+        0,
+        0.5,
+        0.5,
+        1,
+        0.5,
+      ],
+      "place": 2,
+      "points": 7,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 1 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 3 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 4 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > alternate-shot / stroke / total / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 30,
+      "name": "Player1 & Player2",
+      "perHole": [
+        3,
+        4,
+        2,
+        4,
+        5,
+        4,
+      ],
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -30,
+      "name": "Player3 & Player4",
+      "perHole": [
+        3,
+        5,
+        2,
+        4,
+        3,
+        4,
+      ],
+      "place": 2,
+      "points": 75,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Tied",
+      "thru": 9,
+      "winner": null,
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 3",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > alternate-shot / stroke / total / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 8,
+      "name": "Player1 & Player2",
+      "perHole": [
+        3,
+        4,
+        2,
+        4,
+        5,
+        4,
+      ],
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -8,
+      "name": "Player3 & Player4",
+      "perHole": [
+        3,
+        5,
+        2,
+        4,
+        3,
+        4,
+      ],
+      "place": 2,
+      "points": 75,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Tied",
+      "thru": 9,
+      "winner": null,
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 3",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > alternate-shot / stroke / total / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 3,
+      "name": "Player1 & Player2",
+      "perHole": [
+        3,
+        4,
+        2,
+        4,
+        5,
+        4,
+      ],
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -3,
+      "name": "Player3 & Player4",
+      "perHole": [
+        3,
+        5,
+        2,
+        4,
+        3,
+        4,
+      ],
+      "place": 2,
+      "points": 75,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Tied",
+      "thru": 9,
+      "winner": null,
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 3",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > an unscored side sits OUT rather than leading on a total of zero 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 0,
+      "name": "Player1 & Player2",
+      "perHole": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
+      "place": 1,
+      "points": 20,
+      "thru": 5,
+    },
+    {
+      "id": "B",
+      "money": 0,
+      "name": "Player3 & Player4",
+      "perHole": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
+      "place": 0,
+      "points": 0,
+      "thru": 0,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "–",
+      "thru": 0,
+      "winner": null,
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "–",
+      "thru": 0,
+      "winner": null,
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "–",
+      "thru": 0,
+      "winner": null,
+    },
+  ],
+  "thruHole": 5,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > best-ball / stableford / match / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 40,
+      "name": "Player3 & Player4",
+      "perHole": [
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+      ],
+      "place": 1,
+      "points": 10,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -40,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+      ],
+      "place": 2,
+      "points": 8,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 1 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 1 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 2 up",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > best-ball / stableford / match / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 4,
+      "name": "Player3 & Player4",
+      "perHole": [
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+      ],
+      "place": 1,
+      "points": 10,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -4,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+      ],
+      "place": 2,
+      "points": 8,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 1 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 1 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 2 up",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > best-ball / stableford / match / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 2,
+      "name": "Player3 & Player4",
+      "perHole": [
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+      ],
+      "place": 1,
+      "points": 10,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -2,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+      ],
+      "place": 2,
+      "points": 8,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 1 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 1 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 2 up",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > best-ball / stableford / total / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 40,
+      "name": "Player3 & Player4",
+      "perHole": [
+        4,
+        3,
+        2,
+        1,
+        3,
+        3,
+      ],
+      "place": 1,
+      "points": 35,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -40,
+      "name": "Player1 & Player2",
+      "perHole": [
+        2,
+        1,
+        3,
+        3,
+        1,
+        0,
+      ],
+      "place": 2,
+      "points": 27,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 by 5",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 by 3",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 by 8",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > best-ball / stableford / total / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 4,
+      "name": "Player3 & Player4",
+      "perHole": [
+        4,
+        3,
+        2,
+        1,
+        3,
+        3,
+      ],
+      "place": 1,
+      "points": 35,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -4,
+      "name": "Player1 & Player2",
+      "perHole": [
+        2,
+        1,
+        3,
+        3,
+        1,
+        0,
+      ],
+      "place": 2,
+      "points": 27,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 by 5",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 by 3",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 by 8",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > best-ball / stableford / total / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 8,
+      "name": "Player3 & Player4",
+      "perHole": [
+        4,
+        3,
+        2,
+        1,
+        3,
+        3,
+      ],
+      "place": 1,
+      "points": 35,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -8,
+      "name": "Player1 & Player2",
+      "perHole": [
+        2,
+        1,
+        3,
+        3,
+        1,
+        0,
+      ],
+      "place": 2,
+      "points": 27,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 by 5",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 by 3",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 by 8",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > best-ball / stroke / match / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 40,
+      "name": "Player3 & Player4",
+      "perHole": [
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+      ],
+      "place": 1,
+      "points": 10,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -40,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+      ],
+      "place": 2,
+      "points": 8,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 1 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 1 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 2 up",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > best-ball / stroke / match / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 4,
+      "name": "Player3 & Player4",
+      "perHole": [
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+      ],
+      "place": 1,
+      "points": 10,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -4,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+      ],
+      "place": 2,
+      "points": 8,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 1 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 1 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 2 up",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > best-ball / stroke / match / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 2,
+      "name": "Player3 & Player4",
+      "perHole": [
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+      ],
+      "place": 1,
+      "points": 10,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -2,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+      ],
+      "place": 2,
+      "points": 8,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 1 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 1 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 2 up",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > best-ball / stroke / total / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 40,
+      "name": "Player3 & Player4",
+      "perHole": [
+        2,
+        4,
+        3,
+        5,
+        3,
+        3,
+      ],
+      "place": 1,
+      "points": 73,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -40,
+      "name": "Player1 & Player2",
+      "perHole": [
+        4,
+        6,
+        2,
+        3,
+        5,
+        6,
+      ],
+      "place": 2,
+      "points": 81,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 by 5",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 by 3",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 by 8",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > best-ball / stroke / total / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 4,
+      "name": "Player3 & Player4",
+      "perHole": [
+        2,
+        4,
+        3,
+        5,
+        3,
+        3,
+      ],
+      "place": 1,
+      "points": 73,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -4,
+      "name": "Player1 & Player2",
+      "perHole": [
+        4,
+        6,
+        2,
+        3,
+        5,
+        6,
+      ],
+      "place": 2,
+      "points": 81,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 by 5",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 by 3",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 by 8",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > best-ball / stroke / total / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 8,
+      "name": "Player3 & Player4",
+      "perHole": [
+        2,
+        4,
+        3,
+        5,
+        3,
+        3,
+      ],
+      "place": 1,
+      "points": 73,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -8,
+      "name": "Player1 & Player2",
+      "perHole": [
+        4,
+        6,
+        2,
+        3,
+        5,
+        6,
+      ],
+      "place": 2,
+      "points": 81,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 by 5",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 by 3",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 by 8",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > combined / stableford / match / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 40,
+      "name": "Player3 & Player4",
+      "perHole": [
+        1,
+        1,
+        0.5,
+        0,
+        1,
+        1,
+      ],
+      "place": 1,
+      "points": 11.5,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -40,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0,
+        0,
+        0.5,
+        1,
+        0,
+        0,
+      ],
+      "place": 2,
+      "points": 6.5,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 3 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 2 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 5 up",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > combined / stableford / match / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 10,
+      "name": "Player3 & Player4",
+      "perHole": [
+        1,
+        1,
+        0.5,
+        0,
+        1,
+        1,
+      ],
+      "place": 1,
+      "points": 11.5,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -10,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0,
+        0,
+        0.5,
+        1,
+        0,
+        0,
+      ],
+      "place": 2,
+      "points": 6.5,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 3 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 2 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 5 up",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > combined / stableford / match / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 5,
+      "name": "Player3 & Player4",
+      "perHole": [
+        1,
+        1,
+        0.5,
+        0,
+        1,
+        1,
+      ],
+      "place": 1,
+      "points": 11.5,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -5,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0,
+        0,
+        0.5,
+        1,
+        0,
+        0,
+      ],
+      "place": 2,
+      "points": 6.5,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 3 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 2 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 5 up",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > combined / stableford / total / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 40,
+      "name": "Player3 & Player4",
+      "perHole": [
+        4,
+        5,
+        3,
+        1,
+        3,
+        5,
+      ],
+      "place": 1,
+      "points": 49,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -40,
+      "name": "Player1 & Player2",
+      "perHole": [
+        3,
+        1,
+        3,
+        5,
+        2,
+        0,
+      ],
+      "place": 2,
+      "points": 36,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 by 4",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 by 9",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 by 13",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > combined / stableford / total / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 10,
+      "name": "Player3 & Player4",
+      "perHole": [
+        4,
+        5,
+        3,
+        1,
+        3,
+        5,
+      ],
+      "place": 1,
+      "points": 49,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -10,
+      "name": "Player1 & Player2",
+      "perHole": [
+        3,
+        1,
+        3,
+        5,
+        2,
+        0,
+      ],
+      "place": 2,
+      "points": 36,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 by 4",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 by 9",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 by 13",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > combined / stableford / total / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 13,
+      "name": "Player3 & Player4",
+      "perHole": [
+        4,
+        5,
+        3,
+        1,
+        3,
+        5,
+      ],
+      "place": 1,
+      "points": 49,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -13,
+      "name": "Player1 & Player2",
+      "perHole": [
+        3,
+        1,
+        3,
+        5,
+        2,
+        0,
+      ],
+      "place": 2,
+      "points": 36,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 by 4",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 by 9",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 by 13",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > combined / stroke / match / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 40,
+      "name": "Player3 & Player4",
+      "perHole": [
+        1,
+        1,
+        0.5,
+        0,
+        1,
+        1,
+      ],
+      "place": 1,
+      "points": 12.5,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -40,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0,
+        0,
+        0.5,
+        1,
+        0,
+        0,
+      ],
+      "place": 2,
+      "points": 5.5,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 3 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 4 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 7 up",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > combined / stroke / match / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 14,
+      "name": "Player3 & Player4",
+      "perHole": [
+        1,
+        1,
+        0.5,
+        0,
+        1,
+        1,
+      ],
+      "place": 1,
+      "points": 12.5,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -14,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0,
+        0,
+        0.5,
+        1,
+        0,
+        0,
+      ],
+      "place": 2,
+      "points": 5.5,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 3 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 4 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 7 up",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > combined / stroke / match / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 7,
+      "name": "Player3 & Player4",
+      "perHole": [
+        1,
+        1,
+        0.5,
+        0,
+        1,
+        1,
+      ],
+      "place": 1,
+      "points": 12.5,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -7,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0,
+        0,
+        0.5,
+        1,
+        0,
+        0,
+      ],
+      "place": 2,
+      "points": 5.5,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 3 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 4 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 7 up",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > combined / stroke / total / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 40,
+      "name": "Player3 & Player4",
+      "perHole": [
+        8,
+        9,
+        7,
+        11,
+        9,
+        7,
+      ],
+      "place": 1,
+      "points": 170,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -40,
+      "name": "Player1 & Player2",
+      "perHole": [
+        9,
+        13,
+        7,
+        7,
+        10,
+        12,
+      ],
+      "place": 2,
+      "points": 185,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 by 4",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 by 11",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 by 15",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > combined / stroke / total / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 14,
+      "name": "Player3 & Player4",
+      "perHole": [
+        8,
+        9,
+        7,
+        11,
+        9,
+        7,
+      ],
+      "place": 1,
+      "points": 170,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -14,
+      "name": "Player1 & Player2",
+      "perHole": [
+        9,
+        13,
+        7,
+        7,
+        10,
+        12,
+      ],
+      "place": 2,
+      "points": 185,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 by 4",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 by 11",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 by 15",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > combined / stroke / total / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": 15,
+      "name": "Player3 & Player4",
+      "perHole": [
+        8,
+        9,
+        7,
+        11,
+        9,
+        7,
+      ],
+      "place": 1,
+      "points": 170,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": -15,
+      "name": "Player1 & Player2",
+      "perHole": [
+        9,
+        13,
+        7,
+        7,
+        10,
+        12,
+      ],
+      "place": 2,
+      "points": 185,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player3 & Player4 by 4",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 by 11",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 by 15",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > junk settles between the two sides, at the current dollars 1`] = `
+{
+  "junkLines": [
+    {
+      "albatrosses": 0,
+      "birdies": 2,
+      "dollars": 9,
+      "eagles": 1,
+      "id": "p1",
+    },
+    {
+      "albatrosses": 0,
+      "birdies": 0,
+      "dollars": 0,
+      "eagles": 0,
+      "id": "p2",
+    },
+    {
+      "albatrosses": 0,
+      "birdies": 1,
+      "dollars": 2,
+      "eagles": 0,
+      "id": "p3",
+    },
+    {
+      "albatrosses": 0,
+      "birdies": 0,
+      "dollars": 0,
+      "eagles": 0,
+      "id": "p4",
+    },
+  ],
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "B",
+      "money": -7,
+      "name": "Player3 & Player4",
+      "perHole": [
+        0.5,
+        0.5,
+        0.5,
+        0,
+        0.5,
+        0.5,
+      ],
+      "place": 1,
+      "points": 11.5,
+      "thru": 18,
+    },
+    {
+      "id": "A",
+      "money": 7,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0.5,
+        0.5,
+        0.5,
+        1,
+        0.5,
+        0.5,
+      ],
+      "place": 2,
+      "points": 6.5,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 2 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player3 & Player4 7 up",
+      "thru": 9,
+      "winner": "b",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player3 & Player4 5 up",
+      "thru": 18,
+      "winner": "b",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > scramble / stableford / match / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 40,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0.5,
+        1,
+        0.5,
+        0.5,
+        0,
+        1,
+      ],
+      "place": 1,
+      "points": 11.5,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "name": "Player3 & Player4",
+      "perHole": [
+        0.5,
+        0,
+        0.5,
+        0.5,
+        1,
+        0,
+      ],
+      "place": 2,
+      "points": 6.5,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 2 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 3 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 5 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > scramble / stableford / match / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 10,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0.5,
+        1,
+        0.5,
+        0.5,
+        0,
+        1,
+      ],
+      "place": 1,
+      "points": 11.5,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -10,
+      "name": "Player3 & Player4",
+      "perHole": [
+        0.5,
+        0,
+        0.5,
+        0.5,
+        1,
+        0,
+      ],
+      "place": 2,
+      "points": 6.5,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 2 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 3 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 5 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > scramble / stableford / match / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 5,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0.5,
+        1,
+        0.5,
+        0.5,
+        0,
+        1,
+      ],
+      "place": 1,
+      "points": 11.5,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -5,
+      "name": "Player3 & Player4",
+      "perHole": [
+        0.5,
+        0,
+        0.5,
+        0.5,
+        1,
+        0,
+      ],
+      "place": 2,
+      "points": 6.5,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 2 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 3 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 5 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > scramble / stableford / total / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 40,
+      "name": "Player1 & Player2",
+      "perHole": [
+        3,
+        3,
+        3,
+        2,
+        1,
+        2,
+      ],
+      "place": 1,
+      "points": 36,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "name": "Player3 & Player4",
+      "perHole": [
+        3,
+        2,
+        3,
+        2,
+        3,
+        1,
+      ],
+      "place": 2,
+      "points": 32,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 1",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 4",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > scramble / stableford / total / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 10,
+      "name": "Player1 & Player2",
+      "perHole": [
+        3,
+        3,
+        3,
+        2,
+        1,
+        2,
+      ],
+      "place": 1,
+      "points": 36,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -10,
+      "name": "Player3 & Player4",
+      "perHole": [
+        3,
+        2,
+        3,
+        2,
+        3,
+        1,
+      ],
+      "place": 2,
+      "points": 32,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 1",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 4",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > scramble / stableford / total / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 4,
+      "name": "Player1 & Player2",
+      "perHole": [
+        3,
+        3,
+        3,
+        2,
+        1,
+        2,
+      ],
+      "place": 1,
+      "points": 36,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -4,
+      "name": "Player3 & Player4",
+      "perHole": [
+        3,
+        2,
+        3,
+        2,
+        3,
+        1,
+      ],
+      "place": 2,
+      "points": 32,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 1",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 4",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > scramble / stroke / match / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 40,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0.5,
+        1,
+        0.5,
+        0.5,
+        0,
+        1,
+      ],
+      "place": 1,
+      "points": 11.5,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "name": "Player3 & Player4",
+      "perHole": [
+        0.5,
+        0,
+        0.5,
+        0.5,
+        1,
+        0,
+      ],
+      "place": 2,
+      "points": 6.5,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 2 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 3 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 5 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > scramble / stroke / match / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 10,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0.5,
+        1,
+        0.5,
+        0.5,
+        0,
+        1,
+      ],
+      "place": 1,
+      "points": 11.5,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -10,
+      "name": "Player3 & Player4",
+      "perHole": [
+        0.5,
+        0,
+        0.5,
+        0.5,
+        1,
+        0,
+      ],
+      "place": 2,
+      "points": 6.5,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 2 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 3 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 5 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > scramble / stroke / match / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 5,
+      "name": "Player1 & Player2",
+      "perHole": [
+        0.5,
+        1,
+        0.5,
+        0.5,
+        0,
+        1,
+      ],
+      "place": 1,
+      "points": 11.5,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -5,
+      "name": "Player3 & Player4",
+      "perHole": [
+        0.5,
+        0,
+        0.5,
+        0.5,
+        1,
+        0,
+      ],
+      "place": 2,
+      "points": 6.5,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 2 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 3 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 5 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > scramble / stroke / total / legs 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 40,
+      "name": "Player1 & Player2",
+      "perHole": [
+        3,
+        4,
+        2,
+        4,
+        5,
+        4,
+      ],
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -40,
+      "name": "Player3 & Player4",
+      "perHole": [
+        3,
+        5,
+        2,
+        4,
+        3,
+        5,
+      ],
+      "place": 2,
+      "points": 76,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 1",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 4",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > scramble / stroke / total / per-hole 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 10,
+      "name": "Player1 & Player2",
+      "perHole": [
+        3,
+        4,
+        2,
+        4,
+        5,
+        4,
+      ],
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -10,
+      "name": "Player3 & Player4",
+      "perHole": [
+        3,
+        5,
+        2,
+        4,
+        3,
+        5,
+      ],
+      "place": 2,
+      "points": 76,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 1",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 4",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: 2v2 across every format x scoring x result x money model > scramble / stroke / total / per-point 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "net",
+  "moneyModel": "per-point",
+  "sideNames": {
+    "a": "Player1 & Player2",
+    "b": "Player3 & Player4",
+  },
+  "standings": [
+    {
+      "id": "A",
+      "money": 4,
+      "name": "Player1 & Player2",
+      "perHole": [
+        3,
+        4,
+        2,
+        4,
+        5,
+        4,
+      ],
+      "place": 1,
+      "points": 72,
+      "thru": 18,
+    },
+    {
+      "id": "B",
+      "money": -4,
+      "name": "Player3 & Player4",
+      "perHole": [
+        3,
+        5,
+        2,
+        4,
+        3,
+        5,
+      ],
+      "place": 2,
+      "points": 76,
+      "thru": 18,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player2 by 1",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player2 by 3",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player2 by 4",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: Wolf (a 2-side consumer of the same idea) > a pushed hole pays nobody, and the rotation default is stable 1`] = `
+{
+  "shape": {
+    "junkLines": undefined,
+    "metricLabel": "pts",
+    "moneyModel": "per-point",
+    "sideNames": undefined,
+    "standings": [
+      {
+        "id": "p3",
+        "money": 1,
+        "name": "Player3 Last3",
+        "perHole": [
+          2,
+          2,
+          null,
+          2,
+          2,
+          2,
+        ],
+        "place": 1,
+        "points": 28,
+        "thru": 18,
+      },
+      {
+        "id": "p4",
+        "money": 1,
+        "name": "Player4 Last4",
+        "perHole": [
+          2,
+          2,
+          2,
+          null,
+          2,
+          2,
+        ],
+        "place": 1,
+        "points": 28,
+        "thru": 18,
+      },
+      {
+        "id": "p1",
+        "money": -1,
+        "name": "Player1 Last1",
+        "perHole": [
+          null,
+          2,
+          2,
+          2,
+          null,
+          2,
+        ],
+        "place": 3,
+        "points": 26,
+        "thru": 18,
+      },
+      {
+        "id": "p2",
+        "money": -1,
+        "name": "Player2 Last2",
+        "perHole": [
+          2,
+          null,
+          2,
+          2,
+          2,
+          null,
+        ],
+        "place": 3,
+        "points": 26,
+        "thru": 18,
+      },
+    ],
+    "teamLegs": undefined,
+    "thruHole": 18,
+  },
+  "wolfHoles": [
+    {
+      "fieldNet": 4,
+      "fieldSideNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 1,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player1 Last1",
+      "wolfNet": 5,
+      "wolfSideNames": [
+        "Player1 Last1",
+      ],
+    },
+    {
+      "fieldNet": 5,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 2,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player2 Last2",
+      "wolfNet": 8,
+      "wolfSideNames": [
+        "Player2 Last2",
+      ],
+    },
+    {
+      "fieldNet": 3,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+        "Player4 Last4",
+      ],
+      "holeNumber": 3,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player3 Last3",
+      "wolfNet": 4,
+      "wolfSideNames": [
+        "Player3 Last3",
+      ],
+    },
+    {
+      "fieldNet": 4,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+        "Player3 Last3",
+      ],
+      "holeNumber": 4,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+        "Player3 Last3",
+      ],
+      "wolfName": "Player4 Last4",
+      "wolfNet": 7,
+      "wolfSideNames": [
+        "Player4 Last4",
+      ],
+    },
+    {
+      "fieldNet": 4,
+      "fieldSideNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 5,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player1 Last1",
+      "wolfNet": 5,
+      "wolfSideNames": [
+        "Player1 Last1",
+      ],
+    },
+    {
+      "fieldNet": 4,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 6,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player2 Last2",
+      "wolfNet": 7,
+      "wolfSideNames": [
+        "Player2 Last2",
+      ],
+    },
+  ],
+}
+`;
+
+exports[`GOLDEN: Wolf (a 2-side consumer of the same idea) > every call type: gross / nassau 1`] = `
+{
+  "nassauLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "pot": 20,
+      "thru": 8,
+      "winnerNames": [
+        "Player4 Last4",
+      ],
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "pot": 20,
+      "thru": 7,
+      "winnerNames": [
+        "Player4 Last4",
+        "Player1 Last1",
+        "Player3 Last3",
+      ],
+    },
+    {
+      "key": "total",
+      "label": "Total",
+      "pot": 40,
+      "thru": 15,
+      "winnerNames": [
+        "Player4 Last4",
+      ],
+    },
+  ],
+  "shape": {
+    "junkLines": undefined,
+    "metricLabel": "pts",
+    "moneyModel": "pot",
+    "sideNames": undefined,
+    "standings": [
+      {
+        "id": "p4",
+        "money": 46.666666666666664,
+        "name": "Player4 Last4",
+        "perHole": [
+          1,
+          2,
+          3,
+          1,
+          2,
+          2,
+        ],
+        "place": 1,
+        "points": 29,
+        "thru": 18,
+      },
+      {
+        "id": "p1",
+        "money": -13.333333333333332,
+        "name": "Player1 Last1",
+        "perHole": [
+          null,
+          2,
+          3,
+          1,
+          null,
+          2,
+        ],
+        "place": 2,
+        "points": 26,
+        "thru": 18,
+      },
+      {
+        "id": "p3",
+        "money": -13.333333333333332,
+        "name": "Player3 Last3",
+        "perHole": [
+          1,
+          2,
+          null,
+          null,
+          2,
+          2,
+        ],
+        "place": 3,
+        "points": 25,
+        "thru": 18,
+      },
+      {
+        "id": "p2",
+        "money": -20,
+        "name": "Player2 Last2",
+        "perHole": [
+          null,
+          null,
+          3,
+          null,
+          2,
+          null,
+        ],
+        "place": 4,
+        "points": 23,
+        "thru": 18,
+      },
+    ],
+    "teamLegs": undefined,
+    "thruHole": 18,
+  },
+  "wolfHoles": [
+    {
+      "fieldNet": 4,
+      "fieldSideNames": [
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 1,
+      "mode": "partner",
+      "multiplier": 1,
+      "outcome": "field",
+      "partnerName": "Player2 Last2",
+      "pointsEach": 1,
+      "winnerNames": [
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player1 Last1",
+      "wolfNet": 5,
+      "wolfSideNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+      ],
+    },
+    {
+      "fieldNet": 5,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 2,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player2 Last2",
+      "wolfNet": 8,
+      "wolfSideNames": [
+        "Player2 Last2",
+      ],
+    },
+    {
+      "fieldNet": 3,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+        "Player4 Last4",
+      ],
+      "holeNumber": 3,
+      "mode": "blind",
+      "multiplier": 3,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 3,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player3 Last3",
+      "wolfNet": 4,
+      "wolfSideNames": [
+        "Player3 Last3",
+      ],
+    },
+    {
+      "fieldNet": 5,
+      "fieldSideNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+      ],
+      "holeNumber": 4,
+      "mode": "partner",
+      "multiplier": 1,
+      "outcome": "wolf",
+      "partnerName": "Player1 Last1",
+      "pointsEach": 1,
+      "winnerNames": [
+        "Player4 Last4",
+        "Player1 Last1",
+      ],
+      "wolfName": "Player4 Last4",
+      "wolfNet": 4,
+      "wolfSideNames": [
+        "Player4 Last4",
+        "Player1 Last1",
+      ],
+    },
+    {
+      "fieldNet": 4,
+      "fieldSideNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 5,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player1 Last1",
+      "wolfNet": 5,
+      "wolfSideNames": [
+        "Player1 Last1",
+      ],
+    },
+    {
+      "fieldNet": 4,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 6,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player2 Last2",
+      "wolfNet": 7,
+      "wolfSideNames": [
+        "Player2 Last2",
+      ],
+    },
+  ],
+}
+`;
+
+exports[`GOLDEN: Wolf (a 2-side consumer of the same idea) > every call type: gross / per-point 1`] = `
+{
+  "nassauLegs": undefined,
+  "shape": {
+    "junkLines": undefined,
+    "metricLabel": "pts",
+    "moneyModel": "per-point",
+    "sideNames": undefined,
+    "standings": [
+      {
+        "id": "p4",
+        "money": 3.25,
+        "name": "Player4 Last4",
+        "perHole": [
+          1,
+          2,
+          3,
+          1,
+          2,
+          2,
+        ],
+        "place": 1,
+        "points": 29,
+        "thru": 18,
+      },
+      {
+        "id": "p1",
+        "money": 0.25,
+        "name": "Player1 Last1",
+        "perHole": [
+          null,
+          2,
+          3,
+          1,
+          null,
+          2,
+        ],
+        "place": 2,
+        "points": 26,
+        "thru": 18,
+      },
+      {
+        "id": "p3",
+        "money": -0.75,
+        "name": "Player3 Last3",
+        "perHole": [
+          1,
+          2,
+          null,
+          null,
+          2,
+          2,
+        ],
+        "place": 3,
+        "points": 25,
+        "thru": 18,
+      },
+      {
+        "id": "p2",
+        "money": -2.75,
+        "name": "Player2 Last2",
+        "perHole": [
+          null,
+          null,
+          3,
+          null,
+          2,
+          null,
+        ],
+        "place": 4,
+        "points": 23,
+        "thru": 18,
+      },
+    ],
+    "teamLegs": undefined,
+    "thruHole": 18,
+  },
+  "wolfHoles": [
+    {
+      "fieldNet": 4,
+      "fieldSideNames": [
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 1,
+      "mode": "partner",
+      "multiplier": 1,
+      "outcome": "field",
+      "partnerName": "Player2 Last2",
+      "pointsEach": 1,
+      "winnerNames": [
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player1 Last1",
+      "wolfNet": 5,
+      "wolfSideNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+      ],
+    },
+    {
+      "fieldNet": 5,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 2,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player2 Last2",
+      "wolfNet": 8,
+      "wolfSideNames": [
+        "Player2 Last2",
+      ],
+    },
+    {
+      "fieldNet": 3,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+        "Player4 Last4",
+      ],
+      "holeNumber": 3,
+      "mode": "blind",
+      "multiplier": 3,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 3,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player3 Last3",
+      "wolfNet": 4,
+      "wolfSideNames": [
+        "Player3 Last3",
+      ],
+    },
+    {
+      "fieldNet": 5,
+      "fieldSideNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+      ],
+      "holeNumber": 4,
+      "mode": "partner",
+      "multiplier": 1,
+      "outcome": "wolf",
+      "partnerName": "Player1 Last1",
+      "pointsEach": 1,
+      "winnerNames": [
+        "Player4 Last4",
+        "Player1 Last1",
+      ],
+      "wolfName": "Player4 Last4",
+      "wolfNet": 4,
+      "wolfSideNames": [
+        "Player4 Last4",
+        "Player1 Last1",
+      ],
+    },
+    {
+      "fieldNet": 4,
+      "fieldSideNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 5,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player1 Last1",
+      "wolfNet": 5,
+      "wolfSideNames": [
+        "Player1 Last1",
+      ],
+    },
+    {
+      "fieldNet": 4,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 6,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player2 Last2",
+      "wolfNet": 7,
+      "wolfSideNames": [
+        "Player2 Last2",
+      ],
+    },
+  ],
+}
+`;
+
+exports[`GOLDEN: Wolf (a 2-side consumer of the same idea) > every call type: net / nassau 1`] = `
+{
+  "nassauLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "pot": 20,
+      "thru": 8,
+      "winnerNames": [
+        "Player4 Last4",
+      ],
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "pot": 20,
+      "thru": 7,
+      "winnerNames": [
+        "Player4 Last4",
+        "Player1 Last1",
+        "Player3 Last3",
+      ],
+    },
+    {
+      "key": "total",
+      "label": "Total",
+      "pot": 40,
+      "thru": 15,
+      "winnerNames": [
+        "Player4 Last4",
+      ],
+    },
+  ],
+  "shape": {
+    "junkLines": undefined,
+    "metricLabel": "pts",
+    "moneyModel": "pot",
+    "sideNames": undefined,
+    "standings": [
+      {
+        "id": "p4",
+        "money": 46.666666666666664,
+        "name": "Player4 Last4",
+        "perHole": [
+          1,
+          2,
+          3,
+          1,
+          2,
+          2,
+        ],
+        "place": 1,
+        "points": 29,
+        "thru": 18,
+      },
+      {
+        "id": "p1",
+        "money": -13.333333333333332,
+        "name": "Player1 Last1",
+        "perHole": [
+          null,
+          2,
+          3,
+          1,
+          null,
+          2,
+        ],
+        "place": 2,
+        "points": 26,
+        "thru": 18,
+      },
+      {
+        "id": "p3",
+        "money": -13.333333333333332,
+        "name": "Player3 Last3",
+        "perHole": [
+          1,
+          2,
+          null,
+          null,
+          2,
+          2,
+        ],
+        "place": 3,
+        "points": 25,
+        "thru": 18,
+      },
+      {
+        "id": "p2",
+        "money": -20,
+        "name": "Player2 Last2",
+        "perHole": [
+          null,
+          null,
+          3,
+          null,
+          2,
+          null,
+        ],
+        "place": 4,
+        "points": 23,
+        "thru": 18,
+      },
+    ],
+    "teamLegs": undefined,
+    "thruHole": 18,
+  },
+  "wolfHoles": [
+    {
+      "fieldNet": 2,
+      "fieldSideNames": [
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 1,
+      "mode": "partner",
+      "multiplier": 1,
+      "outcome": "field",
+      "partnerName": "Player2 Last2",
+      "pointsEach": 1,
+      "winnerNames": [
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player1 Last1",
+      "wolfNet": 4,
+      "wolfSideNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+      ],
+    },
+    {
+      "fieldNet": 4,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 2,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player2 Last2",
+      "wolfNet": 7,
+      "wolfSideNames": [
+        "Player2 Last2",
+      ],
+    },
+    {
+      "fieldNet": 2,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+        "Player4 Last4",
+      ],
+      "holeNumber": 3,
+      "mode": "blind",
+      "multiplier": 3,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 3,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player3 Last3",
+      "wolfNet": 3,
+      "wolfSideNames": [
+        "Player3 Last3",
+      ],
+    },
+    {
+      "fieldNet": 4,
+      "fieldSideNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+      ],
+      "holeNumber": 4,
+      "mode": "partner",
+      "multiplier": 1,
+      "outcome": "wolf",
+      "partnerName": "Player1 Last1",
+      "pointsEach": 1,
+      "winnerNames": [
+        "Player4 Last4",
+        "Player1 Last1",
+      ],
+      "wolfName": "Player4 Last4",
+      "wolfNet": 3,
+      "wolfSideNames": [
+        "Player4 Last4",
+        "Player1 Last1",
+      ],
+    },
+    {
+      "fieldNet": 3,
+      "fieldSideNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 5,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player1 Last1",
+      "wolfNet": 5,
+      "wolfSideNames": [
+        "Player1 Last1",
+      ],
+    },
+    {
+      "fieldNet": 3,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 6,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player2 Last2",
+      "wolfNet": 6,
+      "wolfSideNames": [
+        "Player2 Last2",
+      ],
+    },
+  ],
+}
+`;
+
+exports[`GOLDEN: Wolf (a 2-side consumer of the same idea) > every call type: net / per-point 1`] = `
+{
+  "nassauLegs": undefined,
+  "shape": {
+    "junkLines": undefined,
+    "metricLabel": "pts",
+    "moneyModel": "per-point",
+    "sideNames": undefined,
+    "standings": [
+      {
+        "id": "p4",
+        "money": 3.25,
+        "name": "Player4 Last4",
+        "perHole": [
+          1,
+          2,
+          3,
+          1,
+          2,
+          2,
+        ],
+        "place": 1,
+        "points": 29,
+        "thru": 18,
+      },
+      {
+        "id": "p1",
+        "money": 0.25,
+        "name": "Player1 Last1",
+        "perHole": [
+          null,
+          2,
+          3,
+          1,
+          null,
+          2,
+        ],
+        "place": 2,
+        "points": 26,
+        "thru": 18,
+      },
+      {
+        "id": "p3",
+        "money": -0.75,
+        "name": "Player3 Last3",
+        "perHole": [
+          1,
+          2,
+          null,
+          null,
+          2,
+          2,
+        ],
+        "place": 3,
+        "points": 25,
+        "thru": 18,
+      },
+      {
+        "id": "p2",
+        "money": -2.75,
+        "name": "Player2 Last2",
+        "perHole": [
+          null,
+          null,
+          3,
+          null,
+          2,
+          null,
+        ],
+        "place": 4,
+        "points": 23,
+        "thru": 18,
+      },
+    ],
+    "teamLegs": undefined,
+    "thruHole": 18,
+  },
+  "wolfHoles": [
+    {
+      "fieldNet": 2,
+      "fieldSideNames": [
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 1,
+      "mode": "partner",
+      "multiplier": 1,
+      "outcome": "field",
+      "partnerName": "Player2 Last2",
+      "pointsEach": 1,
+      "winnerNames": [
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player1 Last1",
+      "wolfNet": 4,
+      "wolfSideNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+      ],
+    },
+    {
+      "fieldNet": 4,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 2,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player2 Last2",
+      "wolfNet": 7,
+      "wolfSideNames": [
+        "Player2 Last2",
+      ],
+    },
+    {
+      "fieldNet": 2,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+        "Player4 Last4",
+      ],
+      "holeNumber": 3,
+      "mode": "blind",
+      "multiplier": 3,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 3,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player2 Last2",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player3 Last3",
+      "wolfNet": 3,
+      "wolfSideNames": [
+        "Player3 Last3",
+      ],
+    },
+    {
+      "fieldNet": 4,
+      "fieldSideNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+      ],
+      "holeNumber": 4,
+      "mode": "partner",
+      "multiplier": 1,
+      "outcome": "wolf",
+      "partnerName": "Player1 Last1",
+      "pointsEach": 1,
+      "winnerNames": [
+        "Player4 Last4",
+        "Player1 Last1",
+      ],
+      "wolfName": "Player4 Last4",
+      "wolfNet": 3,
+      "wolfSideNames": [
+        "Player4 Last4",
+        "Player1 Last1",
+      ],
+    },
+    {
+      "fieldNet": 3,
+      "fieldSideNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 5,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player2 Last2",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player1 Last1",
+      "wolfNet": 5,
+      "wolfSideNames": [
+        "Player1 Last1",
+      ],
+    },
+    {
+      "fieldNet": 3,
+      "fieldSideNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "holeNumber": 6,
+      "mode": "lone",
+      "multiplier": 2,
+      "outcome": "field",
+      "partnerName": null,
+      "pointsEach": 2,
+      "winnerNames": [
+        "Player1 Last1",
+        "Player3 Last3",
+        "Player4 Last4",
+      ],
+      "wolfName": "Player2 Last2",
+      "wolfNet": 6,
+      "wolfSideNames": [
+        "Player2 Last2",
+      ],
+    },
+  ],
+}
+`;

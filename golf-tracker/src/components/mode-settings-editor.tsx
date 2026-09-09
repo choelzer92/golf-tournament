@@ -11,16 +11,32 @@ import { settingValue } from '@/lib/game-modes';
 // appear" work for ANY registered game with zero bespoke UI. Used by both the
 // creation wizard and the hub's live settings editor.
 export function ModeSettingsEditor({
-  schema, values, onChangeAction,
+  schema, values, onChangeAction, lockOptionAction, lockNoteAction, hideKeys,
 }: {
   schema: FormatSetting[];
   values: SettingsBag;
   onChangeAction: (key: string, value: SettingValue) => void;
+  // Optional: mark individual SELECT options as unavailable. Returns a short reason to
+  // append to the label, or null when the option is fine. Kept as a predicate so this
+  // renderer stays purely schema-driven — the rule about WHICH options are locked belongs
+  // to the caller (the hub uses it to stop a scored game becoming a one-ball format, F-012).
+  lockOptionAction?: (settingKey: string, optionValue: string) => string | null;
+  // Optional: an explanation shown UNDER the field whenever that setting has locked options.
+  // A disabled <option> is invisible until the dropdown is opened, so the reason has to be on
+  // the page itself — the classic pool's own picker already does this, and without it the two
+  // halves of the same rule read differently on screen.
+  lockNoteAction?: (settingKey: string) => string | null;
+  // Optional: settings to omit entirely. `showIf` in the schema can only test other SETTINGS,
+  // so it can't express "hide the Side D name unless the game has four sides" — that depends on
+  // the game's data, not its settings bag. The caller supplies the keys; this stays generic.
+  hideKeys?: string[];
 }) {
   // Honor each setting's optional showIf predicate: hide a field unless the
   // referenced setting(s) match (single condition, or an array = AND). Keeps the
   // editor uncluttered (e.g. "$ per point" only when moneyModel = per-point).
+  const hidden = new Set(hideKeys ?? []);
   const visible = schema.filter((s) => {
+    if (hidden.has(s.key)) return false;
     if (!s.showIf) return true;
     const conds = Array.isArray(s.showIf) ? s.showIf : [s.showIf];
     return conds.every((c) => c.in.includes(String(settingValue(schema, values, c.key))));
@@ -28,7 +44,14 @@ export function ModeSettingsEditor({
   return (
     <div className="space-y-3">
       {visible.map((s) => (
-        <SettingField key={s.key} setting={s} value={settingValue(schema, values, s.key)} onChange={(v) => onChangeAction(s.key, v)} />
+        <SettingField
+          key={s.key}
+          setting={s}
+          value={settingValue(schema, values, s.key)}
+          onChange={(v) => onChangeAction(s.key, v)}
+          lockOption={lockOptionAction ? (ov: string) => lockOptionAction(s.key, ov) : undefined}
+          lockNote={lockNoteAction?.(s.key) ?? null}
+        />
       ))}
     </div>
   );
@@ -36,7 +59,13 @@ export function ModeSettingsEditor({
 
 const inputCls = 'w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500';
 
-function SettingField({ setting, value, onChange }: { setting: FormatSetting; value: SettingValue; onChange: (v: SettingValue) => void }) {
+function SettingField({ setting, value, onChange, lockOption, lockNote }: {
+  setting: FormatSetting;
+  value: SettingValue;
+  onChange: (v: SettingValue) => void;
+  lockOption?: (optionValue: string) => string | null;
+  lockNote?: string | null;
+}) {
   if (setting.type === 'toggle') {
     return (
       <label className="flex items-start gap-2 cursor-pointer">
@@ -55,13 +84,33 @@ function SettingField({ setting, value, onChange }: { setting: FormatSetting; va
   }
 
   if (setting.type === 'select') {
+    const selectId = `mode-setting-${setting.key}`;
     return (
       <div>
-        <label className="block text-sm font-medium text-gray-800 mb-1">{setting.label}</label>
-        <select className={inputCls} value={String(value)} onChange={(e) => onChange(e.target.value)}>
-          {(setting.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        <label htmlFor={selectId} className="block text-sm font-medium text-gray-800 mb-1">{setting.label}</label>
+        <select
+          id={selectId}
+          className={inputCls}
+          value={String(value)}
+          onChange={(e) => {
+            // Guard the HANDLER too, not just the <option disabled> — a disabled option can
+            // still be set programmatically, which is how the pool picker's equivalent guard
+            // was bypassed the first time (F-006 follow-up).
+            if (lockOption?.(e.target.value)) return;
+            onChange(e.target.value);
+          }}
+        >
+          {(setting.options ?? []).map((o) => {
+            const locked = lockOption?.(o.value) ?? null;
+            return (
+              <option key={o.value} value={o.value} disabled={!!locked}>
+                {o.label}{locked ? ` — ${locked}` : ''}
+              </option>
+            );
+          })}
         </select>
         {setting.hint && <p className="text-xs text-gray-500 mt-1">{setting.hint}</p>}
+        {lockNote && <p className="text-xs text-amber-700 mt-1">{lockNote}</p>}
       </div>
     );
   }
@@ -85,10 +134,16 @@ function TextishField({ setting, value, onChange }: { setting: FormatSetting; va
     }
     setDraft(null);
   };
+  // The label is ASSOCIATED with its input (htmlFor/id). It wasn't before — the text sat next to
+  // the field with nothing linking them, so tapping the label didn't focus the input and a
+  // screen reader announced an unlabelled box. Found because a Playwright getByLabel() couldn't
+  // find "Side A name", which is the same lookup assistive tech does.
+  const fieldId = `mode-setting-${setting.key}`;
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-800 mb-1">{setting.label}</label>
+      <label htmlFor={fieldId} className="block text-sm font-medium text-gray-800 mb-1">{setting.label}</label>
       <input
+        id={fieldId}
         type={isNumber ? 'number' : 'text'}
         inputMode={isNumber ? 'decimal' : undefined}
         className={inputCls}

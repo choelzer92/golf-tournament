@@ -24,13 +24,23 @@ import {
   getPoolPlayingHandicap,
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
+  getRecentCourses,
+  hydratePoolGames,
+  COMMON_BONUSES,
+  type CustomBonus,
   balanceTeamsWithCaptains,
+  serpentineTeams,
   balanceTeamsWithLocks,
   pickCaptains,
   sortPlayerIdsByHcap,
   orderPlayerIdsWithCaptain,
   teeOptionsForPlayer,
   defaultSubTeams,
+  groupShapesFor,
+  groupShapeLabel,
+  dealBalancedIntoShape,
+  TEE_GROUP_SHAPE_OPTS,
+  SIDE_SHAPE_OPTS,
 } from '@/lib/pool-game';
 import {
   type RosterPlayer,
@@ -52,15 +62,34 @@ import {
   getGroupById,
   upsertGroup,
 } from '@/lib/roster-groups';
+import { getPlayerGroups } from '@/lib/pool-formats';
+import {
+  formatOfGame,
+  persistedTeamScoring,
+  teamModeForFormat,
+  TEAM_FORMAT_OPTIONS,
+  type ScoreBasis,
+  type TeamFormat,
+} from '@/lib/game-modes/team-scoring';
+import {
+  fromLegacySubTeams, nextSideId, persistedSides, sideMembers, sideOfPlayer, sidesOfGame,
+  unusedSideNameKeys, type GameSide,
+} from '@/lib/game-modes/sides';
+import { TEAM_MODES } from '@/lib/formats';
 import { POOL_GROUP_SEED_KEY } from '@/lib/group-seed';
-import { GAME_MODES, getGameMode, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
+import { GAME_MODES, getGameMode, defaultSettings, playerRangeSentence, fitBadge, fitExplanation, modeFits, formatSummaryLine, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
+import { SideNames } from '@/components/side-names';
+import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 
 const WIZARD_KEY = 'pool_wizard_draft';
 // Set by the Format Library's "Start a game" to preconfigure the wizard once.
 const FORMAT_SEED_KEY = 'pool_format_seed';
 
-type Step = 'details' | 'course' | 'field' | 'tees' | 'teams' | 'create';
+// 'groups' is the PLAYING-GROUP step, shown only for a side game whose field is too big to walk
+// together (F-019). 'teams' then holds the SIDES for a side game and the foursomes for a pool —
+// the two axes are separate steps because they're separate questions (§5.an).
+type Step = 'details' | 'course' | 'field' | 'tees' | 'groups' | 'teams' | 'create';
 
 function getToken() {
   return sessionStorage.getItem('ghin_token');
@@ -109,8 +138,9 @@ export default function NewPoolGamePage() {
   // ('nines'|'skins'|'quota'|...) = an INDIVIDUAL game scored within one group.
   const [gameMode, setGameMode] = useState<string | undefined>(undefined);
   const [modeSettings, setModeSettings] = useState<SettingsBag>({});
-  // 2v2 within-group games only: the two sides' player-id lists.
-  const [subTeams, setSubTeams] = useState<{ a: string[]; b: string[] } | undefined>(undefined);
+  // Within-group side games only: the sides' player-id lists. N sides (F-006); persisted as
+  // the legacy {a,b} shape whenever there are exactly two, via persistedSides().
+  const [sides, setSides] = useState<GameSide[] | undefined>(undefined);
   const [entryPerPlayer, setEntryPerPlayer] = useState('25');
   const [handicapAllowance, setHandicapAllowance] = useState('100');
   const [strokeMethod, setStrokeMethod] = useState<'full' | 'off-the-low'>('off-the-low');
@@ -122,7 +152,19 @@ export default function NewPoolGamePage() {
   const [potEdited, setPotEdited] = useState(false);
   const [positionSplitText, setPositionSplitText] = useState('100');
   const [junkValues, setJunkValues] = useState<PoolJunkValues>({ ...DEFAULT_JUNK_VALUES });
-  const [ballSelection, setBallSelection] = useState<TwoBestBallsVariant>('1-net-1-gross');
+  // Manual bonuses this game plays (sandies, barkies, …) — the ones the app can't read off
+  // a scorecard, so a scorer taps them per hole. Empty = the game plays none, which is
+  // every game today. Seeded from a group's saved set when one is chosen.
+  const [customBonuses, setCustomBonuses] = useState<CustomBonus[]>([]);
+  // How a foursome's hole score is made (F-006). ONE picker, always defined — the legacy
+  // three-option `ballSelection` dropdown was a subset of this list, and keeping both would
+  // ask the same question twice. `ballSelection` is DERIVED at save time by
+  // persistedTeamScoring, which stores an ordinary stroke game the legacy way (no
+  // teamFormat) so it computes down the snapshot-pinned path and settles exactly as every
+  // game before it.
+  const [teamFormat, setTeamFormat] = useState<TeamFormat>('net-and-gross');
+  const [teamScoreBasis, setTeamScoreBasis] = useState<ScoreBasis>('stroke');
+  const ballSelection = persistedTeamScoring(teamFormat, teamScoreBasis).ballSelection;
   // Money mode: 'pot' = classic buy-in pool (JY); 'match' = 2-foursome head-to-head.
   const [moneyMode, setMoneyMode] = useState<PoolMoneyMode>('pot');
   // Match-mode config (per-player $/leg + junk $/point). Stored as strings for the
@@ -152,6 +194,11 @@ export default function NewPoolGamePage() {
   // library). Tells the FieldStep group-seed loader to bring in members WITHOUT
   // re-applying the group's own default settings (which would clobber the format).
   const [formatSeedApplied, setFormatSeedApplied] = useState(false);
+  // F-021: the NAME of the saved format this game started from, or undefined when configured from
+  // scratch. Drives step 1's summary-instead-of-form. `formatDirty` flips the first time any of the
+  // format's own values is edited, which is what turns the title into "rename to fork" (§5.ax).
+  const [appliedFormat, setAppliedFormat] = useState<string | undefined>(undefined);
+  const [formatDirty, setFormatDirty] = useState(false);
 
   // Teams
   const [teams, setTeams] = useState<PoolTeam[]>([]);
@@ -178,6 +225,15 @@ export default function NewPoolGamePage() {
   const isSingleGroup = modeCategory === 'individual' || modeCategory === 'team-within-group';
   const isWithinGroup = modeCategory === 'team-within-group';
 
+  // F-019: a side game's PLAYING GROUPS are chosen separately from its sides, because a partner
+  // may be in the other foursome. More than four players cannot walk together, so they need real
+  // tee groups — and then the wizard asks for them (the 'groups' step) before asking for sides.
+  //
+  // At four or fewer this is false and nothing changes: the ordinary 2v2 keeps its exact flow and
+  // gains no taps, which is the point (an option that appears when it can't matter is the
+  // "exposed complexity" the north star argues against). §5.ao: the app proposes, you adjust.
+  const needsPlayingGroups = isWithinGroup && players.length > 4;
+
   // Hydrate wizard draft on mount
   useEffect(() => {
     try {
@@ -194,7 +250,14 @@ export default function NewPoolGamePage() {
         if (data.potDollars) { setPotDollars(data.potDollars); setPotEdited(!!data.potEdited); }
         if (typeof data.positionSplitText === 'string') setPositionSplitText(data.positionSplitText);
         if (data.junkValues) setJunkValues(data.junkValues);
-        if (data.ballSelection) setBallSelection(data.ballSelection);
+        // A draft may predate the format picker and carry only `ballSelection`; read either
+        // shape back into the one picker.
+        if (data.teamFormat || data.ballSelection) {
+          setTeamFormat(formatOfGame({ teamFormat: data.teamFormat, ballSelection: data.ballSelection }));
+        }
+        if (data.teamScoreBasis === 'stroke' || data.teamScoreBasis === 'stableford') {
+          setTeamScoreBasis(data.teamScoreBasis);
+        }
         if (data.moneyMode === 'pot' || data.moneyMode === 'match') setMoneyMode(data.moneyMode);
         if (data.matchLegs) setMatchLegs(data.matchLegs);
         if (typeof data.matchJunkPerPoint === 'string') setMatchJunkPerPoint(data.matchJunkPerPoint);
@@ -217,7 +280,7 @@ export default function NewPoolGamePage() {
       if (seedRaw) {
         sessionStorage.removeItem(FORMAT_SEED_KEY);
         const seed = JSON.parse(seedRaw) as { name?: string; defaults?: GroupDefaults };
-        if (seed.name && seed.name.trim()) setName(seed.name);
+        if (seed.name && seed.name.trim()) { setName(seed.name); setAppliedFormat(seed.name.trim()); }
         if (seed.defaults) applyGroupDefaults(seed.defaults);
         setFormatSeedApplied(true);
       }
@@ -230,11 +293,11 @@ export default function NewPoolGamePage() {
     if (!hydrated) return;
     sessionStorage.setItem(WIZARD_KEY, JSON.stringify({
       name, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
-      junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step,
+      junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step, sides,
       holesPlaying, nineHandicapBasis,
     }));
   }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
-      junkValues, ballSelection, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step,
+      junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step, sides,
       holesPlaying, nineHandicapBasis]);
 
   // The current format settings, packaged as a group's defaults (for "save field
@@ -249,12 +312,14 @@ export default function NewPoolGamePage() {
       handicapAllowance: parseFloat(handicapAllowance) || 100,
       strokeMethod,
       handicapBasis,
-      ballSelection,
+      // Save the format the same way a game stores it: an ordinary stroke game keeps only
+      // `ballSelection`, so a saved group stays readable by any older client.
+      ...persistedTeamScoring(teamFormat, teamScoreBasis),
       useCaptains,
       // Game mode + its settings (so a saved group/format restores the game type).
       gameMode,
       modeSettings: gameMode ? modeSettings : undefined,
-      subTeams,
+      sides,
     };
   }
 
@@ -275,15 +340,31 @@ export default function NewPoolGamePage() {
       setMatchJunkPerPoint(String(d.matchConfig.junkPerPoint));
     }
     if (typeof d.handicapAllowance === 'number') setHandicapAllowance(String(d.handicapAllowance));
+    if (d.customBonuses) setCustomBonuses(d.customBonuses);
     if (d.strokeMethod === 'full' || d.strokeMethod === 'off-the-low') setStrokeMethod(d.strokeMethod);
     if (d.handicapBasis === 'course' || d.handicapBasis === 'index') setHandicapBasis(d.handicapBasis);
-    if (d.ballSelection) setBallSelection(d.ballSelection);
+    // A group saved before the format picker carries only `ballSelection`; either shape
+    // reads back into the one picker.
+    if (d.teamFormat || d.ballSelection) {
+      setTeamFormat(formatOfGame({ teamFormat: d.teamFormat, ballSelection: d.ballSelection }));
+    }
+    if (d.teamScoreBasis === 'stroke' || d.teamScoreBasis === 'stableford') setTeamScoreBasis(d.teamScoreBasis);
     if (typeof d.useCaptains === 'boolean') setUseCaptains(d.useCaptains);
     // Game mode + settings (restore a saved individual/2v2/decision game). Only
     // set gameMode when present so a plain player-group (no mode) stays classic.
     if (typeof d.gameMode === 'string') setGameMode(d.gameMode);
     if (d.modeSettings && typeof d.modeSettings === 'object') setModeSettings(d.modeSettings);
-    if (d.subTeams && Array.isArray(d.subTeams.a) && Array.isArray(d.subTeams.b)) setSubTeams(d.subTeams);
+    // Restore either shape: a draft saved before N sides holds subTeams, a newer one holds
+    // sides. Both normalize to the same thing — and `sidesOfGame` also absorbs a saved FORMAT's
+    // legacy side<Letter>Name settings (F-014), so a format saved before names moved off the
+    // settings bag still brings its names in.
+    if ((Array.isArray(d.sides) && d.sides.length > 0) || d.subTeams) {
+      setSides(sidesOfGame({
+        sides: d.sides as GameSide[] | undefined,
+        subTeams: d.subTeams,
+        modeSettings: d.modeSettings,
+      }));
+    }
   }
 
   // Parse the match-config inputs into a PoolMatchConfig (per-player $/leg + junk
@@ -314,7 +395,10 @@ export default function NewPoolGamePage() {
       course,
       players,
       teams,
-      ballSelection,
+      // ballSelection + (teamFormat, teamScoreBasis) as one decision. An ordinary stroke
+      // game gets NO teamFormat, so it computes down the legacy path whose math is pinned by
+      // the golden snapshots in pool-game.test.ts — new games settle exactly as old ones.
+      ...persistedTeamScoring(teamFormat, teamScoreBasis),
       moneyMode,
       // Only carry match config when the game IS a match, so pot games stay clean.
       matchConfig: moneyMode === 'match' ? buildMatchConfig() : undefined,
@@ -327,12 +411,15 @@ export default function NewPoolGamePage() {
       potSplit: dollarsToPotSplit(effectiveDollars),
       positionSplit: parsePositionSplit(positionSplitText),
       junkValues,
+      customBonuses: customBonuses.length > 0 ? customBonuses : undefined,
       ctpWinners: {},
       // Individual game mode + its chosen option values (absent for classic pool).
       gameMode,
       modeSettings: gameMode ? modeSettings : undefined,
-      // 2v2 within-group only: the two sides.
-      subTeams: isWithinGroup ? subTeams : undefined,
+      // Within-group side games only. persistedSides emits the LEGACY {a,b} shape at exactly
+      // two unnamed sides, so an ordinary 2v2 saves exactly as it always has and computes down
+      // the snapshot-pinned path; three or more opts in to `sides`. See game-modes/sides.ts.
+      ...(isWithinGroup && sides && sides.length > 0 ? persistedSides(sides) : {}),
       status: 'active',
       // 9-hole support (absent/'18' = full 18, every existing game). nineHandicapBasis
       // only matters when a nine is chosen.
@@ -387,10 +474,17 @@ export default function NewPoolGamePage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6">
-        <StepIndicator current={step} course={course} individualGame={modeCategory === 'individual'} withinGroup={isWithinGroup} />
+        <StepIndicator current={step} course={course} individualGame={modeCategory === 'individual'} withinGroup={isWithinGroup} playingGroups={needsPlayingGroups} />
 
         {step === 'details' && (
           <DetailsStep
+            // F-020: the picker annotates each game against the field. 0 on a first pass (the
+            // field is built two steps on), which reads as "nothing to say yet".
+            playerCount={players.length}
+            // F-021: when a saved format was applied, step 1 confirms rather than re-asks.
+            appliedFormat={appliedFormat}
+            formatDirty={formatDirty}
+            onFormatEdited={() => setFormatDirty(true)}
             name={name}
             setName={setName}
             gameMode={gameMode}
@@ -409,14 +503,19 @@ export default function NewPoolGamePage() {
             setPositionSplitText={setPositionSplitText}
             junkValues={junkValues}
             setJunkValues={setJunkValues}
-            ballSelection={ballSelection}
-            setBallSelection={setBallSelection}
+            teamFormat={teamFormat}
+            setTeamFormat={setTeamFormat}
+            teamScoreBasis={teamScoreBasis}
+            setTeamScoreBasis={setTeamScoreBasis}
             moneyMode={moneyMode}
             setMoneyMode={setMoneyMode}
             matchLegs={matchLegs}
             setMatchLegs={setMatchLegs}
             matchJunkPerPoint={matchJunkPerPoint}
             setMatchJunkPerPoint={setMatchJunkPerPoint}
+            applyGroupDefaults={applyGroupDefaults}
+            onGroupChosen={setSourceGroupId}
+            chosenGroupId={sourceGroupId}
             onNext={() => setStep('course')}
           />
         )}
@@ -445,7 +544,10 @@ export default function NewPoolGamePage() {
             getGroupDefaults={currentGroupDefaults}
             applyGroupDefaults={applyGroupDefaults}
             onGroupLoaded={setSourceGroupId}
+            preselectedGroupId={sourceGroupId}
             formatSeedApplied={formatSeedApplied}
+            // "Set Tees" for an individual game, which has no team/side step after tees at all.
+            nextLabel={modeCategory === 'individual' ? 'Tees' : needsPlayingGroups ? 'Groups' : isWithinGroup ? 'Sides' : 'Teams'}
             onNext={() => setStep('tees')}
             onBack={() => setStep('course')}
           />
@@ -459,20 +561,30 @@ export default function NewPoolGamePage() {
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             handicapBasis={handicapBasis}
             nine={wizardNine}
+            // An INDIVIDUAL game skips team-building entirely and goes straight to money, so the
+            // button has to say that rather than promise a step that never comes.
+            nextLabel={modeCategory === 'individual' ? 'Money' : needsPlayingGroups ? 'Groups' : isWithinGroup ? 'Sides' : 'Teams'}
             onNext={() => {
               // Single-group games (individual + 2v2) run as ONE team holding every
               // player. Auto-build it now. Individual → straight to Create;
               // within-group → the SubTeamsStep (shown in the 'teams' slot).
               if (isSingleGroup) {
-                setTeams([{
-                  id: crypto.randomUUID(),
-                  name: 'Group',
-                  playerIds: players.map((p) => p.id),
-                  matchupId: crypto.randomUUID(),
-                }]);
+                // A side game too big to walk together gets REAL playing groups, proposed
+                // balanced and adjustable on the 'groups' step (F-019). Everything else keeps
+                // the single "Group" holding the whole field — the shape every existing game has.
+                setTeams(needsPlayingGroups
+                  ? proposePlayingGroups(players, course, parseFloat(handicapAllowance) || 100, handicapBasis)
+                  : [{
+                    id: crypto.randomUUID(),
+                    name: 'Group',
+                    playerIds: players.map((p) => p.id),
+                    matchupId: crypto.randomUUID(),
+                  }]);
                 if (isWithinGroup) {
-                  setSubTeams((prev) => prev ?? defaultSubTeams(players.map((p) => p.id), players, course, parseFloat(handicapAllowance) || 100, handicapBasis));
-                  setStep('teams');
+                  setSides((prev) => prev && prev.length > 0
+                    ? prev
+                    : fromLegacySubTeams(defaultSubTeams(players.map((p) => p.id), players, course, parseFloat(handicapAllowance) || 100, handicapBasis)));
+                  setStep(needsPlayingGroups ? 'groups' : 'teams');
                 } else {
                   setStep('create');
                 }
@@ -484,6 +596,25 @@ export default function NewPoolGamePage() {
           />
         )}
 
+        {/* F-019: WHO WALKS WITH WHOM — a side game's tee sheet, asked separately from its sides.
+            Reuses the classic pool's TeamsStep verbatim (it already does exactly this: balanced
+            proposal, drag between groups, tee time per group, reorder, add/remove) rather than
+            growing a second editor for the same question. Captains are off: a side game's money
+            has no captain role, and the panel would be noise. */}
+        {step === 'groups' && needsPlayingGroups && (
+          <PlayingGroupsStep
+            course={course}
+            players={players}
+            teams={teams}
+            setTeams={setTeams}
+            handicapAllowance={parseFloat(handicapAllowance) || 100}
+            handicapBasis={handicapBasis}
+            nine={wizardNine}
+            onNext={() => setStep('teams')}
+            onBack={() => setStep('tees')}
+          />
+        )}
+
         {step === 'teams' && isWithinGroup && (
           <SubTeamsStep
             players={players}
@@ -491,10 +622,12 @@ export default function NewPoolGamePage() {
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             handicapBasis={handicapBasis}
             nine={wizardNine}
-            subTeams={subTeams}
-            setSubTeams={setSubTeams}
+            sides={sides}
+            setSides={setSides}
             onNext={() => setStep('create')}
-            onBack={() => setStep('tees')}
+            // Back goes to the groups step when there is one, so the wizard's back button
+            // retraces the way in rather than skipping a step the organizer just filled in.
+            onBack={() => setStep(needsPlayingGroups ? 'groups' : 'tees')}
           />
         )}
 
@@ -541,6 +674,20 @@ export default function NewPoolGamePage() {
             nine={wizardNine}
             holesPlaying={holesPlaying}
             gameMode={gameMode}
+            entryPerPlayerText={entryPerPlayer}
+            setEntryPerPlayer={setEntryPerPlayer}
+            positionSplitText={positionSplitText}
+            setPositionSplitText={setPositionSplitText}
+            junkValues={junkValues}
+            setJunkValues={setJunkValues}
+            customBonuses={customBonuses}
+            setCustomBonuses={setCustomBonuses}
+            matchLegs={matchLegs}
+            setMatchLegs={setMatchLegs}
+            matchJunkPerPoint={matchJunkPerPoint}
+            setMatchJunkPerPoint={setMatchJunkPerPoint}
+            sides={sides}
+            modeSettings={modeSettings}
             onCreate={createPoolGame}
             onBack={() => setStep(modeCategory === 'individual' ? 'tees' : 'teams')}
           />
@@ -550,16 +697,20 @@ export default function NewPoolGamePage() {
   );
 }
 
-function StepIndicator({ current, course, individualGame, withinGroup }: { current: Step; course: CourseSelection | null; individualGame?: boolean; withinGroup?: boolean }) {
+function StepIndicator({ current, course, individualGame, withinGroup, playingGroups }: { current: Step; course: CourseSelection | null; individualGame?: boolean; withinGroup?: boolean; playingGroups?: boolean }) {
   const steps = [
     { key: 'details', label: 'Details' },
     { key: 'course', label: course?.courseName || 'Course' },
     { key: 'field', label: 'Field' },
     { key: 'tees', label: 'Tees' },
+    // A side game whose field is too big to walk together picks its playing groups first, then
+    // its sides — two steps because they're two independent questions (F-019, §5.an). Absent for
+    // every other flow, so nothing else gains a step.
+    ...(playingGroups ? [{ key: 'groups', label: 'Groups' }] : []),
     // Individual games skip team-building entirely; 2v2 within-group replaces it
     // with a "Sides" step; classic pool keeps "Teams".
     ...(individualGame ? [] : [{ key: 'teams', label: withinGroup ? 'Sides' : 'Teams' }]),
-    { key: 'create', label: 'Create' },
+    { key: 'create', label: 'Money' },
   ];
   const currentIdx = steps.findIndex((s) => s.key === current);
 
@@ -577,6 +728,56 @@ function StepIndicator({ current, course, individualGame, withinGroup }: { curre
   );
 }
 
+// The side game's stakes, in a sentence (F-018). A review step that shows the pairings but not
+// what they're playing for is only half a confirmation.
+//
+// Says WHO PAYS WHOM, not just the numbers, because that's the part a group argues about
+// afterwards — and at 3+ sides it isn't obvious: each leg is collected from every side behind
+// (DECISIONS.md §5.aj), so a $10 front nine is $10 per opponent, not $10 total.
+function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
+  const num = (key: string, fallback: number) => {
+    const v = settings[key];
+    const n = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
+    return isNaN(n) ? fallback : n;
+  };
+  const model = String(settings.moneyModel ?? 'legs');
+  const many = sideCount > 2;
+  switch (model) {
+    case 'pot': {
+      const buyIn = num('sideBuyIn', 20);
+      const split = String(settings.potSplit ?? '100');
+      // §5.ag: the ante is PER SIDE whatever its size, which is the surprising part worth saying.
+      return `$${buyIn} per side in the pot ($${buyIn * sideCount} total) — `
+        + `${split === '100' ? 'best side takes it all' : `paid ${split} down the order`}. `
+        + 'Each side antes the same, whatever its size.';
+    }
+    case 'per-hole': {
+      const d = num('dollarsPerHole', 2);
+      return `$${d} a hole won${many ? ', against each other side' : ''}.`;
+    }
+    case 'per-point': {
+      const d = num('dollarsPerPoint', 1);
+      return `$${d} per point of margin${many ? ', against each other side' : ''}.`;
+    }
+    default: {
+      const f = num('legFront', 10), b = num('legBack', 10), o = num('legOverall', 10);
+      return `$${f} front / $${b} back / $${o} overall`
+        + (many ? ' — each leg paid to the winner by every side behind.' : '.');
+    }
+  }
+}
+
+// Bonus (junk) fields, shared by the wizard steps that render them. Labels spell out
+// what each bonus IS — "Group Hug" and "CTP" are insider terms a first-time user
+// can't act on, and a label you can't understand is worse than one you can't find.
+const JUNK_FIELDS: { key: keyof PoolJunkValues; label: string; hint: string }[] = [
+  { key: 'birdie', label: 'Birdie', hint: '1 under' },
+  { key: 'eagle', label: 'Eagle', hint: '2 under' },
+  { key: 'albatross', label: 'Albatross', hint: '3 under' },
+  { key: 'groupHug', label: 'All par', hint: 'whole team' },
+  { key: 'ctp', label: 'Closest', hint: 'on par 3s' },
+];
+
 function DetailsStep({
   name, setName,
   gameMode, setGameMode, modeSettings, setModeSettings,
@@ -584,8 +785,11 @@ function DetailsStep({
   strokeMethod, setStrokeMethod,
   handicapBasis, setHandicapBasis,
   positionSplitText, setPositionSplitText,
-  junkValues, setJunkValues, ballSelection, setBallSelection,
+  junkValues, setJunkValues, teamFormat, setTeamFormat, teamScoreBasis, setTeamScoreBasis,
   moneyMode, setMoneyMode, matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
+  applyGroupDefaults, onGroupChosen, chosenGroupId,
+  playerCount,
+  appliedFormat, formatDirty, onFormatEdited,
   onNext,
 }: {
   name: string; setName: (s: string) => void;
@@ -597,14 +801,67 @@ function DetailsStep({
   handicapBasis: 'course' | 'index'; setHandicapBasis: (v: 'course' | 'index') => void;
   positionSplitText: string; setPositionSplitText: (s: string) => void;
   junkValues: PoolJunkValues; setJunkValues: (v: PoolJunkValues) => void;
-  ballSelection: TwoBestBallsVariant; setBallSelection: (v: TwoBestBallsVariant) => void;
+  teamFormat: TeamFormat; setTeamFormat: (v: TeamFormat) => void;
+  teamScoreBasis: ScoreBasis; setTeamScoreBasis: (v: ScoreBasis) => void;
   moneyMode: PoolMoneyMode; setMoneyMode: (v: PoolMoneyMode) => void;
   matchLegs: { front: string; back: string; overall: string };
   setMatchLegs: (v: { front: string; back: string; overall: string }) => void;
   matchJunkPerPoint: string; setMatchJunkPerPoint: (s: string) => void;
+  applyGroupDefaults: (d: GroupDefaults | null) => void;
+  onGroupChosen: (groupId: string) => void;
+  chosenGroupId: string | undefined;
+  /** How many players are in the field, or 0 on a first pass (the field is built two steps on).
+      Drives the live fit annotation in the picker — F-020. */
+  playerCount: number;
+  /** The saved format this game started from, or undefined when built from scratch. When set, this
+      step shows a SUMMARY with per-section [Change] instead of ~15 fields (F-021, §5.ax). */
+  appliedFormat: string | undefined;
+  /** True once any of the format's values has been edited — turns the title into "rename to fork". */
+  formatDirty: boolean;
+  /** Called on the first edit to a format-owned value. */
+  onFormatEdited: () => void;
   onNext: () => void;
 }) {
   const selectedMode = getGameMode(gameMode);
+
+  // GROUPS FIRST. The picker already existed, but buried on step 3 (Build Field) as
+  // a "Groups" dropdown plus a separate Load button — which is why only 7 of 44 real
+  // games carried a sourceGroupId. Picking the group is the highest-value control in
+  // the wizard: it answers "who plays", "how we play", and "what games we play" at
+  // once, and it turns later questions into confirmations.
+  const [groups, setGroups] = useState<RosterGroup[]>([]);
+  useEffect(() => {
+    hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' })
+      .then(() => setGroups(getPlayerGroups()))
+      .catch(() => {});
+  }, []);
+
+  // F-021: which sections the user has EXPANDED by hand. Nothing is ever unreachable — every
+  // section has its own [Change] button.
+  //
+  // Stored as "opened by hand", not "is open", because `useState(!appliedFormat)` was wrong: the
+  // format seed is consumed in a mount effect in the parent, so on the first render appliedFormat is
+  // still undefined and every section initialised OPEN — the panel rendered and closed nothing. A
+  // derived value can't be seeded from a prop that arrives later.
+  const [openedGame, setOpenedGame] = useState(false);
+  const [openedMoney, setOpenedMoney] = useState(false);
+  const [openedHandicaps, setOpenedHandicaps] = useState(false);
+  // With no format applied this step is exactly as it always was: everything visible.
+  const showModeSettings = !appliedFormat || openedGame;
+  const showMoney = !appliedFormat || openedMoney;
+  const showHandicaps = !appliedFormat || openedHandicaps;
+  const setShowModeSettings = setOpenedGame;
+  const setShowMoney = setOpenedMoney;
+  const setShowHandicaps = setOpenedHandicaps;
+
+  // Choosing a group applies its saved settings now and stamps the game, so the
+  // money/handicap answers below arrive pre-filled. Members load on the Field step,
+  // which is where the roster + tees are resolved.
+  function chooseGroup(g: RosterGroup) {
+    onGroupChosen(g.id);
+    applyGroupDefaults(g.defaults);
+    if (!name.trim()) setName(g.name);
+  }
   // Any registered game mode (individual OR 2v2 within-group) is a single-group
   // game: it renders ITS OWN options (via the mode's settings schema) and does
   // NOT use the classic team-pool "Game Type / pot / match / junk / ball" block.
@@ -623,29 +880,105 @@ function DetailsStep({
       setMoneyMode('pot');
     }
   }
-  const junkFields: { key: keyof PoolJunkValues; label: string }[] = [
-    { key: 'birdie', label: 'Birdie' },
-    { key: 'eagle', label: 'Eagle' },
-    { key: 'albatross', label: 'Albatross' },
-    { key: 'groupHug', label: 'Group Hug' },
-    { key: 'ctp', label: 'CTP' },
-  ];
+  // (The old three-entry `ballOptions` list is gone — TEAM_FORMAT_OPTIONS is its superset,
+  // and the first three entries save identically to the legacy path.)
 
-  const ballOptions: { value: TwoBestBallsVariant; label: string }[] = [
-    { value: '1-net-1-gross', label: '1 Net + 1 Gross (different players)' },
-    { value: '2-best-net', label: '2 Best Net' },
-    { value: '2-best-gross', label: '2 Best Gross' },
-  ];
+  // USGA recommended handicap allowance for the format being played. The tables
+  // already live in lib/formats.ts (TEAM_MODES.usgaAllowance, plus per-format
+  // overrides) but the wizard never surfaced them — so an organizer had to know
+  // that four-ball is 85% and a scramble is tiered. Craig asked for these to be
+  // shown per format.
+  //
+  // Returns null when there's no single recommended number (scramble is tiered by
+  // team size, so quoting one figure would be wrong).
+  const usgaRec: { pct: number; note: string } | null = (() => {
+    if (isRegisteredMode && selectedMode) {
+      // 2v2 modes carry their own allowance semantics in modeSettings; the classic
+      // per-format table doesn't apply cleanly, so stay silent rather than guess.
+      if (selectedMode.category === 'team-within-group') return null;
+      return { pct: 95, note: 'USGA suggests 95% for individual stroke play' };
+    }
+    // The allowance follows the FORMAT — a scramble is nothing like four-ball. Read it from
+    // the one table in lib/formats.ts (TEAM_MODES[].usgaAllowance) rather than repeating the
+    // percentages here, so the two can't drift.
+    const mode = TEAM_MODES.find((m) => m.id === teamModeForFormat(teamFormat));
+    if (!mode) return null;
+    // Scramble is tiered by team size (35/15, 20/15/10, …), so no single figure is right.
+    if (mode.usgaAllowance === 'tiered') return null;
+    const pct = mode.usgaAllowance;
+    if (teamFormat === 'net-and-gross' || teamFormat === 'two-best-net' || teamFormat === 'two-best-gross') {
+      // Two-ball formats are four-ball; the USGA number differs between match and stroke
+      // play, and the classic pool has always quoted 85% for the stroke-play pool.
+      return moneyMode === 'match'
+        ? { pct: 90, note: 'USGA suggests 90% for four-ball match play' }
+        : { pct: 85, note: 'USGA suggests 85% for four-ball stroke play (two scores counting)' };
+    }
+    return { pct, note: `USGA suggests ${pct}% for ${mode.name.toLowerCase()}` };
+  })();
+  const usgaApplied = usgaRec !== null && Math.round(parseFloat(handicapAllowance)) === usgaRec.pct;
 
   const canProceed = name.trim().length > 0;
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Pool Game Details</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">What are you playing?</h2>
+
+      {/* WHO ARE YOU PLAYING WITH — asked first, because a group answers three
+          questions at once (its people, its stakes, its formats) and turns the
+          questions below into confirmations. */}
+      {groups.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-4 mb-4">
+          <label className="block text-sm font-medium text-gray-800 mb-1">Who&apos;s playing?</label>
+          <p className="text-xs text-gray-500 mb-2">
+            Pick a group to start from its usual setup. You can change anything below.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {groups.map((g) => {
+              const active = chosenGroupId === g.id;
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => chooseGroup(g)}
+                  className={`rounded-lg border px-3 py-2.5 text-sm font-medium min-h-[44px] ${
+                    active
+                      ? 'border-green-600 bg-green-600 text-white'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                  }`}
+                >
+                  {g.name}
+                  <span className={`ml-1.5 text-xs ${active ? 'text-green-100' : 'text-gray-400'}`}>
+                    {g.playerIds.length}
+                  </span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => onGroupChosen('')}
+              className={`rounded-lg border px-3 py-2.5 text-sm font-medium min-h-[44px] ${
+                !chosenGroupId
+                  ? 'border-green-600 bg-green-600 text-white'
+                  : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+              }`}
+            >
+              Someone else
+            </button>
+          </div>
+          {chosenGroupId && (
+            <p className="text-xs text-green-700 mt-2">
+              Using this group&apos;s usual setup — its players load on the next-but-one step.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
+        {/* The name lives in the F-021 summary panel when a format was applied — TWO inputs bound
+            to the same value is the kind of thing only a screenshot shows. */}
+        {!appliedFormat && (
         <div>
-          <label className="block text-sm font-medium text-gray-800 mb-1">Game Name</label>
+          <label className="block text-sm font-medium text-gray-800 mb-1">What should we call it?</label>
           <input
             type="text"
             value={name}
@@ -654,54 +987,159 @@ function DetailsStep({
             className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
           />
         </div>
+        )}
 
         {/* Game picker: classic team pool, or a registered individual game.
             Choosing an individual game reveals only that game's options below. */}
         <div className="pt-2 border-t">
-          <label className="block text-sm font-medium text-gray-800 mb-1">Game</label>
+          <label className="block text-sm font-medium text-gray-800 mb-1">Which game are you playing?</label>
           <select
             value={gameMode ?? 'pool'}
             onChange={(e) => pickGame(e.target.value === 'pool' ? undefined : e.target.value)}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
           >
             <option value="pool">Team Pool (foursomes vs foursomes)</option>
-            {GAME_MODES.map((m) => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
+            {GAME_MODES.map((m) => {
+              // F-020: annotate each game with how it fits the field you actually have. The badge
+              // is null until there IS a field, so a first pass through the wizard looks exactly
+              // as it always did rather than marking every game with a cross.
+              //
+              // The label carries it because this is a native <select> — options can't hold
+              // styled children, and a listbox rebuilt for badges would be a bigger bet on this
+              // screen than F-020 asked for (option A's mistake). Text in the label works on
+              // every phone and with a screen reader.
+              const badge = fitBadge(m, playerCount);
+              return (
+                <option key={m.id} value={m.id}>
+                  {m.name}{badge ? ` — ${badge}` : ''}
+                </option>
+              );
+            })}
           </select>
           <p className="text-xs text-gray-500 mt-1">
             {selectedMode
-              ? `${selectedMode.description} Played within a single group of ${selectedMode.playersMin}–${selectedMode.playersMax}.`
+              ? `${selectedMode.description} ${playerRangeSentence(selectedMode)}`
               : 'The classic buy-in pool or head-to-head match across foursomes.'}
           </p>
+          {/* The one thing the old flow never said HERE: this game can't be played by this field.
+              It used to wait until the review step, five steps on. Not disabled — the organizer may
+              be about to add the missing player — but it can no longer be a surprise at the end. */}
+          {fitExplanation(selectedMode, playerCount) && (
+            <p className="mt-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+              {fitExplanation(selectedMode, playerCount)}
+              {' '}
+              {(() => {
+                // Point at what WOULD work, so the constraint arrives with an option attached
+                // rather than as a dead end. §5.ao: guidance, not validation.
+                const alternatives = GAME_MODES.filter((m) => modeFits(m, playerCount)).map((m) => m.name);
+                return alternatives.length > 0
+                  ? `${alternatives.length === 1 ? 'This one fits' : 'These fit'} ${playerCount}: ${alternatives.join(', ')}.`
+                  : `A team pool works with any number.`;
+              })()}
+            </p>
+          )}
         </div>
+
+        {/* F-021 / §5.ax — WHEN A FORMAT WAS APPLIED, THIS IS A CONFIRMATION, NOT A FORM.
+            A saved format answers ~15 questions in one tap, and step 1 used to re-ask every one:
+            21 controls, 15 labels, 1900px of scroll, every value already correct. §5.e asked for
+            "questions become confirmations" back in August; this is it.
+
+            Nothing is hidden — each [Change] reveals the very same fields, per section, so the taps
+            are only spent by someone actually changing something. And editing anything turns the
+            TITLE into the affordance: rename it and it's a new style, with the original left
+            untouched (§5.ax part 4 — formats are attached to groups, so silently rewriting one
+            would change what a whole group sees next week). */}
+        {appliedFormat && (
+          <div className="pt-2 border-t">
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-green-800">Your saved game style</p>
+                  {/* The title is an INPUT, always — that's what makes "call it something else"
+                      the natural next move rather than a buried option. */}
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    aria-label="Game style name"
+                    className="mt-0.5 w-full bg-transparent text-base font-semibold text-gray-900 border-0 border-b border-transparent px-0 py-0 focus:border-green-500 focus:outline-none focus:ring-0"
+                  />
+                  <p className="mt-1 text-xs text-gray-700">
+                    {formatSummaryLine(selectedMode, modeSettings, parseFloat(entryPerPlayer) || 0, {
+                      allowance: parseFloat(handicapAllowance) || 100,
+                      strokeMethod,
+                      handicapBasis,
+                    })}
+                  </p>
+                  {/* Say where it came from once it has diverged, so "based on Saturday Nassau" is
+                      visible rather than the user wondering what they've broken. */}
+                  {formatDirty && appliedFormat !== name.trim() && (
+                    <p className="mt-1 text-xs text-gray-500">↳ based on {appliedFormat}</p>
+                  )}
+                  {formatDirty && appliedFormat === name.trim() && (
+                    <p className="mt-1 text-xs text-amber-700">
+                      Changed from your saved {appliedFormat} — rename it above to keep both.
+                    </p>
+                  )}
+                </div>
+              </div>
+              {/* Per-section reveal (§5.ax part 3). One button that reopened all 15 would just be
+                  today's screen with an extra tap. */}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {([
+                  { key: 'game', label: 'Game', on: showModeSettings, set: setShowModeSettings, when: isRegisteredMode },
+                  { key: 'money', label: 'Money', on: showMoney, set: setShowMoney, when: !isRegisteredMode },
+                  { key: 'hcap', label: 'Handicaps', on: showHandicaps, set: setShowHandicaps, when: true },
+                ] as const).filter((s) => s.when).map((s) => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => s.set(!s.on)}
+                    className={`min-h-[36px] rounded-md border px-3 py-1.5 text-xs font-medium ${
+                      s.on
+                        ? 'border-green-600 bg-white text-green-800'
+                        : 'border-green-300 bg-white text-green-700 hover:bg-green-100'
+                    }`}
+                  >
+                    {s.on ? `Hide ${s.label}` : `Change ${s.label}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Game options for ANY registered mode — individual AND 2v2 within-group
             (2v2's Team format / Hole score / Compare-by / Money live here). */}
-        {isRegisteredMode && selectedMode && (
+        {isRegisteredMode && selectedMode && showModeSettings && (
           <div className="pt-2 border-t">
             <label className="block text-sm font-medium text-gray-800 mb-2">{selectedMode.name} options</label>
             <ModeSettingsEditor
               schema={selectedMode.settings}
               values={modeSettings}
-              onChangeAction={(key, value) => setModeSettings({ ...modeSettings, [key]: value })}
+              onChangeAction={(key, value) => { onFormatEdited(); setModeSettings({ ...modeSettings, [key]: value }); }}
+              /* This step runs BEFORE sides are chosen, so the side count isn't known yet —
+                 hide the C-F name fields here (two sides is the default) and let the hub's
+                 editor, which does know, show the ones a game actually has. */
+              hideKeys={unusedSideNameKeys(2)}
             />
           </div>
         )}
 
-        {!isRegisteredMode && (
+        {!isRegisteredMode && showMoney && (
         <div className="pt-2 border-t">
-          <label className="block text-sm font-medium text-gray-800 mb-1">Game Type</label>
+          <label className="block text-sm font-medium text-gray-800 mb-1">How does the money work?</label>
           <div className="flex gap-2">
             {([
-              { v: 'pot', label: 'Pool (pot split)' },
-              { v: 'match', label: 'Head-to-head match' },
+              { v: 'pot', label: 'Everyone buys in' },
+              { v: 'match', label: 'Two teams, head-to-head' },
             ] as const).map(({ v, label }) => (
               <button
                 key={v}
                 type="button"
                 onClick={() => setMoneyMode(v)}
-                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
                   moneyMode === v
                     ? 'border-green-600 bg-green-600 text-white'
                     : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
@@ -713,49 +1151,70 @@ function DetailsStep({
           </div>
           <p className="text-xs text-gray-500 mt-1">
             {moneyMode === 'match'
-              ? 'Two foursomes head-to-head. Each leg pays a fixed amount per player; junk pays a set amount per point of margin. No buy-in.'
-              : 'Everyone buys in to one pot, split into front / back / overall / junk and paid out by finishing place.'}
+              ? 'Two foursomes only. Nobody buys in — the losing side pays the winners a set amount for each leg and each bonus point.'
+              : 'Every player pays in. The pot is split across the front nine, back nine, overall, and bonuses, and paid out by finishing place.'}
           </p>
         </div>
         )}
 
+        {showHandicaps && (
         <div className="grid grid-cols-2 gap-3 pt-2 border-t">
-          {moneyMode === 'pot' && !isRegisteredMode && (
           <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1">Entry ($ / player)</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              value={entryPerPlayer}
-              onChange={(e) => setEntryPerPlayer(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-          </div>
-          )}
-          <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1">Handicap Allowance (%)</label>
+            <label className="block text-sm font-medium text-gray-800 mb-1">How much handicap counts?</label>
             <input
               type="number"
               inputMode="decimal"
               value={handicapAllowance}
-              onChange={(e) => setHandicapAllowance(e.target.value)}
+              onChange={(e) => { onFormatEdited(); setHandicapAllowance(e.target.value); }}
               className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
             />
+            {/* State the CONSEQUENCE in strokes, not the percentage — anything under
+                100 also narrows the gap between players, which is the real reason
+                groups use it. */}
+            <p className="text-xs text-gray-500 mt-1">
+              {(() => {
+                const pct = parseFloat(handicapAllowance);
+                if (isNaN(pct) || pct === 100) return '100% — everyone plays their full handicap.';
+                return `${pct}% — an 18 handicap plays off ${Math.round(18 * pct / 100)}, an 8 off ${Math.round(8 * pct / 100)}. Lower percentages pull players closer together.`;
+              })()}
+            </p>
+            {/* The USGA's recommendation for THIS format. Advisory, never forced —
+                plenty of groups deliberately play 100%. */}
+            {usgaRec && (
+              <p className="text-xs mt-1">
+                {usgaApplied ? (
+                  <span className="text-green-700">✓ {usgaRec.note}.</span>
+                ) : (
+                  <>
+                    <span className="text-gray-500">{usgaRec.note}. </span>
+                    <button
+                      type="button"
+                      onClick={() => setHandicapAllowance(String(usgaRec.pct))}
+                      className="font-medium text-green-700 underline hover:text-green-900"
+                    >
+                      Use {usgaRec.pct}%
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
           </div>
         </div>
+        )}
 
+        {showHandicaps && (
         <div>
-          <label className="block text-sm font-medium text-gray-800 mb-1">Handicap Strokes</label>
+          <label className="block text-sm font-medium text-gray-800 mb-1">Who gets strokes?</label>
           <div className="flex gap-2">
             {([
-              { v: 'full', label: 'Full handicap' },
-              { v: 'off-the-low', label: 'Off the low' },
+              { v: 'full', label: 'Everyone, in full' },
+              { v: 'off-the-low', label: 'Only above the best player' },
             ] as const).map(({ v, label }) => (
               <button
                 key={v}
                 type="button"
-                onClick={() => setStrokeMethod(v)}
-                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                onClick={() => { onFormatEdited(); setStrokeMethod(v); }}
+                className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
                   strokeMethod === v
                     ? 'border-green-600 bg-green-600 text-white'
                     : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
@@ -767,23 +1226,25 @@ function DetailsStep({
           </div>
           <p className="text-xs text-gray-500 mt-1">
             {strokeMethod === 'off-the-low'
-              ? 'Lowest-handicap player in the field plays to scratch; everyone else plays the difference.'
-              : 'Every player uses their full course handicap × allowance.'}
+              ? 'The best player in the field plays off scratch and everyone else plays the difference — so a 12 facing a 4 gets 8 strokes, not 12.'
+              : 'Everyone keeps their own strokes — a 12 gets 12 and a 4 gets 4, regardless of who else is playing.'}
           </p>
         </div>
+        )}
 
+        {showHandicaps && (
         <div className="pt-2 border-t">
-          <label className="block text-sm font-medium text-gray-800 mb-1">Handicap Basis</label>
+          <label className="block text-sm font-medium text-gray-800 mb-1">How many strokes change hands?</label>
           <div className="flex gap-2">
             {([
               { v: 'course', label: 'Course handicap' },
-              { v: 'index', label: 'Player index' },
+              { v: 'index', label: 'Handicap index' },
             ] as const).map(({ v, label }) => (
               <button
                 key={v}
                 type="button"
-                onClick={() => setHandicapBasis(v)}
-                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                onClick={() => { onFormatEdited(); setHandicapBasis(v); }}
+                className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
                   handicapBasis === v
                     ? 'border-green-600 bg-green-600 text-white'
                     : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
@@ -795,104 +1256,59 @@ function DetailsStep({
           </div>
           <p className="text-xs text-gray-500 mt-1">
             {handicapBasis === 'index'
-              ? 'Play off each player’s raw handicap index × allowance (no slope/rating conversion).'
-              : 'Play off each player’s course handicap from their tee (slope/rating adjusted).'}
-          </p>
-        </div>
-
-        {moneyMode === 'pot' && !isRegisteredMode && (
-        <div className="pt-2 border-t">
-          <p className="text-xs text-gray-500">Pot split (front / back / overall / junk) is set on the final step — it fills in automatically from the number of teams.</p>
-        </div>
-        )}
-
-        {moneyMode === 'pot' && !isRegisteredMode && (
-        <div className="pt-2 border-t">
-          <label className="block text-sm font-medium text-gray-800 mb-1">Position Split</label>
-          <input
-            type="text"
-            value={positionSplitText}
-            onChange={(e) => setPositionSplitText(e.target.value)}
-            placeholder="e.g. 100 or 70, 30"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Percent of each sub-pot per finishing place. &quot;100&quot; = winner-take-all; &quot;70, 30&quot; = 1st/2nd.
+              ? 'Strokes come straight from the difference in index — an 8 gives a 2 exactly 6 strokes, on any course.'
+              : 'Slope-adjusted, so a harder course spreads players further apart — an 8 vs a 2 might play off 7 or 8 strokes instead of 6.'}
           </p>
         </div>
         )}
 
-        {moneyMode === 'match' && (
-        <div className="pt-2 border-t">
-          <p className="text-sm font-semibold text-gray-800 mb-2">Match Payouts ($ / player)</p>
-          <div className="grid grid-cols-3 gap-2">
-            {([
-              { key: 'front' as const, label: 'Front 9' },
-              { key: 'back' as const, label: 'Back 9' },
-              { key: 'overall' as const, label: 'Overall' },
-            ]).map(({ key, label }) => (
-              <div key={key}>
-                <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={matchLegs[key]}
-                  onChange={(e) => setMatchLegs({ ...matchLegs, [key]: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
-              </div>
-            ))}
-          </div>
-          <div className="mt-3">
-            <label className="block text-xs text-gray-600 font-medium mb-1">Junk ($ / point of margin)</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              value={matchJunkPerPoint}
-              onChange={(e) => setMatchJunkPerPoint(e.target.value)}
-              className="w-40 rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Each player on the losing side pays this per junk point of difference. With ${matchJunkPerPoint || '5'}/point, a birdie is worth ${(parseFloat(matchJunkPerPoint) || 5) * (junkValues.birdie || 1)}, an eagle ${(parseFloat(matchJunkPerPoint) || 5) * (junkValues.eagle || 2)}.
-            </p>
-          </div>
-          <p className="text-xs text-amber-700 mt-2">Head-to-head is for exactly two foursomes. For three or more teams, use Pool (pot split).</p>
-        </div>
-        )}
 
         {!isRegisteredMode && (
         <div className="pt-2 border-t">
-          <p className="text-sm font-semibold text-gray-800 mb-2">Junk Values (points)</p>
-          <div className="grid grid-cols-5 gap-2">
-            {junkFields.map(({ key, label }) => (
-              <div key={key}>
-                <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={junkValues[key]}
-                  onChange={(e) => setJunkValues({ ...junkValues, [key]: Number(e.target.value) })}
-                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-        )}
-
-        {!isRegisteredMode && (
-        <div className="pt-2 border-t">
-          <label className="block text-sm font-medium text-gray-800 mb-1">Team Ball Selection</label>
+          <label className="block text-sm font-medium text-gray-800 mb-1">Which scores count for the team?</label>
+          {/* ONE picker for the hole rule. The first three options are the classic ball
+              selections and save exactly as before (no teamFormat); the rest are the formats
+              F-006 added. Same control, more possibilities — not a second screen. */}
           <select
-            value={ballSelection}
-            onChange={(e) => setBallSelection(e.target.value as TwoBestBallsVariant)}
+            value={teamFormat}
+            onChange={(e) => setTeamFormat(e.target.value as TeamFormat)}
             className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
           >
-            {ballOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            {TEAM_FORMAT_OPTIONS.map((opt) => (
+              <option key={opt.format} value={opt.format}>{opt.label}</option>
             ))}
           </select>
-          <p className="text-xs text-gray-500 mt-1">Per-hole team score for each foursome.</p>
+          <p className="text-xs text-gray-500 mt-1">
+            {TEAM_FORMAT_OPTIONS.find((o) => o.format === teamFormat)?.hint}
+          </p>
+
+          <label className="block text-sm font-medium text-gray-800 mt-3 mb-1">How is the hole scored?</label>
+          <div className="flex gap-2">
+            {([
+              { v: 'stroke' as ScoreBasis, label: 'Strokes' },
+              { v: 'stableford' as ScoreBasis, label: 'Stableford points' },
+            ]).map(({ v, label }) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setTeamScoreBasis(v)}
+                // Same classes as the money / strokes toggles above: solid green when
+                // selected, and a 44px min height for a thumb. See UI_CONVENTIONS.md.
+                className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
+                  teamScoreBasis === v
+                    ? 'border-green-600 bg-green-600 text-white'
+                    : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            {teamScoreBasis === 'stableford'
+              ? 'Points off par per ball — birdie 3, par 2, bogey 1. Most points wins.'
+              : 'Add the strokes. Lowest total wins, as usual.'}
+          </p>
         </div>
         )}
       </div>
@@ -929,6 +1345,28 @@ function CourseStep({
   const [ghinUser, setGhinUser] = useState('');
   const [ghinPass, setGhinPass] = useState('');
   const [authError, setAuthError] = useState('');
+
+  // JY (real user, via the organizer link): "Once you create a game it goes to select
+  // course. Can it check to see if you are signed into GHIN before that? I go to select
+  // course then it pops up and says sign in to GHIN."
+  //
+  // `noToken` used to be set only INSIDE search(), i.e. after typing a course name and
+  // submitting — so the login prompt arrived as an interruption after wasted effort.
+  // Check on mount instead: the sign-in card renders immediately, above the search box,
+  // so it's the first thing on the step rather than a reaction to a failed action.
+  useEffect(() => {
+    if (!getToken()) setNoToken(true);
+  }, []);
+
+  // Recent courses — JY: "if it could save previously selected courses so you don't have
+  // to type it in every time." Derived from games already played (no new storage), and
+  // each carries its full tee/rating data, so picking one needs no GHIN call at all.
+  const [recent, setRecent] = useState<CourseSelection[]>([]);
+  useEffect(() => {
+    hydratePoolGames()
+      .then(() => setRecent(getRecentCourses(getCreatorGhin())))
+      .catch(() => {});
+  }, []);
 
   async function quickAuth(e: React.FormEvent) {
     e.preventDefault();
@@ -1046,9 +1484,36 @@ function CourseStep({
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Select Course</h2>
 
+      {/* One tap to reuse a course you've already played — shown ABOVE the GHIN prompt,
+          because this path needs no login at all. */}
+      {recent.length > 0 && !course && (
+        <div className="rounded-lg bg-white shadow p-4 mb-4">
+          <p className="text-sm font-medium text-gray-800 mb-1">Played recently</p>
+          <p className="text-xs text-gray-500 mb-2">Pick one to skip the search — tees and ratings are already saved.</p>
+          <div className="flex flex-wrap gap-2">
+            {recent.map((c) => (
+              <button
+                key={c.courseId}
+                type="button"
+                onClick={() => setCourse(c)}
+                className="min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-green-400"
+              >
+                {c.courseName}
+                {c.city ? <span className="ml-1 text-xs text-gray-400">{c.city}</span> : null}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {noToken && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 mb-4 space-y-2">
-          <p className="text-sm text-amber-800 font-medium">Log in to GHIN to search courses</p>
+          {/* Shown on arrival now, not after a failed search — so it reads as a
+              heads-up, not an error. Deliberately NOT a gate: the step still works
+              without it (a saved course or manual entry), and a share-link organizer
+              may have no GHIN at all. */}
+          <p className="text-sm text-amber-800 font-medium">Sign in to GHIN to search for a course</p>
+          <p className="text-xs text-amber-700">Course search uses your GHIN login. It&apos;s only needed to look up the course and tees.</p>
           <form onSubmit={quickAuth} className="flex gap-2 flex-wrap">
             <input
               type="text"
@@ -1153,7 +1618,7 @@ function CourseStep({
                   key={v}
                   type="button"
                   onClick={() => setHolesPlaying(v)}
-                  className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                  className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
                     holesPlaying === v ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
                   }`}
                 >
@@ -1174,7 +1639,7 @@ function CourseStep({
                       key={v}
                       type="button"
                       onClick={() => setNineHandicapBasis(v)}
-                      className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                      className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
                         nineHandicapBasis === v ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
                       }`}
                     >
@@ -1205,7 +1670,7 @@ function CourseStep({
 }
 
 function FieldStep({
-  course, players, setPlayers, handicapAllowance, handicapBasis, nine, getGroupDefaults, applyGroupDefaults, onGroupLoaded, formatSeedApplied, onNext, onBack,
+  course, players, setPlayers, handicapAllowance, handicapBasis, nine, getGroupDefaults, applyGroupDefaults, onGroupLoaded, preselectedGroupId, formatSeedApplied, nextLabel, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
@@ -1215,7 +1680,13 @@ function FieldStep({
   getGroupDefaults: () => GroupDefaults;
   applyGroupDefaults: (d: GroupDefaults | null) => void;
   onGroupLoaded: (groupId: string) => void;
+  /** Group chosen on step 1 — its members load automatically so the question
+      isn't asked twice. */
+  preselectedGroupId?: string;
   formatSeedApplied: boolean;
+  /** What the step after tees is CALLED for this game — "Sides" in a side game, "Teams" in a
+      pool (§5.al). The button used to say "Set Teams" on the way to a step labelled "Sides". */
+  nextLabel: string;
   onNext: () => void; onBack: () => void;
 }) {
   const [rosterQuery, setRosterQuery] = useState('');
@@ -1246,7 +1717,7 @@ function FieldStep({
 
   // Saved groups (organizer's "home base" rosters + format defaults).
   const [groups, setGroups] = useState<RosterGroup[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState(preselectedGroupId ?? '');
   const [saveGroupName, setSaveGroupName] = useState('');
   const [groupNote, setGroupNote] = useState('');
   // The group currently loaded as today's roster context. When set, the player
@@ -1276,6 +1747,12 @@ function FieldStep({
               // format seed already set the settings; don't clobber with the
               // group's own default.
               loadGroup(seededGroupId, { skipDefaults: formatSeedApplied });
+            } else if (preselectedGroupId && players.length === 0) {
+              // Chosen on step 1: load its members now so the group question isn't
+              // asked twice. Settings already applied at step 1, so skip them here.
+              // Guarded on an empty field so a user who came Back and edited their
+              // player list doesn't get it silently replaced.
+              loadGroup(preselectedGroupId, { skipDefaults: true });
             }
           } catch {}
         })
@@ -1919,7 +2396,7 @@ function FieldStep({
         disabled={!canProceed}
         className="w-full rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Next: Set Teams
+        Next: Set {nextLabel}
       </button>
     </div>
   );
@@ -1936,17 +2413,52 @@ function makeTeam(index: number, playerIds: string[], captainId?: string): PoolT
   };
 }
 
+// F-019: the proposed TEE SHEET for a side game — who walks with whom, before anyone says a word
+// about money. `groupShapesFor` supplies the shape (8 → 4+4, 7 → 4+3, 5 → 3+2, and never a group
+// of five), and the field is dealt into it low→high so the groups are balanced by handicap. §5.ao:
+// the app proposes, the organizer adjusts.
+//
+// Named "Group N" rather than "Team N" because on this axis they are not teams — the money teams
+// are the sides, and calling both "team" is exactly the conflation F-019 is about (§5.al).
+function proposePlayingGroups(
+  players: Player[],
+  course: CourseSelection | null,
+  allowance: number,
+  basis: 'course' | 'index',
+): PoolTeam[] {
+  const shape = groupShapesFor(players.length, TEE_GROUP_SHAPE_OPTS)[0];
+  const ids = sortPlayerIdsByHcap(players.map((p) => p.id), players, course, allowance, basis);
+  // No shape fits (1 player, or a count the tee rules can't express): keep everyone together
+  // rather than invent a split. The step isn't shown in that case anyway.
+  if (!shape) {
+    return [{ id: crypto.randomUUID(), name: 'Group', playerIds: ids, matchupId: crypto.randomUUID(), teeTime: '' }];
+  }
+  // Snake-deal so each group gets a spread of handicaps — the same "even them out" intent as the
+  // pool's balance, without the optimizer. See dealBalancedIntoShape for why it must snake rather
+  // than go round-robin (round-robin gave group 1 every odd-ranked player: 32 vs 40 at eight).
+  return dealBalancedIntoShape(ids, shape).map((playerIds, i) => ({
+    id: crypto.randomUUID(),
+    name: `Group ${i + 1}`,
+    playerIds,
+    matchupId: crypto.randomUUID(),
+    teeTime: '',
+  }));
+}
+
 // Visual "who's playing from where" step: players grouped by their assigned tee,
 // tap a player to move them to a different (same-gender) tee. Purely for setting/
 // reviewing tees before forming teams — tees remain editable in the Teams step too.
 function TeesStep({
-  course, players, setPlayers, handicapAllowance, handicapBasis, nine, onNext, onBack,
+  course, players, setPlayers, handicapAllowance, handicapBasis, nine, nextLabel, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
   handicapAllowance: number;
   handicapBasis: 'course' | 'index';
   nine: 'front9' | 'back9' | null;
+  /** What the next step is CALLED for this game — "Sides" in a side game, "Teams" in a pool
+      (§5.al). Passed in rather than derived, since only the caller knows the mode. */
+  nextLabel: string;
   onNext: () => void; onBack: () => void;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -2048,7 +2560,195 @@ function TeesStep({
         onClick={onNext}
         className="w-full mt-4 rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800"
       >
-        Next: Teams
+        Next: {nextLabel}
+      </button>
+    </div>
+  );
+}
+
+// F-019 — WHO WALKS WITH WHOM. A side game's tee sheet, asked separately from its sides because
+// the two are independent: your partner may be in the other foursome (§5.an).
+//
+// WHY NOT REUSE TeamsStep, which the design suggested. It answers the same question but is built
+// around the classic pool's needs: a captains panel (a side game has no captain role), three
+// team-building methods with an optimizer, pairing locks, and "Set Teams" vocabulary throughout —
+// which is the exact team/side conflation F-019 is about (§5.al). Reusing it would mean threading
+// a mode flag through ~10 labels and hiding three panels. The genuine reuse is of the pure
+// helpers, which is where the logic lives: groupShapesFor, sortPlayerIdsByHcap,
+// proposePlayingGroups. This component is the thin phone-first shell over them.
+function PlayingGroupsStep({
+  course, players, teams, setTeams, handicapAllowance, handicapBasis, nine, onNext, onBack,
+}: {
+  course: CourseSelection | null;
+  players: Player[];
+  teams: PoolTeam[]; setTeams: (t: PoolTeam[]) => void;
+  handicapAllowance: number;
+  handicapBasis: 'course' | 'index';
+  nine: 'front9' | 'back9' | null;
+  onNext: () => void; onBack: () => void;
+}) {
+  // The player being moved. Tap a player, then tap the group to move them to — the same
+  // two-tap idiom the sides step already uses, so there's one gesture to learn.
+  const [moving, setMoving] = useState<string | null>(null);
+
+  const hcapOf = (p: Player): number =>
+    course ? getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine) : (p.handicapIndex ?? 0);
+  const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? 'Unknown';
+
+  // Every shape the field can take (8 → 4+4 or 3+3+2). §5.ao: an uneven count is a QUESTION, not
+  // a silent default, so these are offered rather than decided.
+  const shapes = groupShapesFor(players.length, TEE_GROUP_SHAPE_OPTS);
+  const currentShape = teams.map((t) => t.playerIds.length).sort((a, b) => b - a);
+
+  function applyShape(shape: number[]) {
+    // Rebuild from the balanced proposal for that shape, keeping any tee times already typed
+    // (they belong to the slot, not to the players in it).
+    const times = teams.map((t) => t.teeTime ?? '');
+    const rebuilt = proposePlayingGroups(players, course, handicapAllowance, handicapBasis);
+    // proposePlayingGroups always returns the FIRST shape; re-deal for a different group count
+    // using the same balanced dealer, so every shape on this screen is balanced the same way.
+    const ids = sortPlayerIdsByHcap(players.map((p) => p.id), players, course, handicapAllowance, handicapBasis);
+    setTeams(dealBalancedIntoShape(ids, shape).map((playerIds, i) => ({
+      id: rebuilt[i]?.id ?? crypto.randomUUID(),
+      name: `Group ${i + 1}`,
+      playerIds,
+      matchupId: rebuilt[i]?.matchupId ?? crypto.randomUUID(),
+      teeTime: times[i] ?? '',
+    })));
+    setMoving(null);
+  }
+
+  function moveTo(teamId: string) {
+    if (!moving) return;
+    setTeams(teams.map((t) => {
+      const without = t.playerIds.filter((id) => id !== moving);
+      if (t.id !== teamId) return { ...t, playerIds: without };
+      return {
+        ...t,
+        playerIds: sortPlayerIdsByHcap([...without, moving], players, course, handicapAllowance, handicapBasis),
+      };
+    }));
+    setMoving(null);
+  }
+
+  function setTeeTime(teamId: string, teeTime: string) {
+    setTeams(teams.map((t) => (t.id === teamId ? { ...t, teeTime } : t)));
+  }
+
+  // Nobody may be left out: a player in no group has no scorecard to be on.
+  const assigned = new Set(teams.flatMap((t) => t.playerIds));
+  const unassigned = players.filter((p) => !assigned.has(p.id));
+  const canProceed = unassigned.length === 0 && teams.every((t) => t.playerIds.length > 0);
+
+  return (
+    <div>
+      <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
+      <h2 className="text-lg font-semibold text-gray-900 mb-1">Who&apos;s playing together?</h2>
+      <p className="text-sm text-gray-600 mb-4">
+        {players.length} players can&apos;t walk as one group, so they tee off separately — each group
+        gets its own tee time and scorecard. <span className="text-gray-500">Your sides come next, and
+        a partner can be in the other group.</span>
+      </p>
+
+      {/* The shape choice. Only shown when there IS one — at 4 or 7 players exactly one shape
+          fits, and offering a single button is noise. */}
+      {shapes.length > 1 && (
+        <div className="bg-white rounded-lg shadow p-4 mb-4">
+          <p className="text-sm font-medium text-gray-800 mb-1">How do they split?</p>
+          <p className="text-xs text-gray-500 mb-3">
+            Balanced by handicap either way — you can still move anyone by hand below.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {shapes.map((shape) => {
+              const isCurrent = shape.length === currentShape.length
+                && shape.every((n, i) => n === currentShape[i]);
+              return (
+                <button
+                  key={shape.join('-')}
+                  type="button"
+                  onClick={() => applyShape(shape)}
+                  className={`min-h-[44px] rounded-md border px-4 py-2 text-sm font-medium ${
+                    isCurrent
+                      ? 'border-green-600 bg-green-600 text-white'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                  }`}
+                >
+                  {groupShapeLabel(shape)}
+                  <span className={`ml-1.5 text-xs ${isCurrent ? 'text-green-100' : 'text-gray-500'}`}>
+                    {shape.length} group{shape.length === 1 ? '' : 's'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {teams.map((team) => (
+          <div key={team.id} className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="font-semibold text-gray-900">{team.name}</p>
+              <label className="flex items-center gap-1.5 text-xs text-gray-500">
+                Tee time
+                <input
+                  type="time"
+                  value={team.teeTime ?? ''}
+                  onChange={(e) => setTeeTime(team.id, e.target.value)}
+                  className="rounded border border-gray-300 px-2 py-1 text-sm text-gray-900"
+                />
+              </label>
+            </div>
+            <ul className="divide-y divide-gray-100">
+              {team.playerIds.map((pid) => (
+                <li key={pid}>
+                  <button
+                    type="button"
+                    onClick={() => setMoving(moving === pid ? null : pid)}
+                    className={`w-full flex items-center justify-between gap-2 px-2 py-2 text-left rounded ${
+                      moving === pid ? 'bg-green-50 ring-1 ring-green-500' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="text-sm text-gray-900 truncate">{nameOf(pid)}</span>
+                    <span className="text-xs text-gray-500 tabular-nums">
+                      {hcapOf(players.find((p) => p.id === pid)!)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+              {team.playerIds.length === 0 && (
+                <li className="px-2 py-2 text-xs text-gray-400">Nobody in this group yet.</li>
+              )}
+            </ul>
+            {/* The move target only appears while a player is selected, so the screen is quiet
+                until there's a reason for it to speak. */}
+            {moving && !team.playerIds.includes(moving) && (
+              <button
+                type="button"
+                onClick={() => moveTo(team.id)}
+                className="mt-2 w-full rounded-md border border-green-600 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
+              >
+                Move {nameOf(moving).split(' ')[0]} here
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {unassigned.length > 0 && (
+        <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2">
+          <p className="text-xs font-medium text-amber-800">
+            Not in a group yet: {unassigned.map((p) => p.name).join(', ')}
+          </p>
+        </div>
+      )}
+
+      <button
+        onClick={onNext}
+        disabled={!canProceed}
+        className="w-full mt-4 rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800 disabled:opacity-50"
+      >
+        Next: Sides
       </button>
     </div>
   );
@@ -2142,6 +2842,33 @@ function TeamsStep({
   // With captains ON: each captain anchors a slot and the rest balance around
   // them (captain-first ordering). With captains OFF: plain even balance, no
   // captain role at all — each team just listed low->high.
+  // Snake draft — JY's request. Kept separate from autoBalance() rather than folded in
+  // behind a flag, because the two answer different questions: autoBalance minimizes
+  // team-handicap spread (exact branch-and-bound), while this deals positionally so an
+  // organizer can explain and verify it. Both are legitimate; neither replaces the other.
+  function autoSerpentine() {
+    const captainByTeam = Array.from({ length: numTeams }, (_, i) =>
+      useCaptains ? (captainIds[i] || undefined) : undefined);
+    const groups = serpentineTeams(players, numTeams, hcapOf, captainByTeam, lockedGroups);
+    setTeams(groups.map((ids, i) => {
+      const capId = captainByTeam[i] && ids.includes(captainByTeam[i]!) ? captainByTeam[i] : undefined;
+      // Display lowest-to-highest handicap, same as every other build method. I'd first
+      // kept the raw draft order to make the snake verifiable, but being the one team
+      // list in the app that reads differently is more confusing than that is useful.
+      const ordered = capId
+        ? orderPlayerIdsWithCaptain(ids, capId, players, course, handicapAllowance, handicapBasis)
+        : sortPlayerIdsByHcap(ids, players, course, handicapAllowance, handicapBasis);
+      return makeTeam(i, ordered, capId);
+    }));
+    setTeamBuild({
+      method: 'serpentine',
+      excludeCaptains: false,
+      hadCaptains: useCaptains,
+      hadLocks: lockedGroups.some((g) => g.length >= 2),
+      adjustedAfter: false,
+    });
+  }
+
   function autoBalance() {
     if (!useCaptains) {
       const groups = balanceTeamsWithLocks(players, numTeams, hcapOf, lockedGroups);
@@ -2286,7 +3013,7 @@ function TeamsStep({
               key={String(v)}
               type="button"
               onClick={() => setUseCaptains(v)}
-              className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+              className={`flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
                 useCaptains === v
                   ? 'border-green-600 bg-green-600 text-white'
                   : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
@@ -2336,19 +3063,52 @@ function TeamsStep({
         />
       </div>
 
+      {/* ONE QUESTION, not three rival buttons. Each method is a different GOAL, so the
+          consequence is spelled out rather than the mechanism — "evens out the totals"
+          vs "you can check it by eye". The captains toggle stays separate above: it's
+          orthogonal (any method runs with or without captains), and folding it in would
+          multiply the options. */}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <p className="text-sm font-medium text-gray-800 mb-1">How should teams be built?</p>
+        <p className="text-xs text-gray-500 mb-3">Pick one to build them now — you can still move anyone by hand afterwards.</p>
+        <div className="space-y-2">
+          {([
+            {
+              key: 'optimal',
+              label: useCaptains ? 'Even them out around the captains' : 'Even them out by handicap',
+              detail: 'Searches for the closest possible team totals. The fairest result, but the assignment is hard to explain.',
+              run: autoBalance,
+            },
+            {
+              key: 'snake',
+              label: 'Snake draft',
+              detail: 'Best available player to the highest-handicap captain, then back the other way each round. Slightly less even, but your group can watch it happen.',
+              run: autoSerpentine,
+            },
+            {
+              key: 'sequential',
+              label: 'Straight down the list',
+              detail: 'Foursomes in the order players were added. No balancing at all — for when the groups are already decided.',
+              run: autoGenerate,
+            },
+          ] as const).map(({ key, label, detail, run }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={run}
+              className="w-full min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-left hover:border-green-400"
+            >
+              <span className="block text-sm font-medium text-gray-800">{label}</span>
+              <span className="block text-xs text-gray-500 mt-0.5">{detail}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-gray-400 mt-2">
+          Or drag nobody at all — assign every player by hand below.
+        </p>
+      </div>
+
       <div className="flex gap-2 flex-wrap mb-4">
-        <button
-          onClick={autoBalance}
-          className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800"
-        >
-          {useCaptains ? 'Balance around captains' : 'Balance teams by handicap'}
-        </button>
-        <button
-          onClick={autoGenerate}
-          className="rounded-md border border-green-700 px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50"
-        >
-          Auto-generate foursomes
-        </button>
         <button
           onClick={addTeam}
           className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 font-medium hover:bg-gray-100"
@@ -2517,44 +3277,131 @@ function TeamsStep({
   );
 }
 
-// 2v2 within-group: assign the group's players to Side A or Side B. Seeded from
-// a balanced default (low+high vs the two middle). Each player is exactly one side.
+// Within-group SIDES: assign the group's players to a side. Seeded from a balanced default
+// (low+high vs the two middle) at two sides, which is the norm — three or more is available for
+// the groups that want it (DECISIONS.md 5.g) without making the usual 2v2 any harder to set up.
 function SubTeamsStep({
-  players, course, handicapAllowance, handicapBasis, nine, subTeams, setSubTeams, onNext, onBack,
+  players, course, handicapAllowance, handicapBasis, nine, sides, setSides, onNext, onBack,
 }: {
   players: Player[];
   course: CourseSelection | null;
   handicapAllowance: number;
   handicapBasis: 'course' | 'index';
   nine: 'front9' | 'back9' | null;
-  subTeams: { a: string[]; b: string[] } | undefined;
-  setSubTeams: (v: { a: string[]; b: string[] }) => void;
+  sides: GameSide[] | undefined;
+  setSides: (v: GameSide[]) => void;
   onNext: () => void;
   onBack: () => void;
 }) {
-  const effective = subTeams ?? defaultSubTeams(players.map((p) => p.id), players, course, handicapAllowance, handicapBasis);
-  const sideOf = (id: string): 'a' | 'b' | null =>
-    effective.a.includes(id) ? 'a' : effective.b.includes(id) ? 'b' : null;
+  const effective = sides && sides.length > 0
+    ? sides
+    : fromLegacySubTeams(defaultSubTeams(players.map((p) => p.id), players, course, handicapAllowance, handicapBasis));
+  const sideIdOf = (id: string): string | null => sideOfPlayer(effective, id)?.id ?? null;
 
-  function assign(id: string, side: 'a' | 'b') {
-    const a = effective.a.filter((x) => x !== id);
-    const b = effective.b.filter((x) => x !== id);
-    (side === 'a' ? a : b).push(id);
-    setSubTeams({ a, b });
+  function assign(playerId: string, sideId: string) {
+    // Tapping the side a player is already on is a NO-OP. Filter-then-push would move them to
+    // the end of the list, which changed nothing on screen but moved real money under a
+    // one-ball format (F-012). Same guard as the hub's editor.
+    if (sideMembers(effective, sideId).includes(playerId)) return;
+    setSides(effective.map((side) => ({
+      ...side,
+      playerIds: side.id === sideId
+        ? [...side.playerIds.filter((x) => x !== playerId), playerId]
+        : side.playerIds.filter((x) => x !== playerId),
+    })));
   }
 
-  const balanced = effective.a.length === effective.b.length;
+  function addSide() {
+    setSides([...effective, { id: nextSideId(effective), playerIds: [] }]);
+  }
+
+  function removeSide(sideId: string) {
+    // The removed side's players are unassigned rather than silently moved somewhere — the
+    // organizer chose who plays together, so the app shouldn't guess a new pairing.
+    setSides(effective.filter((side) => side.id !== sideId));
+  }
+
+  const counts = effective.map((side) => side.playerIds.length);
+  const balanced = counts.every((c) => c === counts[0]);
+  const unassigned = players.filter((p) => sideIdOf(p.id) === null);
+
+  // F-020 option C. The shapes this field could split into, and the one it's currently in.
+  // Sorted descending to match `groupShapesFor`'s output so "is this the current shape?" is a
+  // plain array compare rather than a set comparison.
+  const shapeOptions = groupShapesFor(players.length, SIDE_SHAPE_OPTS);
+  const currentShape = [...counts].sort((a, b) => b - a);
+
+  /** Re-deal every player into `shape`, balanced by handicap, KEEPING each side's custom name. */
+  function applySideShape(shape: number[]) {
+    const ids = sortPlayerIdsByHcap(players.map((p) => p.id), players, course, handicapAllowance, handicapBasis);
+    const buckets = dealBalancedIntoShape(ids, shape);
+    setSides(buckets.map((playerIds, i) => ({
+      // Reuse the existing side's id and name where there is one, so a side called "The Hogs"
+      // survives a reshape — the ids are identity, not position (game-modes/sides.ts), and
+      // re-lettering them would silently relabel money rows.
+      id: effective[i]?.id ?? nextSideId(effective.slice(0, i)),
+      ...(effective[i]?.name ? { name: effective[i].name } : {}),
+      playerIds,
+    })));
+  }
+  const emptySides = effective.filter((side) => side.playerIds.length === 0);
   const chcp = (p: Player) => Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine));
 
   return (
     <div>
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
-      <h2 className="text-lg font-semibold text-gray-900 mb-1">Sides (2 vs 2)</h2>
-      <p className="text-sm text-gray-500 mb-4">Assign each player to a side. Seeded to balance handicaps — adjust as you like.</p>
+      {/* Count the sides from the DATA, always. This used to hard-code "(2 vs 2)" for any two-side
+          game, which was true while two sides meant two pairs — and became a lie the moment an
+          uneven split was reachable: five players split 3–2 read "Sides (2 vs 2)" directly above a
+          highlighted "3 v 2" button. Caught in a screenshot, not by a test. */}
+      <h2 className="text-lg font-semibold text-gray-900 mb-1">
+        Sides ({counts.join(' vs ')})
+      </h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Assign each player to a side. Seeded to balance handicaps — adjust as you like.
+      </p>
+
+      {/* F-020 option C: PROPOSE the splits instead of picking one silently.
+          `defaultSubTeams` special-cases exactly four players and otherwise alternates low/high,
+          so five became 3 v 2 with nothing on screen admitting a choice had been made — when 3v2,
+          2v2-plus-a-solo and five singles are all legitimate and only the group knows which
+          (§5.ao). Same control as the Groups step, so there's one pattern for "the app proposes,
+          you adjust". Hidden when only one shape fits, since a lone button is noise. */}
+      {shapeOptions.length > 1 && (
+        <div className="bg-white rounded-lg shadow p-4 mb-3">
+          <p className="text-sm font-medium text-gray-800 mb-1">How do the sides split?</p>
+          <p className="text-xs text-gray-500 mb-3">
+            Balanced by handicap whichever you pick — then move anyone below.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {shapeOptions.map((shape) => {
+              const isCurrent = shape.length === currentShape.length
+                && shape.every((n, i) => n === currentShape[i]);
+              return (
+                <button
+                  key={shape.join('-')}
+                  type="button"
+                  onClick={() => applySideShape(shape)}
+                  className={`min-h-[44px] rounded-md border px-4 py-2 text-sm font-medium ${
+                    isCurrent
+                      ? 'border-green-600 bg-green-600 text-white'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                  }`}
+                >
+                  {shape.join(' v ')}
+                  <span className={`ml-1.5 text-xs ${isCurrent ? 'text-green-100' : 'text-gray-500'}`}>
+                    {shape.length} side{shape.length === 1 ? '' : 's'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
         {players.map((p) => {
-          const s = sideOf(p.id);
+          const mine = sideIdOf(p.id);
           return (
             <div key={p.id} className="flex items-center justify-between px-4 py-3">
               <span className="text-sm text-gray-800">
@@ -2562,16 +3409,16 @@ function SubTeamsStep({
                 {course && <span className="ml-2 text-xs text-gray-400">CHcp {chcp(p)}</span>}
               </span>
               <div className="flex gap-1.5">
-                {(['a', 'b'] as const).map((side) => (
+                {effective.map((side) => (
                   <button
-                    key={side}
+                    key={side.id}
                     type="button"
-                    onClick={() => assign(p.id, side)}
+                    onClick={() => assign(p.id, side.id)}
                     className={`w-9 h-9 rounded-full text-sm font-bold transition ${
-                      s === side ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      mine === side.id ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    {side.toUpperCase()}
+                    {side.id.toUpperCase()}
                   </button>
                 ))}
               </div>
@@ -2580,13 +3427,47 @@ function SubTeamsStep({
         })}
       </div>
 
+      {/* Optional custom names, one field per side that exists (F-014). Collapsed by default —
+          the board already reads "Craig & Jym", so almost nobody opens this. */}
+      <SideNames sides={effective} players={players} onChangeAction={setSides} idPrefix="wizard-side-name" />
+
+      {/* Add / remove a side. Hidden behind nothing, but deliberately below the assignment
+          list: two sides is the default and most groups never touch this. */}
+      <div className="mt-3 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={addSide}
+          disabled={effective.length >= players.length}
+          className="text-sm font-medium text-green-700 hover:text-green-900 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          + Add a side
+        </button>
+        {effective.length > 2 && (
+          <button
+            type="button"
+            onClick={() => removeSide(effective[effective.length - 1].id)}
+            className="text-sm font-medium text-gray-500 hover:text-gray-800"
+          >
+            Remove side {effective[effective.length - 1].id.toUpperCase()}
+          </button>
+        )}
+      </div>
+
       {!balanced && (
-        <p className="text-xs text-amber-700 mt-2">Sides are uneven ({effective.a.length} vs {effective.b.length}). 2v2 works best with two on each side.</p>
+        <p className="text-xs text-amber-700 mt-2">
+          Sides are uneven ({counts.join(' vs ')}). That works — handicaps still apply per player — but
+          it is worth a look before you start.
+        </p>
+      )}
+      {unassigned.length > 0 && (
+        <p className="text-xs text-amber-700 mt-2">
+          {unassigned.map((p) => p.name.split(' ')[0]).join(', ')} {unassigned.length === 1 ? 'is' : 'are'} not on a side yet.
+        </p>
       )}
 
       <button
         onClick={onNext}
-        disabled={effective.a.length === 0 || effective.b.length === 0}
+        disabled={emptySides.length > 0 || unassigned.length > 0}
         className="mt-6 w-full rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Next: Review &amp; Create
@@ -2597,7 +3478,12 @@ function SubTeamsStep({
 
 function CreateStep({
   name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited,
-  moneyMode, matchConfig, handicapBasis, nine, holesPlaying, gameMode, onCreate, onBack,
+  moneyMode, matchConfig, handicapBasis, nine, holesPlaying, gameMode,
+  entryPerPlayerText, setEntryPerPlayer, positionSplitText, setPositionSplitText,
+  junkValues, setJunkValues, customBonuses, setCustomBonuses,
+  matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
+  sides, modeSettings,
+  onCreate, onBack,
 }: {
   name: string;
   entryPerPlayer: number;
@@ -2615,10 +3501,29 @@ function CreateStep({
   nine: 'front9' | 'back9' | null;
   holesPlaying: '18' | 'front9' | 'back9';
   gameMode: string | undefined;
+  // Money questions moved here from step 1: the pot can only be shown in real
+  // dollars once the team count is known, so this is where they belong.
+  entryPerPlayerText: string;
+  setEntryPerPlayer: (v: string) => void;
+  positionSplitText: string;
+  setPositionSplitText: (v: string) => void;
+  junkValues: PoolJunkValues;
+  setJunkValues: (v: PoolJunkValues) => void;
+  customBonuses: CustomBonus[];
+  setCustomBonuses: (v: CustomBonus[]) => void;
+  matchLegs: { front: string; back: string; overall: string };
+  setMatchLegs: (v: { front: string; back: string; overall: string }) => void;
+  matchJunkPerPoint: string;
+  setMatchJunkPerPoint: (v: string) => void;
+  // Side games only (F-018): the sides and their chosen options, so the review step can confirm
+  // the thing the game is actually about instead of listing every player in one run.
+  sides: GameSide[] | undefined;
+  modeSettings: SettingsBag;
   onCreate: () => void; onBack: () => void;
 }) {
   const mode = getGameMode(gameMode);
   const isIndividual = mode?.category === 'individual' || mode?.category === 'team-within-group';
+  const isWithinGroupReview = mode?.category === 'team-within-group';
   const isMatch = moneyMode === 'match';
   const playerById = new Map(players.map((p) => [p.id, p]));
   const pot = players.length * entryPerPlayer;
@@ -2659,7 +3564,12 @@ function CreateStep({
   return (
     <div>
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Review &amp; Create</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        {/* A JS STRING, not JSX text — so "&amp;" would render literally as five characters.
+            (The `Next: Review &amp; Create` button labels below are real JSX text and are
+            correctly escaped there.) Caught in a screenshot; invisible in the code. */}
+        {isIndividual ? 'Review & create' : "What's it worth?"}
+      </h2>
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
         <div>
@@ -2676,13 +3586,20 @@ function CreateStep({
                 <p className="text-lg font-bold text-gray-900">{players.length}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500">Group size</p>
-                <p className="text-lg font-bold text-gray-900">{mode!.playersMin}–{mode!.playersMax}</p>
+                {/* "Group size" was wrong twice over: it's the count the GAME needs (measured
+                    against the whole field, 2026-08-26), and since F-019 a side game's field can
+                    span several groups, so nothing here describes a group. */}
+                <p className="text-xs text-gray-500">This game needs</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {mode!.playersMin === mode!.playersMax ? mode!.playersMin : `${mode!.playersMin}–${mode!.playersMax}`}
+                </p>
               </div>
             </div>
-            {(players.length < mode!.playersMin || players.length > mode!.playersMax) && (
+            {fitExplanation(mode, players.length) && (
               <p className="text-xs text-amber-700 mt-2">
-                {mode!.name} is played in a single group of {mode!.playersMin}–{mode!.playersMax} players — you have {players.length}. Go back to Field to adjust.
+                {/* No "go back to Field" any more: F-020's point is that the constraint is stated
+                    at the moment of choosing, so by here it should never be a surprise. */}
+                {fitExplanation(mode, players.length)}
               </p>
             )}
           </div>
@@ -2703,6 +3620,118 @@ function CreateStep({
         </div>
         )}
 
+        {/* WHAT'S IT WORTH — the money questions live here, not on step 1, because
+            the pot can only be shown in real dollars once the field and team count
+            are known. */}
+        {!isMatch && !isIndividual && (
+        <div className="pt-2 border-t">
+          <label className="block text-sm font-medium text-gray-800 mb-1">Buy-in per player ($)</label>
+          <input
+            type="number"
+            inputMode="decimal"
+            value={entryPerPlayerText}
+            onChange={(e) => setEntryPerPlayer(e.target.value)}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            {players.length} player{players.length === 1 ? '' : 's'} × ${entryPerPlayerText || 0} = <span className="font-semibold text-green-700">${pot}</span> in the pot.
+          </p>
+        </div>
+        )}
+
+        {!isMatch && !isIndividual && (
+        <div className="pt-2 border-t">
+          <label className="block text-sm font-medium text-gray-800 mb-1">Who gets paid?</label>
+          <input
+            type="text"
+            value={positionSplitText}
+            onChange={(e) => setPositionSplitText(e.target.value)}
+            placeholder="e.g. 100 or 70, 30"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Share of each pot by finishing place. <span className="font-medium">100</span> = winner takes all · <span className="font-medium">70, 30</span> = 1st and 2nd split it.
+          </p>
+        </div>
+        )}
+        {/* MANUAL bonuses — the ones no scorecard can reveal, so a scorer taps them per
+            hole while playing. Off unless chosen: a group that doesn't play barkies gets
+            no extra taps and no extra chrome on the scoring screen. */}
+        {!isIndividual && (
+        <div className="pt-2 border-t">
+          <p className="text-sm font-semibold text-gray-800 mb-1">Extra bonuses to track by hand</p>
+          <p className="text-xs text-gray-500 mb-2">
+            These can&apos;t be worked out from a score, so whoever&apos;s scoring taps them on the hole.
+            Skip them entirely if your group doesn&apos;t play them.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {COMMON_BONUSES.map((b) => {
+              const chosen = customBonuses.find((c) => c.id === b.id);
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() =>
+                    setCustomBonuses(chosen
+                      ? customBonuses.filter((c) => c.id !== b.id)
+                      : [...customBonuses, { ...b }])
+                  }
+                  title={b.hint}
+                  className={`min-h-[44px] rounded-lg border px-3 py-2 text-sm font-medium ${
+                    chosen
+                      ? 'border-green-600 bg-green-600 text-white'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                  }`}
+                >
+                  {chosen ? '✓ ' : ''}{b.label}
+                  <span className={`ml-1 text-xs ${chosen ? 'text-green-100' : 'text-gray-400'}`}>{b.hint}</span>
+                </button>
+              );
+            })}
+          </div>
+          {customBonuses.length > 0 && (
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {customBonuses.map((b) => (
+                <div key={b.id}>
+                  <label className="block text-xs text-gray-600 font-medium mb-1">{b.label} (points)</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={b.points}
+                    onChange={(e) =>
+                      setCustomBonuses(customBonuses.map((c) =>
+                        c.id === b.id ? { ...c, points: Number(e.target.value) } : c))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        )}
+
+        {!isIndividual && (
+        <div className="pt-2 border-t">
+          <p className="text-sm font-semibold text-gray-800 mb-1">Bonus points for good holes</p>
+          <p className="text-xs text-gray-500 mb-2">These add to a team&apos;s bonus total. Set any to 0 to skip it.</p>
+          <div className="grid grid-cols-5 gap-2">
+            {JUNK_FIELDS.map(({ key, label, hint }) => (
+              <div key={key}>
+                <label className="block text-xs text-gray-600 font-medium">{label}</label>
+                <span className="block text-[10px] text-gray-400 mb-1">{hint}</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={junkValues[key]}
+                  onChange={(e) => setJunkValues({ ...junkValues, [key]: Number(e.target.value) })}
+                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+        )}
         {!isMatch && !isIndividual && (
         <div className="pt-2 border-t">
           <div className="flex items-center justify-between mb-2">
@@ -2769,6 +3798,70 @@ function CreateStep({
         </div>
         )}
 
+        {/* THE SIDES (F-018). The last screen before money changes hands used to say only
+            "Players 6 · Group size 4–8 · Foursomes" over one flat list of six names — not how
+            many sides, not who was with whom, not the stakes. Confirming who's paired with whom is
+            the whole job of a review step, and it was the one thing it didn't show.
+
+            "Foursomes" is also simply the wrong word here (§5.al: say "side" in a side game). */}
+        {isWithinGroupReview && sides && sides.length > 0 && (
+          <div className="pt-2 border-t">
+            <p className="text-sm font-semibold text-gray-800 mb-2">
+              Sides ({sides.map((s) => s.playerIds.length).join(' vs ')})
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {sides.map((side) => {
+                const sideLabel = sideNameFrom(players, side.playerIds, side.id, side.name, allSidesAreSolo(sides));
+                // When a side IS one player and hasn't been given a custom name, its label and its
+                // only member are the same string — so the box printed "Craig" with "Craig" under
+                // it. Show the heading only when it says something the member list doesn't.
+                const soloName = side.playerIds.length === 1
+                  ? playerById.get(side.playerIds[0])?.name
+                  : undefined;
+                const headingIsRedundant = soloName !== undefined && sideLabel === soloName.split(' ')[0];
+                return (
+                  <div key={side.id} className="rounded-lg border border-gray-200 p-2">
+                  {!headingIsRedundant && (
+                    <p className="text-sm font-medium text-gray-900 mb-1">
+                      {/* Named exactly as the board will name it — same resolver, so the review
+                          can't promise a label the leaderboard won't use. */}
+                      {sideLabel}
+                    </p>
+                  )}
+                  {side.playerIds.map((pid) => {
+                    const p = playerById.get(pid);
+                    if (!p) return null;
+                    const chcp = course
+                      ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine))
+                      : null;
+                    return (
+                      <div key={pid} className="flex items-center gap-2 text-sm text-gray-600 py-0.5">
+                        <span className="truncate min-w-0 flex-1">{p.name}</span>
+                        {chcp !== null && (
+                          <span className="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums" title="Course handicap on this tee">
+                            {chcp}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                );
+              })}
+            </div>
+            {/* The stakes, in words. A review step that shows the pairings but not what they're
+                playing for is only half a confirmation. */}
+            <p className="text-xs text-gray-500 mt-2">{sideMoneySummary(modeSettings, sides.length)}</p>
+            {players.some((p) => !sides.some((s) => s.playerIds.includes(p.id))) && (
+              <p className="text-xs text-amber-700 mt-1">
+                {players.filter((p) => !sides.some((s) => s.playerIds.includes(p.id)))
+                  .map((p) => p.name.split(' ')[0]).join(', ')} not on a side yet.
+              </p>
+            )}
+          </div>
+        )}
+
+        {!isWithinGroupReview && (
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-2">Foursomes</p>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -2808,6 +3901,7 @@ function CreateStep({
             })}
           </div>
         </div>
+        )}
       </div>
 
       <button
