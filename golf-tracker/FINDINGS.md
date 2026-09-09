@@ -1984,13 +1984,22 @@ related, still-unapplied off-the-low finding in the project memory (round-then-s
   setting nobody can evaluate ("rounded or unrounded allowance basis?") — it fails the "sane
   default + showIf" bar. Included for completeness.
 
-**Recommendation:** **A** — the app already defers to GHIN everywhere else (course handicap ==
-what GHIN displays), and a stroke count that disagrees with the GHIN app on the first tee is
-indistinguishable from a bug regardless of which rule book defends it. But this is handicap/money
-math with a real blast radius, so it's **Craig's call**, and the fix should land with tests pinning
-the exact Spring Creek example above.
+**Recommendation (REVISED after finding the history):** ~~A~~ — **collect fresh GHIN-app data
+first.** Commit `3e8ace1` (2026-08-07) deliberately switched the app TO round-first because that
+matched the GHIN app **at the same course** (Spring Creek 3 Stars, 90%, real case: "gave Cory 3
+strokes where GHIN gives 2 — his 4.20 rounded down while the low man's 1.58 rounded up"), verified
+against all 15 stored games plus a 180k-value property test. Craig's 2026-09-09 report says the
+GHIN app now disagrees with round-first at the same course and allowance. Both observations can't
+follow one rule — either the GHIN app changed, or the two cases went through different GHIN
+features (the Aug case was **off-the-low front-9**; the Sep case reads like a **full-18 head-to-head
+difference**), or one report's inputs differ from what we assumed. **Craig's standing rule is
+"always match the GHIN app"** — so the fix is whichever order fresh side-by-side GHIN screenshots
+show, captured for BOTH shapes (a 90% head-to-head difference AND a 90% off-the-low field) before
+any math changes. What's needed from Craig: GHIN-app screenshots of the two players' playing
+handicaps at 90% (the exact tees + indexes), ideally alongside what our app shows.
 
-**Status:** open
+**Status:** open — blocked on fresh GHIN-app evidence (both orders have a verified real case behind
+them, 30 days apart)
 
 ---
 

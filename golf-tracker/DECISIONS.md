@@ -1332,6 +1332,28 @@ Game" defaulting to "Team Pool (foursomes vs foursomes)"):
 
 ---
 
+## 5.ba The GHIN app is the reference implementation for handicaps (2026-09-09)
+
+Craig, after reporting our 90% strokes disagreed with the GHIN app at Spring Creek (F-022):
+
+> "We always need handicaps to calculate the same as the ghin app. We changed something in the
+> past when they didnt match."
+
+**Decided.** When our strokes and the GHIN app disagree, the GHIN app is right by definition —
+not the Rules of Handicapping text, not our reading of it. Golfers cross-check against the app in
+their pocket; a number that differs from it is indistinguishable from a bug whatever the rule book
+says.
+
+**The past change he remembered is commit `3e8ace1` (2026-08-07)** — which switched the allowance
+order TO round-first *because that's what matched the GHIN app then*, at the same course and
+allowance as the new report (Spring Creek 3 Stars, 90%; "gave Cory 3 strokes where GHIN gives 2").
+So both orders now have a verified match-GHIN case behind them, 30 days apart. Consequence: **no
+allowance-order change without fresh side-by-side GHIN-app evidence, captured for both shapes**
+(a head-to-head difference AND an off-the-low field, both at sub-100%) — the two cases may go
+through different GHIN features with genuinely different rounding. See F-022's revised status.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch
