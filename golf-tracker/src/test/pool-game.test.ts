@@ -20,14 +20,14 @@ import {
   getFieldLow,
   getGameHoles,
   isPoolGameFullyScored,
-  serpentineTeams,
+  captainsDealTeams,
   customBonusCountsForTeam,
   balanceTeamsWithCaptains,
   type PoolGame,
 } from '@/lib/pool-game';
 import type { GameScore } from '@/lib/game-state';
 import {
-  allEighteen, backNine, frontNine, makeGame, makePlayer, makePlayers, parScores, scoresFor, TEST_PARS,
+  allEighteen, backNine, frontNine, makeCourse, makeGame, makePlayer, makePlayers, makeTee, parScores, scoresFor, TEST_PARS,
   type GameOpts,
 } from './fixtures';
 
@@ -361,47 +361,79 @@ describe('computePoolResult — pot mode', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Serpentine (snake draft) team building — JY's request
+// The captains' deal — Craig's complementary spec (§5.ay)
 // ---------------------------------------------------------------------------
 
-describe('serpentineTeams', () => {
-  // hcapOf is identity on index here, so the expected draft order is readable.
+describe('captainsDealTeams', () => {
+  // The default fixture course is slope 113 / rating == par, so course handicap
+  // == index and the expected deal order is readable off the player numbers.
   const mk = (n: number) => makePlayers(Array.from({ length: n }, (_, i) => i + 1));
-  const h = (p: { handicapIndex: number | null }) => p.handicapIndex ?? 0;
+  const course = makeCourse();
 
-  it('the higher-handicap captain picks first, then the order reverses', () => {
-    // 8 players, indexes 1..8. Captains here are p8 and p7 purely so the arithmetic is
-    // readable — in the real app pickCaptains() chooses the LOWEST handicaps, so this
-    // ordering is between already-strong players, not a claim that captains are weak.
-    const players = mk(8);
-    const teams = serpentineTeams(players, 2, h, ['p8', 'p7']);
+  it('pins Craig\'s 4-captain / 12-pool example: C1 gets P12/P8/P4, C4 gets P9/P5/P1', () => {
+    // 16 players, indexes 1..16. Captains C1..C4 = p1..p4 (best to worst); the
+    // pool P1 (best non-captain) .. P12 (worst) = p5..p16. §5.ay: each round the
+    // best captain gets the worst remaining, same direction every round, so the
+    // worst captain lands the best non-captain (P1 = p5) in the FINAL round.
+    const players = mk(16);
+    const teams = captainsDealTeams(players, 4, course, 100, ['p1', 'p2', 'p3', 'p4']);
 
-    // Higher-handicap captain drafts first => team 0 (p8), then team 1 (p7).
-    // Pool best-first: p1 p2 p3 p4 p5 p6.
-    //   round 0 (0,1): p1 -> t0, p2 -> t1
-    //   round 1 (1,0): p3 -> t1, p4 -> t0
-    //   round 2 (0,1): p5 -> t0, p6 -> t1
-    expect(teams[0]).toEqual(['p8', 'p1', 'p4', 'p5']);
-    expect(teams[1]).toEqual(['p7', 'p2', 'p3', 'p6']);
+    expect(teams[0]).toEqual(['p1', 'p16', 'p12', 'p8']);  // C1 + P12, P8, P4
+    expect(teams[1]).toEqual(['p2', 'p15', 'p11', 'p7']);  // C2 + P11, P7, P3
+    expect(teams[2]).toEqual(['p3', 'p14', 'p10', 'p6']);  // C3 + P10, P6, P2
+    expect(teams[3]).toEqual(['p4', 'p13', 'p9', 'p5']);   // C4 + P9,  P5, P1
   });
 
-  it('works with realistic captains — the LOWEST handicaps in the field', () => {
-    // How the app actually does it: pickCaptains() takes the best players. With p1 (1)
-    // and p2 (2) as captains, p2 has the higher handicap OF THE TWO, so p2 picks first.
+  it('deals the same direction every round — NO serpentine reversal', () => {
+    // 8 players, captains p1 (best) and p2. Pool worst-first: p8 p7 | p6 p5 | p4 p3.
+    // Every round: best captain takes the round's worst, worst captain its best.
     const players = mk(8);
-    const teams = serpentineTeams(players, 2, h, ['p1', 'p2']);
-    const t1 = teams.find((t) => t[0] === 'p1')!;
-    const t2 = teams.find((t) => t[0] === 'p2')!;
-    // p2's team drafts first, so it gets the best remaining player (p3).
-    expect(t2).toContain('p3');
-    expect(t1).toContain('p4');
-    expect(t1).toHaveLength(4);
-    expect(t2).toHaveLength(4);
+    const teams = captainsDealTeams(players, 2, course, 100, ['p1', 'p2']);
+    expect(teams[0]).toEqual(['p1', 'p8', 'p6', 'p4']);
+    expect(teams[1]).toEqual(['p2', 'p7', 'p5', 'p3']);
+    // The old snake would have given p2's team p3 AND p6 (reversal); under the
+    // deal the worst captain gets each round's best: p7, p5, p3.
+  });
+
+  it('breaks a rounded-handicap tie by the HARDER TEE, not the unrounded number', () => {
+    // §5.ay part 2, Craig: "if two players round to getting 2 strokes, but one plays
+    // off further tees than the other, the player playing further back tees should be
+    // getting ranked as a better player."
+    // p3: index 2.1 off the standard tee (rating 72)  → CH 2.1, rounds to 2.
+    // p4: index 0.4 off a harder tee   (rating 74)    → CH 2.4, rounds to 2.
+    // The rounding-blind sort the old snake used would call p3 (2.1 < 2.4) the better
+    // player; the captain comparator says p4 is — same rounded strokes off a harder
+    // tee means the lower index.
+    const hardTee = makeTee({
+      id: 2,
+      name: 'Test Black',
+      totalYardage: 7000,
+      ratings: [
+        { type: 'Total', courseRating: 74.0, slopeRating: 113 },
+        { type: 'Front', courseRating: 37.0, slopeRating: 113 },
+        { type: 'Back', courseRating: 37.0, slopeRating: 113 },
+      ],
+    });
+    const twoTees = makeCourse();
+    twoTees.teeSets = [...twoTees.teeSets, hardTee];
+    // Mutation-proved: sorting the pool by the unrounded handicap instead (the old
+    // hcapOf sort) ranks p3 (2.1) above p4 (2.4) and deals p4 to the best captain,
+    // failing this test.
+    const players = [
+      makePlayer(1, 0),                     // captain 1 (best)
+      makePlayer(2, 1),                     // captain 2
+      makePlayer(4, 0.4, { teeSetId: 2 }),  // harder tee,  CH 2.4 → 2, ranks BETTER
+      makePlayer(3, 2.1),                   // standard tee, CH 2.1 → 2
+    ];
+    const teams = captainsDealTeams(players, 2, twoTees, 100, ['p1', 'p2']);
+    // Best captain (p1) receives the WORSE of the tied pair — p3, off the easier tee.
+    expect(teams[0]).toEqual(['p1', 'p3']);
+    expect(teams[1]).toEqual(['p2', 'p4']);
   });
 
   it('gives every team the same number of seats', () => {
     const players = mk(12);
-    const teams = serpentineTeams(players, 3, h, ['p12', 'p11', 'p10']);
+    const teams = captainsDealTeams(players, 3, course, 100, ['p1', 'p2', 'p3']);
     expect(teams.map((t) => t.length)).toEqual([4, 4, 4]);
     // Every player placed exactly once.
     const all = teams.flat();
@@ -410,30 +442,36 @@ describe('serpentineTeams', () => {
 
   it('keeps a locked pair together', () => {
     const players = mk(8);
-    const teams = serpentineTeams(players, 2, h, ['p8', 'p7'], [['p1', 'p6']]);
-    const withP1 = teams.find((t) => t.includes('p1'))!;
-    expect(withP1).toContain('p6');
+    const teams = captainsDealTeams(players, 2, course, 100, ['p1', 'p2'], [['p3', 'p8']]);
+    const withP3 = teams.find((t) => t.includes('p3'))!;
+    expect(withP3).toContain('p8');
   });
 
   it('handles an uneven field without dropping anyone', () => {
     const players = mk(7);
-    const teams = serpentineTeams(players, 2, h, ['p7', 'p6']);
+    const teams = captainsDealTeams(players, 2, course, 100, ['p1', 'p2']);
     expect(teams.flat().sort()).toEqual(players.map((p) => p.id).sort());
     // Sizes differ by at most one.
     const sizes = teams.map((t) => t.length).sort();
     expect(sizes[sizes.length - 1] - sizes[0]).toBeLessThanOrEqual(1);
   });
 
-  it('works with no captains at all', () => {
+  it('works with no captains at all — falls back to an alternating deal', () => {
+    // With no captain edge to compensate, a same-direction deal would stack every
+    // round's worst player on slot 1; the degenerate case keeps the snake.
     const players = mk(8);
-    const teams = serpentineTeams(players, 2, h, [undefined, undefined]);
+    const teams = captainsDealTeams(players, 2, course, 100, [undefined, undefined]);
     expect(teams.flat().sort()).toEqual(players.map((p) => p.id).sort());
     expect(teams.map((t) => t.length)).toEqual([4, 4]);
+    // Dead even: 8+5+4+1 == 7+6+3+2.
+    const total = (t: string[]) =>
+      t.reduce((s, id) => s + (players.find((p) => p.id === id)!.handicapIndex ?? 0), 0);
+    expect(total(teams[0])).toBe(total(teams[1]));
   });
 
-  // The reason BOTH methods exist: the optimizer minimizes spread, serpentine is
+  // The reason BOTH methods exist: the optimizer minimizes spread, the deal is
   // explicable. Optimal should never be WORSE on its own metric.
-  it('the optimizer is at least as even as serpentine on the same field', () => {
+  it('the optimizer is at least as even as the deal on the same field', () => {
     const players = makePlayers([2, 5, 8, 11, 14, 17, 20, 23]);
     const hc = (p: { handicapIndex: number | null }) => p.handicapIndex ?? 0;
     const spread = (teams: string[][]) => {
@@ -441,9 +479,9 @@ describe('serpentineTeams', () => {
         t.reduce((s, id) => s + hc(players.find((p) => p.id === id)!), 0));
       return Math.max(...totals) - Math.min(...totals);
     };
-    const snake = serpentineTeams(players, 2, hc, ['p8', 'p7']);
-    const opt = balanceTeamsWithCaptains(players, 2, hc, ['p8', 'p7']);
-    expect(spread(opt)).toBeLessThanOrEqual(spread(snake));
+    const deal = captainsDealTeams(players, 2, course, 100, ['p1', 'p2']);
+    const opt = balanceTeamsWithCaptains(players, 2, hc, ['p1', 'p2']);
+    expect(spread(opt)).toBeLessThanOrEqual(spread(deal));
   });
 });
 

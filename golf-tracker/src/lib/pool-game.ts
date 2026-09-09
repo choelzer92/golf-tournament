@@ -104,7 +104,9 @@ export function customBonusCountsForTeam(
 // what made teams look like they "changed under the same parameters"). Older
 // games predate this field and render an honest "unknown" fallback.
 export interface PoolTeamBuild {
-  method: 'balanced' | 'serpentine' | 'sequential' | 'manual';  // balanced = optimizer (min spread); serpentine = snake draft; sequential = plain foursomes; manual = built by hand
+  // 'serpentine' is the PERSISTED value for the captains' deal (§5.ay renamed the
+  // method from snake draft; the stored string stays so old games still render).
+  method: 'balanced' | 'serpentine' | 'sequential' | 'manual';  // balanced = optimizer (min spread); serpentine = captains' deal; sequential = plain foursomes; manual = built by hand
   excludeCaptains?: boolean;   // for 'balanced': whether captains were left out of the balance (snapshot at build time)
   hadCaptains?: boolean;       // for 'balanced': at least one captain slot was set
   hadLocks?: boolean;          // pairing locks were in effect at build time
@@ -1082,32 +1084,46 @@ export function balanceTeamsWithCaptains(
   return filled.map((ids, i) => [...seeded[i], ...ids]);
 }
 
-// Serpentine (snake draft) team building.
+// The captains' deal — complementary, same direction every round (§5.ay).
 //
-// Requested by JY, a real organizer: "after the captains are chosen … a straight
-// serpentine sort that takes the next lowest player, using course handicap and put them
-// on the highest captains team and work your way across then back."
+// Craig's spec, replacing JY's original serpentine: "The best captain gets the worst
+// player, 2nd best gets 2nd worst, 3rd best gets third worst, then worst captain gets
+// 4th worst player. Then it continues to the point where the 4th captain effectively
+// gets the best player that was outside of captains." No direction reversal — the same
+// pattern repeats each round against the remaining pool, so over a full draft the
+// worst captain receives the best non-captain player, in the final round.
 //
 // WHY THIS EXISTS ALONGSIDE balanceTeamsWithCaptains, which already provably minimizes
 // team-handicap spread (greedy LPT -> 2-swap -> exact branch-and-bound): the optimizer
 // answers "make the totals as even as possible", but its assignment is not something an
-// organizer can explain or check by eye. Serpentine is strictly POSITIONAL — deal the
-// best remaining player to the weakest captain, then reverse each round — so a group can
-// watch it happen and agree it was fair. In a money game, explicability is its own
-// feature. JY asked for it while the optimizer already existed.
+// organizer can explain or check by eye. The deal is strictly POSITIONAL, so a group
+// can watch it happen and agree it was fair. In a money game, explicability is its own
+// feature.
 //
-// Captains draft in order of HIGHEST HANDICAP AMONG THE CAPTAINS first — which is what
-// JY means by "the highest captains team". Note captains are normally the LOWEST
-// handicaps in the field (see pickCaptains), so this is a relative ordering between
-// already-strong players, not a claim that any captain is weak. Drafting in that order
-// means the captain with the least edge gets first pick, which is what evens the teams
-// out. Locks ride along with their first-drafted member, consuming that team's seats.
-export function serpentineTeams(
+// Both the captain order and the pool order use the SAME comparator as
+// rankPlayersForCaptain — rounded course handicap, then harder tee (rating, yardage),
+// then the unrounded number. The tee tiebreak is the point (§5.ay part 2): two players
+// who both round to 2 strokes are NOT equal if one plays a harder tee — matching the
+// same number from further back means a lower index, so that player ranks better.
+// The old sort used the rounding-blind handicap alone and fell to insertion order.
+//
+// Implementation note: dealing the pool WORST-first to slots ordered BEST-captain-first,
+// in the same order every round, IS the complementary pattern — round k hands the
+// k-th-worst chunk out best-captain-first, so the last slot always gets that round's
+// best. Locks ride along with their first-dealt member, consuming that team's seats.
+//
+// With NO captains at all there is no captain edge to compensate, and a same-direction
+// deal would just stack every round's worst player on slot 1 — so that case keeps the
+// old alternating (serpentine) direction, which is the fair degenerate form.
+export function captainsDealTeams(
   players: Player[],
   numTeams: number,
-  hcapOf: (p: Player) => number,
+  course: CourseSelection | null,
+  allowance: number,
   captainByTeam: (string | undefined)[],
   locks: string[][] = [],
+  basis: 'course' | 'index' = 'course',
+  nine?: 'front9' | 'back9' | null,
 ): string[][] {
   const nt = Math.max(1, numTeams);
   const byId = new Map(players.map((p) => [p.id, p]));
@@ -1117,11 +1133,17 @@ export function serpentineTeams(
     for (const id of present) lockByMember.set(id, present);
   }
 
+  // One ranking, best (rank 0) to worst, shared by captains and pool. Players with
+  // no index rank last (unknown is treated as worst, same as everywhere else).
+  const rankIndex = new Map(
+    rankPlayersForCaptain(players, course, allowance, basis, nine).map((r, i) => [r.playerId, i]),
+  );
+
   const teams: string[][] = Array.from({ length: nt }, () => []);
   const claimed = new Set<string>();
 
-  // Seed captains, then order the SLOTS weakest-captain-first. A slot with no captain
-  // sorts last (it has no anchor to compensate for).
+  // Seed captains, then order the SLOTS best-captain-first. A slot with no captain
+  // sorts last — it has no anchor, so it receives each round's best player.
   for (let i = 0; i < nt; i++) {
     const capId = captainByTeam[i];
     if (!capId || !byId.has(capId) || claimed.has(capId)) continue;
@@ -1129,18 +1151,18 @@ export function serpentineTeams(
     teams[i].push(capId);
   }
   const draftOrder = [...Array(nt).keys()].sort((a, b) => {
-    const ca = teams[a][0], cb = teams[b][0];
-    const ha = ca ? hcapOf(byId.get(ca)!) : -Infinity;
-    const hb = cb ? hcapOf(byId.get(cb)!) : -Infinity;
-    return hb - ha;                       // highest-handicap captain drafts first
+    const ra = teams[a][0] ? rankIndex.get(teams[a][0])! : Infinity;
+    const rb = teams[b][0] ? rankIndex.get(teams[b][0])! : Infinity;
+    return (ra - rb) || (a - b);
   });
 
-  // Remaining players, best (lowest handicap) first.
+  // Remaining players, WORST first — the front of this list goes to the best captain.
   const pool = players
     .filter((p) => !claimed.has(p.id))
-    .sort((a, b) => hcapOf(a) - hcapOf(b));
+    .sort((a, b) => rankIndex.get(b.id)! - rankIndex.get(a.id)!);
 
-  // Even seat caps, never below what a slot is already seeded with.
+  // Even seat caps, never below what a slot is already seeded with. Extra seats in an
+  // uneven field go to the best captains' teams — they absorb the extra (worst) body.
   const total = players.length;
   const base = Math.floor(total / nt);
   const extra = total % nt;
@@ -1149,13 +1171,14 @@ export function serpentineTeams(
     return Math.max(base + (idx < extra ? 1 : 0), teams[i].length);
   });
 
+  const anyCaptain = teams.some((t) => t.length > 0);
   let pi = 0;
   let round = 0;
-  // Deal in alternating directions until the pool is exhausted. The guard is a
-  // belt-and-braces bound: each pass places at least one player unless every slot is
-  // full, in which case the loop exits on `pi`.
+  // Deal until the pool is exhausted. The guard is a belt-and-braces bound: each pass
+  // places at least one player unless every slot is full, in which case the loop exits
+  // on `pi`.
   while (pi < pool.length && round < total + nt) {
-    const order = round % 2 === 0 ? draftOrder : [...draftOrder].reverse();
+    const order = anyCaptain || round % 2 === 0 ? draftOrder : [...draftOrder].reverse();
     for (const t of order) {
       if (pi >= pool.length) break;
       if (teams[t].length >= caps[t]) continue;
@@ -1174,10 +1197,10 @@ export function serpentineTeams(
     round++;
   }
 
-  // NOTE ON ORDER: the returned arrays are in DRAFT sequence. Callers should re-order for
-  // display (orderPlayerIdsWithCaptain / sortPlayerIdsByHcap) so a snake-drafted team
+  // NOTE ON ORDER: the returned arrays are in DEAL sequence. Callers should re-order for
+  // display (orderPlayerIdsWithCaptain / sortPlayerIdsByHcap) so a dealt team
   // reads lowest-to-highest handicap like every other team in the app — being the one
-  // list that reads differently is more confusing than the draft order is useful.
+  // list that reads differently is more confusing than the deal order is useful.
 
   // Anyone left over (seat caps exhausted by an oversized lock) goes to the emptiest slot.
   for (; pi < pool.length; pi++) {
@@ -1553,8 +1576,8 @@ export function summarizeTeamBuild(game: PoolGame): TeamBuildSummary {
       ? 'Evened out the non-captain players; each captain’s own strokes ride as the edge.'
       : 'Evened out each whole team, captains included.';
   } else if (tb.method === 'serpentine') {
-    headline = 'Snake draft off the captains';
-    detail = 'Best available player to the weakest captain each round, alternating direction — so the order is checkable by eye.';
+    headline = 'Captains’ deal';
+    detail = 'Each round the best captain takes the worst remaining player, down to the worst captain taking the best — so the order is checkable by eye.';
   } else if (tb.method === 'sequential') {
     headline = 'Auto-generated foursomes (in list order)';
   } else {

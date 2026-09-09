@@ -476,7 +476,7 @@ test.describe('JY feedback: recent courses', () => {
   });
 });
 
-// NOTE: snake-draft correctness is covered by compute tests in src/test/pool-game.test.ts
+// NOTE: captains'-deal correctness is covered by compute tests in src/test/pool-game.test.ts
 // (exact deal order, locks, uneven fields, and that the optimizer is never worse on
 // spread). An e2e test would need a real course search, which the sandbox can't do — and
 // a test that only asserts "the wizard loaded" is the vacuous kind we removed earlier.

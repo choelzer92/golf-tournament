@@ -29,7 +29,7 @@ import {
   COMMON_BONUSES,
   type CustomBonus,
   balanceTeamsWithCaptains,
-  serpentineTeams,
+  captainsDealTeams,
   balanceTeamsWithLocks,
   pickCaptains,
   sortPlayerIdsByHcap,
@@ -2842,18 +2842,18 @@ function TeamsStep({
   // With captains ON: each captain anchors a slot and the rest balance around
   // them (captain-first ordering). With captains OFF: plain even balance, no
   // captain role at all — each team just listed low->high.
-  // Snake draft — JY's request. Kept separate from autoBalance() rather than folded in
+  // Captains' deal (§5.ay) — kept separate from autoBalance() rather than folded in
   // behind a flag, because the two answer different questions: autoBalance minimizes
   // team-handicap spread (exact branch-and-bound), while this deals positionally so an
   // organizer can explain and verify it. Both are legitimate; neither replaces the other.
-  function autoSerpentine() {
+  function autoCaptainsDeal() {
     const captainByTeam = Array.from({ length: numTeams }, (_, i) =>
       useCaptains ? (captainIds[i] || undefined) : undefined);
-    const groups = serpentineTeams(players, numTeams, hcapOf, captainByTeam, lockedGroups);
+    const groups = captainsDealTeams(players, numTeams, course, handicapAllowance, captainByTeam, lockedGroups, handicapBasis, nine);
     setTeams(groups.map((ids, i) => {
       const capId = captainByTeam[i] && ids.includes(captainByTeam[i]!) ? captainByTeam[i] : undefined;
       // Display lowest-to-highest handicap, same as every other build method. I'd first
-      // kept the raw draft order to make the snake verifiable, but being the one team
+      // kept the raw deal order to make it verifiable, but being the one team
       // list in the app that reads differently is more confusing than that is useful.
       const ordered = capId
         ? orderPlayerIdsWithCaptain(ids, capId, players, course, handicapAllowance, handicapBasis)
@@ -3080,10 +3080,10 @@ function TeamsStep({
               run: autoBalance,
             },
             {
-              key: 'snake',
-              label: 'Snake draft',
-              detail: 'Best available player to the highest-handicap captain, then back the other way each round. Slightly less even, but your group can watch it happen.',
-              run: autoSerpentine,
+              key: 'deal',
+              label: 'Captains’ deal',
+              detail: 'Each round the best captain takes the worst remaining player, down to the worst captain taking the best. Slightly less even, but your group can watch it happen.',
+              run: autoCaptainsDeal,
             },
             {
               key: 'sequential',

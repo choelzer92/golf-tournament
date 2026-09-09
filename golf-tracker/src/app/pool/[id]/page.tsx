@@ -32,7 +32,7 @@ import {
   getPar3Holes,
   distinctRankingsForPlayers,
   balanceTeamsWithCaptains,
-  serpentineTeams,
+  captainsDealTeams,
   balanceTeamsWithLocks,
   pickCaptains,
   sortPlayerIdsByHcap,
@@ -1974,17 +1974,20 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
     });
   }
 
-  // Snake draft on an EXISTING game. The wizard had this but the hub didn't, so an
-  // organizer who wanted to re-draft after a late arrival had no way to.
-  function autoSerpentine() {
+  // Captains' deal on an EXISTING game. The wizard had this but the hub didn't, so an
+  // organizer who wanted to re-deal after a late arrival had no way to.
+  function autoCaptainsDeal() {
     const captainByTeam = Array.from({ length: numTeams }, (_, i) =>
       useCaptains ? (captainIds[i] || undefined) : undefined);
-    const groups = serpentineTeams(
+    const groups = captainsDealTeams(
       game.players,
       numTeams,
-      (p) => getPoolPlayingHandicap(p, course, game.handicapAllowance, game.handicapBasis, gameNineBasis(game)),
+      course,
+      game.handicapAllowance,
       captainByTeam,
       game.lockedGroups ?? [],
+      game.handicapBasis,
+      gameNineBasis(game),
     );
     applyReshuffle(groups, captainByTeam, {
       method: 'serpentine',
@@ -2084,11 +2087,11 @@ function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (
               {useCaptains ? 'Even out around captains' : 'Even out by handicap'}
             </button>
             <button
-              onClick={autoSerpentine}
+              onClick={autoCaptainsDeal}
               className="min-h-[44px] rounded-md border border-green-700 px-3 py-2.5 text-sm text-green-700 font-medium hover:bg-green-50"
-              title="Best available player to the highest-handicap captain each round, alternating direction"
+              title="Each round the best captain takes the worst remaining player, down to the worst captain taking the best"
             >
-              Snake draft
+              Captains&rsquo; deal
             </button>
             <button
               onClick={autoGenerate}
