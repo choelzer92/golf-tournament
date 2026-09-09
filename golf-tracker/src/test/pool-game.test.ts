@@ -23,6 +23,7 @@ import {
   captainsDealTeams,
   customBonusCountsForTeam,
   balanceTeamsWithCaptains,
+  teeHasRating,
   type PoolGame,
 } from '@/lib/pool-game';
 import type { GameScore } from '@/lib/game-state';
@@ -129,6 +130,31 @@ describe('buildHcapMap', () => {
       expect(m.get('p2')).toBe(7);   // 5 − (−2)
       expect(m.get('p3')).toBe(12);
     });
+  });
+});
+
+// F-023: the display sites use this to distinguish "computed off this tee's
+// slope" from "no usable Total rating — fell back to the raw index".
+describe('teeHasRating', () => {
+  it('is true on a tee with a Total slope + rating', () => {
+    expect(teeHasRating(makePlayer(1, 10), makeCourse())).toBe(true);
+  });
+
+  it('is false when the Total ratings row is missing (The Meadows shape)', () => {
+    const course = makeCourse({
+      teeSets: [makeTee({
+        ratings: [{ type: 'Front', courseRating: 36.0, slopeRating: 113 }],
+      })],
+    });
+    expect(teeHasRating(makePlayer(1, 10), course)).toBe(false);
+  });
+
+  it('is false when slope or rating is 0/absent, and without a course', () => {
+    const zeroed = makeCourse({
+      teeSets: [makeTee({ ratings: [{ type: 'Total', courseRating: 0, slopeRating: 0 }] })],
+    });
+    expect(teeHasRating(makePlayer(1, 10), zeroed)).toBe(false);
+    expect(teeHasRating(makePlayer(1, 10), null)).toBe(false);
   });
 });
 

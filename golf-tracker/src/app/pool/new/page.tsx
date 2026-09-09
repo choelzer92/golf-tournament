@@ -22,6 +22,7 @@ import {
   DEFAULT_MATCH_CONFIG,
   savePoolGame,
   getPoolPlayingHandicap,
+  teeHasRating,
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
   getRecentCourses,
@@ -2383,9 +2384,15 @@ function FieldStep({
                       </p>
                       <p className="text-sm text-gray-500">
                         Index: {player.handicapIndex ?? 'N/A'}
-                        {courseHcap !== null && (
+                        {/* F-023: when this tee has no usable slope/rating the number is the raw
+                            index, not a course handicap — SAY so instead of printing a confident
+                            "Course HCP" that's wrong on any course whose slope is far from 113.
+                            The 'index' basis skips the conversion on purpose, so no warning there. */}
+                        {courseHcap !== null && (handicapBasis === 'index' || teeHasRating(player, course!) ? (
                           <span className="ml-2 text-green-700">Course HCP: {courseHcap}</span>
-                        )}
+                        ) : (
+                          <span className="ml-2 text-amber-700">no slope/rating on this tee — using index ({courseHcap})</span>
+                        ))}
                       </p>
                     </div>
                     <button onClick={() => removePlayer(player.id)} className="text-red-500 hover:text-red-700 text-sm">

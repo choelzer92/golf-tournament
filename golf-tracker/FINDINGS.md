@@ -1998,8 +1998,13 @@ show, captured for BOTH shapes (a 90% head-to-head difference AND a 90% off-the-
 any math changes. What's needed from Craig: GHIN-app screenshots of the two players' playing
 handicaps at 90% (the exact tees + indexes), ideally alongside what our app shows.
 
-**Status:** open — blocked on fresh GHIN-app evidence (both orders have a verified real case behind
-them, 30 days apart)
+**Status:** FIXED 2026-09-09 per option A — Craig chose to switch to unrounded-first now (§5.bb),
+on the strength of the USGA guidance ("apply the percentage to the unrounded Course Handicap …
+round the final number") plus his same-day GHIN report, rather than wait for screenshots.
+`applyAllowance` is now `CH × allowance/100`; callers round once. The Spring Creek head-to-head
+(7.6 vs 2.7, 90% → 6 strokes) is pinned in `pool-game.test.ts`. The 3e8ace1 Cory case now computes
+3 vs the 2 that was reported from GHIN in August — Craig accepted re-verifying on-course; if GHIN
+disagrees again, §5.ba's both-shapes screenshot rule applies before any further change.
 
 ---
 
@@ -2043,7 +2048,12 @@ now so the observation isn't lost; the fix options depend on which shape comes b
 **Recommendation:** **C** — A is justified today by the code alone; B waits on evidence rather
 than guessing GHIN's shape.
 
-**Status:** open — blocked on capturing the GHIN response for The Meadows (Greenbrier, WV)
+**Status:** A FIXED 2026-09-09 — `teeHasRating(player, course)` (`lib/pool-game.ts`, unit-tested)
+centralizes the check; the wizard field list now says "no slope/rating on this tee — using index
+(N)" in amber instead of a confident "Course HCP: N" (skipped on the 'index' basis, where the raw
+index is what the organizer asked for). **B still blocked** on capturing the real
+`GetCourseDetails` response for The Meadows — ask Craig to search the course with the network tab
+open, or add a dev-only log. Do NOT guess GHIN's alternate shapes.
 
 ---
 
@@ -2074,7 +2084,10 @@ Check the same helper pattern anywhere else `Math.round` touches signed money (g
 `Math.round` in display paths); the scorecard PER PERSON block on the light theme shows the same
 +$13/−$12 pairing in the walk-22 text dump, so it shares the bug via its own formatter.
 
-**Status:** open
+**Status:** FIXED 2026-09-09 per option A — `money()` on the pool leaderboard, both tournament
+Per-Person strips (`scoreboard`, `side-games/scoreboard`) and the tournament money page all round
+the magnitude (`Math.round(Math.abs(n))`). UI_CONVENTIONS §1 updated with the rule. E2e: the
+Per-Person strip sums to zero on the seeded mid-round pool (`F-024` test in verify-fixes).
 
 ---
 
@@ -2104,7 +2117,11 @@ audit's root finding: one axis fixed, the other left behind.
 who's playing is the whole job of a review step"); this is the same decision applied to the axis
 it missed.
 
-**Status:** open
+**Status:** FIXED 2026-09-09 per option A — individual games now get their own review block:
+section reads "Players", each player shows their own course handicap (no combined CHcp), and a
+per-group card appears only when several playing groups exist. Classic pool keeps "Foursomes"
+untouched (`!isWithinGroupReview && !isIndividual`). E2e: `F-025` test walks the wizard to a
+skins review and asserts no Foursomes/CHcp.
 
 ---
 
@@ -2133,7 +2150,11 @@ step 1 and then never again.
 **Recommendation:** **A** — one already-tested line, and it also gives §5.ax part 4 (offer to
 "Save this format" at review) the natural place to live: summary line + save button together.
 
-**Status:** open
+**Status:** FIXED 2026-09-09 per option A — `formatSummaryLine` renders under the game name on
+the review step for individual/within-group games ("Skins · $1 a skin · full handicap"), with a
+"Save this format" button beside it (§5.ax part 4 closed: saves the current wizard settings to
+the Format Library via the same GroupDefaults shape as `formatFromGame`). E2e: `F-026` test
+asserts the stakes line and the save button.
 
 ---
 

@@ -464,6 +464,19 @@ function getPlayerTee(player: Player, course: CourseSelection | null): TeeSetOpt
   return course.teeSets.find((t) => t.id === course.selectedTeeId) || course.teeSets[0] || null;
 }
 
+// Whether a player's tee carries a usable 18-hole slope + rating (F-023). When it
+// doesn't — GHIN courses like The Meadows (Greenbrier, WV) come back without a
+// 'Total' ratings row — getPoolPlayingHandicap silently falls back to the raw
+// index (as if slope were 113 and rating equalled par). That fallback is fine as
+// math, but printing the result as "Course HCP: N" without a word is a confident
+// wrong number on any course whose slope is far from 113. Display sites use this
+// to say so instead. One place, so every screen agrees on what "has a rating" means.
+export function teeHasRating(player: Player, course: CourseSelection | null): boolean {
+  const tee = getPlayerTee(player, course);
+  const total = tee?.ratings?.find((r) => r.type === 'Total');
+  return !!(total?.slopeRating && total?.courseRating);
+}
+
 // Tee options to offer a player in a picker: the tees matching their gender,
 // PLUS whatever tee they're currently on even if it's the "wrong" gender. The
 // current-tee inclusion matters because an HTML <select> whose value isn't among
