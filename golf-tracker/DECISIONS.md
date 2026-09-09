@@ -1281,7 +1281,7 @@ player first, direction reversing each round):
 > player. Then it continues to the point where the 4th captain effectively gets the best player
 > that was outside of captains"
 
-**Decided, two parts — NOT yet built (queued for the next branch):**
+**Decided, two parts — BUILT 2026-09-09 (`captainsDealTeams`, branch `captains-deal-and-game-rename`):**
 
 1. **The deal is complementary and same-direction every round.** Rank captains best→worst and the
    remaining pool best→worst. Each round, the BEST captain receives the WORST remaining player,
@@ -1316,7 +1316,8 @@ Game" defaulting to "Team Pool (foursomes vs foursomes)"):
 > "so isnt everything effectively a pool? which is fine, but maybe we rename it? I dont see why
 > we need pools, games, money games, etc."
 
-**Decided — NOT yet built (queued for the next branch):**
+**Decided — BUILT 2026-09-09 (same branch; the sweep also folded in the "Build Field" →
+"Add Players" jargon fix and mode-aware list-card subtitles, closing two merge-audit items):**
 
 1. **User-facing copy says "Game".** "New Pool Game" → "New Game"; home-screen "Casual game" and
    any "money game" phrasing converge on the same word. After the N-side/team-scoring work,
