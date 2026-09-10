@@ -1848,9 +1848,18 @@ function FieldStep({
     setRosterResults(searchRoster(query));
   }
 
-  // Load a group: REPLACE today's field with the group's members (looked up in
-  // the roster and given a tee), and (unless skipDefaults) apply the group's
-  // saved format defaults. skipDefaults is used when a specific FORMAT was
+  // Above this size, loading a group pre-checks NOBODY: the group becomes the
+  // list you pick today's field FROM, not the field itself. At 61 members,
+  // picking 12 by unchecking 49 is the wrong direction (Craig, 2026-09-10).
+  // 8 = up to two foursomes — a small crew that loads a group almost always
+  // means "we're all playing". The threshold is a judgment call; adjust freely.
+  const GROUP_PRECHECK_MAX = 8;
+
+  // Load a group: make it today's roster context (members listed up top) and,
+  // unless skipDefaults, apply the group's saved format defaults. Small groups
+  // (≤ GROUP_PRECHECK_MAX) also REPLACE today's field with all members
+  // pre-checked; larger groups load with nobody checked, so the day's field is
+  // picked BY checking. skipDefaults is used when a specific FORMAT was
   // chosen for this game (group page's format picker): the format seed already
   // applied the settings on mount, so re-applying the group's OWN baked-in
   // default here would clobber the chosen format. Members still load either way.
@@ -1860,19 +1869,22 @@ function FieldStep({
     // finishes — before setGroups has re-rendered. Falls back to state.
     const group = getGroupById(groupId) ?? groups.find((g) => g.id === groupId);
     if (!group) return;
+    const precheck = group.playerIds.length <= GROUP_PRECHECK_MAX;
     const loaded: Player[] = [];
     let missing = 0;
-    for (const pid of group.playerIds) {
-      const rp = getRosterPlayerById(pid);
-      if (!rp) { missing++; continue; }
-      loaded.push({
-        id: rp.id,
-        name: rp.name,
-        handicapIndex: rp.handicapIndex,
-        gender: rp.gender ?? undefined,
-        ghinNumber: rp.ghinNumber ?? undefined,
-        teeSetId: pickTeeForPlayer(course, rp.gender ?? undefined, rp.defaultTeeName, rp.defaultTeeRank),
-      });
+    if (precheck) {
+      for (const pid of group.playerIds) {
+        const rp = getRosterPlayerById(pid);
+        if (!rp) { missing++; continue; }
+        loaded.push({
+          id: rp.id,
+          name: rp.name,
+          handicapIndex: rp.handicapIndex,
+          gender: rp.gender ?? undefined,
+          ghinNumber: rp.ghinNumber ?? undefined,
+          teeSetId: pickTeeForPlayer(course, rp.gender ?? undefined, rp.defaultTeeName, rp.defaultTeeRank),
+        });
+      }
     }
     setPlayers(loaded);
     if (!opts?.skipDefaults) applyGroupDefaults(group.defaults);
@@ -1880,7 +1892,9 @@ function FieldStep({
     setActiveGroupId(groupId);      // the picker now centers on this group
     setShowOtherPlayers(false);
     setGroupNote(
-      `Loaded “${group.name}” — ${loaded.length} player${loaded.length === 1 ? '' : 's'} pre-selected${missing > 0 ? ` (${missing} no longer on the roster)` : ''}. Uncheck anyone sitting out, or add others below.`
+      precheck
+        ? `Loaded “${group.name}” — ${loaded.length} player${loaded.length === 1 ? '' : 's'} pre-selected${missing > 0 ? ` (${missing} no longer on the roster)` : ''}. Uncheck anyone sitting out, or add others below.`
+        : `Loaded “${group.name}” (${group.playerIds.length} members). Check who's playing today.`
     );
   }
 

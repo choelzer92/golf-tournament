@@ -362,8 +362,14 @@ test.describe('group picker on wizard step 1 (§5.au: step 1 is the FIELD)', () 
 
     await warriors.click();
 
-    // Members land right here — 61 pre-selected.
-    await expect(page.getByText(/Loaded “Weekend Warriors” — 61 players/)).toBeVisible();
+    // A 61-member group loads with NOBODY pre-checked (Craig 2026-09-10): the day's
+    // field is picked BY checking, not by unchecking ~49.
+    await expect(page.getByText(/Loaded “Weekend Warriors” \(61 members\)\. Check who's playing today\./)).toBeVisible();
+    await expect(page.getByText('0 selected')).toBeVisible();
+    // Next is gated on a field — pick today's players from the group list.
+    await expect(page.getByRole('button', { name: /Next: Choose Game/ })).toBeDisabled();
+    await page.getByRole('button', { name: /Craig Hoelzer/ }).click();
+    await page.getByRole('button', { name: /Jym Youngberg/ }).click();
 
     // And the game step confirms: settings applied (Warriors default: off-the-low),
     // name inherited without typing.
@@ -373,6 +379,23 @@ test.describe('group picker on wizard step 1 (§5.au: step 1 is the FIELD)', () 
     await expect(page.getByRole('button', { name: 'Only above the best player' }))
       .toHaveClass(/bg-green-600/);
     await page.screenshot({ path: 'e2e/screenshots/wizard-group-picker.png', fullPage: true });
+  });
+
+  test('a small crew still loads all-checked', async ({ page }) => {
+    // The other side of the threshold: an 8-member group loading almost always means
+    // "we're all playing", so pre-checking stays right there.
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Groups — 61-member' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: /Tuesday Crew/ }).first().click();
+    await expect(page.getByText(/Loaded “Tuesday Crew” — 8 players pre-selected/)).toBeVisible();
+    await expect(page.getByText('8 selected')).toBeVisible();
   });
 
   test('a user with no groups never sees the picker', async ({ page }) => {
@@ -1764,9 +1787,11 @@ test.describe('a group offers the formats it plays', () => {
     await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
     await page.waitForLoadState('networkidle');
 
-    // §5.au: the wizard opens on the FIELD, with the group's members already loaded from the
-    // group seed. The format confirmation is the game step, one tap on.
+    // §5.au: the wizard opens on the FIELD, centered on the group. At 61 members nobody is
+    // pre-checked (Craig 2026-09-10) — pick today's players, then on to the game step.
     await expect(page.getByText(/Loaded “Weekend Warriors”/)).toBeVisible();
+    await page.getByRole('button', { name: /Craig Hoelzer/ }).click();
+    await page.getByRole('button', { name: /Jym Youngberg/ }).click();
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
 
     // Everything the format stores has been applied: the mode, the Nassau legs, and the handicap
@@ -1810,9 +1835,11 @@ test.describe('a group offers the formats it plays', () => {
     await page.getByRole('button', { name: 'Saturday Nassau' }).click();
     await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
     await page.waitForLoadState('networkidle');
-    // §5.au: the wizard opens on the FIELD (members pre-loaded from the group seed);
-    // the format confirmation these tests measure is the game step, one tap on.
+    // §5.au: the wizard opens on the FIELD, centered on the group (nobody pre-checked at
+    // 61 members); the format confirmation these tests measure is the game step, one tap on.
     await expect(page.getByText(/Loaded “Weekend Warriors”/)).toBeVisible();
+    await page.getByRole('button', { name: /Craig Hoelzer/ }).click();
+    await page.getByRole('button', { name: /Jym Youngberg/ }).click();
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await expect(page.getByText('Which game are you playing?')).toBeVisible();
   }
