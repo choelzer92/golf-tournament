@@ -1098,6 +1098,20 @@ function DetailsStep({
               })()}
             </p>
           )}
+          {/* F-033: with 2–3 players and the classic pool selected, the screen fills with
+              foursomes settings and nothing says six other games fit this field — the fit
+              badges live inside the CLOSED dropdown, so a friend opened this exact screen
+              and concluded 1v1/3-player games didn't exist. Same guidance-not-validation
+              posture (§5.ao) as the warning above, which never fires for the pool because
+              the pool fits any count; the default stays Pool. */}
+          {!selectedMode && !appliedFormatEntry && playerCount > 0 && playerCount <= 3 && (() => {
+            const fitting = GAME_MODES.filter((m) => modeFits(m, playerCount)).map((m) => m.name);
+            return fitting.length > 0 ? (
+              <p className="mt-1.5 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs text-sky-800">
+                With {playerCount} player{playerCount === 1 ? '' : 's'} you can also play: {fitting.join(', ')} — all in the list above.
+              </p>
+            ) : null;
+          })()}
         </div>
 
         {/* F-021 / §5.ax — WHEN A FORMAT WAS APPLIED, THIS IS A CONFIRMATION, NOT A FORM.

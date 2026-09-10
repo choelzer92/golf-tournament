@@ -2697,3 +2697,50 @@ test.describe('F-028: a points game shows points per hole in Player Details', ()
     await page.screenshot({ path: 'e2e/screenshots/f028-points-per-hole.png', fullPage: true });
   });
 });
+
+test.describe('F-033: a small field is told which games fit it', () => {
+  // The friend asked for "1v1 and more 3-player game types" — they exist, but the
+  // picker defaults to the foursomes pool and the fit badges only render inside the
+  // OPEN dropdown, so he opened this screen and concluded they didn't. A hint line
+  // under the picker now lists the fitting modes when the field is ≤3. The default
+  // stays Pool (§5.ao: guidance, not validation).
+  test('F-033: at 2 players the game step lists the games that fit', async ({ page }) => {
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    await fieldToGameStep(page);   // adds 2 players, lands on the game step (Pool selected)
+    const hint = page.getByText(/With 2 players you can also play:/);
+    await expect(hint).toBeVisible();
+    // The 1v1 answer he was missing, by name.
+    await expect(hint).toContainText('Sides / Match');
+    await page.screenshot({ path: 'e2e/screenshots/f033-fit-hint-2p.png', fullPage: true });
+
+    // Picking a fitting game dismisses the hint — it's about the pool default only.
+    await page.locator('select').first().selectOption('skins');
+    await expect(hint).toHaveCount(0);
+  });
+
+  test('F-033: at 3 players the hint includes Nines; at 4 it is absent', async ({ page }) => {
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12'], ['Dave', '8']] as const) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+    await expect(page.getByText('Which game are you playing?')).toBeVisible();
+    const hint = page.getByText(/With 3 players you can also play:/);
+    await expect(hint).toBeVisible();
+    await expect(hint).toContainText('Nines');
+
+    // A fourth player makes the pool sensible — the hint must go away.
+    await page.getByRole('button', { name: /Back/ }).first().click();
+    await expect(page.getByText("Who's playing?")).toBeVisible();
+    await page.getByPlaceholder('Name', { exact: true }).fill('Rick');
+    await page.getByPlaceholder('HCP').fill('16');
+    await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+    await expect(page.getByText('Which game are you playing?')).toBeVisible();
+    await expect(page.getByText(/you can also play:/)).toHaveCount(0);
+  });
+});
