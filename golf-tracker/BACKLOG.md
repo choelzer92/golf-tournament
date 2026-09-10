@@ -22,7 +22,8 @@ Craig's feedback batch (2026-09-10): ALL FOUR done on branch `live-feedback-2026
 
 | Item | Size | Source |
 |---|---|---|
-| Merge-audit polish batch (all four S items below) — none blocked, all on already-touched surfaces | S×4 | merge audit / §5.ak |
+| **Sharing/login/identity AUDIT** — promoted to NEXT_SESSION_PROMPT.md (Craig: "I want to get this polished"). Walk all four personas, screenshot, log findings, propose. Fold the group-management consolidation below into the same walk (same surfaces). | M | Craig 2026-09-10 |
+| Merge-audit polish batch (all four S items below) — fallback if the audit runs short | S×4 | merge audit / §5.ak |
 | **Consolidate group management on the NEW pages** (Craig 2026-09-10: "I don't know if this saved players and groups page is necessary… the new one should be the standard"). Overlap today: `/pool/roster`'s GroupsManager (dropdown + chips) duplicates `/home/groups/[id]` (dashboard + members + add). Shape: make /home the only group UI, keep /pool/roster for the PLAYER roster only (or fold that in too), rewire the three "Full roster manager"/"Manage" links. Needs a small design pass first — /pool/roster is also where groups are CREATED and where a `pool`-level share-link visitor lands (/home is full-only). | M | Craig 2026-09-10 |
 
 ## Done recently
@@ -65,6 +66,7 @@ Craig's feedback batch (2026-09-10): ALL FOUR done on branch `live-feedback-2026
 
 | Item | Size | Source |
 |---|---|---|
+| **Sharing / login / identity polish** (Craig 2026-09-10: "we should add better sharing/logins/everything… I want to get this polished"). START WITH AN AUDIT SESSION (document-first): walk every entry path as each persona — owner via invite code, organizer via legacy `?key=` link, player via per-game token, returning visitor with expired 48h cookie or expired 12h GHIN token — screenshot each, log findings. Known rough edges to check: invite-code screen wording; the 48h cookie expiring mid-week (friends re-enter the code); GHIN re-login prompts; share panel copy/QR; "who am I" clarity for share-link players; sign-out scattering. The EXPERIENCE layer is product work and unblocked; if the shape turns into real accounts/auth, that's the §5c/F-002 trigger — pause for Craig there. Per-game tokens (built) + backups/export are the two §5c items already in scope. | L (audit M, then fixes) | Craig 2026-09-10 |
 | **Home screen & Event model** — P1 flag-gated read-only /home → stats/ledger → shared Event → flights | L | approved plan `.claude/plans/adaptive-squishing-locket.md` |
 | **Team Competition engine** — N teams of size K within foursomes (4 pairs combined Stableford etc.) | L | approved 2026-08-03, plan `.claude/plans/tingly-petting-reddy.md` + memory `project_pool-team-competition-plan` |
 | **Flight mode** — handicap flights/divisions competing separately | L | folded in as Phase 4 of the Home/Event plan |
