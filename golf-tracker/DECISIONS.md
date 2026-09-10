@@ -164,6 +164,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.bc | BACKLOG.md is the single queue (active — see §5) |
 | 5.bd | The feedback box is findable but never covers anything (header button, not floating; BUILT) |
 | 5.be | F-027 writers-first: ship defensive code before touching live rows; backfill is a separate approved step |
+| 5.bf | Friend feedback is evaluated one by one, never taken as fact — verify, diagnose, then propose |
 
 ---
 

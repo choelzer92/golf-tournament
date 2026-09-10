@@ -22,7 +22,9 @@ Craig's feedback batch (2026-09-10): ALL FOUR done on branch `live-feedback-2026
 
 | Item | Size | Source |
 |---|---|---|
-| **Sharing/login/identity AUDIT** — promoted to NEXT_SESSION_PROMPT.md (Craig: "I want to get this polished"). Walk all four personas, screenshot, log findings, propose. Fold the group-management consolidation below into the same walk (same surfaces). | M | Craig 2026-09-10 |
+| **Friend-feedback batch F-028…F-033** — promoted to NEXT_SESSION_PROMPT.md. Six findings triaged per §5.bf (one by one, not as fact): Stableford per-hole points display (F-028, engine already computes them), brighter stroke dots (F-029), scorecard↔leaderboard round-trip (F-030), to-par while playing Stableford (F-031), payout recap at Finish (F-032 — `settleUp()` exists, the MOMENT doesn't), 1v1/3-player discoverability (F-033 — modes mostly EXIST; verify the 2/3-player wizard walk). His gender-hole-handicap question is ANSWERED (built: `playerHoleStrokeIndex`) — tell him. | M | friend feedback 2026-09-10 |
+| **Course-data correctness audit** (Craig 2026-09-10: "important that it works for all courses… The Meadows is a good test. Others too may have them typed in differently"). Extends F-023: GHIN courses aren't uniform — missing 'Total' ratings rows, differently-shaped tee/ratings payloads. Shape: (a) inventory every live game's course for missing/odd ratings via read-only queries; (b) harden the parse for the shapes found; (c) a diagnostic view (or log) that says WHAT the app extracted from a course so a wrong pull is visible, not silent. Part B still wants the real Meadows `GetCourseDetails` payload — or Craig logged in so a session can fetch it via the app's own API route. | M | Craig 2026-09-10 + F-023 |
+| **Sharing/login/identity AUDIT** (Craig: "I want to get this polished"). Walk all four personas, screenshot, log findings, propose. Fold the group-management consolidation below into the same walk (same surfaces). | M | Craig 2026-09-10 |
 | Merge-audit polish batch (all four S items below) — fallback if the audit runs short | S×4 | merge audit / §5.ak |
 | **Consolidate group management on the NEW pages** (Craig 2026-09-10: "I don't know if this saved players and groups page is necessary… the new one should be the standard"). Overlap today: `/pool/roster`'s GroupsManager (dropdown + chips) duplicates `/home/groups/[id]` (dashboard + members + add). Shape: make /home the only group UI, keep /pool/roster for the PLAYER roster only (or fold that in too), rewire the three "Full roster manager"/"Manage" links. Needs a small design pass first — /pool/roster is also where groups are CREATED and where a `pool`-level share-link visitor lands (/home is full-only). | M | Craig 2026-09-10 |
 
@@ -101,3 +103,7 @@ it's real. Never build from this section directly.
 - Match-by-match scorecard view on round detail (needs per-matchup score persistence) — roadmap #9
 - Smart-anything (tee recommender by skill, score predictions) — Craig explicitly cut the tee
   RECOMMENDER down to "the tee they typically play" (built); keep that instinct
+- Individual stat tracking (friend, 2026-09-10) — partially exists at /home/stats (money);
+  he likely means golf stats (scoring avg, per-hole). Unshaped.
+- Export scores to GHIN (friend, 2026-09-10) — score POSTING to GHIN; needs API research
+  (is it even open to third parties?) before shaping.

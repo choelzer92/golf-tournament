@@ -2222,6 +2222,103 @@ not reproducible from current rows — if it recurs, a screenshot pins it.
 
 ---
 
+### Friend-feedback intake, 2026-09-10 (F-028 … F-033)
+
+One friend's written batch, split per §5.bf: each item verified/triaged on its own,
+none taken as fact. His two QUESTIONS are answered here, not filed as work:
+
+- **"Do men's and women's hole handicaps get factored in?" — YES, already built.**
+  `playerHoleStrokeIndex` (`pool-game.ts:514`) reads each hole's stroke index from
+  THE PLAYER'S OWN TEE, precisely because men's and women's tees rank difficulty
+  differently (the code cites Spring Creek differing on 14 of 18). Worth TELLING
+  him — that it wasn't visible to him may itself be a UI finding.
+- **Future thoughts** (individual stat tracking; export scores to GHIN) → Ideas
+  section of BACKLOG.md. Stats partially exist at /home/stats; GHIN score posting
+  needs API research before it's even shapeable.
+
+---
+
+### F-028 — Stableford: per-hole points aren't shown  [P2] [track]
+
+**Report:** "Stableford show points by hole."
+**Triage (code):** the engine already computes them — `stableford.ts:72-85` fills
+`perHole` per player. So this is a DISPLAY gap, not a compute gap; the scorecard/
+leaderboard hole grid presumably shows gross strokes only. NEEDS A SCREEN LOOK to
+confirm what renders where before proposing (leaderboard Player Details vs scorecard).
+
+**Status:** open — verify on screen, then options.
+
+---
+
+### F-029 — Stroke dots too faint on the scorecard  [P3] [track]
+
+**Report:** "Make the dots brighter showing where strokes are given."
+**Triage:** cosmetic and plausible — the card is read in sunlight (UI_CONVENTIONS §5's
+phone-in-sunlight bar). Check current dot rendering + contrast on the dark card, and
+that any change keeps dots matching the money engine (`getMoneyStrokesOnHole`).
+
+**Status:** open.
+
+---
+
+### F-030 — Score entry ↔ leaderboard round-trip is too many taps  [P2] [track]
+
+**Report:** "I want to be more easily able to go back and forth between the score
+entry and the leaderboard as 'captain'."
+**Triage:** count the actual taps each way before proposing (scorecard → hub →
+leaderboard → back?). A standing-on-the-tee flow. Candidate shapes: a leaderboard
+shortcut on the card, or standings summarized ON the card (§6b already says "show
+standing without leaving the card" — check what exists for pool games).
+
+**Status:** open — measure the current path first.
+
+---
+
+### F-031 — Playing Stableford, you can't see your score to par  [P2] [track]
+
+**Report:** "I still want to see my score to par when I'm playing Stableford."
+**Triage:** the leaderboard ranks on points with PACE (§5.af/§5.am); the ask is the
+PLAYER's own to-par while playing — likely a scorecard surface. Gross per hole is
+entered there, so to-par is derivable with no new data. Check what the card header
+shows mid-round for a Stableford game.
+
+**Status:** open.
+
+---
+
+### F-032 — No payout recap moment at Finish  [P2 MONEY] [continue]
+
+**Report:** "Need a 'summary' type view after you click 'finish' — player A owes
+player C x, player B owes player D y. No Venmo, nothing crazy."
+**Triage:** the math exists — per-person money renders on the leaderboard, and
+`settleUp()` (`stats-ledger.ts:322`) already computes greedy who-owes-whom transfers.
+What's missing is the MOMENT: close-out (`pool/[id]/page.tsx` CloseOutPanel) flips
+status and… check what it shows after. This is squarely the north star's "continuing"
+pillar (money is the question groups argue about later). Likely shape: a settle-up
+recap on/after close-out reusing `settleUp` per-game.
+
+**Status:** open — strong candidate, needs Craig's shape pick (where the recap lives).
+
+---
+
+### F-033 — "1v1 and more 3-player game types" — mostly EXIST; he can't find them  [P2] [start]
+
+**Report:** "1v1 game types and more 3-player game types (or the capability to
+create them)."
+**Triage — the §5.bf case in miniature:** the capability is largely BUILT. 1v1:
+Sides/Match plays at `playersMin: 2` (team-game.ts:689, lowered deliberately —
+singles match front/back/overall). 3 players: Nines is EXACTLY 3 (nines.ts:128);
+skins/quota/Stableford/low-total all take 2–3; Wolf variants exist. So the real
+finding is DISCOVERABILITY: does a 2- or 3-player field make these visible enough
+(fit badges exist per F-020)? Verify what a 2/3-player wizard walk actually offers
+before building anything new. If a specific game he wants is missing (e.g. 9-point
+game variants), that's a one-file mode add — ask him WHICH game he missed.
+
+**Status:** open — walk the wizard at 2 and 3 players; likely an exposure fix + an
+answer back to him, not new modes.
+
+---
+
 ## Fixed & verified
 
 Findings confirmed fixed with an e2e assertion guarding them. (The 11 fixes from

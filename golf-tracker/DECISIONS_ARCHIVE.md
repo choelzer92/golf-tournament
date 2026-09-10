@@ -1447,6 +1447,24 @@ fix commit.
 
 ---
 
+## 5.bf Friend feedback is evaluated one by one, never taken as fact (2026-09-10)
+
+Craig: *"We should take feedback one by one and not take it as a fact."*
+
+**How to apply.** Each friend-feedback item gets the same treatment Craig's own review
+questions get (§5.y): verify the observation before believing it, diagnose the actual
+cause, and weigh the fix against the north star before proposing. A friend's report is
+an OBSERVATION (what they experienced, always worth logging) — not a DIAGNOSIS (why it
+happened) and not a SPEC (what to build). The F-027 arc is the template: the report was
+"names are blank," the reflex fix would have been page-side, and the real cause was the
+write path — and the live table turned out to hold zero blank rows. Batch intake
+(feedback box, texts, in-person) gets split into individual FINDINGS.md entries, each
+with its own verification, options, and Craig's call. A request that contradicts a
+settled decision or the north star gets surfaced to Craig with the tension named, not
+silently built or silently dropped.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch
