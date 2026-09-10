@@ -2326,7 +2326,9 @@ function AddPlayerPanel({
       const rememberedRp = getRosterPlayerByGhin(ghinNumber);
       const newPlayer: Player = {
         id: crypto.randomUUID(),
-        name: `${golfer.first_name} ${golfer.last_name}`,
+        // GHIN can return empty/missing name fields (privacy-restricted golfers,
+        // partial responses) — never write "undefined undefined" or "" to the roster (F-027).
+        name: [golfer.first_name, golfer.last_name].filter(Boolean).join(' ').trim() || `GHIN #${ghinNumber}`,
         handicapIndex: hi,
         gender,
         ghinNumber,

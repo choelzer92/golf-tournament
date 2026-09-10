@@ -410,6 +410,46 @@ test.describe('group picker on wizard step 1 (§5.au: step 1 is the FIELD)', () 
   });
 });
 
+test.describe('F-027: a roster row with a blank name still renders a label', () => {
+  // Craig, live app: "i just see handicaps, i can tell they are people, but i dont
+  // see names." Cause: live `players` rows with an empty name (untrimmed GHIN-add
+  // writers, since fixed). The page must render "GHIN #…" for such rows, never a
+  // card that is visually just a handicap.
+  test('F-027: the group members list shows GHIN #… for a blank-named row', async ({ page }) => {
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Groups — 61-member' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+
+    // Reproduce the live-data shape: blank one member's name IN THE STORE, the way
+    // a bad GHIN write left it — the page must cope with the row, not rely on
+    // writers always being clean.
+    await page.evaluate(() => {
+      const raw = sessionStorage.getItem('__sandbox_supabase__');
+      if (!raw) throw new Error('sandbox store missing after seed');
+      const store = JSON.parse(raw) as { tables: [string, [string, Record<string, unknown>][]][] };
+      const players = store.tables.find(([t]) => t === 'players');
+      if (!players) throw new Error('players table missing');
+      const rp2 = players[1].find(([id]) => id === 'rp2');
+      if (!rp2) throw new Error('rp2 missing');
+      rp2[1].name = '  ';   // whitespace-only, the untrimmed-writer shape
+      sessionStorage.setItem('__sandbox_supabase__', JSON.stringify(store));
+    });
+
+    await page.goto(`${BASE}/home/groups/g-weekend-warriors`);
+    await page.waitForLoadState('networkidle');
+    await page.getByText(/61 players — tap to view or edit/).click();
+
+    // The blank-named member (rp2, GHIN 2000001) renders the fallback label.
+    const search = page.getByPlaceholder(/Search 61 members/);
+    await search.fill('GHIN #');
+    await expect(page.getByText('GHIN #2000001')).toBeVisible();
+    await page.screenshot({ path: 'e2e/screenshots/f027-blank-name-fallback.png', fullPage: true });
+  });
+});
+
 test.describe('money moved to its own step', () => {
   // F-005: the game step asked ~12 questions at once, including money settings that
   // can't even be shown in real dollars until the field and team count are known.

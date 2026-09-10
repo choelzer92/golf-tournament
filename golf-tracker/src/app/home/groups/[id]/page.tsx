@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { hydrateGroups, getGroupById, addGroupMember, removeGroupMember, type RosterGroup } from '@/lib/roster-groups';
-import { hydrateRoster, searchRoster, getRosterPlayerById, type RosterPlayer } from '@/lib/roster';
+import { hydrateRoster, searchRoster, getRosterPlayerById, rosterDisplayName, type RosterPlayer } from '@/lib/roster';
 import { getFormats, getGroupFormats, attachFormatToGroup, detachFormatFromGroup } from '@/lib/pool-formats';
 import { hydratePoolGames, loadPoolGame, getPoolGameList, getPoolGameListForGhin } from '@/lib/pool-game';
 import { hydrateTournaments, loadTournament, getTournamentList } from '@/lib/tournament-state';
@@ -90,7 +90,8 @@ export default function GroupDetailPage() {
     let missing = 0;
     for (const pid of g.playerIds) {
       const rp = getRosterPlayerById(pid);
-      if (rp) found.push(rp); else missing++;
+      // A pre-fix live row can hold a blank name (F-027) — show "GHIN #…" instead.
+      if (rp) found.push({ ...rp, name: rosterDisplayName(rp) }); else missing++;
     }
     found.sort((a, b) => a.name.localeCompare(b.name));
     setMembers(found);
