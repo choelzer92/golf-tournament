@@ -4,9 +4,11 @@ Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 ---
 
-Read `AGENTS.md` first. **Context economy:** don't read all of DECISIONS.md — grep it for
-the §§ cited below only. The 2026-09-10 session hit 95% context largely by reading whole
-large files; use targeted greps on `pool/new/page.tsx` (~3,600 lines) and the e2e spec.
+Read `AGENTS.md` first. **Context economy:** DECISIONS.md is now a short working set —
+read it whole; the full history moved to DECISIONS_ARCHIVE.md (grep by § number only when
+a task touches that topic). The 2026-09-10 session hit 95% context largely by reading
+whole large files; use targeted greps on `pool/new/page.tsx` (~3,600 lines) and the e2e
+spec too.
 
 **State:** branch `live-feedback-2026-09-10` (off main, unmerged) carries two commits:
 group-tap fix (ddb3e95) and verbiage fix (1b0b897). `npm run verify` was green (exit 0,
