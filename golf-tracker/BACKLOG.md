@@ -17,9 +17,13 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 ## Now (promoted)
 
+Craig's feedback batch (2026-09-10), his words:
+
 | Item | Size | Source |
 |---|---|---|
-| **Craig's feedback batch (2026-09-10)** — he has feedback to bring up; capture it here, then promote | ? | Craig, mid-session 2026-09-10 |
+| **Group tap selects ALL members** — "when i click a group, all players are checked. this makes it very tough to select 12 out of 61 or so players that are playing on a given day." Likely fix: a large group should load with members UNCHECKED (or ask), so the day's field is picked BY checking, not by unchecking ~49. Small groups (a 4-man crew) probably still want all-checked. | S–M | Craig 2026-09-10 |
+| **Bring back the classic golf verbiage** — "i liked the verbiage before just off the low, not the basic explanation of what classic golf terms mean." The plain-language labels/explanations (e.g. "Only above the best player") should say **"Off the low"** etc. — golfers know the terms; explaining them reads as condescending. Sweep the wizard's handicap/scoring copy for other over-explained terms while there. | S | Craig 2026-09-10 |
+| **My-groups page shows no players** — "when i look at my group on the my groups page, players dont show up. Lets investigate this later." NOT yet diagnosed. Note for the investigator: today's §5.au work did not touch `/home/groups/[id]` or `roster-groups.ts`, but check whether it reproduces on `main` before assuming pre-existing. | ? | Craig 2026-09-10 |
 
 ## Done recently
 
