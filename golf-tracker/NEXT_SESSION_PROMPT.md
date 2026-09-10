@@ -1,4 +1,4 @@
-# Next session: the wizard track (§5.av formats in the game picker), or whatever Craig brings
+# Next session: the wizard track — §5.av (formats in the game picker) + §5.au (step reorder)
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
@@ -30,17 +30,34 @@ green — awaiting Craig's review/merge. Check `git branch`; if merged, branch f
 out at ~30s (playwright reuses the existing server) — `netstat -ano | grep :3200`, kill the PID,
 rerun.
 
-## Open work (pick with Craig)
+## The work: the wizard track (Craig confirmed 2026-09-09)
 
-- **§5.av + §5.au — the wizard track, paused:** formats in the wizard's game picker, and the
-  step reorder. This was "next up" before the F-022..F-026 interrupt.
+**§5.av + §5.au** — read both DECISIONS.md sections before starting; they carry the design.
+This was "next up" before the F-022..F-026 interrupt, and F-026 just made it more urgent:
+"Save this format" now exists on the review step, so people can SAVE formats from the wizard
+but still can't PICK one from the game picker when starting — the loop is half-closed. The
+Format Library plumbing all exists (`pool-formats.ts`, `FORMAT_SEED_KEY` seeds the wizard);
+this is about surfacing formats at the moment of choosing a game, not new storage.
+
+## Filler if the session has room
+
 - **§7 q4** — dark = live, light = setup; probably just needs confirming.
 - **Merge-audit polish:** loss-red leg results on the dark board (§5.ak), "Sides / Match" as a
   category label, the `70, 30` mini-DSL, three renderings of course handicap.
 - **Walks not yet captured:** walk 2 stopped at the group format sheet; "create group mid-wizard"
   and format-tap → confirmation are uncovered.
-- **Home-screen/Event plan** (approved, not built) — fresh session, plan file
-  `.claude/plans/adaptive-squishing-locket.md`.
+- **Home-screen/Event plan** (approved, not built) — its OWN fresh session, plan file
+  `.claude/plans/adaptive-squishing-locket.md`. Don't fold it into this one.
+
+## Waiting on Craig (don't build around these — just ask if he has them)
+
+1. **GHIN spot-check at 90%** — a couple of players vs the GHIN app, ideally including an
+   off-the-low game (the Aug evidence pointed the other way for that feature). Confirms F-022's
+   new order end-to-end. If anything's off by one: screenshots with exact tees + indexes.
+2. **The Meadows payload** — search The Meadows (Greenbrier, WV) in the app with the browser
+   network tab open and save the `GetCourseDetails` response. Unblocks F-023 part B.
+3. **Merge review** — this branch has §5.ay + §5.az + all five F-fixes awaiting his review
+   (§5.ab: merge timing is his call, don't ask just because the gate is green).
 
 ## Rules that keep earning their place
 
