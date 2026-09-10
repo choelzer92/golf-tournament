@@ -2248,6 +2248,26 @@ confirm what renders where before proposing (leaderboard Player Details vs score
 
 **Status:** open — verify on screen, then options.
 
+**Verified 2026-09-10** (`e2e/screenshots/f028-scorecard-phone.png`,
+`f028-leaderboard-phone.png`; new sandbox scenario `stableford-ind-partial`): confirmed
+on both surfaces. The scorecard grid shows gross strokes only (color-coded vs par); the
+leaderboard's PLAYER DETAILS grid also shows GROSS per hole (with stroke dots), plus
+Gross/Net totals — the points a player earned on a hole appear NOWHERE, only the summed
+`pts` in standings. The engine's `perHole` (points) is computed and dropped on the floor
+by both grids.
+
+**Options**
+- **A. Leaderboard Player Details: show points per hole instead of gross when the mode's
+  metric is points** (Stableford/quota/Nines already fill `perHole` with points — the
+  grid is just rendering gross). Gross stays on the scorecard. One surface, mode-aware.
+- **B. Add a second row per player (gross above, pts below) in Player Details.** Both
+  visible, but doubles the grid height on a phone.
+- **C. Scorecard: small points chip next to the entered gross** (e.g. "4 ³pts"). Puts it
+  where scoring happens, but crowds the entry grid.
+
+**Recommendation:** A — the leaderboard is the "how am I doing" surface; showing gross
+twice is redundant there. C could follow if the friend wants it at entry time.
+
 ---
 
 ### F-029 — Stroke dots too faint on the scorecard  [P3] [track]
@@ -2258,6 +2278,28 @@ phone-in-sunlight bar). Check current dot rendering + contrast on the dark card,
 that any change keeps dots matching the money engine (`getMoneyStrokesOnHole`).
 
 **Status:** open.
+
+**Verified 2026-09-10** (`f028-scorecard-phone.png`, `f028-leaderboard-phone.png`):
+confirmed, and the worst case is the DARK leaderboard: dots there are 8px
+`text-blue-400` superscript on the navy card (leaderboard/page.tsx:444,458,1283,1290)
+— at 8px a "dot" is barely a pixel cluster, and blue-400-on-dark-navy is low contrast.
+The score-entry cards use `text-orange-600` at xs on white (game/play/page.tsx:976,
+1034,1210,1269) — better, but still small. All render from the engine's strokes
+(`getMoneyStrokesOnHole` / `detail.holes[].strokes`), so a pure CSS change can't
+desync money — keep it CSS-only.
+
+**Options**
+- **A. Bump size + contrast, keep the dot glyph:** dark card → `text-[11px]
+  text-sky-300` (or amber-300); white card → keep orange-600, raise to text-sm.
+  Smallest change; dots stay dots.
+- **B. Replace superscript dots with a filled corner marker per cell** (like paper
+  cards: a diagonal-corner tick). Most legible in sunlight, but a real markup change
+  across two grids × two axes.
+- **C. Leave the card, fix only the dark leaderboard.** Friend said "scorecard,"
+  but the faintest render is the board — verify with him which screen he meant.
+
+**Recommendation:** A on both surfaces (one class per call site, six call sites,
+zero logic).
 
 ---
 
@@ -2272,6 +2314,32 @@ standing without leaving the card" — check what exists for pool games).
 
 **Status:** open — measure the current path first.
 
+**Verified 2026-09-10** (`f028-scorecard-phone.png`, `f028-leaderboard-phone.png`,
+`f030-back-on-scorecard-phone.png`): the mechanics are better than the report implies —
+**1 tap each way**, and the return leg PRESERVES state (left on Hole 8, came back to
+Hole 8). Scorecard header has "Leaderboard" (top-right, small green text on dark green);
+leaderboard header has "Scorecard" (top-right, small yellow text). So the finding is not
+tap count; it's **discoverability/affordance**: both are low-contrast text links in the
+header corner, visually identical to "Back" beside them, nothing signals they're the
+primary toggle. Craig (2026-09-10, mid-session): "it isn't intuitive to switch back and
+forth… maybe a better method like a swipe, or a cleaner button to switch."
+
+**Options**
+- **A. Swipe between card and leaderboard** (horizontal swipe or swipeable tabs on both
+  screens). Most native-feeling; cost: gesture is invisible until discovered, and swipe
+  already means prev/next hole on the card — conflict risk is real.
+- **B. Segmented toggle in the header** — a two-tab pill [Card | Standings] centered in
+  the header on BOTH screens, same position, same look. One tap, self-describing, no
+  gesture conflict. Cost: header space on a 390px phone.
+- **C. Standings strip ON the card** (mini-leaderboard: rank + pts for each player,
+  collapsible, above the grid) — §6b's "standing without leaving the card". Removes the
+  need to switch at all for the glance case; full board stays a tap away. Cost: vertical
+  space while entering scores.
+- **D. Leave as is** — 1 tap, state preserved; label the links better (e.g. "⇄ Standings").
+
+**Recommendation:** B now (cheap, discoverable, symmetric), C as the deeper fix for the
+"captain glancing between shots" moment — they compose.
+
 ---
 
 ### F-031 — Playing Stableford, you can't see your score to par  [P2] [track]
@@ -2283,6 +2351,27 @@ entered there, so to-par is derivable with no new data. Check what the card head
 shows mid-round for a Stableford game.
 
 **Status:** open.
+
+**Verified 2026-09-10** (`f028-scorecard-phone.png`, `f028-leaderboard-phone.png`):
+partially confirmed. The scorecard's grid ALREADY shows running to-par — the Tot
+column reads "24₋₇", "34ᴇ", "41₊₇" (tiny superscript, easy to miss in sunlight), and
+each entry card shows "Net: 4 (E)" per hole once scored. What's genuinely missing:
+the **leaderboard** in a points game shows pts/Thru/$ only — no to-par column at all,
+and no GROSS to-par anywhere (the card's figure is gross-relative... verify: the Tot
+superscript is gross vs par; the leaderboard has Gross and Net TOTALS in Player
+Details but relative-to-par nowhere). So the friend playing Stableford and glancing
+at the standings can't see anyone's to-par.
+
+**Options**
+- **A. Add a "to par" column to the individual-game STANDINGS table** (pts · thru ·
+  to-par · $). One column, derivable from gross already in hand; mirrors how the
+  team leaderboard already leans on score-to-par (§5.af).
+- **B. Enlarge/clarify the scorecard Tot to-par** (it exists but reads as a typo-
+  sized superscript). Cosmetic companion to A.
+- **C. Leave it — the per-hole "Net: 4 (E)" already answers it.** But that's per
+  hole, not cumulative, and vanishes as you move holes.
+
+**Recommendation:** A (+B if Craig agrees the superscript is too subtle).
 
 ---
 
@@ -2298,6 +2387,28 @@ pillar (money is the question groups argue about later). Likely shape: a settle-
 recap on/after close-out reusing `settleUp` per-game.
 
 **Status:** open — strong candidate, needs Craig's shape pick (where the recap lives).
+
+**Verified 2026-09-10** (`f032-after-closeout-phone.png`, `f032-leaderboard-complete-
+phone.png`; new sandbox scenario `stableford-ind-complete`): confirmed exactly as
+reported. Tapping "Close out game" flips the panel to "Game closed out — Final — this
+game now counts in Stats & money. Reopen it if a score needs fixing." and that's the
+entire moment — no money shown, no navigation offered. The completed game's leaderboard
+shows each player's NET $ (+$24 / +$20 / −$8 / −$36) but never who pays whom; the only
+settle-up view is buried in /home/stats, season-scoped, behind an organizer login.
+
+**Options** (all reuse `settleUp()` per-game — no new math; §2 stop-and-ask on display)
+- **A. Recap appears IN the close-out panel the moment the game closes** — the
+  "Game closed out" box grows a "Who pays whom" list (Rick pays Craig $24, …), also
+  rendered any time the game is viewed while completed. No new screen, lives at the
+  exact moment the group is standing in the parking lot.
+- **B. Recap section on the completed game's LEADERBOARD** (below STANDINGS) — the
+  board is where everyone already looks; hub stays terse. Same list, different home.
+- **C. Both: one-line summary in the close-out panel + full transfers on the board.**
+- **D. A dedicated /pool/{id}/settle screen linked from both.** A bespoke screen for
+  one list — the design smell §1 warns about.
+
+**Recommendation:** A (or C if the board should show it too). "No Venmo, nothing
+crazy" — a text list of transfers is exactly `settleUp()`'s output shape.
 
 ---
 
@@ -2316,6 +2427,45 @@ game variants), that's a one-file mode add — ask him WHICH game he missed.
 
 **Status:** open — walk the wizard at 2 and 3 players; likely an exposure fix + an
 answer back to him, not new modes.
+
+**Verified 2026-09-10** (`e2e/screenshots/f033-details-2p.png`, `-3p.png`; sandbox walk
+at phone width): the triage holds — the games EXIST and the wizard even knows it. At
+2 players the picker offers Skins/Stableford/Quota/Low Total/Sides-Match all badged
+"✓ 2 players"; at 3, those plus Nines "✓ 3 players". **The discoverability gap is
+real and specific:**
+
+1. **The picker DEFAULTS to "Pool (foursomes vs foursomes)"** — for a 2- or 3-player
+   field, the one game that makes no sense. The screen then fills with pool money
+   settings, so a 2-player organizer sees a foursomes game with no hint anything else
+   exists.
+2. **The fit badges only render inside the OPEN dropdown** (native `<select>` option
+   labels). Closed — which is how the screen loads — nothing says "6 games fit your 3."
+3. The classic pool never gets a badge or a fit warning at any field size (descriptor-
+   less = always fits), so it isn't even marked as odd at 2 players.
+
+**Violates:** north star (possibility invisible = possibility absent); §5.ao (the app
+knows the rule — playerCount — and doesn't spend it as guidance here).
+
+**Options**
+- **A. Fit-aware default: with ≤3 players, default the picker to the best-fitting game
+  instead of Pool** (e.g. Sides/Match at 2, Nines at 3 — or simply the first fitting
+  mode). Pool stays one tap away in the list. Cost: "default" choice needs Craig's
+  pick; a saved format still wins per §5.av.
+- **B. Keep Pool as default, add a hint line under the picker when playerCount ≤ 3:**
+  "With 2 players you can also play: Sides / Match, Skins, Stableford…" — reuses
+  `modeFits`, mirrors the existing amber fit-warning pattern, changes no defaults.
+- **C. Leave it; answer the friend** that the games are in the dropdown. Cheapest, but
+  the friend DID open this screen and still couldn't find them — evidence C fails.
+
+**Recommendation:** B (guidance without changing anyone's default), possibly + A later.
+**Answer back to the friend:** 1v1 = "Sides / Match" (plays at 2, front/back/overall);
+3-player = Nines/Split Sixes, plus Skins/Quota/Stableford/Low Total at 2–3. If a game
+he wanted is still missing, name it — a new mode is one file.
+
+**Craig (2026-09-10):** the friend used the app BEFORE this branch's changes deployed —
+so what he saw may predate the F-020 fit badges and the current mode list entirely. The
+verification above is of THIS branch; his experience was of live/main. Part of the
+answer back may simply be "update: they're there now / clearer once the branch ships."
 
 ---
 

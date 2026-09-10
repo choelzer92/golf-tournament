@@ -1,77 +1,79 @@
-# Next session: work the friend-feedback batch (F-028…F-033), one by one
+# Next session: build the friend-feedback fixes (F-028…F-033)
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 ---
 
 Read `AGENTS.md` first. **Context economy:** read DECISIONS.md whole (short); grep
-DECISIONS_ARCHIVE.md by § only when touched (§5.bf — friend feedback one-by-one —
-matters most this session). Targeted greps on `pool/new/page.tsx` (~3,600 lines).
+DECISIONS_ARCHIVE.md by § only when touched. The six findings' verification notes +
+options live in FINDINGS.md F-028…F-033 — read those entries whole; they carry the
+screenshots, the code line numbers, and the recommended option per finding.
 
-**State:** branch `live-feedback-2026-09-10` (off main, unmerged), verify green
-(exit 0, 128 e2e). Keep building on it (Craig 2026-09-10); merge is his call (§5.ab).
-The `feedback_notes` table is LIVE; the 💬 button ships when the branch deploys.
+**State:** branch `live-feedback-2026-09-10` (off main, unmerged), verify green.
+Keep building on it; merge is Craig's call (§5.ab). All six findings were VERIFIED
+on screen 2026-09-10 (new sandbox scenarios `stableford-ind-partial` /
+`stableford-ind-complete` seed the states). What remains is Craig's option pick per
+finding, then build + e2e (`test('F-0xx: …')`) + one commit each.
 
-## The work: FINDINGS.md F-028…F-033 — read them there first (they carry the triage)
+## The work, in build order once Craig picks
 
-**The rule (§5.bf): one by one, verified, never taken as fact.** Each item: look at
-the actual screen, confirm/refute the triage, propose options, get Craig's pick where
-more than one answer is defensible, then build. Rough order (verification-first):
+1. **F-029 (stroke dots)** — CSS-only, six call sites (leaderboard 444/458/1283/1290
+   dark-board 8px blue-400; play page 976/1034/1210/1269 orange-600). Rec: opt A
+   (bigger + higher-contrast classes, both surfaces). No logic change.
+2. **F-031 (to-par in points games)** — rec: to-par column in the individual STANDINGS
+   table. Derivable from gross; no new data.
+3. **F-028 (Stableford points by hole)** — rec: leaderboard Player Details renders the
+   engine's `perHole` (points) instead of gross when the mode's metric is points.
+4. **F-033 (mode discoverability)** — rec: opt B, a hint line under the game picker when
+   playerCount ≤ 3 listing the fitting modes (reuses `modeFits`); picker still defaults
+   to Pool unless Craig wants opt A (fit-aware default). NOTE: friend used the app
+   BEFORE this branch — part of the answer is "it's clearer now".
+5. **F-030 (card↔board switching)** — verified 1 tap each way, state preserved; the
+   issue is affordance (corner text links). Craig mused swipe vs "a cleaner button".
+   Rec: opt B segmented [Card | Standings] toggle in both headers; opt C (standings
+   strip on the card, §6b) as the deeper follow-up. Get his pick — genuinely open.
+6. **F-032 (payout recap at Finish)** — MONEY DISPLAY, §2 stop-and-ask: confirm shape
+   with Craig before building. Rec: opt A — "Who pays whom" list (from `settleUp()`,
+   stats-ledger.ts:322) inside the close-out panel whenever the game is completed.
 
-1. **F-033 (1v1/3-player "missing")** — walk the wizard at 2 and 3 players and LOOK.
-   The modes mostly exist (Sides/Match at 2, Nines at exactly 3, skins/quota/etc. at
-   2–3). Likely outcome: an exposure tweak + an answer back to the friend, not new
-   modes. If a specific game IS missing, ask Craig which before building.
-2. **F-028 (Stableford points by hole)** — engine already fills `perHole`
-   (stableford.ts:72-85). Find where the hole grid renders and what it shows; propose
-   where points appear (leaderboard Player Details and/or scorecard).
-3. **F-031 (to-par while playing Stableford)** — scorecard-surface check; to-par is
-   derivable from entered gross, no new data.
-4. **F-030 (score entry ↔ leaderboard round-trip)** — COUNT the taps each way first;
-   §6b already promises "standing without leaving the card" — check what a pool
-   scorecard actually shows.
-5. **F-032 (payout recap at Finish)** — the strongest "continuing" item. `settleUp()`
-   (stats-ledger.ts:322) computes who-owes-whom; close-out has no recap moment.
-   Money display → propose shape to Craig before building (§2: stop-and-ask).
-6. **F-029 (brighter stroke dots)** — cosmetic; screenshot current contrast, keep
-   dots deferring to `getMoneyStrokesOnHole`.
-
-**Also answer the friend** (via Craig): men's/women's hole handicaps ARE factored —
-`playerHoleStrokeIndex` reads each player's own tee's stroke index (pool-game.ts:514).
-His two future thoughts (stat tracking, GHIN export) are in BACKLOG Ideas.
+**Also tell the friend** (via Craig): men's/women's hole handicaps ARE factored
+(`playerHoleStrokeIndex`, pool-game.ts:514); 1v1 = Sides/Match, 3-player = Nines +
+skins/quota/Stableford/low-total; stat tracking + GHIN export are in BACKLOG Ideas.
 
 ## Queued right behind (BACKLOG "Now")
 
-- **Course-data correctness audit** (Craig: "works for ALL courses — The Meadows is a
-  good test; others may be typed in differently"). Extends F-023. Read-only inventory
-  of live games' course ratings shapes → harden the parse → make what-we-pulled
-  visible. `supabase db query --linked` works for Craig-authorized read-only queries.
-  **Getting the Meadows payload — Craig's chosen path (2026-09-10): he logs into
-  LOCALHOST.** Run `npx next dev` (real backend, NOT sandbox — GHIN needs real auth),
-  Craig logs in via the app's own form, then capture the raw `GetCourseDetails`
-  response for "The Meadows" (WV): either watch the dev-server side with a temporary
-  console.log in `src/lib/ghin-api.ts getCourseDetails`, or add a dev-only dump. Save
-  raw payloads to `course-payloads/` (gitignored). `scripts/fetch-course-payload.mjs`
-  also exists as a CLI alternative (env-var credentials) if localhost is unavailable.
-  Repeat for any other course Craig suspects is typed differently.
+- **Course-data correctness audit** (The Meadows payload — Craig logs into LOCALHOST:
+  `npx next dev` real backend, capture `GetCourseDetails` via temporary log in
+  `src/lib/ghin-api.ts`; save to `course-payloads/` gitignored; or
+  `scripts/fetch-course-payload.mjs`).
 - **Sharing/login/identity audit** (four personas, screenshots; group-management
-  consolidation folded in; §5c boundary — real auth/RLS stops for Craig).
+  consolidation folded in; §5c boundary).
 
 ## Waiting on Craig
 
+- Option picks for F-028…F-033 (above — mainly F-030 shape and F-032 money display).
 - F-022 on-course GHIN spot-check (§5.ba protocol if off).
-- The Meadows `GetCourseDetails` payload (or a logged-in session to fetch it).
+- The Meadows `GetCourseDetails` payload (or a logged-in localhost session).
 - §7 q4 (dark = live / light = setup).
 - Branch merge/deploy (§5.ab).
 
 ## Traps that keep biting
 
 - Stale `next dev` on port 3200 → every e2e times out (`netstat -ano | grep :3200`).
+  Craig sometimes runs his own dev server — check WHOSE process it is before killing.
+- **TaskStop on a backgrounded `npx next dev` can leave the CHILD server alive** —
+  and Next 16 then refuses any second dev server in the same directory (Craig's
+  `npm run dev` errored; verify's e2e webServer silently REUSED the sandbox-less
+  survivor → 27 vacuous failures). Worse: Craig opened the surviving SANDBOX server
+  and saw an empty app — "did we delete everything?" Kill by PID and confirm the
+  port is free. Convention: port 3200 = sandbox/e2e, port 3000 = Craig's real app.
 - Turbopack crash can corrupt `.next` — `rm -rf .next` fixes it.
 - Check `npm run verify`'s own exit code, not a `tail` of its log.
-- **Look at the screen** — screenshots keep catching what code review doesn't.
+- **Look at the screen** — the F-030 report said "too many taps"; the screen said
+  1 tap with state preserved. The finding was affordance, not mechanics.
 - Sandbox scenarios don't all call `signInAsOrganizer()`; /home gates on `ghin_token`.
-- `player_ids` in live `roster_groups` is `text[]` — `unnest`/`cardinality`, not jsonb.
+- On LOCALHOST with the real backend, groups/roster only show after GHIN login
+  succeeds (visibility is scoped to `viewerGhin` — roster-groups.ts:83).
 
 ## End the session by grooming BACKLOG.md
 

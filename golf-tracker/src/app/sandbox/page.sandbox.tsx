@@ -646,6 +646,54 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'stableford-ind-partial',
+    label: 'Stableford (individual) — 4 players, thru 7',
+    detail: 'F-028/F-031: what the scorecard + leaderboard show mid-round for individual Stableford — per-hole points and to-par visibility. Handicap spread so stroke dots render (F-029).',
+    build: () => {
+      const ps = players([4, 12, 8, 16]);
+      const game = baseGame({
+        players: ps,
+        name: 'Stableford Four',
+        gameMode: 'stableford-ind',
+        entryPerPlayer: 0,
+        modeSettings: { scoreBasis: 'net', scale: 'standard', moneyModel: 'per-point', dollarsPerPoint: 1 },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1', teeTime: '8:10' }],
+      });
+      // Varied offsets so per-hole points differ (birdies, pars, bogeys, doubles).
+      const seven = [1, 2, 3, 4, 5, 6, 7];
+      saveGameScores('sm1', [
+        ...scores(['sp1'], [-1], [1, 2, 3]), ...scores(['sp1'], [0], [4, 5, 6, 7]),
+        ...scores(['sp2'], [1], seven),
+        ...scores(['sp3'], [0], [1, 2, 3, 4]), ...scores(['sp3'], [2], [5, 6, 7]),
+        ...scores(['sp4'], [2], seven),
+      ]);
+      return { game, goTo: (id) => `/pool/${id}` };
+    },
+  },
+  {
+    key: 'stableford-ind-complete',
+    label: 'Stableford (individual) — 4 players, FULLY scored',
+    detail: 'F-032: ready to close out — what does Finish show about who owes whom?',
+    build: () => {
+      const ps = players([4, 12, 8, 16]);
+      const game = baseGame({
+        players: ps,
+        name: 'Stableford Finish',
+        gameMode: 'stableford-ind',
+        entryPerPlayer: 0,
+        modeSettings: { scoreBasis: 'net', scale: 'standard', moneyModel: 'per-point', dollarsPerPoint: 2 },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1', teeTime: '8:10' }],
+      });
+      saveGameScores('sm1', [
+        ...scores(['sp1'], [-1], [1, 2, 3, 4, 5, 6]), ...scores(['sp1'], [0], [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]),
+        ...scores(['sp2'], [1], ALL18),
+        ...scores(['sp3'], [0], ALL18),
+        ...scores(['sp4'], [2], ALL18),
+      ]);
+      return { game, goTo: (id) => `/pool/${id}` };
+    },
+  },
+  {
     key: 'recent-courses',
     label: 'Past games (for recent-course chips)',
     detail: "JY's request: seeds completed games so /pool/new can offer their courses without retyping.",
