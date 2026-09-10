@@ -1,59 +1,50 @@
-# Next session: the wizard track — §5.av (formats in the game picker) + §5.au (step reorder)
+# Next session: Craig's feedback batch, then pick from BACKLOG.md
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 ---
 
-Read `AGENTS.md` first. **F-022..F-026 are ALL FIXED and committed** (2026-09-09, this branch):
+Read `AGENTS.md` first.
 
-- **F-022** — `applyAllowance` is now **unrounded-first** (`CH × allowance`, round once). Craig's
-  call, §5.bb, backed by USGA guidance + his Spring Creek GHIN report. **He wants it re-verified
-  on-course against the GHIN app** ("we need to test this out to make sure — it really should
-  match"). If GHIN disagrees, §5.ba requires screenshots of BOTH shapes (head-to-head AND
-  off-the-low, sub-100%) before touching the math again — the Aug 3e8ace1 Cory case only
-  reproduced with round-first, so the tension is real, not resolved.
-- **F-023 part A** — `teeHasRating` + amber "no slope/rating on this tee — using index (N)" in the
-  wizard. **Part B still blocked**: need the real `GetCourseDetails` payload for The Meadows
-  (Greenbrier, WV) — have Craig search it with the network tab open, or add a dev-only log. Do NOT
-  guess GHIN's shapes.
-- **F-024** — signed money rounds the magnitude everywhere; UI_CONVENTIONS §1 has the rule; e2e
-  pins the zero-sum strip.
-- **F-025/F-026** — individual-game review step says "Players" + the stakes line, with "Save this
-  format" beside it (§5.ax part 4 closed). Fixing F-026's e2e exposed that `stakesSummary` read a
-  key no mode declares (`dollarsPerSkin` vs skins' `skinValue`) — fixed; the unit test had pinned
-  the wrong key vacuously. Lesson re-earned: the e2e against the REAL wizard bag caught what the
-  unit test couldn't.
+## First: Craig's feedback
 
-**State:** branch `captains-deal-and-game-rename` has §5.ay + §5.az + all five F-fixes, verify
-green — awaiting Craig's review/merge. Check `git branch`; if merged, branch fresh off `main`
-(§5.ab). One trap hit twice this session: a stale `next dev` on port 3200 makes every e2e time
-out at ~30s (playwright reuses the existing server) — `netstat -ano | grep :3200`, kill the PID,
-rerun.
+Craig said (2026-09-10, mid-session): *"I have some feedback that I'd like to address in the
+next session."* **Start by asking him for it.** Capture each item in FINDINGS.md/BACKLOG.md
+with his words, decide together what gets built this session, and record any decisions in
+DECISIONS.md as usual.
 
-## The work: the wizard track (Craig confirmed 2026-09-09)
+## State: the wizard track is DONE (both halves, this branch, verify green)
 
-**§5.av + §5.au** — read both DECISIONS.md sections before starting; they carry the design.
-This was "next up" before the F-022..F-026 interrupt, and F-026 just made it more urgent:
-"Save this format" now exists on the review step, so people can SAVE formats from the wizard
-but still can't PICK one from the game picker when starting — the loop is half-closed. The
-Format Library plumbing all exists (`pool-formats.ts`, `FORMAT_SEED_KEY` seeds the wizard);
-this is about surfacing formats at the moment of choosing a game, not new storage.
+Branch `captains-deal-and-game-rename` — still awaiting Craig's review/merge (it now carries
+§5.ay, §5.az, F-022..F-026, §5.av, §5.au). Check `git branch`; if merged, branch fresh off
+`main` (§5.ab).
 
-## Everything else: BACKLOG.md (new, 2026-09-09)
+- **§5.av (b69b665)** — the game picker leads with a "Your saved games" optgroup; picking a
+  format fills everything and lands on the F-021 confirmation; picking a raw mode afterwards
+  configures fresh. A classic-pool format (no `gameMode`) clears the mode explicitly — new
+  fixture `f-classic-pool` ("JY Classic Pool") pins it.
+- **§5.au (f08dd22)** — step order is now **field → game → course → tees → [groups] →
+  teams/sides → money**. The group chips moved to the field step and load members
+  immediately. Two traps that were real: `formatSeedApplied` became a REF (the field step
+  mounts before the parent consumes the format seed), and the group-loaded name courtesy
+  needed a functional setState (async group seed saw a stale `''`). Players added before a
+  course exists get tees re-resolved when the course lands (`useEffect` on `course`).
 
-Craig asked for a better method for tracking progress, next todos, and brainstorming.
-**`BACKLOG.md` is now the single queue** — filler items, the bigger arcs, the
-waiting-on-Craig list (GHIN spot-check, The Meadows payload, merge review), the
-known-incomplete corners, and an Ideas section for brainstorming all live there.
+Also still true: a stale `next dev` on port 3200 makes every e2e time out (`netstat -ano |
+grep :3200`, kill the PID). And check the verify exit code itself, not a `tail` of its log.
 
-**End this session by grooming it**: mark what got done, add what got discovered,
-promote the next item into this file. That ritual is the method.
+## Then: everything else is in BACKLOG.md
+
+The waiting-on-Craig list (GHIN spot-check of F-022, The Meadows `GetCourseDetails` payload
+for F-023 part B, branch merge), the shaped next items, and the bigger arcs all live there.
+**End the session by grooming it.**
 
 ## Rules that keep earning their place
 
-- **The GHIN app outranks the rule book** (§5.ba); §5.bb records the current allowance order and
-  the pending on-course verification.
+- **The GHIN app outranks the rule book** (§5.ba); §5.bb records the allowance order.
 - **Read the history before re-fixing** (`git log -S`).
-- **Look at the screen** — F-024/25/26 were invisible in code review, obvious in screenshots.
-- **Both sides of every branch**; classic pool keeps "Foursomes", individual games say "Players".
-- `npm run verify` must exit 0 before each commit.
+- **Look at the screen** — the reorder's step indicator and group chips were only checkable
+  in screenshots.
+- **Both sides of every branch**; classic pool keeps "Foursomes", individual games say
+  "Players".
+- `npm run verify` must exit 0 before each commit — and read ITS exit code, not the log tail.

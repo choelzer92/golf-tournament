@@ -19,7 +19,14 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
-| **Wizard track: formats in the game picker + step reorder** | M | §5.av, §5.au — see NEXT_SESSION_PROMPT.md |
+| **Craig's feedback batch (2026-09-10)** — he has feedback to bring up; capture it here, then promote | ? | Craig, mid-session 2026-09-10 |
+
+## Done recently
+
+| Item | When |
+|---|---|
+| §5.av — saved formats are choices in the wizard's game picker (b69b665) | 2026-09-09 |
+| §5.au — wizard reorder: field → game → course → tees → money (f08dd22) | 2026-09-10 |
 
 ## Waiting on Craig (not buildable until he acts)
 
