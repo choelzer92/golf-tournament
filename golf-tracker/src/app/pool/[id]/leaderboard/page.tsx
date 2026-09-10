@@ -20,6 +20,7 @@ import type { TeamFormat } from '@/lib/game-modes/team-scoring';
 import type { WolfHoleLine, NassauLegLine, JunkLine } from '@/lib/game-modes/types';
 import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
 import { defaultSideLabel, sideOfPlayer, sidesOfGame } from '@/lib/game-modes/sides';
+import { CardBoardToggle } from '@/components/card-board-toggle';
 
 const LEG_LABELS: Record<PoolLegKey, string> = {
   front: 'Front 9',
@@ -173,12 +174,8 @@ export default function PoolLeaderboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push('/game/play')}
-              className="text-sm text-yellow-300 hover:text-yellow-100 font-medium"
-            >
-              Scorecard
-            </button>
+            {/* F-030: same pill as the scorecard header — the primary toggle, distinct from Back. */}
+            <CardBoardToggle active="board" cardHref="/game/play" boardHref={`/pool/${id}/leaderboard`} />
             <button onClick={() => router.push(`/pool/${id}`)} className="text-sm text-gray-400 hover:text-white">Back</button>
           </div>
         </div>
@@ -946,7 +943,8 @@ function IndividualLeaderboard({ id }: { id: string }) {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => router.push('/game/play')} className="text-sm text-yellow-300 hover:text-yellow-100 font-medium">Scorecard</button>
+            {/* F-030: same pill as the scorecard header — the primary toggle, distinct from Back. */}
+            <CardBoardToggle active="board" cardHref="/game/play" boardHref={`/pool/${id}/leaderboard`} />
             <button onClick={() => router.push(`/pool/${id}`)} className="text-sm text-gray-400 hover:text-white">Back</button>
           </div>
         </div>

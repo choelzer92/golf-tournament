@@ -1526,7 +1526,7 @@ test.describe('F-019: a side game with two playing groups', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const id = await seed(page, 'F-019: 8 players, TWO tee times, four sides');
     await page.goto(`${BASE}/pool/${id}/leaderboard`);
-    await expect(page.getByText('STANDINGS')).toBeVisible();
+    await expect(page.getByRole('main').getByText('STANDINGS')).toBeVisible();
 
     const body = await page.locator('body').innerText();
     // All four sides on the board, by their names.
@@ -1647,7 +1647,7 @@ test.describe('F-019: a side game with two playing groups', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const id = await seed(page, 'F-019: 7 players as 4 + 3');
     await page.goto(`${BASE}/pool/${id}/leaderboard`);
-    await expect(page.getByText('STANDINGS')).toBeVisible();
+    await expect(page.getByRole('main').getByText('STANDINGS')).toBeVisible();
 
     const body = await page.locator('body').innerText();
     // Will is in a playing group but on NO side: he must appear as a player...
@@ -1665,7 +1665,7 @@ test.describe('F-019: a side game with two playing groups', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const id = await seed(page, 'F-019 control: 4 players, ONE group');
     await page.goto(`${BASE}/pool/${id}/leaderboard`);
-    await expect(page.getByText('STANDINGS')).toBeVisible();
+    await expect(page.getByRole('main').getByText('STANDINGS')).toBeVisible();
 
     const body = await page.locator('body').innerText();
     expect(body).toContain('Craig & Rick');
@@ -1695,7 +1695,7 @@ test.describe('F-019: the scorecard agrees with the leaderboard across groups', 
 
     // What the BOARD says each side scored — the engine's answer, over both groups.
     await page.goto(`${BASE}/pool/${id}/leaderboard`);
-    await expect(page.getByText('STANDINGS')).toBeVisible();
+    await expect(page.getByRole('main').getByText('STANDINGS')).toBeVisible();
     const boardBody = await page.locator('body').innerText();
     const standings = boardBody.slice(boardBody.indexOf('STANDINGS'), boardBody.indexOf('FRONT'));
     const boardDawgs = standings.match(/The Dawgs\s+(\d+)/)?.[1];
@@ -2130,7 +2130,7 @@ test.describe('a 1 v 1 singles match', () => {
   test('1v1: the board names the players and settles a real Nassau', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await seed(page, '1 v 1 singles match');
-    await expect(page.getByText('STANDINGS')).toBeVisible();
+    await expect(page.getByRole('main').getByText('STANDINGS')).toBeVisible();
 
     const body = await page.locator('body').innerText();
     // Named after the players, with no "(solo)" suffix: in a 1v1 every row is one player, so the
@@ -2208,7 +2208,7 @@ test.describe('a 1 v 1 singles match', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const id = await seed(page, 'Three sides playing a POT (uneven 3/2/1)');
     await goToGame(page, id, '/leaderboard');
-    await expect(page.getByText('STANDINGS')).toBeVisible();
+    await expect(page.getByRole('main').getByText('STANDINGS')).toBeVisible();
     expect(await page.locator('body').innerText()).toContain('(solo)');
   });
 });
@@ -2354,7 +2354,7 @@ test.describe('F-019: a fifth player in a scored group', () => {
     // What the board says BEFORE the split — the money must be identical after, because splitting
     // changes the tee sheet and not the sides.
     await goToGame(page, id, '/leaderboard');
-    await expect(page.getByText('STANDINGS')).toBeVisible();
+    await expect(page.getByRole('main').getByText('STANDINGS')).toBeVisible();
     const before = await page.locator('body').innerText();
     const beforeStandings = before.slice(before.indexOf('STANDINGS'), before.indexOf('FRONT'));
     expect(beforeStandings).toMatch(/thru|7/);
@@ -2375,7 +2375,7 @@ test.describe('F-019: a fifth player in a scored group', () => {
     // THE ASSERTION THAT MATTERS: the scores travelled with the players. A split that lost them
     // would show an unscored game here.
     await goToGame(page, id, '/leaderboard');
-    await expect(page.getByText('STANDINGS')).toBeVisible();
+    await expect(page.getByRole('main').getByText('STANDINGS')).toBeVisible();
     const after = await page.locator('body').innerText();
     const afterStandings = after.slice(after.indexOf('STANDINGS'), after.indexOf('FRONT'));
     // Both sides still ranked off seven holes of real scores.
@@ -2405,7 +2405,7 @@ test.describe('F-019: a fifth player in a scored group', () => {
     const id = await seed(page, 'F-019: 7 players as 5 + 1 + 1');
 
     await goToGame(page, id, '/leaderboard');
-    await expect(page.getByText('STANDINGS')).toBeVisible();
+    await expect(page.getByRole('main').getByText('STANDINGS')).toBeVisible();
     const before = await page.locator('body').innerText();
     const beforeStandings = before.slice(before.indexOf('STANDINGS'), before.indexOf('FRONT'));
 
@@ -2421,7 +2421,7 @@ test.describe('F-019: a fifth player in a scored group', () => {
     // Every player is still scored exactly once. A duplicated row would move a side's total, so
     // compare the money: the sides never changed, so it must be identical.
     await goToGame(page, id, '/leaderboard');
-    await expect(page.getByText('STANDINGS')).toBeVisible();
+    await expect(page.getByRole('main').getByText('STANDINGS')).toBeVisible();
     const after = await page.locator('body').innerText();
     const afterStandings = after.slice(after.indexOf('STANDINGS'), after.indexOf('FRONT'));
     const moneyOf = (s: string) => [...s.matchAll(/([+−-])\$(\d+)/g)]
@@ -2742,5 +2742,47 @@ test.describe('F-033: a small field is told which games fit it', () => {
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await expect(page.getByText('Which game are you playing?')).toBeVisible();
     await expect(page.getByText(/you can also play:/)).toHaveCount(0);
+  });
+});
+
+test.describe('F-030: one segmented pill toggles card and standings on both screens', () => {
+  // Mechanically the round-trip was already 1 tap with state preserved — the finding
+  // was affordance: both directions were small corner text links, visually identical
+  // to "Back". One [Card | Standings] pill now sits in BOTH headers, same look, so the
+  // two screens read as views of one game. Craig's pick over swipe (gesture conflicts
+  // with prev/next hole) 2026-09-10.
+  test('F-030: the pill round-trips card → standings → card and keeps the hole', async ({ page }) => {
+    const id = await seed(page, 'Stableford (individual) — 4 players, thru 7');
+    await goToGame(page, id);
+    await page.getByRole('button', { name: 'Enter Scores' }).click();
+    await page.waitForURL(/\/game\/play/);
+    await page.waitForLoadState('networkidle');
+
+    // The card header has the pill, with Card active.
+    const cardTabs = page.getByRole('tablist', { name: 'Card or standings' });
+    await expect(cardTabs).toBeVisible();
+    await expect(cardTabs.getByRole('tab', { name: 'Card' })).toHaveAttribute('aria-selected', 'true');
+
+    // The card opens on the first unscored hole (8, thru 7). Walk two on, then
+    // over to standings via the pill.
+    await expect(page.getByText('Hole 8', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: '›' }).click();
+    await page.getByRole('button', { name: '›' }).click();
+    await expect(page.getByText('Hole 10', { exact: true })).toBeVisible();
+    await cardTabs.getByRole('tab', { name: 'Standings' }).click();
+    await page.waitForURL(/\/leaderboard/);
+
+    // The board header has the same pill, with Standings active.
+    const boardTabs = page.getByRole('tablist', { name: 'Card or standings' });
+    await expect(boardTabs.getByRole('tab', { name: 'Standings' })).toHaveAttribute('aria-selected', 'true');
+    await page.screenshot({ path: 'e2e/screenshots/f030-toggle-board.png', fullPage: true });
+
+    // And back. The card remounts and resumes at the FIRST UNSCORED hole (8) — that's
+    // the designed "continuing" behavior (play/page.tsx "Jump to first unscored hole on
+    // resume"), not a preserved cursor; browsing to 10 without scoring doesn't stick.
+    await boardTabs.getByRole('tab', { name: 'Card' }).click();
+    await page.waitForURL(/\/game\/play/);
+    await expect(page.getByText('Hole 8', { exact: true })).toBeVisible();
+    await page.screenshot({ path: 'e2e/screenshots/f030-toggle-card.png', fullPage: true });
   });
 });

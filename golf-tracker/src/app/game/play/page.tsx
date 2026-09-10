@@ -19,6 +19,7 @@ import { sideNamesForGame } from '@/lib/game-modes/team-game';
 import { fromLegacySubTeams, sidesOfGame } from '@/lib/game-modes/sides';
 import { wolfForHole } from '@/lib/game-modes/wolf';
 import type { WolfHoleDecision } from '@/lib/pool-game';
+import { CardBoardToggle } from '@/components/card-board-toggle';
 
 interface PoolGameContext {
   poolGameId: string;
@@ -731,13 +732,14 @@ export default function PlayGamePage() {
                 Leaderboard
               </button>
             )}
+            {/* F-030: the primary toggle, not another corner link — the same pill the
+                leaderboard header shows, so the two screens read as one game's views. */}
             {poolCtx && (
-              <button
-                onClick={() => router.push(`/pool/${poolCtx.poolGameId}/leaderboard`)}
-                className="text-sm text-green-200 hover:text-white font-medium"
-              >
-                Leaderboard
-              </button>
+              <CardBoardToggle
+                active="card"
+                cardHref="/game/play"
+                boardHref={`/pool/${poolCtx.poolGameId}/leaderboard`}
+              />
             )}
             <button
               onClick={() => {
