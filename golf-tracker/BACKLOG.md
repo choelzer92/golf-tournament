@@ -17,12 +17,8 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 ## Now (promoted)
 
-Craig's feedback batch (2026-09-10): ALL FOUR done on branch `live-feedback-2026-09-10`
-(group tap, verbiage, feedback box, F-027 code fixes — see Done). Promoted next:
-
 | Item | Size | Source |
 |---|---|---|
-| **BUILD the friend-feedback fixes (F-028…F-033)** — all six VERIFIED on screen 2026-09-10 (screenshots + options in FINDINGS.md); each needs Craig's option pick, then build + e2e per finding. Verified shape: F-028 leaderboard grid drops the engine's per-hole points (show pts, opt A); F-029 dots are 8px blue-400 on the dark board, CSS-only fix (opt A); F-030 is 1 tap each way with state preserved — the real issue is the corner-link affordance; Craig floated swipe or a cleaner toggle (opts A/B/C compose); F-031 leaderboard has NO to-par column in points games (opt A); F-032 close-out shows zero money — recap via `settleUp()` at the close-out moment (opt A/C, §2 stop-and-ask on money display); F-033 games exist + badged, but picker DEFAULTS to Pool and badges hide inside the closed dropdown (opt B hint line) — note friend used the PRE-branch app. Two new sandbox scenarios seeded (`stableford-ind-partial`, `-complete`). | M | friend feedback 2026-09-10, verified this session |
 | **Course-data correctness audit** (Craig 2026-09-10: "important that it works for all courses… The Meadows is a good test. Others too may have them typed in differently"). Extends F-023: GHIN courses aren't uniform — missing 'Total' ratings rows, differently-shaped tee/ratings payloads. Shape: (a) inventory every live game's course for missing/odd ratings via read-only queries; (b) harden the parse for the shapes found; (c) a diagnostic view (or log) that says WHAT the app extracted from a course so a wrong pull is visible, not silent. Part B still wants the real Meadows `GetCourseDetails` payload — or Craig logged in so a session can fetch it via the app's own API route. | M | Craig 2026-09-10 + F-023 |
 | **Sharing/login/identity AUDIT** (Craig: "I want to get this polished"). Walk all four personas, screenshot, log findings, propose. Fold the group-management consolidation below into the same walk (same surfaces). | M | Craig 2026-09-10 |
 | Merge-audit polish batch (all four S items below) — fallback if the audit runs short | S×4 | merge audit / §5.ak |
@@ -32,6 +28,7 @@ Craig's feedback batch (2026-09-10): ALL FOUR done on branch `live-feedback-2026
 
 | Item | When |
 |---|---|
+| **F-028…F-033 ALL BUILT** — Craig picked all recommendations (F-030: segmented toggle over swipe; F-032: recap in the close-out panel). Six commits on `live-feedback-2026-09-10` (8018429 dots, d54cfe2 to-par, e2788c4 pts/hole, 60e5fe2 fit hint, a22e359 [Card\|Standings] pill, e038fff who-pays-whom + `gameRollups()`), each with e2e; verify green (136 e2e). Still open from the batch: F-030 opt C (standings strip on the card, §6b); F-031 opt B (bigger card superscript); telling the friend the answers (men's/women's SI factored; 1v1 = Sides/Match; 3p = Nines etc.) | 2026-09-10 |
 | **In-app feedback box** BUILT (065956f) — Craig OK'd with "easy to find, doesn't cover things up": header 💬 button (hub + /home), bottom sheet, `feedback_notes` migration WRITTEN BUT NOT APPLIED to live (Craig's step), `src/lib/feedback.ts`, `/home/feedback` read-back, 2 e2e | 2026-09-10 |
 | **F-027 code fixes** (ca931fa) — Craig: "fix writers now, query later". Writers trim + fall back to `GHIN #…`; `upsertRosterPlayer` refuses to blank a stored name; group page renders `rosterDisplayName`; unit + e2e | 2026-09-10 |
 | **F-027 live query** (Craig-authorized, read-only) — ZERO blank names in live `players` (83 rows, min name length 8): no backfill needed. Found instead: one dangling member id in "Friday Group" (deleted player still referenced) | 2026-09-10 |
@@ -62,6 +59,9 @@ Craig's feedback batch (2026-09-10): ALL FOUR done on branch `live-feedback-2026
 | Merge-audit polish: three different renderings of course handicap | S | merge audit |
 | Uncaptured walks: group format sheet (walk 2 stopped there), create-group mid-wizard, format-tap → confirmation | S | NEXT_SESSION_PROMPT history |
 | Leaderboard shows front/back columns for a 9-hole game (redundant, not wrong) | S | roadmap #13 note |
+| F-030 opt C: standings strip ON the scorecard (mini-leaderboard above the grid) — the deeper "captain glancing between shots" fix; composes with the built toggle | S | F-030, §6b |
+| F-031 opt B: the card's running to-par superscript is typo-sized — enlarge/clarify (ask Craig first) | S | F-031 |
+| Tell the friend (via Craig): men's/women's hole handicaps ARE factored (playerHoleStrokeIndex); 1v1 = Sides/Match; 3-player = Nines + skins/quota/Stableford/low-total; stats + GHIN export in Ideas; and the F-028…F-033 fixes land when the branch deploys | S | friend feedback 2026-09-10 |
 | Live scoring experience pass | M | §6 item 3 — Craig's named focus, never had its session |
 | Offline / PWA resilience (`sw.js` exists, caches nothing — cart-path wifi) | M | §6 item 4; core to "continuing" |
 

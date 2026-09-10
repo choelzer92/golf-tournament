@@ -2268,6 +2268,11 @@ by both grids.
 **Recommendation:** A — the leaderboard is the "how am I doing" surface; showing gross
 twice is redundant there. C could follow if the friend wants it at entry time.
 
+**BUILT 2026-09-10** (opt A, Craig's pick; commit e2788c4): the individual details grid
+renders the engine's perHole points whenever the game's metric is points (keyed off the
+metric, so quota/Nines/Wolf get it too); Out/In sum points, Gross/Net totals stay, panel
+header says "pts per hole". e2e `F-028` asserts Out == standings pts.
+
 ---
 
 ### F-029 — Stroke dots too faint on the scorecard  [P3] [track]
@@ -2300,6 +2305,10 @@ desync money — keep it CSS-only.
 
 **Recommendation:** A on both surfaces (one class per call site, six call sites,
 zero logic).
+
+**BUILT 2026-09-10** (opt A, Craig's pick; commit 8018429): dark board 8px blue-400 →
+11px sky-300 (4 sites); play page orange dots xs → sm (incl. the purple negative-stroke
+circles). CSS-only. e2e `F-029` ×2.
 
 ---
 
@@ -2340,6 +2349,13 @@ forth… maybe a better method like a swipe, or a cleaner button to switch."
 **Recommendation:** B now (cheap, discoverable, symmetric), C as the deeper fix for the
 "captain glancing between shots" moment — they compose.
 
+**BUILT 2026-09-10** (opt B, Craig's pick; commit a22e359): shared `CardBoardToggle`
+pill ([Card | Standings], white-on-translucent) replaces the corner links on the pool
+scorecard header and BOTH leaderboard variants; tournament flows keep their links.
+NOTE learned building the e2e: the card resumes at the FIRST UNSCORED hole on remount
+(by design, play/page.tsx) — it is not a preserved cursor; browsing without scoring
+doesn't stick. Opt C (standings strip on the card, §6b) remains open as the deeper fix.
+
 ---
 
 ### F-031 — Playing Stableford, you can't see your score to par  [P2] [track]
@@ -2372,6 +2388,12 @@ at the standings can't see anyone's to-par.
   hole, not cumulative, and vanishes as you move holes.
 
 **Recommendation:** A (+B if Craig agrees the superscript is too subtle).
+
+**BUILT 2026-09-10** (opt A, Craig's pick; commit d54cfe2): "To par" column (gross vs
+par, strokes valence: under green / over red) in the individual STANDINGS whenever the
+engine isn't already supplying its ranked to-par/PACE column. Derived from the details
+grid's gross+par — no engine change. Opt B (bigger card superscript) not done — ask if
+he still wants it. e2e `F-031`.
 
 ---
 
@@ -2409,6 +2431,12 @@ settle-up view is buried in /home/stats, season-scoped, behind an organizer logi
 
 **Recommendation:** A (or C if the board should show it too). "No Venmo, nothing
 crazy" — a text list of transfers is exactly `settleUp()`'s output shape.
+
+**BUILT 2026-09-10** (opt A, Craig's pick; commit e038fff): the close-out panel grows a
+"Who pays whom" list the moment the game closes and on every later view; share-link
+guests get the same list as its own section. New `gameRollups()` (stats-ledger) reduces
+one game to per-player rollups → `settleUp()`. Unit tests pin zero-sum + full-settlement
++ per-person divide, each proven able to fail (§5.z). e2e `F-032` incl. reopen-removes-it.
 
 ---
 
@@ -2461,6 +2489,11 @@ knows the rule — playerCount — and doesn't spend it as guidance here).
 **Answer back to the friend:** 1v1 = "Sides / Match" (plays at 2, front/back/overall);
 3-player = Nines/Split Sixes, plus Skins/Quota/Stableford/Low Total at 2–3. If a game
 he wanted is still missing, name it — a new mode is one file.
+
+**BUILT 2026-09-10** (opt B, Craig's pick; commit 60e5fe2): sky-toned hint line under
+the picker when the pool is selected with ≤3 players, listing the fitting modes via
+`modeFits`; picking a real mode dismisses it; default stays Pool. Opt A (fit-aware
+default) deliberately not done. e2e `F-033` ×2 (2p, 3p, absent at 4).
 
 **Craig (2026-09-10):** the friend used the app BEFORE this branch's changes deployed —
 so what he saw may predate the F-020 fit badges and the current mode list entirely. The
