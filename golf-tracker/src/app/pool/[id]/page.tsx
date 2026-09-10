@@ -63,6 +63,7 @@ import { getCreatorGhin } from '@/lib/pool-identity';
 import { getGameMode, GAME_MODES, buildGameModeContext, defaultSettings, settingValue, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { SideNames } from '@/components/side-names';
+import { FeedbackButton } from '@/components/feedback-box';
 import { saveFormat, formatFromGame } from '@/lib/pool-formats';
 import { PairingLocks } from '@/components/pairing-locks';
 import { CaptainsPanel } from '@/components/captains-panel';
@@ -342,6 +343,9 @@ export default function PoolHubPage() {
               teams, Close out ends the round for all four foursomes, GHIN refresh
               needs a token they don't have. Those are hidden. */}
           <div className="flex items-center gap-4">
+            {/* Feedback is for EVERYONE in the game — the share-link friend
+                using the app mid-round is exactly who we want to hear from. */}
+            <FeedbackButton gameId={game.id} />
             {!poolOnly && (
               <>
                 <button

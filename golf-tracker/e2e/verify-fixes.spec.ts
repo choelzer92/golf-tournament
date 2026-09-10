@@ -410,6 +410,57 @@ test.describe('group picker on wizard step 1 (§5.au: step 1 is the FIELD)', () 
   });
 });
 
+test.describe('feedback box: a note sent from a game reads back at /home/feedback', () => {
+  // Craig 2026-09-10: an in-app feedback box — a text box and a list, not a
+  // ticket system. The button must be findable but never cover the screen
+  // (header text button, not a floating overlay).
+  test('send from the hub header, read back with author and game link', async ({ page }) => {
+    const gameId = await seed(page, 'Skins — 2 players');
+    // This scenario doesn't sign in an organizer; /home/feedback gates on a GHIN
+    // token, and the note should carry a real author. Sign in as the sandbox owner.
+    await page.evaluate(() => {
+      sessionStorage.setItem('ghin_token', 'sandbox-token');
+      const identity = JSON.stringify({ golfer_id: 1234567, first_name: 'Craig', last_name: 'Hoelzer' });
+      sessionStorage.setItem('ghin_golfer', identity);
+      localStorage.setItem('ghin_golfer', identity);
+    });
+    await page.goto(`${BASE}/pool/${gameId}`);
+    await page.waitForLoadState('networkidle');
+
+    // The button lives in the header — visible without scrolling, covering nothing.
+    await page.getByRole('button', { name: /Feedback/ }).click();
+    await page.getByPlaceholder("What's on your mind?").fill('The skins board is great — can we get carryover totals?');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(page.getByText(/Thanks — got it/)).toBeVisible();
+
+    // The read-back list: note text, author line, and a link to the game.
+    // (Identity comes from pool-identity; the sandbox seeds Craig's.)
+    await page.goto(`${BASE}/home/feedback`);
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Feedback' })).toBeVisible();
+    await expect(page.getByText('carryover totals')).toBeVisible();
+    await expect(page.getByRole('button', { name: /open the game/ })).toBeVisible();
+    await page.screenshot({ path: 'e2e/screenshots/feedback-readback.png', fullPage: true });
+  });
+
+  test('the home page offers the box and the read-back link', async ({ page }) => {
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Home hub' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+
+    await page.goto(`${BASE}/home`);
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('button', { name: /Feedback/ }).first()).toBeVisible();
+    // Empty state says where notes come from, not just that there are none.
+    await page.getByRole('button', { name: /Read feedback notes/ }).click();
+    await page.waitForURL(/home\/feedback/);
+    await expect(page.getByText(/No feedback yet/)).toBeVisible();
+  });
+});
+
 test.describe('F-027: a roster row with a blank name still renders a label', () => {
   // Craig, live app: "i just see handicaps, i can tell they are people, but i dont
   // see names." Cause: live `players` rows with an empty name (untrimmed GHIN-add
