@@ -39,25 +39,15 @@ but still can't PICK one from the game picker when starting — the loop is half
 Format Library plumbing all exists (`pool-formats.ts`, `FORMAT_SEED_KEY` seeds the wizard);
 this is about surfacing formats at the moment of choosing a game, not new storage.
 
-## Filler if the session has room
+## Everything else: BACKLOG.md (new, 2026-09-09)
 
-- **§7 q4** — dark = live, light = setup; probably just needs confirming.
-- **Merge-audit polish:** loss-red leg results on the dark board (§5.ak), "Sides / Match" as a
-  category label, the `70, 30` mini-DSL, three renderings of course handicap.
-- **Walks not yet captured:** walk 2 stopped at the group format sheet; "create group mid-wizard"
-  and format-tap → confirmation are uncovered.
-- **Home-screen/Event plan** (approved, not built) — its OWN fresh session, plan file
-  `.claude/plans/adaptive-squishing-locket.md`. Don't fold it into this one.
+Craig asked for a better method for tracking progress, next todos, and brainstorming.
+**`BACKLOG.md` is now the single queue** — filler items, the bigger arcs, the
+waiting-on-Craig list (GHIN spot-check, The Meadows payload, merge review), the
+known-incomplete corners, and an Ideas section for brainstorming all live there.
 
-## Waiting on Craig (don't build around these — just ask if he has them)
-
-1. **GHIN spot-check at 90%** — a couple of players vs the GHIN app, ideally including an
-   off-the-low game (the Aug evidence pointed the other way for that feature). Confirms F-022's
-   new order end-to-end. If anything's off by one: screenshots with exact tees + indexes.
-2. **The Meadows payload** — search The Meadows (Greenbrier, WV) in the app with the browser
-   network tab open and save the `GetCourseDetails` response. Unblocks F-023 part B.
-3. **Merge review** — this branch has §5.ay + §5.az + all five F-fixes awaiting his review
-   (§5.ab: merge timing is his call, don't ask just because the gate is green).
+**End this session by grooming it**: mark what got done, add what got discovered,
+promote the next item into this file. That ritual is the method.
 
 ## Rules that keep earning their place
 

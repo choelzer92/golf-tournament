@@ -34,6 +34,10 @@ the fact, and a season-long money ledger. Bias effort there.
 - **`UI_CRITIQUE_PROCESS.md`** — the loop for seeing the UI, recording findings,
   and proposing options. Follow it rather than critiquing ad hoc.
 - **`FINDINGS.md`** — the running findings log (observation + options + status).
+- **`BACKLOG.md`** — the single queue of everything worth doing eventually, plus an
+  Ideas section for brainstorming. Findings and decisions FEED it; the next session's
+  work is PROMOTED from it into `NEXT_SESSION_PROMPT.md`. **End every session by
+  grooming it**: mark done, add discovered, promote next.
 - **`UI_MODE_AUDIT.md`** — the surface × game-mode audit method and the original
   code sweep. Use its grep probes when hunting for cross-mode drift.
 
