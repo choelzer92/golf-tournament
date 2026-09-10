@@ -1419,6 +1419,34 @@ same breath as the FINDINGS/DECISIONS entry. Never build directly from Ideas.
 
 ---
 
+## 5.bd The feedback box is findable but never covers anything (2026-09-10)
+
+Craig approved the in-app feedback box with one placement rule: *"build it, but it should be
+in a location where it is easy to find, but doesnt complicate things or cover things up."*
+
+**How to apply.** The feedback entry point is a header text button (game hub + /home),
+sitting with the other header actions — never a floating action button, never an overlay
+that sits on top of scores or the card. Share-link players see it too (the friend using
+the app mid-round is who we most want to hear from). It stays a text box and a list —
+no categories, no required fields, no ticket system. Built 2026-09-10 (065956f); the
+`feedback_notes` migration is additive-only and awaits Craig applying it to the live DB.
+
+---
+
+## 5.be F-027 writers-first: harden the code before touching live rows (2026-09-10)
+
+On the blank-names diagnosis (empty `name` rows in live `players` from untrimmed GHIN-add
+writers), Craig chose **"fix writers now, query later"** over confirm-first.
+
+**How to apply.** The precedence when a live-data bug has a code-side cause: ship the
+defensive code (trim the writers, make `upsertRosterPlayer` refuse to blank a stored name,
+render `GHIN #…` for a blank row) without waiting on live confirmation — the fixes are
+safe regardless of what the query shows. The live-row READ (his query) and the one-time
+backfill remain separate, Craig-approved steps; never fold a live-data write into a code
+fix commit.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

@@ -2205,7 +2205,13 @@ GHIN search on a day GHIN was flaky, that's the writer.
 **Recommendation:** **C then A** — confirm the empty-name rows exist (one read-only query),
 then fix writers + fallback in one pass, with the backfill as a separate Craig-approved step.
 
-**Status:** OPEN — diagnosis done 2026-09-10, awaiting live-table confirmation.
+**Status:** CODE-FIXED 2026-09-10 per option A, writers-first on Craig's call ("fix writers
+now, query later"). The two GHIN-add writers build the name with filter/join/trim + a
+`GHIN #…` fallback; `upsertRosterPlayer` refuses to blank a non-empty stored name
+(`resolveUpsertName`, unit-tested); the group page renders `rosterDisplayName` so a
+pre-fix live row shows `GHIN #…` instead of a blank card (e2e `F-027` blanks a seeded
+row and asserts the fallback). REMAINING: Craig runs the read-only query above to
+confirm which live rows are blank; the backfill of those rows is a separate approved step.
 
 ---
 

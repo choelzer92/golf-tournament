@@ -17,42 +17,21 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 ## Now (promoted)
 
-Craig's feedback batch (2026-09-10): two FIXED on branch `live-feedback-2026-09-10`
-(group tap, verbiage — see Done). Two remain:
+Craig's feedback batch (2026-09-10): ALL FOUR done on branch `live-feedback-2026-09-10`
+(group tap, verbiage, feedback box, F-027 code fixes — see Done). Promoted next:
 
 | Item | Size | Source |
 |---|---|---|
-| **In-app feedback box** — proposed shape below AWAITS CRAIG'S OK (writes to live DB: new additive table). Once approved: S–M build. | S–M | Craig 2026-09-10 |
-| **F-027: my-groups names blank** — DIAGNOSED (see FINDINGS.md F-027): page and mapping are clean; the cause is empty-`name` rows in the live `players` table, written by untrimmed GHIN-add paths (`pool/new/page.tsx:2013`, `pool/[id]/page.tsx:2329`) that `upsertRosterPlayer` never validates. NEXT: confirm with one read-only query (`select id,name,ghin_number from players where name is null or trim(name)=''`), then fix writers + render fallback; backfill is a separate Craig-approved step. | S | Craig 2026-09-10 |
-
-### Feedback box — PROPOSED SHAPE (2026-09-10, awaiting Craig's OK — writes to live DB)
-
-Keep it a text box and a list, not a ticket system:
-
-- **Table** (additive migration, touches nothing existing): `feedback_notes`
-  — `id uuid pk · created_at timestamptz default now() · author_ghin bigint null ·
-  author_name text · game_id text null · path text · note text not null`.
-  Who/when/which-game come free: identity from `pool-identity` (works for share-link
-  players without login — they have a stored name), `game_id`+`path` from the route.
-- **Entry UI:** a small "💬 Feedback" button in the game hub header (next to Share) +
-  the same on `/home`. Opens a bottom-sheet modal: one textarea, one Send, a "thanks"
-  flash. No categories, no required fields.
-- **Persistence:** one new lib file `src/lib/feedback.ts` (insert + list), keeping the
-  all-Supabase-calls-in-lib rule. Sandbox fake gets the table for free (in-memory Map).
-- **Read-back:** `/home/feedback` — owner-gated, newest-first list showing note, author,
-  date, and a link to the game. A work session reads it there (or greps the export
-  backup). Entries feed FINDINGS.md by hand — no automation.
-
-Open for Craig: button placement (hub header vs floating), and whether share-link
-visitors see it (proposal: yes — the friend using the app mid-round is the whole point).
+| Merge-audit polish batch (all four S items below) — none blocked, all on already-touched surfaces | S×4 | merge audit / §5.ak |
 
 ## Done recently
 
 | Item | When |
 |---|---|
+| **In-app feedback box** BUILT (065956f) — Craig OK'd with "easy to find, doesn't cover things up": header 💬 button (hub + /home), bottom sheet, `feedback_notes` migration WRITTEN BUT NOT APPLIED to live (Craig's step), `src/lib/feedback.ts`, `/home/feedback` read-back, 2 e2e | 2026-09-10 |
+| **F-027 code fixes** (ca931fa) — Craig: "fix writers now, query later". Writers trim + fall back to `GHIN #…`; `upsertRosterPlayer` refuses to blank a stored name; group page renders `rosterDisplayName`; unit + e2e. REMAINING: live query + backfill (see Waiting) | 2026-09-10 |
 | Group tap: >8 members loads UNCHECKED — field picked by checking (ddb3e95) | 2026-09-10 |
 | Classic verbiage: wizard says "Off the low" / "Full handicap" (1b0b897) | 2026-09-10 |
-| F-027 diagnosed: blank my-groups names = empty `name` rows in live `players`; untrimmed GHIN-add writers identified; awaiting live confirmation | 2026-09-10 |
 | §5.av — saved formats are choices in the wizard's game picker (b69b665) | 2026-09-09 |
 | §5.au — wizard reorder: field → game → course → tees → money (f08dd22) | 2026-09-10 |
 
@@ -62,8 +41,8 @@ visitors see it (proposal: yes — the friend using the app mid-round is the who
 |---|---|
 | F-022 on-course verification | Spot-check 90% strokes vs the GHIN app (incl. an off-the-low game); screenshots if anything is off by one |
 | F-023 part B (widen the GHIN ratings parse) | The real `GetCourseDetails` payload for The Meadows (Greenbrier, WV) — search it with the network tab open |
-| Feedback box shape | OK the proposed table/UI (see "Now" above) — it writes to the live DB |
-| F-027 confirmation | Run the read-only empty-name query against live `players` (or name which members are blank) |
+| Feedback box migration | Apply `supabase/migrations/20260910000000_feedback_notes.sql` to the live DB (additive-only) — until then the button errors ("didn't send") in production |
+| F-027 confirmation + backfill | Run `select id, name, ghin_number from players where name is null or trim(name) = '';` against live `players`, then approve the one-time backfill of those rows (code fixes are in; a pre-fix row shows `GHIN #…` until backfilled) |
 | Branch merge | `live-feedback-2026-09-10` review (§5.ab — his timing; `captains-deal-and-game-rename` merged 2026-09-10) |
 | §7 q4 | Confirm dark = live / light = setup is deliberate |
 
