@@ -46,6 +46,14 @@ His two future thoughts (stat tracking, GHIN export) are in BACKLOG Ideas.
   good test; others may be typed in differently"). Extends F-023. Read-only inventory
   of live games' course ratings shapes → harden the parse → make what-we-pulled
   visible. `supabase db query --linked` works for Craig-authorized read-only queries.
+  **Getting the Meadows payload — Craig's chosen path (2026-09-10): he logs into
+  LOCALHOST.** Run `npx next dev` (real backend, NOT sandbox — GHIN needs real auth),
+  Craig logs in via the app's own form, then capture the raw `GetCourseDetails`
+  response for "The Meadows" (WV): either watch the dev-server side with a temporary
+  console.log in `src/lib/ghin-api.ts getCourseDetails`, or add a dev-only dump. Save
+  raw payloads to `course-payloads/` (gitignored). `scripts/fetch-course-payload.mjs`
+  also exists as a CLI alternative (env-var credentials) if localhost is unavailable.
+  Repeat for any other course Craig suspects is typed differently.
 - **Sharing/login/identity audit** (four personas, screenshots; group-management
   consolidation folded in; §5c boundary — real auth/RLS stops for Craig).
 
