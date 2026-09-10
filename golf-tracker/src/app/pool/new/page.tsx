@@ -63,7 +63,7 @@ import {
   getGroupById,
   upsertGroup,
 } from '@/lib/roster-groups';
-import { getPlayerGroups, saveFormat } from '@/lib/pool-formats';
+import { getFormats, getPlayerGroups, saveFormat } from '@/lib/pool-formats';
 import {
   formatOfGame,
   persistedTeamScoring,
@@ -368,6 +368,32 @@ export default function NewPoolGamePage() {
     }
   }
 
+  // §5.av: a saved format chosen IN the game picker. Same effect as arriving with a
+  // FORMAT_SEED_KEY seed — name, settings, the F-021 summary — but applied in place,
+  // at the moment of choosing a game, instead of via a detour through the library.
+  function chooseFormat(f: RosterGroup) {
+    setName(f.name);
+    setAppliedFormat(f.name.trim());
+    setFormatDirty(false);
+    applyGroupDefaults(f.defaults);
+    // applyGroupDefaults leaves gameMode untouched when the format doesn't carry one —
+    // right for a plain player-group, wrong here: a classic-pool format must actually
+    // switch the wizard back to classic, not inherit whatever mode was selected.
+    if (typeof f.defaults?.gameMode !== 'string') setGameMode(undefined);
+    // A group seed loading members later must not clobber this with the group's own defaults.
+    setFormatSeedApplied(true);
+  }
+
+  // §5.av: picking a raw mode after a format means "configure fresh" — drop the summary
+  // and its name, back to the ordinary form. (Tweaking a format's VALUES is different:
+  // that keeps the summary and invites a rename — §5.ax.)
+  function clearAppliedFormat() {
+    if (appliedFormat && name.trim() === appliedFormat) setName('');
+    setAppliedFormat(undefined);
+    setFormatDirty(false);
+    setFormatSeedApplied(false);
+  }
+
   // Parse the match-config inputs into a PoolMatchConfig (per-player $/leg + junk
   // $/point), falling back to the defaults for any blank/invalid field.
   function buildMatchConfig(): PoolMatchConfig {
@@ -538,6 +564,10 @@ export default function NewPoolGamePage() {
             applyGroupDefaults={applyGroupDefaults}
             onGroupChosen={setSourceGroupId}
             chosenGroupId={sourceGroupId}
+            // §5.av: saved formats are choices at the game step — picking one fills
+            // everything; picking a raw mode afterwards configures fresh.
+            onFormatChosen={chooseFormat}
+            onFormatCleared={clearAppliedFormat}
             onNext={() => setStep('course')}
           />
         )}
@@ -812,6 +842,7 @@ function DetailsStep({
   junkValues, setJunkValues, teamFormat, setTeamFormat, teamScoreBasis, setTeamScoreBasis,
   moneyMode, setMoneyMode, matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
   applyGroupDefaults, onGroupChosen, chosenGroupId,
+  onFormatChosen, onFormatCleared,
   playerCount,
   appliedFormat, formatDirty, onFormatEdited,
   onNext,
@@ -834,6 +865,10 @@ function DetailsStep({
   applyGroupDefaults: (d: GroupDefaults | null) => void;
   onGroupChosen: (groupId: string) => void;
   chosenGroupId: string | undefined;
+  /** §5.av: a saved format picked from the game picker — fills everything. */
+  onFormatChosen: (f: RosterGroup) => void;
+  /** §5.av: a raw mode picked while a format was applied — configure fresh. */
+  onFormatCleared: () => void;
   /** How many players are in the field, or 0 on a first pass (the field is built two steps on).
       Drives the live fit annotation in the picker — F-020. */
   playerCount: number;
@@ -854,11 +889,25 @@ function DetailsStep({
   // the wizard: it answers "who plays", "how we play", and "what games we play" at
   // once, and it turns later questions into confirmations.
   const [groups, setGroups] = useState<RosterGroup[]>([]);
+  // §5.av: saved formats are CHOICES AT THE GAME STEP, not a detour before it. The library
+  // stored whole styles all along, but its only entry point was a button on /pool — invisible
+  // at the moment of choosing a game, so every round re-answered ~15 questions.
+  const [formats, setFormats] = useState<RosterGroup[]>([]);
   useEffect(() => {
     hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' })
-      .then(() => setGroups(getPlayerGroups()))
+      .then(() => { setGroups(getPlayerGroups()); setFormats(getFormats()); })
       .catch(() => {});
   }, []);
+
+  // What the game <select> shows. An applied, un-forked format IS the answer to "which game
+  // are you playing?" — so the select names it, whichever way it was applied (this picker or
+  // a seed from the library/group page). Once renamed into a fork it's a new style, and the
+  // select falls back to the underlying mode.
+  const appliedFormatEntry =
+    appliedFormat !== undefined && name.trim() === appliedFormat
+      ? formats.find((f) => f.name === appliedFormat)
+      : undefined;
+  const gamePickerValue = appliedFormatEntry ? `format:${appliedFormatEntry.id}` : (gameMode ?? 'pool');
 
   // F-021: which sections the user has EXPANDED by hand. Nothing is ever unreachable — every
   // section has its own [Change] button.
@@ -891,9 +940,17 @@ function DetailsStep({
   // NOT use the classic team-pool "Game Type / pot / match / junk / ball" block.
   // Only the classic foursome-vs-foursome pool (no gameMode) uses that block.
   const isRegisteredMode = !!selectedMode;
-  // Pick a game type: classic team pool, or one of the registered individual
-  // games. Selecting an individual game seeds its norm defaults into modeSettings.
-  function pickGame(id: string | undefined) {
+  // Pick a game type: a saved format (fills everything — §5.av), the classic team
+  // pool, or one of the registered games. Selecting a raw mode seeds its norm
+  // defaults into modeSettings — and configures FRESH, dropping any applied format.
+  function pickGame(value: string) {
+    if (value.startsWith('format:')) {
+      const f = formats.find((x) => x.id === value.slice('format:'.length));
+      if (f) onFormatChosen(f);
+      return;
+    }
+    if (appliedFormat) onFormatCleared();
+    const id = value === 'pool' ? undefined : value;
     setGameMode(id);
     const mode = getGameMode(id);
     if (mode) {
@@ -1018,10 +1075,20 @@ function DetailsStep({
         <div className="pt-2 border-t">
           <label className="block text-sm font-medium text-gray-800 mb-1">Which game are you playing?</label>
           <select
-            value={gameMode ?? 'pool'}
-            onChange={(e) => pickGame(e.target.value === 'pool' ? undefined : e.target.value)}
+            value={gamePickerValue}
+            onChange={(e) => pickGame(e.target.value)}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
           >
+            {/* §5.av: SAVED FORMATS FIRST — "the game style you chose is usable forever".
+                Picking one fills everything below; the raw modes stay for a new style. */}
+            {formats.length > 0 && (
+              <optgroup label="Your saved games">
+                {formats.map((f) => (
+                  <option key={f.id} value={`format:${f.id}`}>{f.name}</option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label={formats.length > 0 ? 'Start a new style' : 'Game types'}>
             <option value="pool">Pool (foursomes vs foursomes)</option>
             {GAME_MODES.map((m) => {
               // F-020: annotate each game with how it fits the field you actually have. The badge
@@ -1039,9 +1106,12 @@ function DetailsStep({
                 </option>
               );
             })}
+            </optgroup>
           </select>
           <p className="text-xs text-gray-500 mt-1">
-            {selectedMode
+            {appliedFormatEntry
+              ? 'Your saved style — everything below is already set.'
+              : selectedMode
               ? `${selectedMode.description} ${playerRangeSentence(selectedMode)}`
               : 'The classic buy-in pool or head-to-head match across foursomes.'}
           </p>

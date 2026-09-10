@@ -136,6 +136,26 @@ export function groups(players: RosterPlayer[]): RosterGroup[] {
       },
     },
     {
+      // A CLASSIC POOL saved as a format — no gameMode at all. This is the shape that
+      // exercises the §5.av picker's "switch back to classic" path: applyGroupDefaults
+      // leaves gameMode untouched when absent, so the picker must clear it itself.
+      id: 'f-classic-pool',
+      name: 'JY Classic Pool',
+      ownerGhin: SANDBOX_GHIN,
+      playerIds: [],
+      defaults: {
+        kind: 'format',
+        moneyMode: 'pot',
+        entryPerPlayer: 25,
+        handicapAllowance: 100,
+        strokeMethod: 'off-the-low',
+        handicapBasis: 'course',
+        ballSelection: '1-net-1-gross',
+        useCaptains: true,
+        junkValues: { birdie: 1, eagle: 2, albatross: 3, groupHug: 1, ctp: 1 },
+      },
+    },
+    {
       id: 'f-2v2-bestball',
       name: '2v2 Best Ball (Stableford)',
       ownerGhin: SANDBOX_GHIN,

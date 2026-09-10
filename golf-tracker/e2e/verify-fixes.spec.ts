@@ -1770,7 +1770,9 @@ test.describe('a group offers the formats it plays', () => {
     // With a format applied the name is the summary panel's editable TITLE (F-021), not the
     // "What should we call it?" field — that one only exists for a from-scratch game.
     await expect(page.getByLabel('Game style name')).toHaveValue('Saturday Nassau');
-    await expect(page.locator('select').first()).toHaveValue('team-2v2');
+    // §5.av: the game picker now NAMES the applied format — it IS the answer to
+    // "which game are you playing?" — rather than showing the underlying mode.
+    await expect(page.locator('select').first()).toHaveValue('format:f-saturday-nassau');
     // The stakes and the handicap rule now live in F-021's summary line rather than in 15 fields,
     // so read them there — that IS the confirmation the user sees.
     const summary = await page.locator('body').innerText();
@@ -1879,6 +1881,68 @@ test.describe('a group offers the formats it plays', () => {
         .filter((k) => k.includes('roster_groups'))
         .some((k) => (sessionStorage.getItem(k) ?? '').includes('Saturday Big Nassau')));
     expect(rewroteLibrary).toBe(false);
+  });
+
+  // §5.av — a saved format is a CHOICE AT THE GAME STEP, not a detour before it. The library
+  // stored whole styles all along, but its only entry point was a button on /pool; the wizard's
+  // game picker never offered them, so every round re-answered ~15 questions.
+  test('§5.av: the game picker offers saved formats first, and one tap applies everything', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    // Seed the library (Weekend Warriors + three formats), then open the wizard DIRECTLY —
+    // this is the path that does NOT start from a group, the one §5.av exists for.
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Groups — 61-member standing group' }).first();
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+
+    // Saved styles lead the picker; the raw modes follow under their own heading.
+    const picker = page.locator('select').first();
+    await expect(picker.locator('optgroup[label="Your saved games"] option')).toHaveCount(4);
+    await expect(picker.locator('optgroup[label="Start a new style"] option', { hasText: 'Pool (foursomes' })).toHaveAttribute('value', 'pool');
+
+    // Choosing a format fills everything and lands on the F-021 confirmation, exactly as if
+    // it had been applied from the library or the group page.
+    await picker.selectOption('format:f-saturday-nassau');
+    await expect(page.getByLabel('Game style name')).toHaveValue('Saturday Nassau');
+    const body = await page.locator('body').innerText();
+    expect(body).toContain('Your saved game style');
+    expect(body).toContain('$10 / $10 / $20');
+    expect(body).toContain('off the low');
+    await page.screenshot({ path: 'e2e/screenshots/5av-picker-format-applied.png', fullPage: true });
+
+    // Choosing a raw mode afterwards configures FRESH: the summary and the borrowed name go,
+    // the ordinary form returns.
+    await picker.selectOption('skins');
+    const after = await page.locator('body').innerText();
+    expect(after).not.toContain('Your saved game style');
+    expect(after).toContain('What should we call it?');
+    await expect(page.getByLabel('Game style name')).toHaveCount(0);
+  });
+
+  test('§5.av: a classic-pool format switches an individual-mode wizard back to classic', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Groups — 61-member standing group' }).first();
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+    // A format with NO gameMode is a classic team pool. applyGroupDefaults leaves gameMode
+    // untouched when absent (right for player-groups), so the picker has to clear it itself —
+    // this is the case that would otherwise inherit whatever mode was selected before.
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    const picker = page.locator('select').first();
+    await picker.selectOption('skins');
+    await picker.selectOption('format:f-classic-pool');
+    await expect(page.getByLabel('Game style name')).toHaveValue('JY Classic Pool');
+    // The classic pool's own controls are what follows, not the skins options.
+    const body = await page.locator('body').innerText();
+    expect(body).not.toContain('Skins options');
   });
 
   test('F-021: a game built from SCRATCH is unchanged — no summary, all questions', async ({ page }) => {
