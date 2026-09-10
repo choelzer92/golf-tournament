@@ -911,6 +911,14 @@ function IndividualLeaderboard({ id }: { id: string }) {
   }
   const showGrossToPar = !isWithinGroup && !showToPar && grossToPar.size > 0;
 
+  // F-028: per-hole POINTS for the details grid, when the game is played in points.
+  // Individual games only — a side game's perHole holds match/leg contributions per
+  // PLAYER that don't read as a scorecard row. Keyed off the metric, not the mode id,
+  // so any future points game gets it for free.
+  const pointsPerHole = !isWithinGroup && !isStrokeMetric && result
+    ? new Map(result.standings.map((s) => [s.playerId, s.perHole]))
+    : undefined;
+
   // Which side a player is on, for the Player Details grid. Reads the normalized side
   // collection so a 3+ side game labels every player, not just the first two (it used to read
   // game.subTeams directly and hard-code a/b).
@@ -1115,13 +1123,20 @@ function IndividualLeaderboard({ id }: { id: string }) {
               </div>
             )}
 
-            {/* Per-player scorecard (reuses the same grid + strokes box as the team view). */}
+            {/* Per-player scorecard (reuses the same grid + strokes box as the team view).
+                F-028: in a game PLAYED in points (Stableford/quota/Nines/Wolf) the grid shows
+                the engine's per-hole POINTS — the friend playing Stableford could see his pts
+                total but never where he earned them; gross stayed on the scorecard. Match-pts
+                side games keep gross: their perHole holds hole outcomes, not a card row. */}
             {players.length > 0 && (
               <div className="bg-gray-800 rounded-xl overflow-hidden">
-                <div className="px-4 py-2 border-b border-gray-700">
+                <div className="px-4 py-2 border-b border-gray-700 flex items-baseline justify-between">
                   <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Player Details</p>
+                  {pointsPerHole && (
+                    <p className="text-[10px] text-gray-500">{result!.metricLabel} per hole</p>
+                  )}
                 </div>
-                <IndividualPlayerGrid players={players} sideOf={sideOf} sideOrder={sideOrder} />
+                <IndividualPlayerGrid players={players} sideOf={sideOf} sideOrder={sideOrder} pointsPerHole={pointsPerHole} />
               </div>
             )}
 
@@ -1251,13 +1266,18 @@ function WolfBreakdown({ lines }: { lines: WolfHoleLine[] }) {
 // The per-player scorecard grid for individual games — same Out/In/Gross/Net
 // columns and strokes-given box as the team leaderboard's Player Details, but for
 // the single group. Extracted so both paths share the presentation.
-function IndividualPlayerGrid({ players, sideOf, sideOrder = [] }: {
+function IndividualPlayerGrid({ players, sideOf, sideOrder = [], pointsPerHole }: {
   players: PoolPlayerDetail[];
   // Side games only: resolves a player to their side label + id, so the grid shows the sides
   // like every other panel on the page. Absent for individual games.
   sideOf?: (playerId: string) => { label: string; sideId: string } | null;
   // The sides in board order, for grouping rows and picking each side's colour.
   sideOrder?: string[];
+  // F-028: points games (Stableford/quota/Nines/Wolf) — the engine's perHole POINTS by
+  // player id, aligned to the game's holes. When present the hole cells show the points a
+  // player EARNED (the figure the game is played in) instead of repeating the scorecard's
+  // gross; Out/In sum the points and the Gross/Net totals stay. Absent = gross, unchanged.
+  pointsPerHole?: Map<string, (number | null)[]>;
 }) {
   const allHoles = players[0]?.holes ?? [];
   const frontHoles = allHoles.filter((h) => h.holeNumber <= 9);
@@ -1265,6 +1285,19 @@ function IndividualPlayerGrid({ players, sideOf, sideOrder = [] }: {
   const sumGross = (p: PoolPlayerDetail, pred: (h: PoolPlayerHoleScore) => boolean) => {
     const played = p.holes.filter((h) => pred(h) && h.gross != null);
     return played.length ? played.reduce((s, h) => s + (h.gross ?? 0), 0) : null;
+  };
+  // F-028: a player's hole value in the game's own unit — points when the game is played
+  // in points, else gross. `p.holes` and the engine's perHole are both aligned to the
+  // game's hole order, so the hole's INDEX (not its number) is the join.
+  const showPoints = !!pointsPerHole;
+  const holeValue = (p: PoolPlayerDetail, holeIdx: number): number | null => {
+    if (!pointsPerHole) return p.holes[holeIdx]?.gross ?? null;
+    return pointsPerHole.get(p.playerId)?.[holeIdx] ?? null;
+  };
+  const sumPoints = (p: PoolPlayerDetail, pred: (holeNumber: number) => boolean) => {
+    const vals = (pointsPerHole?.get(p.playerId) ?? [])
+      .filter((v, idx): v is number => v !== null && pred(allHoles[idx]?.holeNumber ?? 0));
+    return vals.length ? vals.reduce((s, v) => s + v, 0) : null;
   };
   // For a side game, group the rows by side (board order) so each partnership reads as a block.
   // Individual games keep their given order. Works for any number of sides — it used to rank on
@@ -1295,8 +1328,8 @@ function IndividualPlayerGrid({ players, sideOf, sideOrder = [] }: {
         </thead>
         <tbody>
           {ordered.map((player, idx) => {
-            const outGross = sumGross(player, (h) => h.holeNumber <= 9);
-            const inGross = sumGross(player, (h) => h.holeNumber > 9);
+            const outGross = showPoints ? sumPoints(player, (n) => n <= 9) : sumGross(player, (h) => h.holeNumber <= 9);
+            const inGross = showPoints ? sumPoints(player, (n) => n > 9) : sumGross(player, (h) => h.holeNumber > 9);
             // Label the first player of each side (the rows are grouped by side),
             // mirroring how the team grid heads each foursome.
             const side = sideOf?.(player.playerId) ?? null;
@@ -1313,19 +1346,25 @@ function IndividualPlayerGrid({ players, sideOf, sideOrder = [] }: {
                     </span>
                   )}
                 </td>
-                {player.holes.filter((h) => h.holeNumber <= 9).map((h) => (
-                  <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
-                    {/* Dots show even with no score entered — see the team grid. */}
-                    <span>{h.gross != null ? h.gross : <span className="text-gray-600">-</span>}{h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}</span>
-                  </td>
-                ))}
+                {player.holes.map((h, hIdx) => ({ h, hIdx })).filter(({ h }) => h.holeNumber <= 9).map(({ h, hIdx }) => {
+                  const v = holeValue(player, hIdx);
+                  return (
+                    <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
+                      {/* Dots show even with no score entered — see the team grid. */}
+                      <span>{v != null ? v : <span className="text-gray-600">-</span>}{h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}</span>
+                    </td>
+                  );
+                })}
                 <td className="text-center px-1.5 py-1 font-bold text-gray-400 bg-gray-750">{outGross ?? '-'}</td>
-                {player.holes.filter((h) => h.holeNumber > 9).map((h) => (
-                  <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
-                    {/* Dots show even with no score entered — see the team grid. */}
-                    <span>{h.gross != null ? h.gross : <span className="text-gray-600">-</span>}{h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}</span>
-                  </td>
-                ))}
+                {player.holes.map((h, hIdx) => ({ h, hIdx })).filter(({ h }) => h.holeNumber > 9).map(({ h, hIdx }) => {
+                  const v = holeValue(player, hIdx);
+                  return (
+                    <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
+                      {/* Dots show even with no score entered — see the team grid. */}
+                      <span>{v != null ? v : <span className="text-gray-600">-</span>}{h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}</span>
+                    </td>
+                  );
+                })}
                 <td className="text-center px-1.5 py-1 font-bold text-gray-400 bg-gray-750">{inGross ?? '-'}</td>
                 <td className="text-center px-1.5 py-1 font-bold text-white bg-gray-750">{player.grossTotal ?? '-'}</td>
                 <td className="text-center px-1.5 py-1 font-medium text-gray-300 bg-gray-750">{player.netTotal ?? '-'}</td>

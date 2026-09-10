@@ -2666,3 +2666,34 @@ test.describe("F-031: a points game still shows each player's gross to par", () 
     await page.screenshot({ path: 'e2e/screenshots/f031-to-par-column.png', fullPage: true });
   });
 });
+
+test.describe('F-028: a points game shows points per hole in Player Details', () => {
+  // The engine computed perHole points and both grids dropped them — the friend could
+  // see his pts total but never where he earned them. The details grid now renders the
+  // engine's per-hole POINTS when the game is played in points; gross stays on the
+  // scorecard (and in the grid's Gross/Net total columns).
+  test('F-028: the details grid renders pts whose Out total matches the standings', async ({ page }) => {
+    const id = await seed(page, 'Stableford (individual) — 4 players, thru 7');
+    await goToGame(page, id, '/leaderboard');
+
+    const details = page.locator('div.bg-gray-800', { hasText: 'Player Details' }).first();
+    // The header says what unit the cells are in.
+    await expect(details.getByText('pts per hole')).toBeVisible();
+
+    // The invariant, not a hand-computed figure: all 7 scored holes are on the front
+    // nine, so each player's Out (sum of per-hole points) must equal their standings
+    // pts. If the grid were still rendering gross, Craig's Out would read 24.
+    const standings = page.locator('div.bg-gray-800', { hasText: 'Standings' }).first();
+    const ptsText = await standings.locator('tr', { hasText: 'Craig' }).locator('td').nth(2).innerText();
+    const pts = Number(ptsText.replace('+', ''));
+    expect(Number.isFinite(pts)).toBe(true);
+
+    const craigRow = details.locator('tbody tr', { hasText: 'Craig' });
+    // Out is the first bold bg-gray-750 cell in the row (after the nine front holes).
+    const outText = await craigRow.locator('td.bg-gray-750').first().innerText();
+    expect(Number(outText.replace(/[^\d.-]/g, ''))).toBe(pts);
+    expect(Number(outText.replace(/[^\d.-]/g, ''))).not.toBe(24); // the old gross render
+
+    await page.screenshot({ path: 'e2e/screenshots/f028-points-per-hole.png', fullPage: true });
+  });
+});
