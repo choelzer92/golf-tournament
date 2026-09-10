@@ -441,7 +441,7 @@ export default function PoolLeaderboardPage() {
                                     shots fell before teeing off. */}
                                 <span>
                                   {h.gross != null ? h.gross : <span className="text-gray-600">-</span>}
-                                  {h.strokes > 0 && <span className="text-[8px] text-blue-400 align-super">{'•'.repeat(h.strokes)}</span>}
+                                  {h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}
                                 </span>
                               </td>
                             ))}
@@ -455,7 +455,7 @@ export default function PoolLeaderboardPage() {
                                     shots fell before teeing off. */}
                                 <span>
                                   {h.gross != null ? h.gross : <span className="text-gray-600">-</span>}
-                                  {h.strokes > 0 && <span className="text-[8px] text-blue-400 align-super">{'•'.repeat(h.strokes)}</span>}
+                                  {h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}
                                 </span>
                               </td>
                             ))}
@@ -1280,14 +1280,14 @@ function IndividualPlayerGrid({ players, sideOf, sideOrder = [] }: {
                 {player.holes.filter((h) => h.holeNumber <= 9).map((h) => (
                   <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
                     {/* Dots show even with no score entered — see the team grid. */}
-                    <span>{h.gross != null ? h.gross : <span className="text-gray-600">-</span>}{h.strokes > 0 && <span className="text-[8px] text-blue-400 align-super">{'•'.repeat(h.strokes)}</span>}</span>
+                    <span>{h.gross != null ? h.gross : <span className="text-gray-600">-</span>}{h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}</span>
                   </td>
                 ))}
                 <td className="text-center px-1.5 py-1 font-bold text-gray-400 bg-gray-750">{outGross ?? '-'}</td>
                 {player.holes.filter((h) => h.holeNumber > 9).map((h) => (
                   <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
                     {/* Dots show even with no score entered — see the team grid. */}
-                    <span>{h.gross != null ? h.gross : <span className="text-gray-600">-</span>}{h.strokes > 0 && <span className="text-[8px] text-blue-400 align-super">{'•'.repeat(h.strokes)}</span>}</span>
+                    <span>{h.gross != null ? h.gross : <span className="text-gray-600">-</span>}{h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}</span>
                   </td>
                 ))}
                 <td className="text-center px-1.5 py-1 font-bold text-gray-400 bg-gray-750">{inGross ?? '-'}</td>

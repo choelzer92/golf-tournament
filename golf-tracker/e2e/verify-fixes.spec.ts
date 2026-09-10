@@ -2622,3 +2622,30 @@ test.describe('F-025/F-026: skins review step', () => {
     await expect(page.getByRole('button', { name: 'Save this format' })).toBeVisible();
   });
 });
+
+test.describe('F-029: stroke dots are legible on both surfaces', () => {
+  // The friend's report was "make the dots brighter". The worst case was the dark
+  // leaderboard: 8px blue-400 on navy. The fix is CSS-only — the dots still render
+  // from the engine's strokes, so money can't desync.
+  test('F-029: the dark leaderboard renders dots at 11px sky-300, not 8px blue-400', async ({ page }) => {
+    const id = await seed(page, 'Stableford (individual) — 4 players, thru 7');
+    await goToGame(page, id, '/leaderboard');
+    // The 12-handicap gets strokes off the low man, so dots must exist at all.
+    const dots = page.locator('span.text-\\[11px\\].text-sky-300');
+    await expect(dots.first()).toBeVisible();
+    // The old faint classes must be gone from this page entirely.
+    await expect(page.locator('span.text-\\[8px\\].text-blue-400')).toHaveCount(0);
+    await page.screenshot({ path: 'e2e/screenshots/f029-leaderboard-dots.png', fullPage: true });
+  });
+
+  test('F-029: the score-entry card renders its orange dots at text-sm', async ({ page }) => {
+    const id = await seed(page, 'Stableford (individual) — 4 players, thru 7');
+    await goToGame(page, id);
+    await page.getByRole('button', { name: 'Enter Scores' }).click();
+    await page.waitForURL(/\/game\/play/);
+    await page.waitForLoadState('networkidle');
+    const dots = page.locator('span.text-sm.text-orange-600');
+    await expect(dots.first()).toBeVisible();
+    await page.screenshot({ path: 'e2e/screenshots/f029-scorecard-dots.png', fullPage: true });
+  });
+});

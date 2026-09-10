@@ -973,7 +973,7 @@ export default function PlayGamePage() {
                             const strokes = getTeamStrokesOnHole(tp, h.handicap);
                             return (
                               <td key={h.number} className="px-1.5 py-1 text-center">
-                                {strokes > 0 && <span className="text-orange-600">{'●'.repeat(strokes)}</span>}
+                                {strokes > 0 && <span className="text-sm text-orange-600">{'●'.repeat(strokes)}</span>}
                               </td>
                             );
                           })}
@@ -1031,8 +1031,8 @@ export default function PlayGamePage() {
                                 const strokes = getPlayerStrokesOnHole(player, h.handicap, h.number);
                                 return (
                                   <td key={h.number} className="px-1.5 py-1 text-center">
-                                    {strokes > 0 && <span className="text-orange-600">{'●'.repeat(strokes)}</span>}
-                                    {strokes < 0 && <span className="text-purple-600">{'○'.repeat(Math.abs(strokes))}</span>}
+                                    {strokes > 0 && <span className="text-sm text-orange-600">{'●'.repeat(strokes)}</span>}
+                                    {strokes < 0 && <span className="text-sm text-purple-600">{'○'.repeat(Math.abs(strokes))}</span>}
                                   </td>
                                 );
                               })}
@@ -1206,7 +1206,7 @@ export default function PlayGamePage() {
                         ({tp.map((p) => p.name.split(' ')[0]).join(', ')})
                       </span>
                       {strokes > 0 && (
-                        <span className="ml-1 text-xs text-orange-600">
+                        <span className="ml-1 text-sm text-orange-600">
                           {'●'.repeat(strokes)}
                         </span>
                       )}
@@ -1265,7 +1265,7 @@ export default function PlayGamePage() {
                       {player.name}
                       {teamDisplayName && <span className={`ml-1.5 text-[10px] font-bold ${teamLabelColor}`}>{teamDisplayName}</span>}
                       {strokes > 0 && (
-                        <span className="ml-1 text-xs text-orange-600">
+                        <span className="ml-1 text-sm text-orange-600">
                           {'●'.repeat(strokes)}
                         </span>
                       )}
