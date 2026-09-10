@@ -78,6 +78,7 @@ import {
   upsertRosterPlayer,
 } from '@/lib/roster';
 import { pickTeeForPlayer, teeRankInPool } from '@/lib/tee-pick';
+import { gameRollups, settleUp } from '@/lib/stats-ledger';
 
 function getToken() {
   return sessionStorage.getItem('ghin_token');
@@ -451,6 +452,11 @@ export default function PoolHubPage() {
             </div>
           )}
         </section>
+
+        {/* F-032: a completed game answers "who pays whom" for EVERYONE — a guest in
+            the parking lot needs the transfer list as much as the organizer (who gets
+            it inside the close-out panel below). */}
+        {poolOnly && game.status === 'completed' && <GuestSettleUp game={game} />}
 
         {/* Organizer-only surfaces. A guest tapping "Close out game" would end the
             round for every foursome, and CTP/Wolf setup is the organizer's job. */}
@@ -2853,6 +2859,63 @@ function WolfRotationEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
   );
 }
 
+// F-032: who pays whom, for ONE completed game. "Need a 'summary' type view after
+// you click finish — player A owes player C x. No Venmo, nothing crazy." The
+// leaderboard shows each player's net; the parking-lot question is who HANDS whom
+// what. settleUp() over this game's nets (gameRollups mirrors the stats ledger's
+// per-team split), rendered the moment the game closes AND on any later view of the
+// completed game. framed=true draws its own section (the guest view has no close-out
+// panel to live in); framed=false sits inside the organizer's panel.
+function SettleUpList({ game, scoresByMatchup, framed }: {
+  game: PoolGame;
+  scoresByMatchup: Map<string, GameScore[]>;
+  framed: boolean;
+}) {
+  const transfers = useMemo(
+    () => settleUp(gameRollups(game, scoresByMatchup)),
+    [game, scoresByMatchup],
+  );
+  if (transfers.length === 0) return null;
+  const list = (
+    <>
+      <p className="text-xs font-semibold uppercase tracking-wider text-green-900">Who pays whom</p>
+      <ul className="mt-1.5 space-y-1">
+        {transfers.map((t, i) => (
+          <li key={i} className="text-sm text-gray-800">
+            <span className="font-medium">{t.fromName.split(' ')[0]}</span>
+            {' pays '}
+            <span className="font-medium">{t.toName.split(' ')[0]}</span>
+            {' '}
+            <span className="font-semibold text-green-700">${Math.round(t.amount)}</span>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+  return framed
+    ? <section className="bg-green-50 rounded-lg shadow px-4 py-3">{list}</section>
+    : <div className="px-4 py-3 border-b bg-green-50">{list}</div>;
+}
+
+// The guest view has no GameCloseOut (organizer-only), so it fetches this game's
+// scores itself — the same fetch the panel does — and shows the same recap.
+function GuestSettleUp({ game }: { game: PoolGame }) {
+  const [scoresByMatchup, setScoresByMatchup] = useState<Map<string, GameScore[]> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const ids = Array.from(new Set(game.teams.map((t) => t.matchupId)));
+    Promise.all(ids.map(async (mid) => [mid, await fetchGameScores(mid)] as const)).then((pairs) => {
+      if (cancelled) return;
+      const byMatchup = new Map<string, GameScore[]>();
+      for (const [mid, s] of pairs) if (s && Array.isArray(s)) byMatchup.set(mid, s as GameScore[]);
+      setScoresByMatchup(byMatchup);
+    });
+    return () => { cancelled = true; };
+  }, [game]);
+  if (!scoresByMatchup) return null;
+  return <SettleUpList game={game} scoresByMatchup={scoresByMatchup} framed />;
+}
+
 // Close out / reopen a game — the explicit lifecycle control.
 //
 // status:'completed' is what the stats & money ledger selects on, and until now
@@ -2862,6 +2925,8 @@ function WolfRotationEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
 // regardless (and to reopen it if a score needs fixing).
 function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
   const [fullyScored, setFullyScored] = useState<boolean | null>(null);
+  // F-032: the fetched scores, kept so the who-pays-whom recap can settle this game.
+  const [scoresByMatchup, setScoresByMatchup] = useState<Map<string, GameScore[]> | null>(null);
   // Legs not every side finished (F-016b). Empty unless this game settles per leg.
   const [shortLegs, setShortLegs] = useState<IncompleteLeg[]>([]);
   // The confirmation step. null = not asking; otherwise the leg keys the organizer has marked
@@ -2881,6 +2946,7 @@ function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) 
       const byMatchup = new Map<string, GameScore[]>();
       for (const [mid, s] of pairs) if (s && Array.isArray(s)) byMatchup.set(mid, s as GameScore[]);
       setFullyScored(isPoolGameFullyScored(game, byMatchup));
+      setScoresByMatchup(byMatchup);
 
       const mode = getGameMode(game.gameMode);
       if (mode?.category !== 'team-within-group') { setShortLegs([]); return; }
@@ -2935,6 +3001,11 @@ function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) 
           </p>
         )}
       </div>
+
+      {/* F-032: the settle-up moment, the instant the game closes. */}
+      {isDone && scoresByMatchup && (
+        <SettleUpList game={game} scoresByMatchup={scoresByMatchup} framed={false} />
+      )}
 
       {/* THE PROMPT (F-016b, DECISIONS.md §5.ai). Craig: "if someone clicks finish game, and all
           legs are not complete, it should prompt the user." Asked here, at close-out, rather than

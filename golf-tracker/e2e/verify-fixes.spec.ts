@@ -2786,3 +2786,38 @@ test.describe('F-030: one segmented pill toggles card and standings on both scre
     await page.screenshot({ path: 'e2e/screenshots/f030-toggle-card.png', fullPage: true });
   });
 });
+
+test.describe('F-032: closing out a game shows who pays whom', () => {
+  // "Need a 'summary' type view after you click 'finish' — player A owes player C x.
+  // No Venmo, nothing crazy." Close-out used to flip the status and say only "Final".
+  // The panel now grows a Who-pays-whom list from settleUp() over THIS game's nets,
+  // and it stays there on any later view of the completed game.
+  test('F-032: the close-out panel grows a Who pays whom list, and it persists', async ({ page }) => {
+    const id = await seed(page, 'Stableford (individual) — 4 players, FULLY scored');
+    await goToGame(page, id);
+
+    // Before closing out: no recap (the game isn't final yet).
+    await expect(page.getByText('Who pays whom')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Close out game' }).click();
+
+    // The moment it closes, the transfers appear.
+    await expect(page.getByText('Game closed out')).toBeVisible();
+    await expect(page.getByText('Who pays whom')).toBeVisible();
+    const body = await page.locator('body').innerText();
+    // The list is "X pays Y $N" lines. Every player is a first name from the seed.
+    expect(body).toMatch(/\b(Craig|Jym|Dave|Rick) pays (Craig|Jym|Dave|Rick) \$\d+/);
+    await page.screenshot({ path: 'e2e/screenshots/f032-who-pays-whom.png', fullPage: true });
+
+    // The amounts settle the leaderboard's nets: every "pays" amount is positive,
+    // and the biggest debtor appears (the 16-index Rick, per the seeded scores).
+    expect(body).toMatch(/Rick pays/);
+
+    // Reload — the recap is part of the completed game's page, not a one-time toast.
+    await goToGame(page, id);
+    await expect(page.getByText('Who pays whom')).toBeVisible();
+
+    // Reopening the game removes it (the game is no longer final).
+    await page.getByRole('button', { name: 'Reopen game' }).click();
+    await expect(page.getByText('Who pays whom')).toHaveCount(0);
+  });
+});
