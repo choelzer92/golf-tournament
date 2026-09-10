@@ -376,7 +376,7 @@ test.describe('group picker on wizard step 1 (§5.au: step 1 is the FIELD)', () 
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await expect(page.getByText('Which game are you playing?')).toBeVisible();
     await expect(page.getByPlaceholder('e.g. Saturday Pool')).toHaveValue('Weekend Warriors');
-    await expect(page.getByRole('button', { name: 'Only above the best player' }))
+    await expect(page.getByRole('button', { name: 'Off the low' }))
       .toHaveClass(/bg-green-600/);
     await page.screenshot({ path: 'e2e/screenshots/wizard-group-picker.png', fullPage: true });
   });
@@ -1820,7 +1820,7 @@ test.describe('a group offers the formats it plays', () => {
     await expect(page.getByLabel('Back 9 ($)')).toHaveValue('10');
     await expect(page.getByLabel('Overall 18 ($)')).toHaveValue('20');
     await page.getByRole('button', { name: 'Change Handicaps' }).click();
-    await expect(page.getByRole('button', { name: 'Only above the best player' }))
+    await expect(page.getByRole('button', { name: 'Off the low' }))
       .toHaveClass(/bg-green-700|bg-green-600/);
     await page.screenshot({ path: 'e2e/screenshots/ww-wizard-prefilled.png', fullPage: true });
   });
@@ -1898,7 +1898,7 @@ test.describe('a group offers the formats it plays', () => {
     await openSaturdayNassau(page);
 
     await page.getByRole('button', { name: 'Change Handicaps' }).click();
-    await page.getByRole('button', { name: 'Everyone, in full' }).click();
+    await page.getByRole('button', { name: 'Full handicap' }).click();
 
     // The summary follows the edit...
     let body = await page.locator('body').innerText();

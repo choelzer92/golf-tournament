@@ -1267,8 +1267,11 @@ function DetailsStep({
           <label className="block text-sm font-medium text-gray-800 mb-1">Who gets strokes?</label>
           <div className="flex gap-2">
             {([
-              { v: 'full', label: 'Everyone, in full' },
-              { v: 'off-the-low', label: 'Only above the best player' },
+              // The real terms, not explanations of them — golfers know these words, and
+              // "explaining what classic golf terms mean" reads wrong (Craig 2026-09-10).
+              // The helper text under the control still states the consequence.
+              { v: 'full', label: 'Full handicap' },
+              { v: 'off-the-low', label: 'Off the low' },
             ] as const).map(({ v, label }) => (
               <button
                 key={v}
