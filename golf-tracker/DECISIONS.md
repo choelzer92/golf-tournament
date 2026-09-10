@@ -1379,6 +1379,25 @@ before changing anything. Off-the-low keeps its round-each-THEN-subtract order (
 
 ---
 
+## 5.bc BACKLOG.md is the single queue for progress, todos, and ideas (2026-09-09)
+
+Craig: *"we need to build a better method for tracking progress, building next todos, and also
+brainstorming"* — after asking whether all the "eventually" items were listed anywhere and
+finding them scattered (NEXT_SESSION_PROMPT.md, §6/§7 here, FINDINGS.md still-open notes,
+session memory).
+
+**Decided.** `BACKLOG.md` is the one queue. Findings and decisions FEED it; the next session's
+work is PROMOTED from it into NEXT_SESSION_PROMPT.md; raw ideas land in its Ideas section
+without needing to be shaped first. **The ritual is what makes it work:** every session ends by
+grooming it — mark done, add discovered, promote next. AGENTS.md's reading list carries the
+instruction so future sessions inherit it.
+
+**How to apply:** when Craig muses about a feature, it goes in Ideas immediately (don't make him
+decide); when a finding is worth fixing or a decision creates work, add the backlog line in the
+same breath as the FINDINGS/DECISIONS entry. Never build directly from Ideas.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch
