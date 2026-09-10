@@ -1,61 +1,51 @@
-# Next session: Craig's live-app feedback batch (2026-09-10)
+# Next session: finish the 2026-09-10 feedback batch (needs Craig's two answers)
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 ---
 
-Read `AGENTS.md` first.
+Read `AGENTS.md` first. **Context economy:** don't read all of DECISIONS.md — grep it for
+the §§ cited below only. The 2026-09-10 session hit 95% context largely by reading whole
+large files; use targeted greps on `pool/new/page.tsx` (~3,600 lines) and the e2e spec.
 
-**State:** branch `captains-deal-and-game-rename` carried §5.ay, §5.az, F-022..F-026, §5.av,
-and §5.au — Craig was about to merge it at the end of the 2026-09-10 session. Check
-`git branch`: if merged, work fresh off `main` on a NEW branch (§5.ab); if not, ask before
-building on the unmerged branch.
+**State:** branch `live-feedback-2026-09-10` (off main, unmerged) carries two commits:
+group-tap fix (ddb3e95) and verbiage fix (1b0b897). `npm run verify` was green (exit 0,
+125 e2e) after both. If Craig merged it, work fresh off `main` on a new branch; if not,
+ask before building on it.
 
-## The work: four feedback items, all observed on the LIVE app (not branch regressions)
+## The work: the two remaining feedback items — BOTH gated on Craig
 
-BACKLOG.md "Now" has the full wording. In suggested order:
+1. **In-app feedback box** — the proposed shape is in BACKLOG.md "Now" (table
+   `feedback_notes`, hub-header button + bottom sheet, `src/lib/feedback.ts`,
+   `/home/feedback` read-back). **Get Craig's OK before building** — it writes to the
+   live DB (additive-only new table). If he OKs it: migration + lib + UI + e2e, keep it
+   a text box and a list.
+2. **F-027 (my-groups blank names)** — diagnosis is DONE, in FINDINGS.md F-027: the page
+   is clean; the cause is empty-`name` rows in the live `players` table from untrimmed
+   GHIN-add writers (`pool/new/page.tsx:2013`, `pool/[id]/page.tsx:2329`;
+   `upsertRosterPlayer` never validates name and the 24h auto-refresh re-perpetuates it).
+   **Ask Craig to confirm** with the read-only query in the finding, then (on his go):
+   trim the writers, make `upsertRosterPlayer` refuse to blank a non-empty name, render a
+   fallback (`name || 'GHIN #…'`), and treat the live-row backfill as a separate approved
+   step.
 
-1. **Group tap selects ALL members** (S–M) — tapping a group chip pre-checks every member;
-   at 61 members, picking the 12 playing today means unchecking ~49. The day's field should
-   be picked BY checking. Likely shape: above some size, load a group with members
-   unchecked (or ask); a 4-man crew probably still wants all-checked. The chips live on the
-   wizard's FIELD step (`loadGroup` in `pool/new/page.tsx`) since §5.au.
-2. **Bring back classic golf verbiage** (S) — Craig: "i liked the verbiage before just off
-   the low, not the basic explanation of what classic golf terms mean." Label the option
-   **"Off the low"**, not "Only above the best player". Sweep the wizard's handicap/scoring
-   copy for other over-explained classic terms. Golfers know these words; explaining them
-   reads wrong. (The explanatory helper text UNDER a control may stay — it's the control
-   labels that must use the real terms. If in doubt on a specific string, ask.)
-3. **My-groups page: handicaps render but NAMES are blank** (?) — diagnose, then propose.
-   Rows render and handicaps show, so `playerIds` resolve — the `name` field specifically is
-   lost between the live DB and `/home/groups/[id]`. Suspects: row saved with empty `name`;
-   name and handicap read from different sources on that page; a snake/camel mapping miss on
-   `name` in that page's hydration path. **Live data: investigate READ-ONLY** (grep the code,
-   reproduce in sandbox if possible); never run scripts that write to the live DB.
-4. **In-app feedback box** (S–M) — a friend uses the app; give him a small always-reachable
-   text box that saves observations to the live DB with who/when/which-game, plus a simple
-   way to read entries back in a work session. Feeds FINDINGS.md. Keep it tiny: a text box
-   and a list, not a ticket system. NOTE: this WRITES to the live DB — new table, additive
-   only; get Craig's OK on the shape before building.
-
-Items 1, 2, and 4 change app behavior/copy — per AGENTS.md, confirm anything with more than
-one defensible answer (the group-size threshold in #1, specific strings in #2, the shape of
-#4) with Craig before locking it in.
+If both are still waiting, pull from "Next few sessions" in BACKLOG.md (merge-audit
+polish items are all S and unblocked).
 
 ## Traps that keep biting
 
-- A stale `next dev` on port 3200 makes every e2e time out (`netstat -ano | grep :3200`,
-  kill the PID, rerun).
-- Check `npm run verify`'s own exit code, not a `tail` of its log — a green-looking tail hid
-  a real failure this session.
-- **Look at the screen** — screenshots caught what code review didn't, again (the group
-  chips' select-all behavior reads fine in code).
+- A stale `next dev` on port 3200 makes every e2e time out (`netstat -ano | grep :3200`).
+- A Turbopack crash can corrupt `.next` — `rm -rf .next` fixed both a dev-server panic
+  AND a verify typecheck failure on `.next/dev/types` this session.
+- Check `npm run verify`'s own exit code, not a `tail` of its log.
+- **Look at the screen** — screenshots keep catching what code review doesn't.
 
 ## Still waiting on Craig (unchanged)
 
-- F-022 on-course GHIN spot-check (now live if merged — §5.ba screenshot protocol if off).
+- F-022 on-course GHIN spot-check (§5.ba protocol if off).
 - The Meadows `GetCourseDetails` payload for F-023 part B.
 - §7 q4 (dark = live / light = setup).
+- Branch `live-feedback-2026-09-10` merge (§5.ab — his timing).
 
 ## End the session by grooming BACKLOG.md
 

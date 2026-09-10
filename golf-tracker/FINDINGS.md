@@ -2158,6 +2158,57 @@ asserts the stakes line and the save button.
 
 ---
 
+### F-027 — My-groups page: handicaps render but names are blank (LIVE app)  [P2] [continue]
+
+**Observation (Craig, 2026-09-10, live app):** on `/home/groups/[id]` "i just see handicaps,
+i can tell they are people, but i dont see names."
+
+**Diagnosis (code-level, read-only — live DB not queried):**
+
+The page CANNOT lose the name on its own. Member rows resolve via `getRosterPlayerById`
+and render `m.name` and `m.handicapIndex` from the SAME `RosterPlayer` object
+(`home/groups/[id]/page.tsx:428-430`). The hydration mapping is `name: row.name`
+(`roster.ts:59`) — the column is literally `name`, so there is no snake/camel seam to miss.
+Suspect (a) (name and handicap from different sources) and suspect (c) (mapping miss) are
+therefore ruled out by inspection.
+
+That leaves **(b): live roster rows with an empty or whitespace `name`**, and there is a
+plausible writer. `upsertRosterPlayer` never validates `name`, and two GHIN-add paths build
+it WITHOUT trimming:
+
+- `pool/new/page.tsx:2013` — `` `${golfer.first_name} ${golfer.last_name}` `` (no trim)
+- `pool/[id]/page.tsx:2329` — same (no trim)
+- (`pool/roster/page.tsx:123` DOES trim — the inconsistency is the tell)
+
+If GHIN ever returns empty/undefined name fields (e.g. a privacy-restricted golfer, or a
+partial API response), those paths write `"undefined undefined"`, `" "`, or `""` to the
+roster row — and the schema allows it (`name TEXT NOT NULL` accepts `''`). A group member
+pointing at such a row shows EXACTLY the symptom: the row renders (id resolves), the index
+shows, the name is visually blank. Note `refreshRosterHandicaps` re-upserts `{...player}`
+on every 24h auto-refresh, so a once-blank name self-perpetuates.
+
+**To confirm (needs Craig or a read-only query):** in Supabase, run
+`select id, name, ghin_number from players where name is null or trim(name) = '';`
+— or Craig can open his group and say which members are blank; if they were added via
+GHIN search on a day GHIN was flaky, that's the writer.
+
+**Options**
+- **A. Defensive read + fix the writers.** Trim at every name construction site, have
+  `upsertRosterPlayer` refuse to overwrite an existing non-empty name with an empty one,
+  and render a fallback on the page (`name || 'GHIN #1234567'`) so a bad row is visible
+  and identifiable instead of blank. Plus a one-time backfill of the affected rows (needs
+  Craig — touches live data).
+- **B. Backfill only.** Fix the rows by hand; leave the writers. Symptom returns next time
+  GHIN hiccups.
+- **C. Wait for confirmation first** — query the live table before building anything.
+
+**Recommendation:** **C then A** — confirm the empty-name rows exist (one read-only query),
+then fix writers + fallback in one pass, with the backfill as a separate Craig-approved step.
+
+**Status:** OPEN — diagnosis done 2026-09-10, awaiting live-table confirmation.
+
+---
+
 ## Fixed & verified
 
 Findings confirmed fixed with an e2e assertion guarding them. (The 11 fixes from

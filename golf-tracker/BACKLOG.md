@@ -17,20 +17,42 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 ## Now (promoted)
 
-Craig's feedback batch (2026-09-10), his words. **All three observed on the LIVE app
-(main), not the branch** — they are pre-existing, not regressions from the wizard track:
+Craig's feedback batch (2026-09-10): two FIXED on branch `live-feedback-2026-09-10`
+(group tap, verbiage — see Done). Two remain:
 
 | Item | Size | Source |
 |---|---|---|
-| **Group tap selects ALL members** — "when i click a group, all players are checked. this makes it very tough to select 12 out of 61 or so players that are playing on a given day." Likely fix: a large group should load with members UNCHECKED (or ask), so the day's field is picked BY checking, not by unchecking ~49. Small groups (a 4-man crew) probably still want all-checked. | S–M | Craig 2026-09-10 |
-| **Bring back the classic golf verbiage** — "i liked the verbiage before just off the low, not the basic explanation of what classic golf terms mean." The plain-language labels/explanations (e.g. "Only above the best player") should say **"Off the low"** etc. — golfers know the terms; explaining them reads as condescending. Sweep the wizard's handicap/scoring copy for other over-explained terms while there. | S | Craig 2026-09-10 |
-| **In-app feedback box** — "i have another friend that is using the app, maybe a feedback box where he can type his observations/feedback while he plays, and then we can save it and then use it in other sessions." Shape: a small always-reachable input (hub or a floating affordance) that saves to the live DB with who/when/which-game context, plus a way to read entries back in a work session (a simple page or even a script). Feeds FINDINGS.md — real users become a critique source, on-course, in the moment. Keep it tiny: a text box and a list, not a ticket system. | S–M | Craig 2026-09-10 |
-| **My-groups page shows handicaps but NO NAMES** — "it is more i just see handicaps, i can tell they are people, but i dont see names." Rows render and handicaps show, so `playerIds` resolve — the NAME specifically is blank. Seen on the LIVE app (his real group). Suspects, most likely first: (a) the member row renders name and handicap from different sources and the name one is empty/mis-keyed; (b) roster rows reached the DB with a null/empty `name` column (check the live `players` table for his group's ids); (c) a snake_case/camelCase mapping miss on `name` in the groups-page hydration path specifically. Diagnose read-only against live data before touching anything. "Lets investigate this later" — Craig. | ? | Craig 2026-09-10 |
+| **In-app feedback box** — proposed shape below AWAITS CRAIG'S OK (writes to live DB: new additive table). Once approved: S–M build. | S–M | Craig 2026-09-10 |
+| **F-027: my-groups names blank** — DIAGNOSED (see FINDINGS.md F-027): page and mapping are clean; the cause is empty-`name` rows in the live `players` table, written by untrimmed GHIN-add paths (`pool/new/page.tsx:2013`, `pool/[id]/page.tsx:2329`) that `upsertRosterPlayer` never validates. NEXT: confirm with one read-only query (`select id,name,ghin_number from players where name is null or trim(name)=''`), then fix writers + render fallback; backfill is a separate Craig-approved step. | S | Craig 2026-09-10 |
+
+### Feedback box — PROPOSED SHAPE (2026-09-10, awaiting Craig's OK — writes to live DB)
+
+Keep it a text box and a list, not a ticket system:
+
+- **Table** (additive migration, touches nothing existing): `feedback_notes`
+  — `id uuid pk · created_at timestamptz default now() · author_ghin bigint null ·
+  author_name text · game_id text null · path text · note text not null`.
+  Who/when/which-game come free: identity from `pool-identity` (works for share-link
+  players without login — they have a stored name), `game_id`+`path` from the route.
+- **Entry UI:** a small "💬 Feedback" button in the game hub header (next to Share) +
+  the same on `/home`. Opens a bottom-sheet modal: one textarea, one Send, a "thanks"
+  flash. No categories, no required fields.
+- **Persistence:** one new lib file `src/lib/feedback.ts` (insert + list), keeping the
+  all-Supabase-calls-in-lib rule. Sandbox fake gets the table for free (in-memory Map).
+- **Read-back:** `/home/feedback` — owner-gated, newest-first list showing note, author,
+  date, and a link to the game. A work session reads it there (or greps the export
+  backup). Entries feed FINDINGS.md by hand — no automation.
+
+Open for Craig: button placement (hub header vs floating), and whether share-link
+visitors see it (proposal: yes — the friend using the app mid-round is the whole point).
 
 ## Done recently
 
 | Item | When |
 |---|---|
+| Group tap: >8 members loads UNCHECKED — field picked by checking (ddb3e95) | 2026-09-10 |
+| Classic verbiage: wizard says "Off the low" / "Full handicap" (1b0b897) | 2026-09-10 |
+| F-027 diagnosed: blank my-groups names = empty `name` rows in live `players`; untrimmed GHIN-add writers identified; awaiting live confirmation | 2026-09-10 |
 | §5.av — saved formats are choices in the wizard's game picker (b69b665) | 2026-09-09 |
 | §5.au — wizard reorder: field → game → course → tees → money (f08dd22) | 2026-09-10 |
 
@@ -40,7 +62,9 @@ Craig's feedback batch (2026-09-10), his words. **All three observed on the LIVE
 |---|---|
 | F-022 on-course verification | Spot-check 90% strokes vs the GHIN app (incl. an off-the-low game); screenshots if anything is off by one |
 | F-023 part B (widen the GHIN ratings parse) | The real `GetCourseDetails` payload for The Meadows (Greenbrier, WV) — search it with the network tab open |
-| Branch merge | `captains-deal-and-game-rename` review (§5.ab — his timing) |
+| Feedback box shape | OK the proposed table/UI (see "Now" above) — it writes to the live DB |
+| F-027 confirmation | Run the read-only empty-name query against live `players` (or name which members are blank) |
+| Branch merge | `live-feedback-2026-09-10` review (§5.ab — his timing; `captains-deal-and-game-rename` merged 2026-09-10) |
 | §7 q4 | Confirm dark = live / light = setup is deliberate |
 
 ## Next few sessions (shaped, ready to build)
