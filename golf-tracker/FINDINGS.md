@@ -2210,8 +2210,15 @@ now, query later"). The two GHIN-add writers build the name with filter/join/tri
 `GHIN #…` fallback; `upsertRosterPlayer` refuses to blank a non-empty stored name
 (`resolveUpsertName`, unit-tested); the group page renders `rosterDisplayName` so a
 pre-fix live row shows `GHIN #…` instead of a blank card (e2e `F-027` blanks a seeded
-row and asserts the fallback). REMAINING: Craig runs the read-only query above to
-confirm which live rows are blank; the backfill of those rows is a separate approved step.
+row and asserts the fallback). LIVE QUERY RUN 2026-09-10 (Craig authorized, read-only,
+via `supabase db query --linked`): **zero blank-name rows** — 83 players, min trimmed
+name length 8, no 'undefined' substrings. NO BACKFILL NEEDED; the defensive code stays
+(it prevents the write path that would create them). One separate anomaly found:
+"Friday Group" carries a dangling member id (`d09d8260-…`) pointing at a deleted
+players row — renders "Unknown player" on /pool/roster and is counted as "N members no
+longer on your roster" on the group page. Craig clarified the surface he saw was
+/pool/roster's Groups box; with the live data clean, the blank-name symptom there is
+not reproducible from current rows — if it recurs, a screenshot pins it.
 
 ---
 

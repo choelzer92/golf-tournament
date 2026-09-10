@@ -23,13 +23,16 @@ Craig's feedback batch (2026-09-10): ALL FOUR done on branch `live-feedback-2026
 | Item | Size | Source |
 |---|---|---|
 | Merge-audit polish batch (all four S items below) — none blocked, all on already-touched surfaces | S×4 | merge audit / §5.ak |
+| **Consolidate group management on the NEW pages** (Craig 2026-09-10: "I don't know if this saved players and groups page is necessary… the new one should be the standard"). Overlap today: `/pool/roster`'s GroupsManager (dropdown + chips) duplicates `/home/groups/[id]` (dashboard + members + add). Shape: make /home the only group UI, keep /pool/roster for the PLAYER roster only (or fold that in too), rewire the three "Full roster manager"/"Manage" links. Needs a small design pass first — /pool/roster is also where groups are CREATED and where a `pool`-level share-link visitor lands (/home is full-only). | M | Craig 2026-09-10 |
 
 ## Done recently
 
 | Item | When |
 |---|---|
 | **In-app feedback box** BUILT (065956f) — Craig OK'd with "easy to find, doesn't cover things up": header 💬 button (hub + /home), bottom sheet, `feedback_notes` migration WRITTEN BUT NOT APPLIED to live (Craig's step), `src/lib/feedback.ts`, `/home/feedback` read-back, 2 e2e | 2026-09-10 |
-| **F-027 code fixes** (ca931fa) — Craig: "fix writers now, query later". Writers trim + fall back to `GHIN #…`; `upsertRosterPlayer` refuses to blank a stored name; group page renders `rosterDisplayName`; unit + e2e. REMAINING: live query + backfill (see Waiting) | 2026-09-10 |
+| **F-027 code fixes** (ca931fa) — Craig: "fix writers now, query later". Writers trim + fall back to `GHIN #…`; `upsertRosterPlayer` refuses to blank a stored name; group page renders `rosterDisplayName`; unit + e2e | 2026-09-10 |
+| **F-027 live query** (Craig-authorized, read-only) — ZERO blank names in live `players` (83 rows, min name length 8): no backfill needed. Found instead: one dangling member id in "Friday Group" (deleted player still referenced) | 2026-09-10 |
+| **feedback_notes migration APPLIED to live** (Craig-authorized; dry-run showed exactly the one migration; table verified present + empty) | 2026-09-10 |
 | Group tap: >8 members loads UNCHECKED — field picked by checking (ddb3e95) | 2026-09-10 |
 | Classic verbiage: wizard says "Off the low" / "Full handicap" (1b0b897) | 2026-09-10 |
 | §5.av — saved formats are choices in the wizard's game picker (b69b665) | 2026-09-09 |
@@ -41,8 +44,7 @@ Craig's feedback batch (2026-09-10): ALL FOUR done on branch `live-feedback-2026
 |---|---|
 | F-022 on-course verification | Spot-check 90% strokes vs the GHIN app (incl. an off-the-low game); screenshots if anything is off by one |
 | F-023 part B (widen the GHIN ratings parse) | The real `GetCourseDetails` payload for The Meadows (Greenbrier, WV) — search it with the network tab open |
-| Feedback box migration | Apply `supabase/migrations/20260910000000_feedback_notes.sql` to the live DB (additive-only) — until then the button errors ("didn't send") in production |
-| F-027 confirmation + backfill | Run `select id, name, ghin_number from players where name is null or trim(name) = '';` against live `players`, then approve the one-time backfill of those rows (code fixes are in; a pre-fix row shows `GHIN #…` until backfilled) |
+| Branch merge/deploy | The feedback_notes table is LIVE (migration applied 2026-09-10, Craig-authorized) but the 💬 button ships with this branch — notes can't arrive until the branch deploys |
 | Branch merge | `live-feedback-2026-09-10` review (§5.ab — his timing; `captains-deal-and-game-rename` merged 2026-09-10) |
 | §7 q4 | Confirm dark = live / light = setup is deliberate |
 
