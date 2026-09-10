@@ -2649,3 +2649,20 @@ test.describe('F-029: stroke dots are legible on both surfaces', () => {
     await page.screenshot({ path: 'e2e/screenshots/f029-scorecard-dots.png', fullPage: true });
   });
 });
+
+test.describe("F-031: a points game still shows each player's gross to par", () => {
+  // The friend's report: "I still want to see my score to par when I'm playing
+  // Stableford." The standings ranked on pts with Thru and $ only. The new column
+  // is derived from gross already in the details grid — no engine change.
+  test('F-031: the individual standings table has a To par column with real figures', async ({ page }) => {
+    const id = await seed(page, 'Stableford (individual) — 4 players, thru 7');
+    await goToGame(page, id, '/leaderboard');
+    const standings = page.locator('div.bg-gray-800', { hasText: 'Standings' }).first();
+    await expect(standings.getByRole('columnheader', { name: 'To par' })).toBeVisible();
+    // Craig (sp1): 3 birdies + 4 pars thru 7 = −3 gross. Rick (sp4): +2 a hole = +14.
+    const rowOf = (name: string) => standings.locator('tr', { hasText: name });
+    await expect(rowOf('Craig')).toContainText('-3');
+    await expect(rowOf('Rick')).toContainText('+14');
+    await page.screenshot({ path: 'e2e/screenshots/f031-to-par-column.png', fullPage: true });
+  });
+});

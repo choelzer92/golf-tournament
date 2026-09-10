@@ -896,6 +896,21 @@ function IndividualLeaderboard({ id }: { id: string }) {
   const paceHigherIsBetter = result?.metricLabel === 'pts';
   const paceLabel = paceHigherIsBetter ? 'PACE' : 'To par';
 
+  // F-031: a player mid-Stableford still wants to see score to par, and this board showed
+  // pts/Thru/$ only. Gross to-par per player, derived from the details grid's holes (gross
+  // and par are already in hand — no engine change). Shown for INDIVIDUAL games whenever the
+  // engine isn't already supplying a ranked to-par column (side games under 'total' do).
+  const grossToPar = new Map<string, number>();
+  for (const p of players) {
+    let tp = 0;
+    let scored = false;
+    for (const h of p.holes) {
+      if (h.gross !== null) { tp += h.gross - h.par; scored = true; }
+    }
+    if (scored) grossToPar.set(p.playerId, tp);
+  }
+  const showGrossToPar = !isWithinGroup && !showToPar && grossToPar.size > 0;
+
   // Which side a player is on, for the Player Details grid. Reads the normalized side
   // collection so a 3+ side game labels every player, not just the first two (it used to read
   // game.subTeams directly and hard-code a/b).
@@ -954,6 +969,11 @@ function IndividualLeaderboard({ id }: { id: string }) {
                     {showToPar && (
                       <th className="text-center px-2 py-1.5 font-medium">{paceLabel}</th>
                     )}
+                    {/* F-031: in a points game the metric column says nothing about the golf.
+                        GROSS to par, so the friend playing Stableford can still see the round. */}
+                    {showGrossToPar && (
+                      <th className="text-center px-2 py-1.5 font-medium">To par</th>
+                    )}
                     <th className="text-center px-2 py-1.5 font-medium">Thru</th>
                     <th className="text-right px-3 py-1.5 font-medium">$</th>
                   </tr>
@@ -995,6 +1015,22 @@ function IndividualLeaderboard({ id }: { id: string }) {
                               </span>
                             </td>
                           )}
+                          {showGrossToPar && (() => {
+                            const tp = grossToPar.get(s.playerId);
+                            return (
+                              <td className="text-center px-2 py-1.5">
+                                {/* Gross vs par: under is good (green), over is red — the
+                                    strokes valence, not PACE's. */}
+                                <span className={
+                                  tp === undefined ? 'text-gray-500'
+                                    : tp === 0 ? 'text-gray-200'
+                                      : tp < 0 ? 'text-green-400' : 'text-red-400'
+                                }>
+                                  {tp === undefined ? '-' : fmtPace(tp)}
+                                </span>
+                              </td>
+                            );
+                          })()}
                           <td className="text-center px-2 py-1.5 text-gray-400">{s.thru || '-'}</td>
                           <td className={`text-right px-3 py-1.5 font-medium ${s.moneyNet > 0 ? 'text-green-400' : s.moneyNet < 0 ? 'text-red-400' : 'text-gray-500'}`}>
                             {money(s.moneyNet)}
@@ -1003,7 +1039,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
                         {canExpand && isOpen && (
                           <tr className="bg-gray-900/40">
                             <td />
-                            <td colSpan={showToPar ? 5 : 4} className="px-2 pb-2 text-[11px] text-gray-400">
+                            <td colSpan={4 + (showToPar ? 1 : 0) + (showGrossToPar ? 1 : 0)} className="px-2 pb-2 text-[11px] text-gray-400">
                               {s.holesWon && s.holesWon.length > 0
                                 ? <>Won holes: <span className="text-gray-300">{s.holesWon.join(', ')}</span></>
                                 : 'No holes won yet.'}
