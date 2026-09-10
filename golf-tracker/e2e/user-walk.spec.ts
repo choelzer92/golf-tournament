@@ -51,35 +51,19 @@ test('walk 1: cold start — home, empty, then the wizard with NO group', async 
   await page.waitForURL(/\/pool\/new/);
   await capture(page, '02-wizard-step1-cold');
 
-  // Fill the minimum and keep walking like someone who doesn't read.
-  await page.getByPlaceholder('e.g. Saturday Pool').fill('Sunday Skins');
-  await page.getByRole('button', { name: /Next: Select Course/ }).click();
-  await capture(page, '03-wizard-course');
-
-  const sandboxCourse = page.getByRole('button', { name: /Sandbox National/ }).first();
-  if (await sandboxCourse.count()) {
-    await sandboxCourse.click();
-  } else {
-    // What does a user with no recent courses see?
-    await capture(page, '03b-wizard-course-empty');
-  }
-  await page.getByRole('button', { name: /Next: Add Players/ }).click();
-  await capture(page, '04-wizard-players-empty');
-
-  // Add four by hand.
+  // §5.au: the wizard opens on the FIELD. Add four by hand, like someone who doesn't read.
   for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']] as const) {
     await page.getByPlaceholder('Name', { exact: true }).fill(nm);
     await page.getByPlaceholder('HCP').fill(hcp);
     await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
   }
-  await capture(page, '05-wizard-players-four');
+  await capture(page, '03-wizard-players-four');
 
-  // Go back to step 1 to pick skins (the F-020 annotated picker).
-  await page.getByRole('button', { name: /Back/ }).first().click();
-  await page.waitForTimeout(200);
-  await page.getByRole('button', { name: /Back/ }).first().click();
+  // The game step: the F-020 badges are live on the FIRST pass now, no backtracking.
+  await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await page.getByText('Which game are you playing?').waitFor();
-  await capture(page, '06-wizard-picker-annotated');
+  await capture(page, '04-wizard-picker-annotated');
+  await page.getByPlaceholder('e.g. Saturday Pool').fill('Sunday Skins');
   {
     // Option labels carry the F-020 fit annotation ("Skins — ✓ 4 players"), so
     // match by prefix rather than exact label.
@@ -89,11 +73,20 @@ test('walk 1: cold start — home, empty, then the wizard with NO group', async 
     const skins = opts.find((o) => /^skins/i.test(o.trim()));
     if (skins) await sel.selectOption({ label: skins });
   }
-  await capture(page, '07-wizard-picked-skins');
+  await capture(page, '05-wizard-picked-skins');
 
-  // Walk forward to money/review.
+  // Course next.
   await page.getByRole('button', { name: /Next: Select Course/ }).click();
-  await page.getByRole('button', { name: /Next: Add Players/ }).click();
+  await capture(page, '06-wizard-course');
+  const sandboxCourse = page.getByRole('button', { name: /Sandbox National/ }).first();
+  if (await sandboxCourse.count()) {
+    await sandboxCourse.click();
+  } else {
+    // What does a user with no recent courses see?
+    await capture(page, '06b-wizard-course-empty');
+  }
+
+  // Walk forward to tees/money/review.
   const nextBtns = page.getByRole('button', { name: /^Next: / });
   for (let i = 0; i < 4; i++) {
     if (!(await nextBtns.count())) break;
@@ -141,12 +134,8 @@ test('walk 2: the group path — group page, one-tap format, confirmation', asyn
 
 test('walk 3: add players FROM a group inside the wizard', async ({ page }) => {
   await seed(page, 'Groups — 61-member standing group', false);
+  // §5.au: the wizard opens on the field, with the group chips right there.
   await page.goto(`${BASE}/pool/new`);
-  await page.getByPlaceholder('e.g. Saturday Pool').fill('From The Group');
-  await page.getByRole('button', { name: /Next: Select Course/ }).click();
-  const sandboxCourse = page.getByRole('button', { name: /Sandbox National/ }).first();
-  if (await sandboxCourse.count()) await sandboxCourse.click();
-  await page.getByRole('button', { name: /Next: Add Players/ }).click();
   await capture(page, '13-wizard-players-with-groups-available');
 
   // Whatever affordance exists for pulling a saved group in, use it.
@@ -169,12 +158,8 @@ test('walk 3: add players FROM a group inside the wizard', async ({ page }) => {
 
 test('walk 4: classic pool with teams — captains, deal, teams step', async ({ page }) => {
   await seed(page, 'Past games (for recent-course chips)', false);
+  // §5.au: field first, then game, then course.
   await page.goto(`${BASE}/pool/new`);
-  await page.getByPlaceholder('e.g. Saturday Pool').fill('Saturday Pool');
-  await page.getByRole('button', { name: /Next: Select Course/ }).click();
-  const sandboxCourse = page.getByRole('button', { name: /Sandbox National/ }).first();
-  if (await sandboxCourse.count()) await sandboxCourse.click();
-  await page.getByRole('button', { name: /Next: Add Players/ }).click();
   const eight: [string, string][] = [
     ['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'],
     ['Sam', '6'], ['Pete', '14'], ['Tony', '10'], ['Gil', '18'],
@@ -185,6 +170,11 @@ test('walk 4: classic pool with teams — captains, deal, teams step', async ({ 
     await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
   }
   await capture(page, '16-pool-eight-players');
+  await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+  await page.getByPlaceholder('e.g. Saturday Pool').fill('Saturday Pool');
+  await page.getByRole('button', { name: /Next: Select Course/ }).click();
+  const sandboxCourse = page.getByRole('button', { name: /Sandbox National/ }).first();
+  if (await sandboxCourse.count()) await sandboxCourse.click();
 
   // Forward through tees to the Teams step. Next is DISABLED on the teams step
   // until teams are built, so build with the captains' deal when we see it.

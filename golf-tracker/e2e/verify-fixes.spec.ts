@@ -57,6 +57,18 @@ async function goToGame(page: import('@playwright/test').Page, id: string, sub =
   await page.waitForLoadState('networkidle');
 }
 
+// §5.au: the wizard opens on the FIELD. Add a minimal two players and advance to the
+// game step — for tests whose subject is the game step itself, not the walk there.
+async function fieldToGameStep(page: import('@playwright/test').Page) {
+  for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']] as const) {
+    await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+    await page.getByPlaceholder('HCP').fill(hcp);
+    await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+  }
+  await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+  await expect(page.getByText('Which game are you playing?')).toBeVisible();
+}
+
 test.describe('2v2 side names (the "Team A" bug)', () => {
   test('leaderboard shows real side names, not Team A/B', async ({ page }) => {
     const id = await seed(page, '2v2 best ball — mid-round');
@@ -297,6 +309,7 @@ test.describe('USGA allowance recommendation', () => {
   test('suggests the format allowance and applies it in one tap', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
+    await fieldToGameStep(page);
 
     // Default 100% -> a suggestion is offered for four-ball stroke play.
     await expect(page.getByText(/USGA suggests 85%/)).toBeVisible();
@@ -318,18 +331,19 @@ test.describe('USGA allowance recommendation', () => {
   test('the recommendation changes with the format', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
+    await fieldToGameStep(page);
     // Head-to-head is four-ball MATCH play -> 90%.
     await page.getByRole('button', { name: 'Two teams, head-to-head' }).click();
     await expect(page.getByText(/USGA suggests 90% for four-ball match play/)).toBeVisible();
   });
 });
 
-test.describe('group picker on wizard step 1', () => {
-  // The picker existed but was buried on step 3 (Build Field) behind a "Groups"
-  // dropdown + Load button — which is why only 7 of 44 real games carried a
-  // sourceGroupId. A group answers who plays / how we play / what we play at once,
-  // so it belongs first.
-  test('choosing a group applies its settings and names the game', async ({ page }) => {
+test.describe('group picker on wizard step 1 (§5.au: step 1 is the FIELD)', () => {
+  // The group chips lived on the details step; §5.au moved the field to the front, and
+  // the chips with it — a group answers who plays / how we play / what we play at once,
+  // so it belongs on the first screen, whichever screen that is. Tapping one now loads
+  // the MEMBERS immediately too (the old chips deferred that two steps).
+  test('choosing a group loads its people, applies its settings, and names the game', async ({ page }) => {
     // Seed a roster + groups into the sandbox backend.
     await page.goto(`${BASE}/sandbox`);
     await page.evaluate(() => sessionStorage.clear());
@@ -341,35 +355,24 @@ test.describe('group picker on wizard step 1', () => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
 
-    // The question is asked FIRST, above the game name.
+    // The wizard OPENS on the field, groups first.
     await expect(page.getByText("Who's playing?")).toBeVisible();
-    const warriors = page.getByRole('button', { name: /Weekend Warriors/ });
+    const warriors = page.getByRole('button', { name: /Weekend Warriors/ }).first();
     await expect(warriors).toBeVisible();
 
     await warriors.click();
 
-    // Its saved settings land (Warriors default: off-the-low, 100%).
-    await expect(page.getByText(/Using this group's usual setup/)).toBeVisible();
-    // And the game gets a sensible name without typing.
-    await expect(page.locator('input[type="text"]').first()).toHaveValue('Weekend Warriors');
+    // Members land right here — 61 pre-selected.
+    await expect(page.getByText(/Loaded “Weekend Warriors” — 61 players/)).toBeVisible();
+
+    // And the game step confirms: settings applied (Warriors default: off-the-low),
+    // name inherited without typing.
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+    await expect(page.getByText('Which game are you playing?')).toBeVisible();
+    await expect(page.getByPlaceholder('e.g. Saturday Pool')).toHaveValue('Weekend Warriors');
+    await expect(page.getByRole('button', { name: 'Only above the best player' }))
+      .toHaveClass(/bg-green-600/);
     await page.screenshot({ path: 'e2e/screenshots/wizard-group-picker.png', fullPage: true });
-  });
-
-  test('"Someone else" leaves the wizard ungrouped', async ({ page }) => {
-    await page.goto(`${BASE}/sandbox`);
-    await page.evaluate(() => sessionStorage.clear());
-    await page.reload();
-    const card = page.locator('div.bg-white', { hasText: 'Groups — 61-member' });
-    await card.getByRole('button', { name: 'Seed' }).click();
-    await expect(card.getByText('Seeded ✓')).toBeVisible();
-
-    await page.goto(`${BASE}/pool/new`);
-    await page.waitForLoadState('networkidle');
-    await page.getByRole('button', { name: /Weekend Warriors/ }).click();
-    await expect(page.getByText(/Using this group's usual setup/)).toBeVisible();
-
-    await page.getByRole('button', { name: 'Someone else' }).click();
-    await expect(page.getByText(/Using this group's usual setup/)).toHaveCount(0);
   });
 
   test('a user with no groups never sees the picker', async ({ page }) => {
@@ -378,18 +381,32 @@ test.describe('group picker on wizard step 1', () => {
     await page.reload();
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    // First-timer: no empty dropdown, no dead control.
-    await expect(page.getByText("Who's playing?")).toHaveCount(0);
-    await expect(page.getByText('What should we call it?')).toBeVisible();
+    // First-timer: no empty group box, no dead control — straight to adding players.
+    await expect(page.getByText('Your groups')).toHaveCount(0);
+    await expect(page.getByText("Who's playing?")).toBeVisible();
   });
 });
 
 test.describe('money moved to its own step', () => {
-  // F-005: step 1 asked ~12 questions at once, including money settings that can't
-  // even be shown in real dollars until the field and team count are known.
-  test('step 1 no longer asks money questions', async ({ page }) => {
+  // F-005: the game step asked ~12 questions at once, including money settings that
+  // can't even be shown in real dollars until the field and team count are known.
+  // §5.au: the game step now comes AFTER the field, so walk there first.
+  test('the game step no longer asks money questions', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
+
+    // The wizard opens on the FIELD (§5.au) — no money, no scoring, just people.
+    const fieldBody = await page.locator('body').innerText();
+    expect(fieldBody).toContain("Who's playing?");
+    expect(fieldBody).not.toContain('Buy-in per player');
+
+    // Two players in, on to the game step.
+    for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']] as const) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     const body = await page.locator('body').innerText();
 
     // Scoring questions stay (they decide who WINS a hole).
@@ -404,19 +421,6 @@ test.describe('money moved to its own step', () => {
 
     // The step indicator names the destination.
     expect(body).toContain('Money');
-  });
-
-  test('the money step shows the pot in real dollars', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`${BASE}/pool/new`);
-    await page.waitForLoadState('networkidle');
-    // Walk to the money step via the wizard's own buttons.
-    await page.locator('input[type="text"]').first().fill('Money Step Test');
-    await page.getByRole('button', { name: /Next: Select Course/i }).click();
-    await page.waitForLoadState('networkidle');
-    // Can't complete course search offline in the sandbox, so just assert the
-    // money questions are NOT on step 1 and the step exists in the indicator.
-    await expect(page.getByText('Money')).toBeVisible();
   });
 });
 
@@ -450,7 +454,14 @@ test.describe('JY feedback: GHIN sign-in prompt arrives before the search', () =
   test('the course step prompts on arrival, not after a failed search', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await page.locator('input[type="text"]').first().fill('GHIN Timing Test');
+    // §5.au: field → game → course.
+    for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']] as const) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('GHIN Timing Test');
     await page.getByRole('button', { name: /Next: Select Course/i }).click();
     await page.waitForLoadState('networkidle');
 
@@ -477,8 +488,14 @@ test.describe('JY feedback: recent courses', () => {
     await card.getByRole('button', { name: 'Open →' }).click();
     await page.waitForLoadState('networkidle');
 
-    // Walk to the course step.
-    await page.locator('input[type="text"]').first().fill('Recent Course Test');
+    // Walk to the course step (§5.au: field → game → course).
+    for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']] as const) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Recent Course Test');
     await page.getByRole('button', { name: /Next: Select Course/i }).click();
     await page.waitForLoadState('networkidle');
 
@@ -651,7 +668,8 @@ test.describe('F-006: choosing the team format in the wizard', () => {
   test('the picker offers the formats the classic pool could not express', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    // Positive assertion that we're on step 1 of the wizard, not some redirect.
+    await fieldToGameStep(page);
+    // Positive assertion that we're on the game step of the wizard, not some redirect.
     await expect(page.getByText('Which scores count for the team?')).toBeVisible();
 
     const picker = page.locator('select').filter({ hasText: 'Two best net scores' }).first();
@@ -670,6 +688,7 @@ test.describe('F-006: choosing the team format in the wizard', () => {
   test('picking a format explains it, and Stableford changes the scoring line', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
+    await fieldToGameStep(page);
     const picker = page.locator('select').filter({ hasText: 'Two best net scores' }).first();
 
     // The hint names net or gross, because the FORMAT decides it (not a setting).
@@ -689,6 +708,7 @@ test.describe('F-006: choosing the team format in the wizard', () => {
   test('the USGA allowance recommendation follows the FORMAT', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
+    await fieldToGameStep(page);
     const picker = page.locator('select').filter({ hasText: 'Two best net scores' }).first();
 
     // Four-ball stroke play for a two-ball format.
@@ -715,6 +735,7 @@ test.describe('F-006: what the wizard SAVES', () => {
   async function saveDraftAndRead(page: import('@playwright/test').Page, format: string, basis: 'stroke' | 'stableford') {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
+    await fieldToGameStep(page);
     await expect(page.getByText('Which scores count for the team?')).toBeVisible();
     await page.locator('select').filter({ hasText: 'Two best net scores' }).first().selectOption(format);
     if (basis === 'stableford') await page.getByRole('button', { name: 'Stableford points' }).click();
@@ -749,13 +770,17 @@ test.describe('F-006: what the wizard SAVES', () => {
   test('the format survives a reload — a phone that slept mid-setup', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
+    await fieldToGameStep(page);
     await page.locator('select').filter({ hasText: 'Two best net scores' }).first().selectOption('scramble');
     await page.getByRole('button', { name: 'Stableford points' }).click();
     await expect(page.getByText(/birdie 3, par 2, bogey 1/)).toBeVisible();
 
     // "Continuing" is the neglected verb (AGENTS.md): the choice must come back.
+    // The wizard reopens on the field (players are per-game and deliberately not
+    // restored), but the CONFIG survives — walk back to the game step and check.
     await page.reload();
     await page.waitForLoadState('networkidle');
+    await fieldToGameStep(page);
     await expect(page.locator('select').filter({ hasText: 'Scramble' }).first()).toHaveValue('scramble');
     await expect(page.getByText(/birdie 3, par 2, bogey 1/)).toBeVisible();
   });
@@ -1298,25 +1323,25 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
     await card.getByRole('button', { name: 'Open →' }).click();
     await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
 
+    // §5.au: field → game → course → tees → [groups] → sides.
+    for (const [nm, hcp] of opts.players) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Review Test');
     // Select by VALUE, not label: F-020 appends a fit badge to option labels once a field
     // exists, so a label match is fragile even where it happens to work today.
     await page.locator('select').first().selectOption('team-2v2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
-    await page.getByRole('button', { name: /Next: Add Players/ }).click();
-    for (const [nm, hcp] of opts.players) {
-      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
-      await page.getByPlaceholder('HCP').fill(hcp);
-      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
-    }
-    // F-019: a side game with MORE THAN FOUR players now picks its playing groups first (they
-    // can't all walk together), so the path to the Sides step runs through the Groups step. At
-    // four or fewer it goes straight there, exactly as before.
-    //
-    // §5.al: either way a side game says "Sides"/"Groups" on the way, never "Teams".
+    await page.getByRole('button', { name: /Next: Set Tees/ }).click();
+    // F-019: a side game with MORE THAN FOUR players picks its playing groups first (they
+    // can't all walk together), so the path to the Sides step runs through the Groups step.
+    // At four or fewer it goes straight there. §5.al: a side game says "Sides"/"Groups" on
+    // the way, never "Teams".
     const viaGroups = opts.players.length > 4;
-    await page.getByRole('button', { name: viaGroups ? 'Next: Set Groups' : 'Next: Set Sides' }).click();
     await page.getByRole('button', { name: viaGroups ? 'Next: Groups' : 'Next: Sides' }).click();
     if (viaGroups) {
       // Accept the proposed groups untouched — this helper is about the SIDES steps.
@@ -1604,49 +1629,30 @@ test.describe('F-020: the game picker annotates fit', () => {
     await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
   }
 
+  // §5.au: the FIELD is step 1 now, so building it happens before any game is picked —
+  // which is exactly what lets every F-020 badge say something true on the FIRST pass.
   async function buildField(page: import('@playwright/test').Page, players: [string, string][]) {
-    await page.getByRole('button', { name: /Next: Select Course/ }).click();
-    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
-    await page.getByRole('button', { name: /Next: Add Players/ }).click();
     for (const [nm, hcp] of players) {
       await page.getByPlaceholder('Name', { exact: true }).fill(nm);
       await page.getByPlaceholder('HCP').fill(hcp);
       await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
     }
-  }
-
-  // Back to step 1 — the move the whole feature relies on being normal.
-  async function backToPicker(page: import('@playwright/test').Page) {
-    await page.getByRole('button', { name: /Back/ }).first().click();
-    await page.waitForTimeout(200);
-    await page.getByRole('button', { name: /Back/ }).first().click();
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await expect(page.getByText('Which game are you playing?')).toBeVisible();
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Fit Test');
   }
 
-  // THE REGRESSION GUARD. The picker comes BEFORE the field, so on a first pass there is nothing
-  // to judge — and marking every game with a cross before anyone has been added would be noise at
-  // exactly the wrong moment.
-  test('F-020: says NOTHING about fit before there is a field', async ({ page }) => {
+  // From the details step, walk course → tees (the steps after the game now).
+  async function pickCourse(page: import('@playwright/test').Page) {
+    await page.getByRole('button', { name: /Next: Select Course/ }).click();
+    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+    await page.getByRole('button', { name: /Next: Set Tees/ }).click();
+  }
+
+  test('F-020 (§5.au): the picker annotates fit on the FIRST pass — the field now comes first', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await startWizard(page);
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Fit Test');
-
-    const body = await page.locator('body').innerText();
-    expect(body).not.toContain('✓');
-    expect(body).not.toMatch(/too many/);
-    expect(body).not.toMatch(/needs \d+ more/);
-    expect(body).not.toMatch(/needs exactly/);
-    // And no misfit banner, obviously — there's no field to misfit.
-    expect(body).not.toMatch(/you have 0/);
-    await page.screenshot({ path: 'e2e/screenshots/f020-first-pass.png', fullPage: true });
-  });
-
-  test('F-020: with a field, every game says how it fits', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await startWizard(page);
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Fit Test');
     await buildField(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
-    await backToPicker(page);
 
     const body = await page.locator('body').innerText();
     // Five players: a side game fits (4–8); the 2–4 and 3–4 modes don't.
@@ -1661,9 +1667,7 @@ test.describe('F-020: the game picker annotates fit', () => {
   test('F-020: picking a game that cannot work explains it HERE, and names one that can', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await startWizard(page);
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Fit Test');
     await buildField(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
-    await backToPicker(page);
 
     // Select by VALUE — labels now carry the fit badge.
     await page.locator('select').first().selectOption('wolf');
@@ -1683,7 +1687,7 @@ test.describe('F-020: the game picker annotates fit', () => {
   test('F-020: no screen claims a side game is played in a single group', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await startWizard(page);
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Fit Test');
+    await buildField(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
     await page.locator('select').first().selectOption('team-2v2');
 
     const picker = await page.locator('body').innerText();
@@ -1693,8 +1697,7 @@ test.describe('F-020: the game picker annotates fit', () => {
     expect(picker).toContain('For 2–8 players.');
 
     // And the review step, which said "is played in a single group of 4–4 players".
-    await buildField(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
-    await page.getByRole('button', { name: 'Next: Set Groups' }).click();
+    await pickCourse(page);
     await page.getByRole('button', { name: 'Next: Groups' }).click();
     await page.getByRole('button', { name: 'Next: Sides' }).click();
     await page.getByRole('button', { name: /Next: Review/ }).click();
@@ -1761,6 +1764,11 @@ test.describe('a group offers the formats it plays', () => {
     await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
     await page.waitForLoadState('networkidle');
 
+    // §5.au: the wizard opens on the FIELD, with the group's members already loaded from the
+    // group seed. The format confirmation is the game step, one tap on.
+    await expect(page.getByText(/Loaded “Weekend Warriors”/)).toBeVisible();
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+
     // Everything the format stores has been applied: the mode, the Nassau legs, and the handicap
     // rules. This is the assertion that would catch a broken seed composition.
     // Assert on VALUES, not innerText. A <select>'s chosen option and an <input>'s value are not
@@ -1802,6 +1810,11 @@ test.describe('a group offers the formats it plays', () => {
     await page.getByRole('button', { name: 'Saturday Nassau' }).click();
     await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
     await page.waitForLoadState('networkidle');
+    // §5.au: the wizard opens on the FIELD (members pre-loaded from the group seed);
+    // the format confirmation these tests measure is the game step, one tap on.
+    await expect(page.getByText(/Loaded “Weekend Warriors”/)).toBeVisible();
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+    await expect(page.getByText('Which game are you playing?')).toBeVisible();
   }
 
   const countScreen = (page: import('@playwright/test').Page) => page.evaluate(() => {
@@ -1898,6 +1911,13 @@ test.describe('a group offers the formats it plays', () => {
     await expect(card.getByText('Seeded ✓')).toBeVisible();
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
+    // §5.au: the wizard opens on the field; the game picker is one tap on. Two players in.
+    for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']] as const) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
 
     // Saved styles lead the picker; the raw modes follow under their own heading.
     const picker = page.locator('select').first();
@@ -1936,6 +1956,13 @@ test.describe('a group offers the formats it plays', () => {
     // this is the case that would otherwise inherit whatever mode was selected before.
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
+    // §5.au: walk past the field to reach the game picker.
+    for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']] as const) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     const picker = page.locator('select').first();
     await picker.selectOption('skins');
     await picker.selectOption('format:f-classic-pool');
@@ -1955,6 +1982,14 @@ test.describe('a group offers the formats it plays', () => {
     await expect(card.getByText('Seeded ✓')).toBeVisible();
     await card.getByRole('button', { name: 'Open →' }).click();
     await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
+
+    // §5.au: walk past the field to the game step.
+    for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']] as const) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
 
     // No format applied: the step is exactly as it always was, including the name field that moves
     // into the summary panel when there IS one.
@@ -2010,34 +2045,31 @@ test.describe('a 1 v 1 singles match', () => {
     await card.getByRole('button', { name: 'Open →' }).click();
     await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
 
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Craig v Jym');
-    await page.locator('select').first().selectOption('team-2v2');
-    await page.getByRole('button', { name: /Next: Select Course/ }).click();
-    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
-    await page.getByRole('button', { name: /Next: Add Players/ }).click();
+    // §5.au: the field first — so the picker's fit badge is live on the FIRST pass.
     for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']]) {
       await page.getByPlaceholder('Name', { exact: true }).fill(nm);
       await page.getByPlaceholder('HCP').fill(hcp);
       await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
     }
-
-    // Back to the picker: the mode must now say it FITS two players. This is the assertion that
-    // fails on the old playersMin: 4.
-    await page.getByRole('button', { name: /Back/ }).first().click();
-    await page.waitForTimeout(200);
-    await page.getByRole('button', { name: /Back/ }).first().click();
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await expect(page.getByText('Which game are you playing?')).toBeVisible();
+
+    // The mode must say it FITS two players. This is the assertion that fails on the old
+    // playersMin: 4.
     const picker = await page.locator('body').innerText();
     expect(picker).toMatch(/Sides \/ Match — ✓ 2 players/);
     // And the mode no longer calls itself "within group" — F-019 falsified that, and at two
     // players a 1v1 has no group to be within (§5.at).
     expect(picker).not.toContain('within group');
 
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Craig v Jym');
+    await page.locator('select').first().selectOption('team-2v2');
+
     // Forward to the sides step: 1 vs 1, seeded one player each, and no split chooser because
     // 1v1 is the only shape two players can take.
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
-    await page.getByRole('button', { name: /Next: Add Players/ }).click();
-    await page.getByRole('button', { name: 'Next: Set Sides' }).click();
+    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+    await page.getByRole('button', { name: /Next: Set Tees/ }).click();
     await page.getByRole('button', { name: 'Next: Sides' }).click();
     await expect(page.getByRole('heading', { name: /Sides \(1 vs 1\)/ })).toBeVisible();
     expect(await page.locator('body').innerText()).not.toContain('How do the sides split?');
@@ -2083,19 +2115,20 @@ test.describe('F-020: the sides step proposes splits', () => {
     await card.getByRole('button', { name: 'Open →' }).click();
     await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
 
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Split Test');
-    await page.locator('select').first().selectOption('team-2v2');
-    await page.getByRole('button', { name: /Next: Select Course/ }).click();
-    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
-    await page.getByRole('button', { name: /Next: Add Players/ }).click();
+    // §5.au: field → game → course → tees → [groups] → sides.
     for (const [nm, hcp] of players) {
       await page.getByPlaceholder('Name', { exact: true }).fill(nm);
       await page.getByPlaceholder('HCP').fill(hcp);
       await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
     }
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Split Test');
+    await page.locator('select').first().selectOption('team-2v2');
+    await page.getByRole('button', { name: /Next: Select Course/ }).click();
+    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+    await page.getByRole('button', { name: /Next: Set Tees/ }).click();
     // Five players need tee groups (F-019), so the path runs through the Groups step.
     const viaGroups = players.length > 4;
-    await page.getByRole('button', { name: viaGroups ? 'Next: Set Groups' : 'Next: Set Sides' }).click();
     await page.getByRole('button', { name: viaGroups ? 'Next: Groups' : 'Next: Sides' }).click();
     if (viaGroups) await page.getByRole('button', { name: 'Next: Sides' }).click();
   }
@@ -2299,18 +2332,19 @@ test.describe('F-019: the wizard builds real playing groups', () => {
     await card.getByRole('button', { name: 'Open →' }).click();
     await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
 
+    // §5.au: field → game → course → tees.
+    for (const [nm, hcp] of players) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Groups Test');
     // Select by VALUE, not label: F-020 appends a fit badge to option labels once a field
     // exists, so a label match is fragile even where it happens to work today.
     await page.locator('select').first().selectOption('team-2v2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
-    await page.getByRole('button', { name: /Next: Add Players/ }).click();
-    for (const [nm, hcp] of players) {
-      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
-      await page.getByPlaceholder('HCP').fill(hcp);
-      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
-    }
   }
 
   const EIGHT: [string, string][] = [
@@ -2322,8 +2356,8 @@ test.describe('F-019: the wizard builds real playing groups', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await startSideGame(page, EIGHT);
 
-    // The field step now promises GROUPS for an 8-player side game, not Sides.
-    await page.getByRole('button', { name: 'Next: Set Groups' }).click();
+    // The tees step promises GROUPS for an 8-player side game, not Sides.
+    await page.getByRole('button', { name: 'Next: Set Tees' }).click();
     await page.getByRole('button', { name: 'Next: Groups' }).click();
 
     // The Groups step: it says why it is asking, and offers the shapes that fit eight.
@@ -2369,7 +2403,7 @@ test.describe('F-019: the wizard builds real playing groups', () => {
   test('F-019: choosing 3 + 3 + 2 gives three groups', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await startSideGame(page, EIGHT);
-    await page.getByRole('button', { name: 'Next: Set Groups' }).click();
+    await page.getByRole('button', { name: 'Next: Set Tees' }).click();
     await page.getByRole('button', { name: 'Next: Groups' }).click();
 
     await page.getByRole('button', { name: /3 \+ 3 \+ 2/ }).click();
@@ -2384,10 +2418,10 @@ test.describe('F-019: the wizard builds real playing groups', () => {
   test('F-019: an ordinary 2v2 is NOT asked about groups', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await startSideGame(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']]);
+    await page.getByRole('button', { name: 'Next: Set Tees' }).click();
 
     // Still says Sides, as it always did (§5.al).
-    await expect(page.getByRole('button', { name: 'Next: Set Sides' })).toBeVisible();
-    await page.getByRole('button', { name: 'Next: Set Sides' }).click();
+    await expect(page.getByRole('button', { name: 'Next: Sides' })).toBeVisible();
     await page.getByRole('button', { name: 'Next: Sides' }).click();
 
     // Lands straight on the Sides step — no Groups step, no tee-time inputs.
@@ -2400,7 +2434,7 @@ test.describe('F-019: the wizard builds real playing groups', () => {
   test('F-019: five players get 3 + 2 without being asked (only one shape fits)', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await startSideGame(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
-    await page.getByRole('button', { name: 'Next: Set Groups' }).click();
+    await page.getByRole('button', { name: 'Next: Set Tees' }).click();
     await page.getByRole('button', { name: 'Next: Groups' }).click();
 
     await expect(page.getByRole('heading', { name: /playing together/ })).toBeVisible();
@@ -2432,17 +2466,18 @@ test.describe('F-025/F-026: skins review step', () => {
     await card.getByRole('button', { name: 'Open →' }).click();
     await page.waitForURL(/pool\/new/, { timeout: 15_000 });
 
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Sunday Skins');
-    // Select by VALUE (F-020 appends fit badges to labels).
-    await page.locator('select').first().selectOption('skins');
-    await page.getByRole('button', { name: /Next: Select Course/ }).click();
-    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
-    await page.getByRole('button', { name: /Next: Add Players/ }).click();
+    // §5.au: field → game → course → tees → money.
     for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']] as const) {
       await page.getByPlaceholder('Name', { exact: true }).fill(nm);
       await page.getByPlaceholder('HCP').fill(hcp);
       await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
     }
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Sunday Skins');
+    // Select by VALUE (F-020 appends fit badges to labels).
+    await page.locator('select').first().selectOption('skins');
+    await page.getByRole('button', { name: /Next: Select Course/ }).click();
+    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
     await page.getByRole('button', { name: /Next: Set Tees/ }).click();
     await page.getByRole('button', { name: /Next: Money/ }).click();
     // MUST be the review step, not wherever the last click landed.

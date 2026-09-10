@@ -220,9 +220,9 @@ test.describe('start — the wizard (the scale path)', () => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
 
-    // Step 1 — Details (game name, mode, money)
-    await expect(page.getByText(/Details/i).first()).toBeVisible();
-    await capture(page, 'wizard-1-details-phone');
+    // Step 1 — the field (§5.au: who's playing comes first)
+    await expect(page.getByText(/Who's playing\?/).first()).toBeVisible();
+    await capture(page, 'wizard-1-field-phone');
 
     // How many interactive controls are on screen before anything is chosen?
     const controls = await page.evaluate(() => ({

@@ -68,7 +68,7 @@ async function openWizard(page: Page) {
   await page.setViewportSize(PHONE);
   await seedAndOpen(page, 'Past games (for recent-course chips)');
   await page.waitForURL(/\/pool\/new/);
-  await expect(page.getByText('What are you playing?')).toBeVisible();
+  await expect(page.getByText(/Who's playing\?/)).toBeVisible();   // §5.au: the field opens the wizard
 }
 
 test.describe('the ORDINARY 2v2 — two guys against two guys, best ball, usual money', () => {
@@ -78,8 +78,25 @@ test.describe('the ORDINARY 2v2 — two guys against two guys, best ball, usual 
 
     await openWizard(page);
 
-    // --- Step 1: Details, BEFORE picking the game -------------------------------
-    await countScreen(page, '01-details-default-pool');
+    // --- Step 1: Field (§5.au — the field comes first) --------------------------
+    await countScreen(page, '01-field-empty');
+    // Four players, added the way a group with no GHIN would: name + handicap.
+    const four = [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']];
+    for (const [nm, hcp] of four) {
+      await tap(`add ${nm}`, async () => {
+        await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+        await page.getByPlaceholder('HCP').fill(hcp);
+        // The manual-add "Add" sits next to the HCP box; the GHIN-# one is above.
+        await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+      });
+    }
+    await countScreen(page, '02-field-four');
+    await tap('Next: Choose Game', async () => {
+      await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+    });
+
+    // --- Step 2: Game, BEFORE picking ------------------------------------------
+    await countScreen(page, '03-game-default-pool');
 
     await tap('type game name', async () => {
       await page.getByPlaceholder('e.g. Saturday Pool').fill('Saturday 2v2');
@@ -94,13 +111,13 @@ test.describe('the ORDINARY 2v2 — two guys against two guys, best ball, usual 
       await gamePicker.selectOption('team-2v2');
     });
 
-    // --- Step 1: Details, AFTER picking the side game --------------------------
+    // --- Step 2: Game, AFTER picking the side game ------------------------------
     // This is the F-014 measurement: how many controls does an ordinary 2v2 show?
-    const details = await countScreen(page, '02-details-side-game');
+    const details = await countScreen(page, '04-game-side-game');
 
     // Side names left this screen entirely (F-014). They were six static settings keys, of which
     // the wizard hid four and showed two always-blank boxes; they now live in the Sides editor,
-    // one field per side that exists. So step 1 asks about NO names at all.
+    // one field per side that exists. So the game step asks about NO names at all.
     for (const letter of ['A', 'B', 'C', 'D', 'E', 'F']) {
       await expect(page.getByLabel(`Side ${letter} name`)).toHaveCount(0);
     }
@@ -109,38 +126,19 @@ test.describe('the ORDINARY 2v2 — two guys against two guys, best ball, usual 
       await page.getByRole('button', { name: /Next: Select Course/ }).click();
     });
 
-    // --- Step 2: Course --------------------------------------------------------
-    await countScreen(page, '03-course');
+    // --- Step 3: Course --------------------------------------------------------
+    await countScreen(page, '05-course');
     await tap('pick a recent course chip', async () => {
       await page.getByRole('button', { name: /Sandbox National|Pebble|Bay Hill/ }).first().click();
     });
-    await countScreen(page, '04-course-picked');
-    await tap('Next: Add Players', async () => {
-      await page.getByRole('button', { name: /Next: Add Players/ }).click();
-    });
-
-    // --- Step 3: Field ---------------------------------------------------------
-    await countScreen(page, '05-field-empty');
-    // Four players, added the way a group with no GHIN would: name + handicap.
-    const four = [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']];
-    for (const [nm, hcp] of four) {
-      await tap(`add ${nm}`, async () => {
-        await page.getByPlaceholder('Name', { exact: true }).fill(nm);
-        await page.getByPlaceholder('HCP').fill(hcp);
-        // The manual-add "Add" sits next to the HCP box; the GHIN-# one is above.
-        await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
-      });
-    }
-    await countScreen(page, '06-field-four');
-    // §5.al: in a SIDE game these buttons say "Sides", matching the step they lead to. They
-    // used to say "Set Teams" then "Teams" on the way to a step labelled "Sides".
-    await expect(page.getByRole('button', { name: 'Next: Set Sides' })).toBeVisible();
-    await tap('Next: Set Sides', async () => {
-      await page.getByRole('button', { name: 'Next: Set Sides' }).click();
+    await countScreen(page, '06-course-picked');
+    await tap('Next: Set Tees', async () => {
+      await page.getByRole('button', { name: /Next: Set Tees/ }).click();
     });
 
     // --- Step 4: Tees ----------------------------------------------------------
     await countScreen(page, '07-tees');
+    // §5.al: in a SIDE game this button says "Sides", matching the step it leads to.
     await tap('Next: Sides', async () => {
       await page.getByRole('button', { name: 'Next: Sides' }).click();
     });

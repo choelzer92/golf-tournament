@@ -87,10 +87,13 @@ const WIZARD_KEY = 'pool_wizard_draft';
 // Set by the Format Library's "Start a game" to preconfigure the wizard once.
 const FORMAT_SEED_KEY = 'pool_format_seed';
 
+// §5.au: the FIELD comes first — count → game → money → settings. Information order
+// follows dependency: the game picker can annotate fit (F-020) and money can show real
+// dollars only once the count is known, so nothing is asked before what it depends on.
 // 'groups' is the PLAYING-GROUP step, shown only for a side game whose field is too big to walk
 // together (F-019). 'teams' then holds the SIDES for a side game and the foursomes for a pool —
 // the two axes are separate steps because they're separate questions (§5.an).
-type Step = 'details' | 'course' | 'field' | 'tees' | 'groups' | 'teams' | 'create';
+type Step = 'field' | 'details' | 'course' | 'tees' | 'groups' | 'teams' | 'create';
 
 function getToken() {
   return sessionStorage.getItem('ghin_token');
@@ -130,7 +133,7 @@ function parsePositionSplit(text: string): number[] {
 
 export default function NewPoolGamePage() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>('details');
+  const [step, setStep] = useState<Step>('field');
   const [hydrated, setHydrated] = useState(false);
 
   // Details
@@ -191,10 +194,18 @@ export default function NewPoolGamePage() {
   // the FieldStep "Load group" picker). Stamped onto the game as sourceGroupId so
   // stats/ledger can attribute it exactly. Absent = made outside a group.
   const [sourceGroupId, setSourceGroupId] = useState<string | undefined>(undefined);
-  // True once a FORMAT seed has been applied (group page's format picker or the
-  // library). Tells the FieldStep group-seed loader to bring in members WITHOUT
-  // re-applying the group's own default settings (which would clobber the format).
-  const [formatSeedApplied, setFormatSeedApplied] = useState(false);
+  // True once a FORMAT seed has been applied (group page's format picker, the library, or
+  // the game picker itself). Tells the FieldStep group-seed loader to bring in members
+  // WITHOUT re-applying the group's own default settings (which would clobber the format).
+  //
+  // A REF, not state (§5.au): the field step is now the FIRST step, so its mount effect
+  // starts hydrating before this page's own mount effect has consumed the format seed —
+  // a prop snapshot would read a stale false in the loader's async continuation. The ref
+  // is written synchronously and read at load time.
+  const formatSeedAppliedRef = useRef(false);
+  function markFormatSeedApplied(v: boolean) {
+    formatSeedAppliedRef.current = v;
+  }
   // F-021: the NAME of the saved format this game started from, or undefined when configured from
   // scratch. Drives step 1's summary-instead-of-form. `formatDirty` flips the first time any of the
   // format's own values is edited, which is what turns the title into "rename to fork" (§5.ax).
@@ -283,7 +294,7 @@ export default function NewPoolGamePage() {
         const seed = JSON.parse(seedRaw) as { name?: string; defaults?: GroupDefaults };
         if (seed.name && seed.name.trim()) { setName(seed.name); setAppliedFormat(seed.name.trim()); }
         if (seed.defaults) applyGroupDefaults(seed.defaults);
-        setFormatSeedApplied(true);
+        markFormatSeedApplied(true);
       }
     } catch {}
     setHydrated(true);
@@ -381,7 +392,7 @@ export default function NewPoolGamePage() {
     // switch the wizard back to classic, not inherit whatever mode was selected.
     if (typeof f.defaults?.gameMode !== 'string') setGameMode(undefined);
     // A group seed loading members later must not clobber this with the group's own defaults.
-    setFormatSeedApplied(true);
+    markFormatSeedApplied(true);
   }
 
   // §5.av: picking a raw mode after a format means "configure fresh" — drop the summary
@@ -391,8 +402,21 @@ export default function NewPoolGamePage() {
     if (appliedFormat && name.trim() === appliedFormat) setName('');
     setAppliedFormat(undefined);
     setFormatDirty(false);
-    setFormatSeedApplied(false);
+    markFormatSeedApplied(false);
   }
+
+  // §5.au: the field is built BEFORE the course is chosen, so players start with no tee.
+  // Once a course lands (or changes), give everyone whose tee isn't on this course their
+  // usual one — same resolution as adding a player used to get when the course came first.
+  useEffect(() => {
+    if (!course) return;
+    setPlayers((prev) => prev.map((p) => {
+      if (course.teeSets.some((t) => t.id === p.teeSetId)) return p;
+      const rp = (p.ghinNumber != null ? getRosterPlayerByGhin(p.ghinNumber) : undefined) ?? getRosterPlayerById(p.id);
+      return { ...p, teeSetId: pickTeeForPlayer(course, p.gender, rp?.defaultTeeName ?? null, rp?.defaultTeeRank) };
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [course]);
 
   // Parse the match-config inputs into a PoolMatchConfig (per-player $/leg + junk
   // $/point), falling back to the defaults for any blank/invalid field.
@@ -526,8 +550,8 @@ export default function NewPoolGamePage() {
 
         {step === 'details' && (
           <DetailsStep
-            // F-020: the picker annotates each game against the field. 0 on a first pass (the
-            // field is built two steps on), which reads as "nothing to say yet".
+            // §5.au: the field is built FIRST, so the count is real by the time the picker
+            // renders and every F-020 fit badge has something true to say.
             playerCount={players.length}
             // F-021: when a saved format was applied, step 1 confirms rather than re-asks.
             appliedFormat={appliedFormat}
@@ -561,14 +585,12 @@ export default function NewPoolGamePage() {
             setMatchLegs={setMatchLegs}
             matchJunkPerPoint={matchJunkPerPoint}
             setMatchJunkPerPoint={setMatchJunkPerPoint}
-            applyGroupDefaults={applyGroupDefaults}
-            onGroupChosen={setSourceGroupId}
-            chosenGroupId={sourceGroupId}
             // §5.av: saved formats are choices at the game step — picking one fills
             // everything; picking a raw mode afterwards configures fresh.
             onFormatChosen={chooseFormat}
             onFormatCleared={clearAppliedFormat}
             onNext={() => setStep('course')}
+            onBack={() => setStep('field')}
           />
         )}
 
@@ -580,7 +602,7 @@ export default function NewPoolGamePage() {
             setHolesPlaying={setHolesPlaying}
             nineHandicapBasis={nineHandicapBasis}
             setNineHandicapBasis={setNineHandicapBasis}
-            onNext={() => setStep('field')}
+            onNext={() => setStep('tees')}
             onBack={() => setStep('details')}
           />
         )}
@@ -595,13 +617,20 @@ export default function NewPoolGamePage() {
             nine={wizardNine}
             getGroupDefaults={currentGroupDefaults}
             applyGroupDefaults={applyGroupDefaults}
-            onGroupLoaded={setSourceGroupId}
+            // Loading a group also names the game when nothing was typed — the same courtesy
+            // the old step-1 chips extended, now that the field IS step 1. Functional update:
+            // a group seed loads asynchronously, so `name` here can be a stale '' from the
+            // first render even after a format seed has already named the game.
+            onGroupLoaded={(id) => {
+              setSourceGroupId(id);
+              const g = getGroupById(id);
+              if (g) setName((prev) => (prev.trim() ? prev : g.name));
+            }}
             preselectedGroupId={sourceGroupId}
-            formatSeedApplied={formatSeedApplied}
-            // "Set Tees" for an individual game, which has no team/side step after tees at all.
-            nextLabel={modeCategory === 'individual' ? 'Tees' : needsPlayingGroups ? 'Groups' : isWithinGroup ? 'Sides' : 'Teams'}
-            onNext={() => setStep('tees')}
-            onBack={() => setStep('course')}
+            formatSeedAppliedRef={formatSeedAppliedRef}
+            // §5.au: the field leads, so the game comes next.
+            nextLabel="Choose Game"
+            onNext={() => setStep('details')}
           />
         )}
 
@@ -616,6 +645,7 @@ export default function NewPoolGamePage() {
             // An INDIVIDUAL game skips team-building entirely and goes straight to money, so the
             // button has to say that rather than promise a step that never comes.
             nextLabel={modeCategory === 'individual' ? 'Money' : needsPlayingGroups ? 'Groups' : isWithinGroup ? 'Sides' : 'Teams'}
+            onBack={() => setStep('course')}
             onNext={() => {
               // Single-group games (individual + 2v2) run as ONE team holding every
               // player. Auto-build it now. Individual → straight to Create;
@@ -644,7 +674,6 @@ export default function NewPoolGamePage() {
                 setStep('teams');
               }
             }}
-            onBack={() => setStep('field')}
           />
         )}
 
@@ -752,10 +781,12 @@ export default function NewPoolGamePage() {
 }
 
 function StepIndicator({ current, course, individualGame, withinGroup, playingGroups }: { current: Step; course: CourseSelection | null; individualGame?: boolean; withinGroup?: boolean; playingGroups?: boolean }) {
+  // §5.au: the FIELD leads. Course follows the game (a nine vs 18 depends on what's
+  // being played), and tees close the loop once both course and players exist.
   const steps = [
-    { key: 'details', label: 'Details' },
-    { key: 'course', label: course?.courseName || 'Course' },
     { key: 'field', label: 'Players' },
+    { key: 'details', label: 'Game' },
+    { key: 'course', label: course?.courseName || 'Course' },
     { key: 'tees', label: 'Tees' },
     // A side game whose field is too big to walk together picks its playing groups first, then
     // its sides — two steps because they're two independent questions (F-019, §5.an). Absent for
@@ -841,11 +872,10 @@ function DetailsStep({
   positionSplitText, setPositionSplitText,
   junkValues, setJunkValues, teamFormat, setTeamFormat, teamScoreBasis, setTeamScoreBasis,
   moneyMode, setMoneyMode, matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
-  applyGroupDefaults, onGroupChosen, chosenGroupId,
   onFormatChosen, onFormatCleared,
   playerCount,
   appliedFormat, formatDirty, onFormatEdited,
-  onNext,
+  onNext, onBack,
 }: {
   name: string; setName: (s: string) => void;
   gameMode: string | undefined; setGameMode: (v: string | undefined) => void;
@@ -862,15 +892,12 @@ function DetailsStep({
   matchLegs: { front: string; back: string; overall: string };
   setMatchLegs: (v: { front: string; back: string; overall: string }) => void;
   matchJunkPerPoint: string; setMatchJunkPerPoint: (s: string) => void;
-  applyGroupDefaults: (d: GroupDefaults | null) => void;
-  onGroupChosen: (groupId: string) => void;
-  chosenGroupId: string | undefined;
   /** §5.av: a saved format picked from the game picker — fills everything. */
   onFormatChosen: (f: RosterGroup) => void;
   /** §5.av: a raw mode picked while a format was applied — configure fresh. */
   onFormatCleared: () => void;
-  /** How many players are in the field, or 0 on a first pass (the field is built two steps on).
-      Drives the live fit annotation in the picker — F-020. */
+  /** How many players are in the field. Real by the time this step renders (§5.au — the
+      field comes first), so every F-020 fit annotation has something true to say. */
   playerCount: number;
   /** The saved format this game started from, or undefined when built from scratch. When set, this
       step shows a SUMMARY with per-section [Change] instead of ~15 fields (F-021, §5.ax). */
@@ -880,22 +907,18 @@ function DetailsStep({
   /** Called on the first edit to a format-owned value. */
   onFormatEdited: () => void;
   onNext: () => void;
+  onBack: () => void;
 }) {
   const selectedMode = getGameMode(gameMode);
 
-  // GROUPS FIRST. The picker already existed, but buried on step 3 (Build Field) as
-  // a "Groups" dropdown plus a separate Load button — which is why only 7 of 44 real
-  // games carried a sourceGroupId. Picking the group is the highest-value control in
-  // the wizard: it answers "who plays", "how we play", and "what games we play" at
-  // once, and it turns later questions into confirmations.
-  const [groups, setGroups] = useState<RosterGroup[]>([]);
   // §5.av: saved formats are CHOICES AT THE GAME STEP, not a detour before it. The library
   // stored whole styles all along, but its only entry point was a button on /pool — invisible
   // at the moment of choosing a game, so every round re-answered ~15 questions.
+  // (The group question lives on the FIELD step, which now comes first — §5.au.)
   const [formats, setFormats] = useState<RosterGroup[]>([]);
   useEffect(() => {
     hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' })
-      .then(() => { setGroups(getPlayerGroups()); setFormats(getFormats()); })
+      .then(() => setFormats(getFormats()))
       .catch(() => {});
   }, []);
 
@@ -927,14 +950,6 @@ function DetailsStep({
   const setShowMoney = setOpenedMoney;
   const setShowHandicaps = setOpenedHandicaps;
 
-  // Choosing a group applies its saved settings now and stamps the game, so the
-  // money/handicap answers below arrive pre-filled. Members load on the Field step,
-  // which is where the roster + tees are resolved.
-  function chooseGroup(g: RosterGroup) {
-    onGroupChosen(g.id);
-    applyGroupDefaults(g.defaults);
-    if (!name.trim()) setName(g.name);
-  }
   // Any registered game mode (individual OR 2v2 within-group) is a single-group
   // game: it renders ITS OWN options (via the mode's settings schema) and does
   // NOT use the classic team-pool "Game Type / pot / match / junk / ball" block.
@@ -1002,57 +1017,8 @@ function DetailsStep({
 
   return (
     <div>
+      <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">What are you playing?</h2>
-
-      {/* WHO ARE YOU PLAYING WITH — asked first, because a group answers three
-          questions at once (its people, its stakes, its formats) and turns the
-          questions below into confirmations. */}
-      {groups.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-4 mb-4">
-          <label className="block text-sm font-medium text-gray-800 mb-1">Who&apos;s playing?</label>
-          <p className="text-xs text-gray-500 mb-2">
-            Pick a group to start from its usual setup. You can change anything below.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {groups.map((g) => {
-              const active = chosenGroupId === g.id;
-              return (
-                <button
-                  key={g.id}
-                  type="button"
-                  onClick={() => chooseGroup(g)}
-                  className={`rounded-lg border px-3 py-2.5 text-sm font-medium min-h-[44px] ${
-                    active
-                      ? 'border-green-600 bg-green-600 text-white'
-                      : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
-                  }`}
-                >
-                  {g.name}
-                  <span className={`ml-1.5 text-xs ${active ? 'text-green-100' : 'text-gray-400'}`}>
-                    {g.playerIds.length}
-                  </span>
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => onGroupChosen('')}
-              className={`rounded-lg border px-3 py-2.5 text-sm font-medium min-h-[44px] ${
-                !chosenGroupId
-                  ? 'border-green-600 bg-green-600 text-white'
-                  : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
-              }`}
-            >
-              Someone else
-            </button>
-          </div>
-          {chosenGroupId && (
-            <p className="text-xs text-green-700 mt-2">
-              Using this group&apos;s usual setup — its players load on the next-but-one step.
-            </p>
-          )}
-        </div>
-      )}
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
         {/* The name lives in the F-021 summary panel when a format was applied — TWO inputs bound
@@ -1757,14 +1723,14 @@ function CourseStep({
         disabled={!course}
         className="w-full rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Next: Add Players
+        Next: Set Tees
       </button>
     </div>
   );
 }
 
 function FieldStep({
-  course, players, setPlayers, handicapAllowance, handicapBasis, nine, getGroupDefaults, applyGroupDefaults, onGroupLoaded, preselectedGroupId, formatSeedApplied, nextLabel, onNext, onBack,
+  course, players, setPlayers, handicapAllowance, handicapBasis, nine, getGroupDefaults, applyGroupDefaults, onGroupLoaded, preselectedGroupId, formatSeedAppliedRef, nextLabel, onNext,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
@@ -1774,14 +1740,15 @@ function FieldStep({
   getGroupDefaults: () => GroupDefaults;
   applyGroupDefaults: (d: GroupDefaults | null) => void;
   onGroupLoaded: (groupId: string) => void;
-  /** Group chosen on step 1 — its members load automatically so the question
-      isn't asked twice. */
+  /** A group already chosen (e.g. restored from a draft) — its members load automatically
+      so the question isn't asked twice. */
   preselectedGroupId?: string;
-  formatSeedApplied: boolean;
-  /** What the step after tees is CALLED for this game — "Sides" in a side game, "Teams" in a
-      pool (§5.al). The button used to say "Set Teams" on the way to a step labelled "Sides". */
+  /** §5.au: read at group-load time through a ref — the field step is now FIRST, so a prop
+      snapshot could be stale when the parent's mount effect consumes the format seed. */
+  formatSeedAppliedRef: React.RefObject<boolean>;
+  /** What the next step is CALLED. §5.au: the game follows the field. */
   nextLabel: string;
-  onNext: () => void; onBack: () => void;
+  onNext: () => void;
 }) {
   const [rosterQuery, setRosterQuery] = useState('');
   const [rosterResults, setRosterResults] = useState<RosterPlayer[]>([]);
@@ -1811,7 +1778,6 @@ function FieldStep({
 
   // Saved groups (organizer's "home base" rosters + format defaults).
   const [groups, setGroups] = useState<RosterGroup[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState(preselectedGroupId ?? '');
   const [saveGroupName, setSaveGroupName] = useState('');
   const [groupNote, setGroupNote] = useState('');
   // The group currently loaded as today's roster context. When set, the player
@@ -1831,19 +1797,21 @@ function FieldStep({
         .then(() => {
           setGroups(getGroups());
           // A group seed from /home/groups/[id] "Start casual round": load that
-          // group now (course is already chosen on this step, so tees resolve)
-          // and consume the seed so it applies exactly once.
+          // group now and consume the seed so it applies exactly once. Tees resolve
+          // when the course is picked later (§5.au moved the course after the field).
           try {
             const seededGroupId = sessionStorage.getItem(POOL_GROUP_SEED_KEY);
             if (seededGroupId) {
               sessionStorage.removeItem(POOL_GROUP_SEED_KEY);
               // If a format was chosen for this game, load members only — the
               // format seed already set the settings; don't clobber with the
-              // group's own default.
-              loadGroup(seededGroupId, { skipDefaults: formatSeedApplied });
+              // group's own default. Read through the ref: this step mounts FIRST
+              // now (§5.au), so the parent may consume the format seed after this
+              // effect starts but before hydration lands here.
+              loadGroup(seededGroupId, { skipDefaults: formatSeedAppliedRef.current });
             } else if (preselectedGroupId && players.length === 0) {
-              // Chosen on step 1: load its members now so the group question isn't
-              // asked twice. Settings already applied at step 1, so skip them here.
+              // Already chosen (a restored draft): load its members now so the group
+              // question isn't asked twice; its settings were applied back then.
               // Guarded on an empty field so a user who came Back and edited their
               // player list doesn't get it silently replaced.
               loadGroup(preselectedGroupId, { skipDefaults: true });
@@ -2171,54 +2139,44 @@ function FieldStep({
         onCloseAction={() => setShowLogin(false)}
         onDoneAction={() => { setShowLogin(false); const r = retryRef.current; retryRef.current = null; r?.(); }}
       />
-      <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Add Players ({players.length})</h2>
+      {/* §5.au: the field is the FIRST step — nothing to go back to. */}
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">Who&apos;s playing? ({players.length})</h2>
 
-      {/* Groups — load a saved group (members + format) or save the current field */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <p className="text-sm font-semibold text-gray-800 mb-2">Groups</p>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="flex gap-2 flex-1">
-            <select
-              value={selectedGroupId}
-              onChange={(e) => setSelectedGroupId(e.target.value)}
-              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            >
-              <option value="">{groups.length ? 'Load a group…' : 'No groups saved yet'}</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>{g.name} ({g.playerIds.length})</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => selectedGroupId && loadGroup(selectedGroupId)}
-              disabled={!selectedGroupId}
-              className="rounded-md bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-50"
-            >
-              Load
-            </button>
+      {/* Groups — asked FIRST (§5.au), as chips rather than a dropdown+Load: a group answers
+          three questions at once (its people, its stakes, its formats) and one tap turns the
+          later steps into confirmations. The old buried dropdown is why only 7 of 44 real
+          games carried a sourceGroupId. */}
+      {groups.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-4 mb-4">
+          <p className="text-sm font-semibold text-gray-800 mb-1">Your groups</p>
+          <p className="text-xs text-gray-500 mb-2">
+            Tap one to start from its people and usual setup. You can change anything after.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {groups.map((g) => {
+              const active = activeGroupId === g.id;
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => loadGroup(g.id)}
+                  className={`rounded-lg border px-3 py-2.5 text-sm font-medium min-h-[44px] ${
+                    active
+                      ? 'border-green-600 bg-green-600 text-white'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                  }`}
+                >
+                  {g.name}
+                  <span className={`ml-1.5 text-xs ${active ? 'text-green-100' : 'text-gray-400'}`}>
+                    {g.playerIds.length}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-          <div className="flex gap-2 flex-1">
-            <input
-              type="text"
-              value={saveGroupName}
-              onChange={(e) => setSaveGroupName(e.target.value)}
-              placeholder="Save current field as…"
-              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-            <button
-              type="button"
-              onClick={saveAsGroup}
-              disabled={saveGroupName.trim().length === 0 || players.length === 0}
-              className="rounded-md border border-green-700 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-50"
-            >
-              Save
-            </button>
-          </div>
+          {groupNote && <p className="text-xs text-green-700 mt-2">{groupNote}</p>}
         </div>
-        {groupNote && <p className="text-xs text-gray-500 mt-2">{groupNote}</p>}
-        <p className="text-xs text-gray-400 mt-1">Loading a group pre-selects its members below (and applies its saved game settings) — then just uncheck anyone sitting out.</p>
-      </div>
+      )}
 
       {/* Saved roster — alphabetical checklist, tap to add/remove today's field */}
       <div className="bg-white rounded-lg shadow p-4 mb-4">
@@ -2491,12 +2449,36 @@ function FieldStep({
         </div>
       )}
 
+      {/* Save today's field as a group — kept below the list, where the field it saves is
+          visible. (The Load half of the old Groups box became the chips up top — §5.au.) */}
+      {players.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-4 mb-4">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={saveGroupName}
+              onChange={(e) => setSaveGroupName(e.target.value)}
+              placeholder="Save current field as…"
+              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            />
+            <button
+              type="button"
+              onClick={saveAsGroup}
+              disabled={saveGroupName.trim().length === 0}
+              className="rounded-md border border-green-700 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-50"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+
       <button
         onClick={onNext}
         disabled={!canProceed}
         className="w-full rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Next: Set {nextLabel}
+        Next: {nextLabel}
       </button>
     </div>
   );

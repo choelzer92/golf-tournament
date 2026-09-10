@@ -1137,6 +1137,11 @@ on 2026-08-11 — *the interview shape is right; step 1 asking ~12 at once is wh
 has since grown, F-020's misfit banner included.
 
 **Decision: reorder so the field comes first**, then game, then money, then the mode's settings.
+**BUILT 2026-09-10** (branch `captains-deal-and-game-rename`): the wizard runs field → game →
+course → tees → …; the group chips moved to the field step and now load members immediately;
+tees re-resolve when the course lands after the field. The "care needed" below was real —
+`formatSeedApplied` had to become a ref because the field step now mounts before the parent
+consumes the format seed.
 Step 1 drops to roughly name + game. Money moves to its own step *after* teams, where the count is
 known and a pot is computable.
 
@@ -1183,6 +1188,9 @@ So in practice the library is unreachable at the moment it would help, and every
 **Decision: one picker at the game step — saved formats first, the built-in modes below.** Choosing
 a format fills everything and skips the settings questions; choosing a raw mode configures fresh.
 "Then you're just choosing players" is the recurring case, exactly as Craig describes.
+**BUILT 2026-09-09** (branch `captains-deal-and-game-rename`): the game `<select>` leads with a
+"Your saved games" optgroup; picking one lands on the F-021 confirmation; a classic-pool format
+(no `gameMode`) explicitly clears the mode, since `applyGroupDefaults` leaves it untouched.
 
 **Why this outranks §5.au's reorder, and comes first.** The reorder resequences 14 questions; this
 one *removes* them for every round after the first of a given style. Both are worth doing — money
