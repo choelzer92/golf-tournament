@@ -1,4 +1,4 @@
-# Next session: Craig's feedback batch, then pick from BACKLOG.md
+# Next session: Craig's live-app feedback batch (2026-09-10)
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
@@ -6,45 +6,57 @@ Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 Read `AGENTS.md` first.
 
-## First: Craig's feedback
+**State:** branch `captains-deal-and-game-rename` carried §5.ay, §5.az, F-022..F-026, §5.av,
+and §5.au — Craig was about to merge it at the end of the 2026-09-10 session. Check
+`git branch`: if merged, work fresh off `main` on a NEW branch (§5.ab); if not, ask before
+building on the unmerged branch.
 
-Craig said (2026-09-10, mid-session): *"I have some feedback that I'd like to address in the
-next session."* **Start by asking him for it.** Capture each item in FINDINGS.md/BACKLOG.md
-with his words, decide together what gets built this session, and record any decisions in
-DECISIONS.md as usual.
+## The work: four feedback items, all observed on the LIVE app (not branch regressions)
 
-## State: the wizard track is DONE (both halves, this branch, verify green)
+BACKLOG.md "Now" has the full wording. In suggested order:
 
-Branch `captains-deal-and-game-rename` — still awaiting Craig's review/merge (it now carries
-§5.ay, §5.az, F-022..F-026, §5.av, §5.au). Check `git branch`; if merged, branch fresh off
-`main` (§5.ab).
+1. **Group tap selects ALL members** (S–M) — tapping a group chip pre-checks every member;
+   at 61 members, picking the 12 playing today means unchecking ~49. The day's field should
+   be picked BY checking. Likely shape: above some size, load a group with members
+   unchecked (or ask); a 4-man crew probably still wants all-checked. The chips live on the
+   wizard's FIELD step (`loadGroup` in `pool/new/page.tsx`) since §5.au.
+2. **Bring back classic golf verbiage** (S) — Craig: "i liked the verbiage before just off
+   the low, not the basic explanation of what classic golf terms mean." Label the option
+   **"Off the low"**, not "Only above the best player". Sweep the wizard's handicap/scoring
+   copy for other over-explained classic terms. Golfers know these words; explaining them
+   reads wrong. (The explanatory helper text UNDER a control may stay — it's the control
+   labels that must use the real terms. If in doubt on a specific string, ask.)
+3. **My-groups page: handicaps render but NAMES are blank** (?) — diagnose, then propose.
+   Rows render and handicaps show, so `playerIds` resolve — the `name` field specifically is
+   lost between the live DB and `/home/groups/[id]`. Suspects: row saved with empty `name`;
+   name and handicap read from different sources on that page; a snake/camel mapping miss on
+   `name` in that page's hydration path. **Live data: investigate READ-ONLY** (grep the code,
+   reproduce in sandbox if possible); never run scripts that write to the live DB.
+4. **In-app feedback box** (S–M) — a friend uses the app; give him a small always-reachable
+   text box that saves observations to the live DB with who/when/which-game, plus a simple
+   way to read entries back in a work session. Feeds FINDINGS.md. Keep it tiny: a text box
+   and a list, not a ticket system. NOTE: this WRITES to the live DB — new table, additive
+   only; get Craig's OK on the shape before building.
 
-- **§5.av (b69b665)** — the game picker leads with a "Your saved games" optgroup; picking a
-  format fills everything and lands on the F-021 confirmation; picking a raw mode afterwards
-  configures fresh. A classic-pool format (no `gameMode`) clears the mode explicitly — new
-  fixture `f-classic-pool` ("JY Classic Pool") pins it.
-- **§5.au (f08dd22)** — step order is now **field → game → course → tees → [groups] →
-  teams/sides → money**. The group chips moved to the field step and load members
-  immediately. Two traps that were real: `formatSeedApplied` became a REF (the field step
-  mounts before the parent consumes the format seed), and the group-loaded name courtesy
-  needed a functional setState (async group seed saw a stale `''`). Players added before a
-  course exists get tees re-resolved when the course lands (`useEffect` on `course`).
+Items 1, 2, and 4 change app behavior/copy — per AGENTS.md, confirm anything with more than
+one defensible answer (the group-size threshold in #1, specific strings in #2, the shape of
+#4) with Craig before locking it in.
 
-Also still true: a stale `next dev` on port 3200 makes every e2e time out (`netstat -ano |
-grep :3200`, kill the PID). And check the verify exit code itself, not a `tail` of its log.
+## Traps that keep biting
 
-## Then: everything else is in BACKLOG.md
+- A stale `next dev` on port 3200 makes every e2e time out (`netstat -ano | grep :3200`,
+  kill the PID, rerun).
+- Check `npm run verify`'s own exit code, not a `tail` of its log — a green-looking tail hid
+  a real failure this session.
+- **Look at the screen** — screenshots caught what code review didn't, again (the group
+  chips' select-all behavior reads fine in code).
 
-The waiting-on-Craig list (GHIN spot-check of F-022, The Meadows `GetCourseDetails` payload
-for F-023 part B, branch merge), the shaped next items, and the bigger arcs all live there.
-**End the session by grooming it.**
+## Still waiting on Craig (unchanged)
 
-## Rules that keep earning their place
+- F-022 on-course GHIN spot-check (now live if merged — §5.ba screenshot protocol if off).
+- The Meadows `GetCourseDetails` payload for F-023 part B.
+- §7 q4 (dark = live / light = setup).
 
-- **The GHIN app outranks the rule book** (§5.ba); §5.bb records the allowance order.
-- **Read the history before re-fixing** (`git log -S`).
-- **Look at the screen** — the reorder's step indicator and group chips were only checkable
-  in screenshots.
-- **Both sides of every branch**; classic pool keeps "Foursomes", individual games say
-  "Players".
-- `npm run verify` must exit 0 before each commit — and read ITS exit code, not the log tail.
+## End the session by grooming BACKLOG.md
+
+Mark done, add discovered, promote next. That ritual is the method (§5.bc).
