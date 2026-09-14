@@ -2720,6 +2720,201 @@ Morgan (a 2 v 3). Assignment WORKED; this is a display problem, not lost data.
 
 ---
 
+### F-040 — Three ways to add a player, ordered by API mechanics rather than by how people think  [P2] [start]
+
+**Where:** the add-player stack appears on FOUR surfaces — `pool/new/page.tsx:2318`
+(wizard field step), `pool/roster/page.tsx:339`, `game/new/page.tsx:567`,
+`tournament/new/page.tsx:465`. All order it: **Add by GHIN # → add manually → Search
+GHIN by name**.
+**Reported:** Craig, 2026-09-14 (functionality walkthrough) — "the add player by ghin
+number is redundant if we also have the first name, last name basis. I feel the first
+name last name should be primary, and then maybe if they have some sort of csv or other
+file with ghin numbers, that is a fall back if bulk adding players. But otherwise, seems
+unnecessary. Also, the manually add portion should definitely show something along the
+lines of 'doesn't have official ghin number' or something along those lines."
+
+**Diagnosis (code inspection):** three findings inside the report.
+
+1. **Ordering.** "Add by GHIN #" is the FIRST and most prominent box, but knowing a
+   GHIN number cold is the rare case; knowing a name is universal. Name search arrives
+   LAST and in a separate card, below manual add. The order reflects the API's history
+   (GHIN-# lookup was built first) not the organizer's mental model. Name search is
+   also strictly more capable: its results carry the GHIN #, handicap, and gender in
+   one tap — everything the GHIN-# box returns.
+2. **Nothing distinguishes a manual player as GHIN-less.** `addManual`
+   (`pool/new/page.tsx:2058`) stores `ghinNumber: null` — the data knows — but the form
+   says only "Or add manually" with Name/HCP fields. Nothing tells the organizer this
+   creates a player OUTSIDE the handicap system: the typed HCP is static (never
+   refreshes from GHIN), and the round won't feed a revision. The organizer can't tell
+   "I added Dave manually" from "I added Dave's GHIN" later, either — saved-player rows
+   don't show a GHIN badge (needs a screenshot pass to confirm on every surface).
+3. **Bulk add doesn't exist** in any form (no CSV/paste-a-list path on any of the four
+   surfaces). Craig frames GHIN-# entry as acceptable only as a bulk fallback — one
+   number at a time serves neither the "I know one guy's number" case well nor the
+   "here's my league's 24 numbers" case at all.
+
+**Options**
+- **A. Reorder only:** name search first (one card: First / Last / ST), manual add
+  second with a "no GHIN — handicap won't update itself" note, GHIN-# entry folded
+  into a small "have a GHIN #?" disclosure under name search. No behavior change.
+- **B. A + a paste-a-list bulk path:** a textarea accepting GHIN numbers (comma/newline
+  separated — covers CSV by copy-paste without a file-upload UI), resolving each via
+  the existing `addByGhin` fetch, reporting per-number success/failure. The bulk case
+  is where GHIN-# entry genuinely earns its place.
+- **C. A + retire the GHIN-# box entirely** (name search covers the single-add case).
+  Cheapest surface, but loses the number path for identically-named golfers and for
+  the CSV-in-hand organizer Craig himself described.
+- **The GHIN-less note applies under every option** — it's §5.ac honesty about what a
+  manual player IS, not a preference.
+
+**Consideration against burying GHIN-#:** GHIN name search requires the ORGANIZER to be
+GHIN-logged-in AND requires last name + state; the GHIN-# box has the same login wall, so
+login isn't a differentiator. The real fallback when name search fails is manual add.
+
+**Note:** all four surfaces duplicate this stack by copy — whatever changes should land
+as one shared component, or at minimum the same change four times with an e2e on each
+(the audit's one-axis-drift lesson).
+
+**Status:** open — Craig's pick pending. Reorder (A) is safe and mechanical; B needs a
+small design pass on error reporting; the "no official GHIN" note ships with any of them.
+
+---
+
+### F-041 — "Stableford — 4 too many" at 8 players is FALSE as the golfer reads it: the pool plays Stableford fine  [P1] [start]
+
+**Where:** `stableford.ts:115` (`playersMax: 4`) + the F-020 fit badge; meanwhile the classic
+pool has a Strokes/Stableford toggle (`teamScoreBasis`, wizard line 1362) and every team format
+(best ball, two best, combined, scramble…) at ANY field size.
+**Reported:** Craig, 2026-09-14 — "Feels weird that it says we couldn't play stableford in this
+case, even with 8 players… The idea of a pool is really just a side, but with 4 teams per side
+[per team]… you could play best ball stableford, best 2 balls stableford, all 4 combined
+stableford, etc."
+
+**Diagnosis:** the registry's "Stableford" mode is the INDIVIDUAL single-group game (everyone
+for themselves, 2–4 players). The fit badge honestly reports that mode's cap — but the golfer
+reads the label as the SCORING SYSTEM, and the scoring system is available at 8 players in two
+other places (pool's Stableford toggle; Sides/Match `scoring: stableford`). Same failure class
+as F-037's naming half: the picker's vocabulary is mode-registry taxonomy, not golfer taxonomy.
+Golfers compose a game from THREE independent axes — (1) team structure (solo / pairs / foursomes
+/ N sides), (2) hole scoring (strokes / stableford / quota / match), (3) money (pot / per-leg /
+per-point / skins) — and the picker presents ~10 pre-composed bundles whose names collide with
+axis-2 words ("Stableford", "Skins") and axis-1 words ("Sides").
+
+**This is the approved Team Competition engine's problem statement** (§5g,
+`.claude/plans/tingly-petting-reddy.md`, memory `project_pool-team-competition-plan`: "N teams
+of size K, combined Stableford etc."), plus F-037's pairings axis. The wizard-level fix short of
+the engine: when a picked mode misfits, the F-020 alternative line should also say when the POOL
+or SIDES can play that scoring ("8 players can play Stableford as a pool — team toggle — or as
+sides"), and/or the badge should not read as refusing a scoring system the app offers.
+
+**Status:** open — the DISCUSSION Craig asked for; direction feeds the team-competition plan.
+
+---
+
+### F-042 — "Everyone buys in" vs "Two teams, head-to-head" answers a question the organizer hasn't been asked  [P2] [start]
+
+**Where:** wizard `pool/new/page.tsx:1204-1231` (classic pool only).
+**Reported:** Craig, 2026-09-14 — "what is the difference between two teams, head to head, and
+'everyone buys in'? I'm confused here."
+
+**Diagnosis:** `moneyMode: pot | match`. 'pot' = every player antes, pot split across
+front/back/overall/junk, paid by finishing place across N foursomes. 'match' = exactly TWO
+foursomes, no ante — the losing side pays fixed $ per leg + junk differential (§ memory
+`pool-money-modes-and-groups`). The helper text under the toggle does explain this, but the
+LABELS name payment mechanics while the real question is game structure ("is this a
+tournament-style pool or one team against another?"), asked before teams even exist. The toggle
+also silently changes the recommended allowance 85%↔90% (see F-043). Candidate framing: ask it
+as structure ("All foursomes compete" vs "Two teams against each other"), or move it after teams
+are built where "two teams" is concrete.
+
+**Status:** open — fold into the F-041 taxonomy discussion.
+
+---
+
+### F-043 — Handicap arithmetic is a black box: nowhere shows index → CH → allowance → strokes  [P2] [start]
+
+**Where:** teams step (`pool/new/page.tsx:3311` area) shows one rounded number per player; no
+surface shows the chain. Related: F-023's amber note is the ONLY place the basis is ever named.
+**Reported:** Craig, 2026-09-14 — "on the teams page… no way to track the progression of the
+handicaps, it never shows the raw decimal player index, course handicap, where the allowance is
+applied, etc."
+
+**Diagnosis:** the math is right and §5.bb-ordered (allowance on unrounded CH, round once), and
+it's exactly the kind of number a golfer wants to VERIFY (GHIN is the reference, §5.ba). Today
+verifying requires trusting the app. Fix shape: a tap/disclosure per player showing
+`12.4 index → 14.8 course (slope 131) → ×85% → 12.6 → plays off 13`. One shared component,
+usable on the teams step, sides step, and player-details sheet. Also the natural home for
+F-023's "this tee has no rating — using index" honesty. Display-only; no math changes.
+
+**Status:** open — shape agreed-ish, needs Craig's go (adjacent to handicap display conventions).
+
+---
+
+### F-044 — Pot-split defaults and the 85↔90 flip look arbitrary because their reasons are invisible  [P3] [start]
+
+**Reported:** Craig, 2026-09-14 — "the pot split seems weird. maybe that was hard coded, but
+this should be saved differently. Also, when I toggle everyone-buys-in vs head-to-head, the
+recommended value changes from 85% to 90%."
+
+**Diagnosis — both are deliberate, neither says so:**
+1. The pot split defaults come from `POOL_SPLIT_TABLE` (`pool-game.ts:295`) — CRAIG'S OWN
+   historical splits by team count (2 teams: 70/70/40/20 … extended +$25/leg beyond 5), recorded
+   as a decision. Editable per game. That he read his own table as "hard coded and weird" says
+   the SOURCE is invisible ("your usual split for 2 teams" would explain itself) — and/or the
+   numbers deserve a per-group saved default rather than a global table ("saved differently").
+2. 85→90 is USGA: four-ball STROKE play 85%, four-ball MATCH play 90% (`usgaRec`, wizard:1005).
+   The note names the format but the FLIP is unexplained at the moment it happens.
+
+**Status:** open — explanation-layer fixes; the "saved per group" idea feeds the format library.
+
+---
+
+### F-045 — Junk is on by default, and CTP shows up whether or not it's part of the game  [P2] [start]
+
+**Where:** `DEFAULT_JUNK_VALUES` (`pool-game.ts:268`) — birdie 1, eagle 2, albatross 3, groupHug
+1, ctp 1 — all nonzero from the first render of a classic pool; `JUNK_FIELDS` always lists CTP.
+**Reported:** Craig, 2026-09-14 — "closest to the pin should probably not show up if it's not
+being included in a bonus. And the junk bonuses should be an added bonus perhaps, not defaulted
+on unless it is a saved game that someone always uses."
+
+**Diagnosis:** the defaults encode Craig's OWN Friday game (junk built into the pot split's
+fourth leg), which is right for his saved format and wrong as the app-wide default. Note the
+registered modes already got this right — bonuses are OFF by default and pickable on the money
+step (e2e 'bonuses are off by default'); the CLASSIC pool predates that convention. Fix shape:
+classic pool defaults junk to zero/off with an "add bonuses" affordance; saved formats keep
+whatever they saved (his Friday format keeps junk on). MONEY-ADJACENT: changes what a fresh
+pool's pot pays — needs Craig's explicit go, plus care that the 4-way pot split (junk = a leg)
+degrades sensibly when junk is $0.
+**Downstream check when built:** scorecard CTP button + leaderboard junk column should follow
+the game's junk config, not assume it.
+
+**Status:** open — needs Craig's pick on the default + the no-junk pot-split shape.
+
+---
+
+### F-046 — A format saved to a group still had to be fetched "from library" when starting the group's game  [P2] [needs-repro]
+
+**Reported:** Craig, 2026-09-14 — "I saved this format, but still had to import from library.
+I saved it as friday game in the friday group."
+
+**What the code says should happen:** saved formats appear in the game picker's "Your saved
+games" optgroup (§5.av, wizard:1050); a group's ATTACHED formats (`defaults.formatIds`) surface
+on the group page's format picker and the §5.aw two-tap flow. Possible gaps between those and
+what Craig hit: (a) "Save format" saves to the LIBRARY but does NOT attach to the group he was
+thinking of — attachment is a separate step on /home/groups/[id]; (b) naming a format "Friday
+game" inside the Friday group's page may not round-trip to the wizard's optgroup if hydration
+raced; (c) he may have expected picking the GROUP on the field step to surface its formats right
+there, and it doesn't — group defaults apply silently but attached formats aren't offered as a
+choice at that moment.
+**(c) is the likely real finding:** the field step knows the group; the game step lists formats
+UNGROUPED by group. "Friday Group" chosen → "Friday game" should be the first thing the game
+step offers, labeled as the group's usual.
+
+**Status:** needs repro — walk: save format from a game → attach to group? → new game → pick
+Friday Group → what does the game step offer? Then fix the step that loses the thread.
+
+---
+
 ## Fixed & verified
 
 Findings confirmed fixed with an e2e assertion guarding them. (The 11 fixes from
