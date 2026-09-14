@@ -2939,8 +2939,15 @@ the miss end-to-end.
   games" optgroup — it receives no `sourceGroupId`, so the group chosen one step earlier
   can't surface its own formats first.
 
-**Status:** needs repro — walk: save format from a game → attach to group? → new game → pick
-Friday Group → what does the game step offer? Then fix the step that loses the thread.
+**Status:** FIXED 2026-09-14, both threads:
+- (a) `SaveFormatModal` on a game with a `sourceGroupId` now offers "Attach to {group}" —
+  default ON (that's what "I saved it in the friday group" means), untickable, only shown
+  when the game came from a group.
+- (c) the wizard game step receives `sourceGroupId` and leads the picker with the group's
+  attached formats under an optgroup named "{Group} plays"; the rest of the library follows
+  as "Other saved games" (deduped). No group chosen → the picker reads exactly as before.
+- e2e: two `F-046:` tests walk Craig's exact repro (save from the group's game → new game →
+  pick the group → its usual games lead, including the just-saved one) + screenshot.
 
 ---
 

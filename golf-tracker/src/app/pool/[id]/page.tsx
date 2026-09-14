@@ -64,7 +64,8 @@ import { getGameMode, GAME_MODES, buildGameModeContext, defaultSettings, setting
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { SideNames } from '@/components/side-names';
 import { FeedbackButton } from '@/components/feedback-box';
-import { saveFormat, formatFromGame } from '@/lib/pool-formats';
+import { saveFormat, formatFromGame, attachFormatToGroup } from '@/lib/pool-formats';
+import { type RosterGroup, hydrateGroups, getGroupById } from '@/lib/roster-groups';
 import { PairingLocks } from '@/components/pairing-locks';
 import { CaptainsPanel } from '@/components/captains-panel';
 import { TeeTimePicker } from '@/components/tee-time-picker';
@@ -637,10 +638,26 @@ function SaveFormatModal({ game, onClose }: { game: PoolGame; onClose: () => voi
   const modeName = getGameMode(game.gameMode)?.name
     ?? (game.moneyMode === 'match' ? 'Head-to-head match' : 'Pool (pot split)');
 
+  // F-046: a game that came FROM a group saves its format TO that group (opt-out). "Save
+  // format" used to write to the flat library only — Craig saved "friday game in the friday
+  // group" and the group never learned about it, so the next Friday round couldn't offer it.
+  const [sourceGroup, setSourceGroup] = useState<RosterGroup | null>(null);
+  const [attachToGroup, setAttachToGroup] = useState(true);
+  useEffect(() => {
+    if (!game.sourceGroupId) return;
+    hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' })
+      .then(() => {
+        const g = getGroupById(game.sourceGroupId!);
+        if (g && g.defaults?.kind !== 'format') setSourceGroup(g);
+      })
+      .catch(() => {});
+  }, [game.sourceGroupId]);
+
   async function doSave() {
     setSaving(true);
     try {
-      await saveFormat(name, formatFromGame(game), { shared });
+      const saved = await saveFormat(name, formatFromGame(game), { shared });
+      if (attachToGroup && sourceGroup) await attachFormatToGroup(sourceGroup, saved.id);
       setDone(true);
       setTimeout(onClose, 900);
     } finally {
@@ -665,6 +682,17 @@ function SaveFormatModal({ game, onClose }: { game: PoolGame; onClose: () => voi
           onChange={(e) => setName(e.target.value)}
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
         />
+        {/* F-046: offered only when the game came from a group. Default ON — "I saved it in
+            the friday group" is what saving from a group's game means to the organizer. */}
+        {sourceGroup && (
+          <label className="flex items-start gap-2 cursor-pointer mt-3">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500" checked={attachToGroup} onChange={(e) => setAttachToGroup(e.target.checked)} />
+            <span>
+              <span className="block text-sm font-medium text-gray-800">Attach to {sourceGroup.name}</span>
+              <span className="block text-xs text-gray-500">Listed as one of the group&apos;s usual games when you start its next round.</span>
+            </span>
+          </label>
+        )}
         <label className="flex items-start gap-2 cursor-pointer mt-3">
           <input type="checkbox" className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500" checked={shared} onChange={(e) => setShared(e.target.checked)} />
           <span>

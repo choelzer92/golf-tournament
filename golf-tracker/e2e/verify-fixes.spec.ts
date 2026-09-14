@@ -2920,3 +2920,77 @@ test.describe('F-043: the handicap chip shows its work', () => {
     await expect(page.getByText('Handicap index')).toHaveCount(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// F-046 — "I saved this format, but still had to import from library. I saved it
+// as friday game in the friday group." Two dropped threads, both covered here:
+// (a) "Save format" on a game that came FROM a group never attached the format
+//     to that group — attachment was a separate step on /home/groups/[id];
+// (b) the wizard's game step listed every saved format flat, so the group chosen
+//     one step earlier couldn't lead with its own usual games.
+// ---------------------------------------------------------------------------
+test.describe("F-046: a group's formats follow the group", () => {
+  async function seedGroups(page: import('@playwright/test').Page) {
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Groups — 61-member standing group' }).first();
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+  }
+
+  // Walk the field step with Weekend Warriors chosen, onto the game step.
+  async function groupToGameStep(page: import('@playwright/test').Page) {
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByText("Who's playing?")).toBeVisible();
+    await page.getByRole('button', { name: /Weekend Warriors/ }).first().click();
+    await expect(page.getByText(/Loaded “Weekend Warriors”/)).toBeVisible();
+    await page.getByRole('button', { name: /Craig Hoelzer/ }).click();
+    await page.getByRole('button', { name: /Jym Youngberg/ }).click();
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+    await expect(page.getByText('Which game are you playing?')).toBeVisible();
+  }
+
+  test("F-046: the game step leads with the chosen group's usual games, labeled as the group's", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedGroups(page);
+    await groupToGameStep(page);
+
+    const picker = page.locator('select').first();
+    // The group's three attached formats lead, under the group's own name…
+    await expect(picker.locator('optgroup[label="Weekend Warriors plays"] option')).toHaveCount(3);
+    await expect(picker.locator('optgroup[label="Weekend Warriors plays"] option', { hasText: 'Saturday Nassau' })).toHaveCount(1);
+    // …the rest of the library stays reachable, deduped, under its own heading…
+    await expect(picker.locator('optgroup[label="Other saved games"] option', { hasText: 'JY Classic Pool' })).toHaveCount(1);
+    await expect(picker.locator('optgroup[label="Other saved games"] option', { hasText: 'Saturday Nassau' })).toHaveCount(0);
+    // …and picking the group's usual applies it like any saved format (F-021 confirmation).
+    await picker.selectOption('format:f-saturday-nassau');
+    await expect(page.getByLabel('Game style name')).toHaveValue('Saturday Nassau');
+    await page.screenshot({ path: 'e2e/screenshots/f046-group-formats-lead.png', fullPage: true });
+  });
+
+  test('F-046: Save format on a group\'s game attaches to the group, and the next round offers it', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedGroups(page);
+
+    // lg-1 is a completed Weekend Warriors game (sourceGroupId: g-weekend-warriors).
+    await page.goto(`${BASE}/pool/lg-1`);
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Save format' }).click();
+
+    // The modal knows where the game came from, and the attach is on by default —
+    // "I saved it in the friday group" is what saving from a group's game means.
+    const modal = page.locator('div.fixed');
+    await expect(modal.getByText('Attach to Weekend Warriors')).toBeVisible();
+    await modal.locator('input:not([type="checkbox"])').fill('Friday game');
+    await modal.getByRole('button', { name: 'Save format' }).click();
+    await expect(modal.getByText('Saved ✓')).toBeVisible();
+
+    // The thread holds: start the group's next round, and the new format is one of
+    // the group's usual games at the moment of choosing.
+    await groupToGameStep(page);
+    const picker = page.locator('select').first();
+    await expect(picker.locator('optgroup[label="Weekend Warriors plays"] option', { hasText: 'Friday game' })).toHaveCount(1);
+  });
+});

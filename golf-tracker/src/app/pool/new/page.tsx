@@ -63,7 +63,7 @@ import {
   getGroupById,
   upsertGroup,
 } from '@/lib/roster-groups';
-import { getFormats, getPlayerGroups, saveFormat } from '@/lib/pool-formats';
+import { getFormats, getPlayerGroups, getGroupFormats, saveFormat } from '@/lib/pool-formats';
 import {
   formatOfGame,
   persistedTeamScoring,
@@ -554,6 +554,8 @@ export default function NewPoolGamePage() {
             // §5.au: the field is built FIRST, so the count is real by the time the picker
             // renders and every F-020 fit badge has something true to say.
             playerCount={players.length}
+            // F-046: the group chosen on the field step, so its usual games lead the picker.
+            sourceGroupId={sourceGroupId}
             // F-021: when a saved format was applied, step 1 confirms rather than re-asks.
             appliedFormat={appliedFormat}
             formatDirty={formatDirty}
@@ -874,7 +876,7 @@ function DetailsStep({
   junkValues, setJunkValues, teamFormat, setTeamFormat, teamScoreBasis, setTeamScoreBasis,
   moneyMode, setMoneyMode, matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
   onFormatChosen, onFormatCleared,
-  playerCount,
+  playerCount, sourceGroupId,
   appliedFormat, formatDirty, onFormatEdited,
   onNext, onBack,
 }: {
@@ -900,6 +902,10 @@ function DetailsStep({
   /** How many players are in the field. Real by the time this step renders (§5.au — the
       field comes first), so every F-020 fit annotation has something true to say. */
   playerCount: number;
+  /** F-046: the group chosen on the field step (game.sourceGroupId), or undefined. The group
+      knows its usual games (defaults.formatIds) — they must lead the picker HERE, at the
+      moment of choosing, not sit unlabeled in the flat library list. */
+  sourceGroupId: string | undefined;
   /** The saved format this game started from, or undefined when built from scratch. When set, this
       step shows a SUMMARY with per-section [Change] instead of ~15 fields (F-021, §5.ax). */
   appliedFormat: string | undefined;
@@ -923,13 +929,27 @@ function DetailsStep({
       .catch(() => {});
   }, []);
 
+  // F-046: the group chosen on the field step knows its usual games (defaults.formatIds) —
+  // they lead the picker HERE, labeled as the group's, instead of sitting unlabeled in the
+  // flat library list. Craig saved "Friday game" for the Friday group and still had to go
+  // hunting for it at the moment the group was already chosen. Resolved from the same
+  // hydrated cache as `formats` (the setFormats above re-renders once it lands); deduped out
+  // of the library list so nothing appears twice.
+  const sourceGroup = sourceGroupId ? getGroupById(sourceGroupId) : null;
+  const groupFormats = sourceGroup ? getGroupFormats(sourceGroup) : [];
+  const groupFormatIds = new Set(groupFormats.map((f) => f.id));
+  const libraryFormats = formats.filter((f) => !groupFormatIds.has(f.id));
+  // Everything pickable, group formats first. pickGame and the applied-format lookup search
+  // THIS list, so a group-attached format missing from the personal library still resolves.
+  const allPickerFormats = [...groupFormats, ...libraryFormats];
+
   // What the game <select> shows. An applied, un-forked format IS the answer to "which game
   // are you playing?" — so the select names it, whichever way it was applied (this picker or
   // a seed from the library/group page). Once renamed into a fork it's a new style, and the
   // select falls back to the underlying mode.
   const appliedFormatEntry =
     appliedFormat !== undefined && name.trim() === appliedFormat
-      ? formats.find((f) => f.name === appliedFormat)
+      ? allPickerFormats.find((f) => f.name === appliedFormat)
       : undefined;
   const gamePickerValue = appliedFormatEntry ? `format:${appliedFormatEntry.id}` : (gameMode ?? 'pool');
 
@@ -961,7 +981,7 @@ function DetailsStep({
   // defaults into modeSettings — and configures FRESH, dropping any applied format.
   function pickGame(value: string) {
     if (value.startsWith('format:')) {
-      const f = formats.find((x) => x.id === value.slice('format:'.length));
+      const f = allPickerFormats.find((x) => x.id === value.slice('format:'.length));
       if (f) onFormatChosen(f);
       return;
     }
@@ -1049,15 +1069,23 @@ function DetailsStep({
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
           >
             {/* §5.av: SAVED FORMATS FIRST — "the game style you chose is usable forever".
-                Picking one fills everything below; the raw modes stay for a new style. */}
-            {formats.length > 0 && (
-              <optgroup label="Your saved games">
-                {formats.map((f) => (
+                Picking one fills everything below; the raw modes stay for a new style.
+                F-046: the chosen group's usual games lead, labeled as the group's. */}
+            {sourceGroup && groupFormats.length > 0 && (
+              <optgroup label={`${sourceGroup.name} plays`}>
+                {groupFormats.map((f) => (
                   <option key={f.id} value={`format:${f.id}`}>{f.name}</option>
                 ))}
               </optgroup>
             )}
-            <optgroup label={formats.length > 0 ? 'Start a new style' : 'Game types'}>
+            {libraryFormats.length > 0 && (
+              <optgroup label={groupFormats.length > 0 ? 'Other saved games' : 'Your saved games'}>
+                {libraryFormats.map((f) => (
+                  <option key={f.id} value={`format:${f.id}`}>{f.name}</option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label={allPickerFormats.length > 0 ? 'Start a new style' : 'Game types'}>
             <option value="pool">Pool (foursomes vs foursomes)</option>
             {GAME_MODES.map((m) => {
               // F-020: annotate each game with how it fits the field you actually have. The badge
