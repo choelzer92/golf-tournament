@@ -2552,7 +2552,7 @@ fine, wrong only by comparison. Display-only — the math underneath is correct.
 **Fix shape (when asked):** `Math.round(hcapOf(...))` at line 2829, matching its three
 sibling steps; e2e-assert no `.` longer than 1 decimal on that screen.
 
-**Status:** open — trivial display fix awaiting go-ahead.
+**Status:** FIXED 2026-09-14 (5028c54) — `Math.round` at the render site, matching the sibling steps.
 
 ---
 
@@ -2588,7 +2588,9 @@ already minted (e.g. reduce, or `nextSideId` over the accumulated result); pin w
 unit test "2 sides + [2,2,2,2] shape → ids a,b,c,d" in sides/group-shapes tests, plus
 the zero-sum settlement assertion at 4 sides.
 
-**Status:** open — needs Craig's go (touches side identity, adjacent to money).
+**Status:** FIXED 2026-09-14 (5028c54, Craig's "fold in quick fixes" go-ahead) — `applySideShape`
+builds the list with a reduce so each new id is minted against the ids already built; e2e pins
+8 players → 2v2v2v2 → sides A,B,C,D distinct.
 
 ---
 
@@ -2654,6 +2656,12 @@ clear to me" — locating the mode didn't resolve the confusion. The problem isn
 the label; the flow from "Sides / Match" to an actual 2v2 doesn't announce itself
 either (the sides step arrives without saying "this is where your 2v2 happens").
 
+**Partial fix 2026-09-14 (5028c54):** the sides step now says what it makes — "This
+makes it a 2 v 2 match" (derived from the data, so any split describes itself).
+STILL OPEN: the picker label itself (option D: subtitle "Sides / Match" with "1v1,
+2v2, up to 4v4"), the ≥5-player fit hint (option A), and the pairings axis (option B,
+design work for the team-competition plan).
+
 ---
 
 ### F-038 — Tee lists render in GHIN's payload order, not by distance — The Meadows reads Gold, Green, Blue, White  [P2] [start]
@@ -2678,7 +2686,10 @@ first — at The Meadows, the tips.
 parse time (one line, same idiom as tee-pick.ts), or at render. Belongs to the F-023
 course-data audit: same lesson — payload shape/order is not uniform across courses.
 
-**Status:** open — display ordering; data confirmed correct.
+**Status:** FIXED 2026-09-14 (5028c54) — tees sort longest-first per gender at parse time, so the
+picker reads tips → forward and the `teeSets[0]` default is the longest men's tee, not payload
+luck. NOTE: the default-tee CHOICE (tips may not be the right default either) is a fair follow-up
+question for the course-data audit.
 
 ---
 
@@ -2693,10 +2704,9 @@ Morgan (a 2 v 3). Assignment WORKED; this is a display problem, not lost data.
 **Two symptoms, likely two causes:**
 1. **"Bill and Bill"** — CONFIRMED by code: `sideNameFrom` (team-game.ts:101) builds a
    side's auto-name from its first two members' FIRST names. Side A is literally
-   "Bill & Bill" — two Bills. Working as designed; the design assumes first names
-   distinguish people. Fix shape: when first names within a side (or across the board)
-   collide, fall back to `First L.` ("Bill M. & Bill G.") — same collision rule
-   scorecards use for duplicate first names elsewhere, if one exists; add one if not.
+   "Bill & Bill" — two Bills. FIXED 2026-09-14 (8ab44fd): a first name shared by anyone
+   in the game gains a last initial, game-wide ("Bill M. & Bill G."); unit-tested
+   including the different-sides and single-word-name cases.
 2. **"Everyone is the same color"** — NOT yet reproduced. The scorecard colors rows
    blue/red off `player.team` ('A'/'B'), tagged in `pool/[id]/page.tsx:229-234` when
    `sides.length <= 2`. This game IS two sides, so tags should apply. Suspects: the
@@ -2705,7 +2715,8 @@ Morgan (a 2 v 3). Assignment WORKED; this is a display problem, not lost data.
    screenshot repro in the sandbox: 5 players, 2 sides (2v3), open the scorecard —
    blocked tonight on port 3000/3200 being held by Craig's own dev server.
 
-**Status:** open — half confirmed (naming), half needs repro (color).
+**Status:** naming half FIXED 2026-09-14 (8ab44fd); color half still needs a sandbox repro
+(5 players, 2 sides 2v3, open the scorecard).
 
 ---
 
