@@ -113,8 +113,23 @@ export function sideNameFrom(
 ): string {
   const custom = (customName ?? '').trim();
   if (custom) return custom;
+  // F-039: two Bills in one game made side A read "Bill & Bill". A first name that ANYBODY
+  // else in the game shares gets a last initial — game-wide, not per-side, so "Bill M." on
+  // one row can't sit across from a bare "Bill" on another.
+  const firstOf = (full: string) => full.trim().split(/\s+/)[0];
+  const counts = new Map<string, number>();
+  for (const p of players) counts.set(firstOf(p.name), (counts.get(firstOf(p.name)) ?? 0) + 1);
+  const shortName = (full: string) => {
+    const parts = full.trim().split(/\s+/);
+    const first = parts[0];
+    if ((counts.get(first) ?? 0) < 2 || parts.length < 2) return first;
+    return `${first} ${parts[parts.length - 1][0]}.`;
+  };
   const names = ids
-    .map((id) => players.find((p) => p.id === id)?.name.split(' ')[0])
+    .map((id) => {
+      const p = players.find((x) => x.id === id);
+      return p ? shortName(p.name) : undefined;
+    })
     .filter(Boolean) as string[];
   if (names.length === 0) return defaultSideLabel(sideId);
   // "Craig & Jym" is right for a PAIR, which is what a side was when only 2v2 existed. At three
