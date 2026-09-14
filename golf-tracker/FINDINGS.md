@@ -2775,10 +2775,16 @@ login isn't a differentiator. The real fallback when name search fails is manual
 as one shared component, or at minimum the same change four times with an e2e on each
 (the audit's one-axis-drift lesson).
 
-**Status:** PICKED 2026-09-14 — Craig chose **B**: name search first, manual add second with
-the "no official GHIN" note, GHIN-# entry folded into a disclosure, plus a paste-a-list bulk
-box (comma/newline GHIN numbers via the existing `addByGhin` fetch, per-number
-success/failure reporting). All four surfaces change together or the stack gets extracted.
+**Status:** BUILT 2026-09-14 (commit a35f7f9), per Craig's pick **B**. The stack was
+EXTRACTED into one shared component — `src/components/add-player-panel.tsx` — used by all
+four surfaces, so the copies can't drift again: name search first (results add in one tap,
+grey out once added), manual add second with the "no official GHIN — the handicap won't
+update itself" note, GHIN numbers behind a "Have GHIN numbers?" disclosure whose textarea
+takes one number or a pasted comma/newline list with per-number added/not-found/already-added
+reporting (failures stay in the box for retry). game/new and tournament/new gained name
+search for the first time; game/new keeps its playersMax cap. e2e (`f040-add-player.spec.ts`)
+exercises the order contract, the note, bulk paste, and name search on ALL FOUR surfaces
+with the GHIN endpoints mocked via Playwright routes.
 
 ---
 
@@ -2908,12 +2914,17 @@ degrades sensibly when junk is $0.
 **Downstream check when built:** scorecard CTP button + leaderboard junk column should follow
 the game's junk config, not assume it.
 
-**Status:** PICKED 2026-09-14 (§5.bg), ready to build: junk $0/off on a fresh classic pool
-behind an "add bonuses" affordance; when junk is $0 its pot quarter folds into OVERALL
-(front/back keep their weights) — sanity-check a worked example; saved formats keep their
-junk (the Warriors format especially). Deeper direction recorded in §5.bg: the money step
-should read as per-player/per-leg dollars that visibly add up, splits editable by player
-count — the historical table lives on as the Warriors' saved format, not the baseline.
+**Status:** BUILT 2026-09-14 (commit e924dbe), per §5.bg. Junk starts $0/off on a fresh
+classic pool behind an "Add bonuses" affordance on the money step; with junk off its pot
+quarter folds into OVERALL at creation (`foldJunkIntoOverall`, front/back keep their table
+weights) — the fold is the money-math guard, not UI field-hiding. Every junk/CTP surface
+follows the game's config now: scorecard CTP button, pool-page CTP editor + Pot panel,
+leaderboard junk breakdown (per-column) + pots list, match board junk row. Saved formats
+keep their junk (JY Classic Pool restores with the grid open). Zero-sum unit tests pin the
+fold and were proven FAILABLE (§5.z). Worked example (2 teams, 8 × $25): 70/70/40/20 →
+70/70/60 — **shown to Craig for the conditional "if it makes sense" sign-off before merge.**
+Deeper §5.bg direction (money step as per-player/per-leg dollars that visibly add up,
+splits editable by player count) is NOT built — queued in BACKLOG as its own item.
 
 ---
 
