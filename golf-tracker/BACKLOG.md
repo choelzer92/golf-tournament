@@ -19,7 +19,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
-| **F-055 build (option A, DECIDED §5.bh) + sharing trio F-056/57/58** — Craig picked A and confirmed the sharing recommendations; sized to its own fresh session (Craig 2026-09-14). /home gains group create/rename/delete, /pool/roster demoted to saved players, links rewired; Share panel for everyone in the game, pool cookie back to 48h (full keeps 30d sliding), local QR. Promoted to NEXT_SESSION_PROMPT.md. | M | §5.bh |
+| **F-055 build (§5.bh) + sharing trio F-056/57/58 + F-059 ownership rekey (§5.bi)** — all decided, one fresh session, F-059 last (may spill). /home gains group create/rename/delete, /pool/roster demoted to saved players, links rewired; Share panel for everyone in the game, pool cookie back to 48h (full keeps 30d sliding), local QR; then `isAppOwner()` = full access + owner GHIN replaces the ~15 credential-keyed owner checks so the invite code means MEMBER. Promoted to NEXT_SESSION_PROMPT.md. | M–L | §5.bh + §5.bi |
 | **Game-structure simplification direction** (Craig 2026-09-14: "a pool is effectively just a 4v4 game… choose your groups, game style, players, how many teams, and go"). Agreed direction: structure-first wizard question, modes as shortcuts — the UI framing for the Team Competition engine (§5g). RECORD AS A DECISION when Craig confirms scope; near-term language slice already built (F-041/F-042). | L (design first) | F-041 + Craig 2026-09-14 |
 | **Course-data correctness audit** (Craig 2026-09-10, re-raised 2026-09-14: "we really need to investigate the situation with having improper slope/course ratings to a tee for different courses"). Extends F-023: (a) inventory live games' courses for missing/odd ratings via read-only queries; (b) harden the parse; (c) a diagnostic view that says WHAT the app extracted. Unblocker: `scripts/fetch-course-payload.mjs` (Craig runs with his GHIN creds, read-only). F-038 (tee order) fixed; the default-TEE question (tips as default?) belongs to this audit. | M | Craig 2026-09-10/14 + F-023 |
 | Merge-audit polish batch (all four S items below) — fallback while F-047…F-055 wait on Craig | S×4 | merge audit / §5.ak |
@@ -61,7 +61,6 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | §7 q4 | Confirm dark = live / light = setup is deliberate |
 | F-034 stale draft name | His pick among A/B/C in the finding |
 | **Review + merge `audit-sharing-login-2026-09-14`** | The audit + all eight fixes live there; nothing pushed. The F-051 cookie change means everyone's access quietly renews — worth a conscious OK (F-057 next session narrows it to full access only) |
-| **Access-policy OK** | Proposed rule (not yet decided): game link for players, invite code for trusted regulars, stop handing out the legacy organizer link. Say yes/adjust and it becomes a §5 decision + share-panel copy |
 
 ## Next few sessions (shaped, ready to build)
 
@@ -79,6 +78,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | Tell the friend (via Craig): men's/women's hole handicaps ARE factored (playerHoleStrokeIndex); 1v1 = Sides/Match; 3-player = Nines + skins/quota/Stableford/low-total; stats + GHIN export in Ideas; and the F-028…F-033 fixes land when the branch deploys | S | friend feedback 2026-09-10 |
 | Live scoring experience pass | M | §6 item 3 — Craig's named focus, never had its session |
 | Offline / PWA resilience (`sw.js` exists, caches nothing — cart-path wifi) | M | §6 item 4; core to "continuing" |
+| **Backups / JSON export** — the OTHER §5c item Craig kept in scope (per-game tokens, the first, are done); still not built. One "download everything as JSON" per table is the floor; matters more as friends' real money history accumulates | S–M | DECISIONS §3 / §5c |
 
 ## Bigger arcs (approved plans, each wants its own fresh session)
 

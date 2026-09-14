@@ -1168,6 +1168,36 @@ case shows a broken image where the QR should be.
 
 ---
 
+### F-059 — "Sees everything" is keyed to the invite code, not to Craig — any code-holder is indistinguishable from the owner  [P1] [continue]
+
+**Screen:** every listing surface (`/pool`, `/home`, stats, groups, roster) — verified probe, ~15 call sites
+**Violates:** Craig's stated model ("users see the games made by themselves, and I see everyone's"); §5h (money visibility is scoped)
+
+**Observed:** every owner check is `isOwner = getAccessLevel() === 'full'`. The scoped
+path (games/groups filtered to the viewer's GHIN) exists and works — but it only applies
+to share-link visitors. Friends who enter the invite code get the OWNER view: all games,
+all groups, the full money ledger, and mutating controls on every game. Craig believed
+identity did the scoping; it's the credential.
+
+**Options**
+- **A. Key ownership to identity (CHOSEN):** one shared helper — `isAppOwner()` = full
+  access AND `getCreatorGhin()` matches the configured owner GHIN — replacing the ~15
+  `getAccessLevel() === 'full'` owner checks. The invite code comes to mean MEMBER
+  (keeps /home, stats, groups — scoped to their own GHIN, paths already built); Craig's
+  identity is what unlocks everything. Design care: a code-holder who hasn't GHIN-logged-in
+  resolves no identity — reuse /pool's "log in to see your games" prompt pattern, don't
+  show a false-empty or everyone's data.
+- **B. Behavioral only:** code stays Craig-only, friends use links. Zero code, but
+  link-scoped friends have no /home (no season ledger) — hurts "continuing".
+- **C. Wait for §5c accounts.**
+
+**Recommendation:** A — it makes Craig's mental model true from parts that already exist.
+
+**Status:** chosen A (Craig 2026-09-14, "lets go ahead with option 1 if it makes sense") —
+build next session AFTER F-055 (same isOwner seams; consolidate first, then rekey).
+
+---
+
 ## Settled — full text in FINDINGS_ARCHIVE.md
 
 One line per archived finding; the full entry (observation, options, status, and

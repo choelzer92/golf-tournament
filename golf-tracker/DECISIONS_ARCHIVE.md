@@ -1541,6 +1541,38 @@ except that group setup lives on the Home screen.
 
 ---
 
+## 5.bi Ownership is IDENTITY, not the invite code (2026-09-14)
+
+Craig, on being shown that every owner check is `getAccessLevel() === 'full'` (so any
+friend who typed `birdie2026` sees ALL games, groups, and the full ledger, with mutating
+controls): *"i thought users could just see the games made by themselves, and I could see
+everyones games?"* — his mental model was the design intent, but the credential, not the
+identity, was doing the discriminating. Pick: *"ok, lets go ahead with option 1 if it
+makes sense."* (F-059 option A. It does make sense: the scoped code paths already exist
+for share-link visitors; this points the full-access surfaces at them too.)
+
+**What this settles.**
+
+1. **`isAppOwner()` replaces the ~15 `getAccessLevel() === 'full'` owner checks** — full
+   access AND the configured owner GHIN (Craig's). Only that combination sees everything.
+2. **The invite code comes to mean MEMBER:** a code-holding friend keeps the full app
+   surface (/home, stats, groups, wizard) but scoped to games/groups under their own
+   GHIN — the model Craig believed was already true.
+3. **A code-holder with no resolved GHIN identity** gets the /pool "log in to see your
+   games" prompt pattern — never a false-empty list, never everyone's data.
+4. **The access policy Craig can say out loud:** players get the game link; trusted
+   regulars get the invite code; the legacy organizer constant is retired from
+   circulation (kept valid only for links already in old group chats).
+
+**How to apply.** Build in the same fresh session as F-055, AFTER it (same isOwner seams —
+consolidate the group UI first, then rekey ownership once). The owner GHIN is config, not
+a scatter of literals. Watch the seams: roster/group hydration (`viewerGhin`/`isOwner`
+args), stats rollups, solo rounds, and the wizard's roster steps all take the same flag.
+Craig's caveat "if it makes sense" = sanity-check on screen as each surface flips: Craig
+still sees all; a member sees exactly their own.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

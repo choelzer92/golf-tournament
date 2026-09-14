@@ -1,4 +1,4 @@
-# Next session: BUILD F-055 (option A) + the sharing trio F-056/F-057/F-058
+# Next session: BUILD F-055 + sharing trio F-056/57/58 + F-059 ownership rekey
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
@@ -9,10 +9,11 @@ by § and FINDINGS_ARCHIVE.md by F-0NN — don't read either whole.
 
 **State (2026-09-14):** branch `audit-sharing-login-2026-09-14` holds the sharing/login
 audit (F-047…F-055) AND the built fixes F-047…F-054 (verify green, 168 e2e). Nothing
-merged or pushed. Craig then DECIDED the rest — **§5.bh** (read it in the archive): F-055
-option A, the sharing scaling principles ("one link kind per job, token on the game row —
-never add link kinds"), and the recommended options for F-056/57/58. All four are
-**decided, ready to build, no re-asking**. Continue on the same branch.
+merged or pushed. Craig then DECIDED the rest — **§5.bh and §5.bi** (read both in the
+archive): F-055 option A, the sharing scaling principles ("one link kind per job, token
+on the game row — never add link kinds"), the recommended options for F-056/57/58, and
+F-059 option A (ownership = identity, not the invite code). All five are **decided,
+ready to build, no re-asking**. Continue on the same branch.
 
 ## The work (one commit + tagged e2e per finding; `npm run verify` exit 0 each slice)
 
@@ -40,14 +41,23 @@ never add link kinds"), and the recommended options for F-056/57/58. All four ar
      (grep "Select a group" in e2e/ — critique/user-walk may walk it) and update.
    - Data: NOTHING migrates — roster_groups rows, games, links untouched.
 
+5. **F-059 option A (§5.bi) — LAST, after F-055 settles the seams:** a shared
+   `isAppOwner()` (full access AND the configured owner GHIN) replaces the ~15
+   `getAccessLevel() === 'full'` owner checks (grep `isOwner` in src/app — /pool, /home,
+   stats, groups pages, roster, solo, wizard steps, tournament/new). Owner GHIN is
+   config, not scattered literals. A code-holder with no GHIN identity gets /pool's
+   "log in to see your games" prompt pattern — never false-empty, never everyone's data.
+   Sanity-check each surface on screen as it flips (Craig's "if it makes sense"): Craig
+   sees all; a member sees exactly their own. e2e `F-059` both ways. **If the session
+   runs long, F-059 may spill to its own follow-up — it's last on purpose.**
+
 **Do NOT build:** F-055 option B (share-link visitors on /home) — that's the §5c
 accounts conversation. F-049's tappable identity chip only if trivially composable.
 
 ## Waiting on Craig (full table in BACKLOG.md)
 
-Review/merge the audit branch · the access-policy OK (game link for players, invite code
-for regulars, retire the legacy organizer link from circulation — proposed, not decided) ·
-Meadows payload (F-023B) · F-034 A/B/C · F-022 on-course spot-check · §7 q4.
+Review/merge the audit branch · Meadows payload (F-023B) · F-034 A/B/C · F-022 on-course
+spot-check · §7 q4. (Access policy is DECIDED — §5.bi — don't re-ask.)
 
 ## Traps that keep biting
 
