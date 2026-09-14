@@ -178,33 +178,41 @@ export default function RosterPage() {
           ) : (
             <ul className="mt-2 max-h-96 overflow-y-auto divide-y divide-gray-100 rounded-md border border-gray-100">
               {players.map((rp) => (
-                <li key={rp.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-                  <span className="flex-1 font-medium text-gray-900 truncate">
-                    {rp.name}
-                    <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${rp.gender === 'F' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'}`}>
-                      {rp.gender || 'M'}
+                // F-054: two lines, not one. A single flex row overflowed at phone
+                // width — the fixed-width index/GHIN + tee select + Remove pushed
+                // the NAME (the row's whole identity) out of view. Name + Remove
+                // on top; the details underneath.
+                <li key={rp.id} className="px-3 py-2 text-sm">
+                  <div className="flex items-center gap-3">
+                    <span className="flex-1 font-medium text-gray-900 truncate">
+                      {rp.name}
+                      <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${rp.gender === 'F' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {rp.gender || 'M'}
+                      </span>
                     </span>
-                  </span>
-                  <span className="text-xs text-gray-500 flex-shrink-0">
-                    Index {rp.handicapIndex ?? '—'}
-                    {rp.ghinNumber ? ` · GHIN ${rp.ghinNumber}` : ' · manual'}
-                  </span>
-                  <select
-                    value={rp.defaultTeeRank ?? ''}
-                    onChange={(e) => setUsualTee(rp, e.target.value)}
-                    title="Usual tee — the tee this player normally plays, applied as their default in new games (overridable per game)."
-                    className="text-xs border border-gray-200 rounded px-1 py-0.5 text-gray-600 flex-shrink-0 max-w-[7.5rem]"
-                  >
-                    {USUAL_TEE_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => removePlayer(rp)}
-                    className="text-red-500 hover:text-red-700 text-xs font-medium flex-shrink-0"
-                  >
-                    Remove
-                  </button>
+                    <button
+                      onClick={() => removePlayer(rp)}
+                      className="text-red-500 hover:text-red-700 text-xs font-medium flex-shrink-0"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-3">
+                    <span className="text-xs text-gray-500">
+                      Index {rp.handicapIndex ?? '—'}
+                      {rp.ghinNumber ? ` · GHIN ${rp.ghinNumber}` : ' · manual'}
+                    </span>
+                    <select
+                      value={rp.defaultTeeRank ?? ''}
+                      onChange={(e) => setUsualTee(rp, e.target.value)}
+                      title="Usual tee — the tee this player normally plays, applied as their default in new games (overridable per game)."
+                      className="text-xs border border-gray-200 rounded px-1 py-0.5 text-gray-600 flex-shrink-0 max-w-[7.5rem]"
+                    >
+                      {USUAL_TEE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 </li>
               ))}
             </ul>
