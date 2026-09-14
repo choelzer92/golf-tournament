@@ -783,6 +783,12 @@ export default function SandboxPage() {
 
   function seed(s: Scenario) {
     setAccessCookie('full');            // skip the invite gate
+    // Seeding means "you are Craig". With F-059 (ownership = identity, not the
+    // cookie) a full cookie ALONE is a code-holder with no identity — who now
+    // correctly gets /pool's login prompt instead of everyone's games. The
+    // sandbox owner needs the matching GHIN identity, not just the cookie.
+    // Tests that exercise other personas overwrite or clear this themselves.
+    signInAsOrganizer();
     if (s.buildDomain) {
       const { goTo } = s.buildDomain();
       setSeeded({ key: s.key, id: '', goTo });

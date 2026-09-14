@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getAccessLevel } from '@/lib/invite-gate';
+import { isAppOwner } from '@/lib/invite-gate';
 import { getCreatorGhin, saveGhinIdentity } from '@/lib/pool-identity';
 import { hydrateGroups } from '@/lib/roster-groups';
 import type { RosterGroup, GroupDefaults } from '@/lib/roster-groups';
@@ -26,14 +26,14 @@ export default function FormatLibraryPage() {
 
   function refresh() {
     const ghin = getCreatorGhin();
-    const isOwner = getAccessLevel() === 'full';
+    const isOwner = isAppOwner();
     if (!isOwner && ghin === null) { setNeedsLogin(true); setFormats([]); return; }
     setNeedsLogin(false);
     setFormats(getFormats());
   }
 
   useEffect(() => {
-    hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' })
+    hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: isAppOwner() })
       .then(() => { refresh(); setLoading(false); })
       .catch(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps

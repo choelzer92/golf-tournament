@@ -11,7 +11,7 @@ import {
   buildGameLedgers, ledgersForGroup, rollupByPlayer,
   type GameLedger, type PlayerRollup,
 } from '@/lib/stats-ledger';
-import { getAccessLevel } from '@/lib/invite-gate';
+import { isAppOwner } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import { POOL_GROUP_SEED_KEY, TOURNAMENT_GROUP_SEED_KEY, FORMAT_SEED_KEY } from '@/lib/group-seed';
 
@@ -106,7 +106,7 @@ export default function GroupDetailPage() {
   useEffect(() => {
     const token = sessionStorage.getItem('ghin_token');
     if (!token) { router.push('/'); return; }
-    const isOwner = getAccessLevel() === 'full';
+    const isOwner = isAppOwner();
     const ghin = getCreatorGhin();
     // Roster then groups (both viewer-scoped, matching the pool pages). Members
     // are resolved against the roster, so it must load first.

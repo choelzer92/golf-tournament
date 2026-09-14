@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { AddPlayerPanel } from '@/components/add-player-panel';
-import { getAccessLevel } from '@/lib/invite-gate';
+import { isAppOwner } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
 import {
@@ -55,7 +55,7 @@ export default function RosterPage() {
   const retryRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    hydrateRoster({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' }).then(() => {
+    hydrateRoster({ viewerGhin: getCreatorGhin(), isOwner: isAppOwner() }).then(() => {
       setPlayers(searchRoster(''));
       setLoading(false);
     });

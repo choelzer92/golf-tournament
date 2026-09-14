@@ -60,7 +60,7 @@ import {
 } from '@/lib/pool-game';
 import type { GameScore } from '@/lib/game-state';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
-import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
+import { ORGANIZER_TOKEN, getAccessLevel, isAppOwner } from '@/lib/invite-gate';
 import { getCreatorGhin, getCreatorName } from '@/lib/pool-identity';
 import { getGameMode, GAME_MODES, buildGameModeContext, defaultSettings, settingValue, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
@@ -688,7 +688,7 @@ function SaveFormatModal({ game, onClose }: { game: PoolGame; onClose: () => voi
   const [attachToGroup, setAttachToGroup] = useState(true);
   useEffect(() => {
     if (!game.sourceGroupId) return;
-    hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' })
+    hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: isAppOwner() })
       .then(() => {
         const g = getGroupById(game.sourceGroupId!);
         if (g && g.defaults?.kind !== 'format') setSourceGroup(g);
@@ -2352,7 +2352,7 @@ function AddPlayerPanel({
   useEffect(() => {
     // Scope the roster to this organizer (owner sees all; others see the shared
     // base roster plus their own saved players).
-    hydrateRoster({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' }).then(() => setRosterResults(searchRoster('')));
+    hydrateRoster({ viewerGhin: getCreatorGhin(), isOwner: isAppOwner() }).then(() => setRosterResults(searchRoster('')));
   }, []);
 
   // Keep the target team valid if teams change under us.

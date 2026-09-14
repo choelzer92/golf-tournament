@@ -7,7 +7,7 @@ import { AddPlayerPanel, type AddedPlayer } from '@/components/add-player-panel'
 import { GhinLoginModal } from '@/components/ghin-login-modal';
 import { HandicapChip } from '@/components/handicap-chain';
 import { getCreatorGhin } from '@/lib/pool-identity';
-import { getAccessLevel } from '@/lib/invite-gate';
+import { isAppOwner } from '@/lib/invite-gate';
 import { getPoolPlayingHandicap, teeHasRating, teeOptionsForPlayer } from '@/lib/pool-game';
 import {
   type RosterPlayer,
@@ -71,10 +71,10 @@ export function FieldStep({
   useEffect(() => {
     // Scope the roster to this organizer (owner sees all; others see the shared
     // base roster plus their own saved players).
-    hydrateRoster({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' }).then(async () => {
+    hydrateRoster({ viewerGhin: getCreatorGhin(), isOwner: isAppOwner() }).then(async () => {
       setRosterResults(searchRoster(''));
       // Groups share the same viewer scope. Best-effort — fails soft to empty.
-      hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' })
+      hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: isAppOwner() })
         .then(() => {
           setGroups(getGroups());
           // A group seed from /home/groups/[id] "Start casual round": load that

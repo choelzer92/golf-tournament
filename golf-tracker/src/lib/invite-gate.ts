@@ -1,3 +1,5 @@
+import { getCreatorGhin } from './pool-identity';
+
 const COOKIE_NAME = 'golf_access';
 const VALID_CODES = ['birdie2026'];
 // FULL access: 30 days, SLIDING — the gate re-sets the cookie on every
@@ -65,6 +67,35 @@ export function getAccessLevel(): AccessLevel | null {
 
 export function hasAccessCookie(): boolean {
   return getAccessLevel() !== null;
+}
+
+// The app owner's GHIN number — CONFIG, not a scattered literal (§5.bi). Set
+// NEXT_PUBLIC_OWNER_GHIN in .env.local / the deploy environment. The sandbox
+// defaults to its fake organizer (Craig = 1234567 in fixtures-domain.ts) so
+// e2e can exercise both the owner and member views.
+export function getOwnerGhin(): number | null {
+  const raw = process.env.NEXT_PUBLIC_OWNER_GHIN
+    ?? (process.env.NEXT_PUBLIC_SANDBOX === '1' ? '1234567' : undefined);
+  const n = Number(raw);
+  return raw != null && Number.isFinite(n) && n > 0 ? n : null;
+}
+
+// Ownership is IDENTITY, not the invite code (§5.bi, F-059). Every owner check
+// used to be `getAccessLevel() === 'full'`, so any friend who typed the invite
+// code saw ALL games, groups, and the full ledger. Now only full access AND the
+// configured owner GHIN sees everything; a code-holding member keeps the full
+// app surface scoped to their own GHIN (the paths already built for share-link
+// organizers). A code-holder with no resolved identity must get a "log in to
+// see your games" prompt, never a false-empty list and never everyone's data.
+//
+// ROLLOUT SAFETY: until NEXT_PUBLIC_OWNER_GHIN is configured this falls back to
+// the legacy rule (full access = owner), so deploying without the env var
+// changes nothing. Set the var to activate identity-scoped members.
+export function isAppOwner(): boolean {
+  if (getAccessLevel() !== 'full') return false;
+  const owner = getOwnerGhin();
+  if (owner === null) return true; // unconfigured — legacy behavior
+  return getCreatorGhin() === owner;
 }
 
 // If the URL carries the organizer token (?key=...), grant 'pool' access and

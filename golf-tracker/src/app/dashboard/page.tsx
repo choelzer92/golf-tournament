@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation';
 import { getTournamentList, importTournament, hydrateTournaments, type TournamentListItem } from '@/lib/tournament-state';
 import { parseGhinIndex } from '@/lib/game-state';
 import { PoolShareButton } from '@/components/pool-share';
-import { getPoolGameList, hydratePoolGames, type PoolGameListItem } from '@/lib/pool-game';
+import { getPoolGameList, getPoolGameListForGhin, hydratePoolGames, type PoolGameListItem } from '@/lib/pool-game';
 import { SOLO_ROUNDS } from '@/lib/flags';
-import { clearAccessCookie } from '@/lib/invite-gate';
-import { clearGhinIdentity } from '@/lib/pool-identity';
+import { clearAccessCookie, isAppOwner } from '@/lib/invite-gate';
+import { clearGhinIdentity, getCreatorGhin } from '@/lib/pool-identity';
 
 interface TeeRating {
   RatingType: 'Front' | 'Back' | 'Total';
@@ -89,7 +89,12 @@ export default function DashboardPage() {
       setTournaments(getTournamentList());
     });
     hydratePoolGames().then(() => {
-      setPoolGames(getPoolGameList());
+      // F-059 (§5.bi): the classic dashboard had NO owner check at all, so it
+      // listed every pool game to anyone with the invite code. Scope it like
+      // /pool: the app owner sees all, everyone else their own GHIN's games.
+      // (The page is behind the login redirect above, so a GHIN identity exists.)
+      const ghin = getCreatorGhin();
+      setPoolGames(isAppOwner() ? getPoolGameList() : ghin !== null ? getPoolGameListForGhin(ghin) : []);
     });
   }, [router]);
 

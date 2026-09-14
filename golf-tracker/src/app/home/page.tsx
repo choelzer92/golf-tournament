@@ -12,7 +12,7 @@ import {
 import { gameListSubtitle } from '@/lib/game-modes/result';
 import { hydrateGroups, upsertGroup, type RosterGroup } from '@/lib/roster-groups';
 import { getPlayerGroups } from '@/lib/pool-formats';
-import { clearAccessCookie, getAccessLevel } from '@/lib/invite-gate';
+import { clearAccessCookie, isAppOwner } from '@/lib/invite-gate';
 import { clearGhinIdentity, getCreatorGhin, getCreatorName } from '@/lib/pool-identity';
 import { SOLO_ROUNDS } from '@/lib/flags';
 import { FeedbackButton } from '@/components/feedback-box';
@@ -93,6 +93,8 @@ export default function HomePage() {
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [savingGroup, setSavingGroup] = useState(false);
+  // F-059: owner-only affordances (feedback read-back) hide for members.
+  const [ownerView, setOwnerView] = useState(false);
 
   useEffect(() => {
     // A logged-in convenience: mirror the dashboard's gate — no GHIN token means
@@ -103,7 +105,8 @@ export default function HomePage() {
       return;
     }
 
-    const isOwner = getAccessLevel() === 'full';
+    const isOwner = isAppOwner();
+    setOwnerView(isOwner);
     const ghin = getCreatorGhin();
     setName(getCreatorName());
 
@@ -336,15 +339,18 @@ export default function HomePage() {
               Who owes whom across your games — overall, by group, by game, or by player.
             </p>
           </button>
-          {/* Owner-only in effect: /home is already gated to full access, and the
-              read-back page re-checks. A quiet link, not a card — reading feedback
-              is an occasional owner chore, not a daily surface. */}
-          <button
-            onClick={() => router.push('/home/feedback')}
-            className="mt-2 text-sm text-green-700 hover:text-green-900 font-medium"
-          >
-            Read feedback notes →
-          </button>
+          {/* App-owner only (F-059): the read-back shows EVERYONE's notes, so the
+              link hides for members and the page itself re-checks isAppOwner().
+              A quiet link, not a card — reading feedback is an occasional owner
+              chore, not a daily surface. */}
+          {ownerView && (
+            <button
+              onClick={() => router.push('/home/feedback')}
+              className="mt-2 text-sm text-green-700 hover:text-green-900 font-medium"
+            >
+              Read feedback notes →
+            </button>
+          )}
         </section>
       </main>
     </div>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { hydratePoolGames, getPoolGameList, getPoolGameListForGhin, type PoolGameListItem } from '@/lib/pool-game';
 import { gameListSubtitle } from '@/lib/game-modes/result';
-import { getAccessLevel } from '@/lib/invite-gate';
+import { isAppOwner } from '@/lib/invite-gate';
 import { saveGhinIdentity, getCreatorGhin, getCreatorName } from '@/lib/pool-identity';
 import { PoolShareButton } from '@/components/pool-share';
 
@@ -25,7 +25,7 @@ export default function PoolGamesListPage() {
   // Resolve identity (session or durable local) and filter the cached games.
   // Called on mount and again after an inline login.
   function refreshList() {
-    const owner = getAccessLevel() === 'full';
+    const owner = isAppOwner();
     setIsOwner(owner);
     // Owner (full access) sees all pool games. A share-link organizer sees ONLY
     // games created under their GHIN — and if we can't resolve their identity

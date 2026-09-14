@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { listFeedback, type FeedbackNote } from '@/lib/feedback';
-import { getAccessLevel } from '@/lib/invite-gate';
+import { isAppOwner } from '@/lib/invite-gate';
 
 // Read-back for the in-app feedback box: every note, newest first, with who,
 // when, and a link to the game it came from. Owner-gated the same way the rest
@@ -17,7 +17,9 @@ export default function FeedbackPage() {
 
   useEffect(() => {
     const token = sessionStorage.getItem('ghin_token');
-    if (!token || getAccessLevel() !== 'full') {
+    // F-059 (§5.bi): everyone's feedback notes are an app-owner chore, not a
+    // member surface — ownership is identity, not the invite code.
+    if (!token || !isAppOwner()) {
       router.push('/');
       return;
     }
