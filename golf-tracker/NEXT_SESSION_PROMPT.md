@@ -1,54 +1,55 @@
-# Next session: context-economy work (split pool/new + archive findings)
+# Next session: sharing/login/identity AUDIT (document-first, no code changes)
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 ---
 
-Read `AGENTS.md` first. **Context economy** (Craig, 2026-09-14): read DECISIONS.md whole
-(short); grep DECISIONS_ARCHIVE.md by § only when touched; delegate broad searches to
-subagents; read `pool/new/page.tsx` in targeted slices only — which is exactly what this
-session fixes.
+Read `AGENTS.md` first. Context economy is now structural: `pool/new/page.tsx` is a
+777-line orchestrator (steps live in `src/app/pool/new/steps/`), FINDINGS.md keeps only
+the open working set (settled entries: grep `FINDINGS_ARCHIVE.md` by F-0NN). Still:
+delegate broad searches to subagents; grep DECISIONS_ARCHIVE.md by §.
 
-**State (2026-09-14):** `live-feedback-2026-09-10` is MERGED to `main` and pushed
-(4c33964) — the feedback box, F-027…F-046 fixes, F-045 junk defaults (§5.bg signed off
-via worked example), and F-040's shared `AddPlayerPanel` are all live. Verify was green
-at merge: 1520 unit / typecheck / build / 149 e2e.
+**State (2026-09-14):** everything through the F-045/F-040 batch is MERGED to `main`
+(4c33964, Craig-confirmed) and live — the 💬 feedback box included, so **check
+`/home/feedback` for notes**. Branch `context-economy-2026-09-14` (pushed) holds the
+wizard split + FINDINGS archive: pure refactor + docs, verify green (149 e2e), waiting
+on Craig's review/merge — ask, don't merge.
 
-## The work (both in BACKLOG's Now row; NEW branch off main, never main directly)
+## The work: sharing/login/identity audit (BACKLOG "Now"; Craig: "I want to get this polished")
 
-1. **Split `pool/new/page.tsx` (~4,100 lines) into per-step component files.** Every step
-   (FieldStep, DetailsStep, CourseStep, TeesStep, GroupsStep, SubTeamsStep, TeamsStep, the
-   money/review step) is already a self-contained component in that one file — move each to
-   `src/app/pool/new/steps/` (or a sibling dir), keep `page.tsx` as the orchestrator with
-   the wizard state. Mechanical, NO behavior change; module-level helpers (`JUNK_FIELDS`,
-   `PotDollars` helpers, `getToken`) go wherever their users go. e2e unchanged is the proof.
-2. **Archive fixed findings out of FINDINGS.md** (same pattern as DECISIONS_ARCHIVE):
-   move BUILT/FIXED entries to `FINDINGS_ARCHIVE.md`, keep a one-line index. FINDINGS.md
-   is ~3,000 lines and mostly settled history.
+Document-first (§2) — this session LOOKS and RECORDS, it does not fix. Follow
+`UI_CRITIQUE_PROCESS.md`. Walk every entry path as each persona, screenshot each, log
+findings with options in FINDINGS.md:
 
-Then groom BACKLOG and promote next — the sharing/login audit is unblocked; the
-course-data audit still waits on Craig's Meadows payload.
+- owner via invite code · organizer via legacy `?key=` link · player via per-game token
+  (`/pool/{id}?key=TOKEN`) · returning visitor with an expired 48h cookie or expired
+  12h GHIN token
+- Known rough edges to check: invite-code screen wording; the 48h cookie expiring
+  mid-week (friends re-enter the code); GHIN re-login prompts; share panel copy/QR;
+  "who am I" clarity for share-link players; sign-out scattering.
+- Fold in the group-management consolidation look (same surfaces): `/pool/roster`'s
+  GroupsManager vs `/home/groups/[id]` — Craig wants the new pages to be the standard.
+- If the shape turns into real accounts/auth, that's the §5c/F-002 trigger — STOP and
+  ask Craig there.
 
 ## Waiting on Craig (full table in BACKLOG.md)
 
-Meadows payload (F-023B) · F-034 A/B/C · F-022 on-course spot-check · §7 q4 · telling the
-friend the queued answers ("Tell the friend" row — the fixes are deployed now). The BIG
-structure discussion (§5g framing) stays alive — do NOT build.
+`context-economy-2026-09-14` merge call · Meadows payload (F-023B) · F-034 A/B/C ·
+F-022 on-course spot-check · §7 q4 · telling the friend the queued answers (fixes are
+deployed now). The BIG structure discussion (§5g framing) stays alive — do NOT build.
 
 ## Traps that keep biting
 
 - **Do NOT edit app code while `npm run verify` runs** — the e2e dev server hot-reloads
-  edits and fails tests that were fine.
+  edits and fails tests that were fine. (Markdown edits are safe.)
 - Killing a dev server can corrupt `.next` (routes.d.ts parse error) → `rm -rf .next`.
 - Stale `next dev` on 3200 → e2e times out; kill by PID, confirm port free. 3000 = Craig's.
 - Check `npm run verify`'s own exit code, not a tail of its log.
 - Game-mode ids ≠ display names (`stableford-ind`, not `stableford`) — select by VALUE.
-- Playwright `waitForURL` can hang on client-side navigations waiting for `load` — assert
-  with `expect(page).toHaveURL(...)` instead.
-- An unscored pool leaderboard renders only "No scores yet." — seed scores (sandbox card
-  `Classic pool — NO bonuses (junk off)` exists) before asserting sections.
-- The wizard's `setPlayers`/`setTeamAssignments` props are now `React.Dispatch` — the
-  shared AddPlayerPanel relies on functional updates for bulk adds; don't narrow them back.
+- Playwright `waitForURL` can hang on client-side navigations waiting for `load` —
+  assert with `expect(page).toHaveURL(...)` instead.
+- The wizard's `setPlayers`/`setTeamAssignments` props are `React.Dispatch` — the shared
+  AddPlayerPanel relies on functional updates for bulk adds; don't narrow them back.
 
 ## End the session by grooming BACKLOG.md
 
