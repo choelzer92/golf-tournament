@@ -1,6 +1,10 @@
 const COOKIE_NAME = 'golf_access';
 const VALID_CODES = ['birdie2026'];
-const EXPIRY_SECONDS = 60 * 60 * 48; // 48 hours
+// 30 days, SLIDING: the gate re-sets the cookie on every successful visit (see
+// InviteGate), so a weekly regular never re-enters the code while a visitor who
+// stops coming ages out. 48h was the old value — it expired mid-week for a
+// weekly game, so every player re-authenticated every single round (F-051).
+const EXPIRY_SECONDS = 60 * 60 * 24 * 30;
 
 // Access levels:
 //  - 'full': the owner (entered the invite code) — the whole app.

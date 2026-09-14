@@ -58,7 +58,7 @@ test.describe('persona A: invite code', () => {
     const ctx = await browser.newContext({ viewport: PHONE });
     const page = await ctx.newPage();
     await page.goto(`${BASE}/pool`);
-    await expect(page.getByText('Enter your invite code to continue')).toBeVisible();
+    await expect(page.getByText('Enter the invite code')).toBeVisible();
     await shot(page, '01-invite-screen-phone');
     await page.setViewportSize({ width: 1280, height: 800 });
     await shot(page, '02-invite-screen-desktop');
@@ -90,7 +90,7 @@ test.describe('persona A: invite code', () => {
     // but we never seeded here. Clear any that leaked, then open the deep link.
     await ctx.clearCookies();
     await friend.goto(`${BASE}/pool/${id}/leaderboard`);
-    await expect(friend.getByText('Enter your invite code to continue')).toBeVisible();
+    await expect(friend.getByText('Enter the invite code')).toBeVisible();
     await shot(friend, '05-expired-cookie-deep-link-gate');
 
     await friend.getByPlaceholder('Invite code').fill('birdie2026');
@@ -176,7 +176,7 @@ test.describe('persona C: per-game player token', () => {
     await guest.goto(link);
     await guest.waitForLoadState('networkidle');
     const body = await guest.locator('body').innerText();
-    expect(body).not.toContain('Enter your invite code');
+    expect(body).not.toContain('Enter the invite code');
     await shot(guest, '12-player-token-landing');
 
     // The player's job: enter scores for their foursome.
@@ -198,7 +198,7 @@ test.describe('persona C: per-game player token', () => {
     await ctx.clearCookies();
     await guest.goto(`${BASE}/pool/${id}?key=AAAAAAAAAAAAAAAAAAAAAAAA`);
     await guest.waitForLoadState('networkidle');
-    const gated = await guest.getByText('Enter your invite code to continue').count();
+    const gated = await guest.getByText('Enter the invite code').count();
     console.log('WRONG TOKEN GATED?', gated > 0 ? 'yes — gate held' : 'NO — gate passed');
     await shot(guest, '14-wrong-token-shaped-key');
     await ctx.close();
@@ -239,7 +239,7 @@ test.describe('sign-out', () => {
     // The 48h cookie was never cleared — is the app still open?
     await page.goto(`${BASE}/pool`);
     await page.waitForLoadState('networkidle');
-    const gated = await page.getByText('Enter your invite code to continue').count();
+    const gated = await page.getByText('Enter the invite code').count();
     console.log('AFTER SIGN OUT, /pool GATED?', gated > 0 ? 'yes' : 'NO — still inside');
     await shot(page, '18-after-sign-out-pool-still-open');
   });

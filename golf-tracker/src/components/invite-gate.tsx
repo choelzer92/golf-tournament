@@ -15,15 +15,20 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // An organizer token in the URL grants 'pool' access; otherwise use the cookie.
     const fromToken = checkShareTokenInUrl();
-    setLevel(fromToken ?? getAccessLevel());
+    const lvl = fromToken ?? getAccessLevel();
+    // Sliding expiry (F-051): every successful visit re-sets the cookie, so a
+    // weekly regular never sees this gate again while a lapsed visitor ages out.
+    if (lvl && !fromToken) setAccessCookie(lvl);
+    setLevel(lvl);
     setChecking(false);
   }, []);
 
   // A 'pool'-level visitor (share link) may only see pool routes. If they land
-  // anywhere else, send them to the pool setup rather than exposing the full app.
+  // anywhere else, send them to My Games — a floor that explains itself — rather
+  // than dropping them mid-form into the New Game wizard (F-052).
   useEffect(() => {
     if (level === 'pool' && pathname && !isPoolAllowedPath(pathname)) {
-      router.replace('/pool/new');
+      router.replace('/pool');
     }
   }, [level, pathname, router]);
 
@@ -53,7 +58,9 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Golf Tracker</h1>
-          <p className="mt-2 text-gray-600">Enter your invite code to continue</p>
+          {/* F-050: most people hitting this screen are RETURNING friends whose
+              access lapsed, not strangers — say the code hasn't changed. */}
+          <p className="mt-2 text-gray-600">Enter the invite code — the same one works every time</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
