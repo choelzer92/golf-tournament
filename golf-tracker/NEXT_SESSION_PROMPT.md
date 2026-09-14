@@ -9,7 +9,12 @@ DECISIONS_ARCHIVE.md by § only when touched. The new findings are F-040…F-046
 FINDINGS.md — read those six entries in full; they carry Craig's exact words and
 the diagnosis for each.
 
-**State:** branch `live-feedback-2026-09-10` (off main, unmerged), verify green.
+**State:** branch `live-feedback-2026-09-10` (off main, unmerged). **FIRST ACTION:
+run `npm run verify`** — the last commit (aefa30c, the F-041/F-042/F-044 language
+fixes) passed unit/typecheck/build but its e2e phase was BLOCKED by Craig's own dev
+server holding the project dir (Next 16 one-dev-server rule). Two new e2e
+assertions in verify-fixes.spec.ts are unverified. Everything before aefa30c is
+verified green (137 e2e).
 Craig's 2026-09-14 walkthrough produced F-040…F-046. Already FIXED on the branch:
 F-035/36/37(partial)/38/39a (quick-fix batch) and the F-041/F-042/F-044
 language-level fixes (misfit redirect line, "Who competes against whom?" toggle,
