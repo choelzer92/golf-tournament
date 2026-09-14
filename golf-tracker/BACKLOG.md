@@ -19,7 +19,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
-| **Walkthrough follow-ups** (NEXT_SESSION_PROMPT.md): F-043 handicap-chain disclosure (index → CH → allowance → strokes, shared component); F-046 saved-format repro + fix (group's formats should surface when the group is chosen); F-045 junk-off-by-default (MONEY — Craig's pick on the no-junk pot split first); F-040 add-player reorder (name search primary, GHIN # → bulk fallback, manual gets a "no official GHIN" note; 4 copy-pasted surfaces). Then the merge call. | M | Craig 2026-09-14 walkthrough |
+| **Walkthrough follow-ups, remaining half** — F-045 junk-off-by-default (MONEY — Craig's pick on the no-junk pot split first) and F-040 add-player reorder (his pick A/B/C; he leaned name-first + bulk fallback + "no official GHIN" note; 4 copy-pasted surfaces). Both WAITING ON CRAIG — see that table. F-043 and F-046 are DONE. Then the merge call. | S–M | Craig 2026-09-14 walkthrough |
 | **Game-structure simplification direction** (Craig 2026-09-14: "a pool is effectively just a 4v4 game… choose your groups, game style, players, how many teams, and go"). Agreed direction: structure-first wizard question, modes as shortcuts — the UI framing for the Team Competition engine (§5g). RECORD AS A DECISION when Craig confirms scope; near-term language slice already built (F-041/F-042). | L (design first) | F-041 + Craig 2026-09-14 |
 | **Course-data correctness audit** (Craig 2026-09-10, re-raised 2026-09-14: "we really need to investigate the situation with having improper slope/course ratings to a tee for different courses"). Extends F-023: (a) inventory live games' courses for missing/odd ratings via read-only queries; (b) harden the parse; (c) a diagnostic view that says WHAT the app extracted. Unblocker: `scripts/fetch-course-payload.mjs` (Craig runs with his GHIN creds, read-only). F-038 (tee order) fixed; the default-TEE question (tips as default?) belongs to this audit. | M | Craig 2026-09-10/14 + F-023 |
 | **Sharing/login/identity AUDIT** (Craig: "I want to get this polished"). Walk all four personas, screenshot, log findings, propose. Fold the group-management consolidation below into the same walk (same surfaces). | M | Craig 2026-09-10 |
@@ -30,6 +30,9 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | When |
 |---|---|
+| **F-043 handicap chain** (9143b54): every handicap chip on the wizard (field list, teams step, sides step) opens the index → CH (slope/rating/par named) → allowance → plays-off chain; `explainPlayingHandicap` PINNED to `getPoolPlayingHandicap` by a full-matrix unit test; F-023 honesty folded in; e2e + screenshot. Same commit: F-041 correction — the misfit redirect keyed on `stableford`, registry id is `stableford-ind`, so it never fired; caught by aefa30c's unverified e2e on its first real run | 2026-09-14 |
+| **F-046 group formats follow the group** (d412ade): "Save format" on a game with a sourceGroupId offers "Attach to {group}" (default ON); the wizard game step leads with the chosen group's formats under "{Group} plays", library follows deduped; 2 e2e walking Craig's exact repro | 2026-09-14 |
+| **aefa30c e2e verified** — the handoff's first action; full gate green (140 e2e) | 2026-09-14 |
 | **Quick-fix batch F-035/36/37p/38/39a** (5028c54, 8ab44fd): Groups-step rounding; duplicate side ids on reshape (P1 money); "This makes it a 2 v 2 match"; tees sorted longest-first; "Bill M. & Bill G." | 2026-09-14 |
 | **Language fixes F-041/F-042/F-044**: misfit note redirects ("5 players can still score Stableford — as a team Pool"); money toggle asks "Who competes against whom?" (All teams, for a pot / Two teams, head-to-head); pot split says "The usual split for N teams"; 85↔90 note names its driver | 2026-09-14 |
 | **F-040…F-046 intaked** from Craig's functionality walkthrough (add-player flow, game taxonomy, money-mode confusion, handicap black box, pot-split opacity, junk defaults, saved-format miss) | 2026-09-14 |
@@ -53,6 +56,9 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | Branch merge/deploy | The feedback_notes table is LIVE (migration applied 2026-09-10, Craig-authorized) but the 💬 button ships with this branch — notes can't arrive until the branch deploys |
 | Branch merge | `live-feedback-2026-09-10` review (§5.ab — his timing; `captains-deal-and-game-rename` merged 2026-09-10) |
 | §7 q4 | Confirm dark = live / light = setup is deliberate |
+| F-045 junk defaults (MONEY) | His pick: fresh classic pool junk $0/off with an "add bonuses" affordance (saved formats keep theirs)? And the 4-way pot split when junk is $0 — fold junk's quarter into overall, or re-split three ways? |
+| F-040 add-player reorder | His pick among A (reorder only) / B (reorder + paste-a-list bulk) / C (retire the GHIN-# box); his words leaned B. The "no official GHIN" note ships with any of them |
+| F-034 stale draft name | His pick among A/B/C in the finding |
 
 ## Next few sessions (shaped, ready to build)
 
@@ -63,6 +69,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | Merge-audit polish: the `70, 30` position-split mini-DSL | S | merge audit |
 | Merge-audit polish: three different renderings of course handicap | S | merge audit |
 | Uncaptured walks: group format sheet (walk 2 stopped there), create-group mid-wizard, format-tap → confirmation | S | NEXT_SESSION_PROMPT history |
+| **Context economy: split `pool/new/page.tsx` (~4,300 lines) into per-step component files** — every step is already a self-contained component; the one file dominates session context cost. Mechanical, no behavior change; e2e unchanged. Craig: "why am i filling up context so quickly… we might need a better process." Companion S: archive fixed findings out of FINDINGS.md (DECISIONS_ARCHIVE pattern) | M | Craig 2026-09-14 |
 | Leaderboard shows front/back columns for a 9-hole game (redundant, not wrong) | S | roadmap #13 note |
 | F-030 opt C: standings strip ON the scorecard (mini-leaderboard above the grid) — the deeper "captain glancing between shots" fix; composes with the built toggle | S | F-030, §6b |
 | F-031 opt B: the card's running to-par superscript is typo-sized — enlarge/clarify (ask Craig first) | S | F-031 |
