@@ -1495,6 +1495,11 @@ prefer per-player/per-leg dollar readouts over ratio tables anywhere the split s
 Any new default must still satisfy the zero-sum unit tests, and changed split math needs
 Craig's worked-example sign-off before merge (money rule, §2).
 
+**Sign-off (2026-09-14).** Craig confirmed the worked example — 2 foursomes × $25 = $200
+pot, table 70/70/40/20, bonuses off → Front $70 / Back $70 / Overall $60 — "makes sense,
+keep it". Parts 1–2 merged to main (4c33964). Part 3 remains queued in BACKLOG as the
+money-step redesign.
+
 ---
 
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)

@@ -2922,7 +2922,7 @@ follows the game's config now: scorecard CTP button, pool-page CTP editor + Pot 
 leaderboard junk breakdown (per-column) + pots list, match board junk row. Saved formats
 keep their junk (JY Classic Pool restores with the grid open). Zero-sum unit tests pin the
 fold and were proven FAILABLE (§5.z). Worked example (2 teams, 8 × $25): 70/70/40/20 →
-70/70/60 — **shown to Craig for the conditional "if it makes sense" sign-off before merge.**
+70/70/60 — **Craig signed off 2026-09-14 ("makes sense — keep it"); merged to main (4c33964).**
 Deeper §5.bg direction (money step as per-player/per-leg dollars that visibly add up,
 splits editable by player count) is NOT built — queued in BACKLOG as its own item.
 

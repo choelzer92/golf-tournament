@@ -19,7 +19,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
-| **Merge `live-feedback-2026-09-10`** — F-045 + F-040 BUILT and green (149 e2e), branch pushed; waiting on Craig's two confirmations: the §5.bg worked example (70/70/40/20 → 70/70/60 for 2 teams) "makes sense", and nobody's mid-round (§5.ab). Then merge to main — the feedback box + every branch fix goes live. | S | Craig 2026-09-14 |
+| **Context economy: split `pool/new/page.tsx` into per-step files + archive fixed findings out of FINDINGS.md** (both shaped below — promoted now that the merge landed) | M | Craig 2026-09-14 |
 | **Game-structure simplification direction** (Craig 2026-09-14: "a pool is effectively just a 4v4 game… choose your groups, game style, players, how many teams, and go"). Agreed direction: structure-first wizard question, modes as shortcuts — the UI framing for the Team Competition engine (§5g). RECORD AS A DECISION when Craig confirms scope; near-term language slice already built (F-041/F-042). | L (design first) | F-041 + Craig 2026-09-14 |
 | **Course-data correctness audit** (Craig 2026-09-10, re-raised 2026-09-14: "we really need to investigate the situation with having improper slope/course ratings to a tee for different courses"). Extends F-023: (a) inventory live games' courses for missing/odd ratings via read-only queries; (b) harden the parse; (c) a diagnostic view that says WHAT the app extracted. Unblocker: `scripts/fetch-course-payload.mjs` (Craig runs with his GHIN creds, read-only). F-038 (tee order) fixed; the default-TEE question (tips as default?) belongs to this audit. | M | Craig 2026-09-10/14 + F-023 |
 | **Sharing/login/identity AUDIT** (Craig: "I want to get this polished"). Walk all four personas, screenshot, log findings, propose. Fold the group-management consolidation below into the same walk (same surfaces). | M | Craig 2026-09-10 |
@@ -30,6 +30,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | When |
 |---|---|
+| **MERGED to main + pushed (4c33964)**: `live-feedback-2026-09-10` — feedback box, F-027…F-046 fixes, F-045 junk defaults, F-040 add-player stack. Craig confirmed the §5.bg worked example ("makes sense — keep it") and the merge window (nobody mid-round). The 💬 feedback button is now live | 2026-09-14 |
 | **F-045 junk defaults** (e924dbe, §5.bg): fresh classic pool = bonuses off behind "Add bonuses"; junk's pot quarter folds into OVERALL at creation (`foldJunkIntoOverall`, proven failable per §5.z); scorecard CTP / CTP editor / Pot panel / leaderboard junk surfaces all follow the game's junk config; JY Classic Pool format keeps its junk; 3 unit + 5 e2e. NOT built (queued below): the §5.bg money-step redesign (per-player/per-leg dollars, splits editable by player count) | 2026-09-14 |
 | **F-040 add-player stack** (a35f7f9, option B): the four copies EXTRACTED into `src/components/add-player-panel.tsx` — name search first, manual second with the "no official GHIN" note, GHIN numbers behind a disclosure with paste-a-list bulk resolve (per-number report); game/new + tournament/new gained name search; e2e on all four surfaces with mocked GHIN routes | 2026-09-14 |
 | **F-043 handicap chain** (9143b54): every handicap chip on the wizard (field list, teams step, sides step) opens the index → CH (slope/rating/par named) → allowance → plays-off chain; `explainPlayingHandicap` PINNED to `getPoolPlayingHandicap` by a full-matrix unit test; F-023 honesty folded in; e2e + screenshot. Same commit: F-041 correction — the misfit redirect keyed on `stableford`, registry id is `stableford-ind`, so it never fired; caught by aefa30c's unverified e2e on its first real run | 2026-09-14 |
@@ -55,8 +56,6 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 |---|---|
 | F-022 on-course verification | Spot-check 90% strokes vs the GHIN app (incl. an off-the-low game); screenshots if anything is off by one |
 | F-023 part B (widen the GHIN ratings parse) | The real `GetCourseDetails` payload for The Meadows (Greenbrier, WV) — search it with the network tab open |
-| Branch merge/deploy | The feedback_notes table is LIVE (migration applied 2026-09-10, Craig-authorized) but the 💬 button ships with this branch — notes can't arrive until the branch deploys |
-| Branch merge | `live-feedback-2026-09-10` review (§5.ab — his timing; `captains-deal-and-game-rename` merged 2026-09-10) |
 | §7 q4 | Confirm dark = live / light = setup is deliberate |
 | F-034 stale draft name | His pick among A/B/C in the finding |
 
