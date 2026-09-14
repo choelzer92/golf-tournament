@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { TwoBestBallsVariant } from '@/lib/formats';
 import type { Player, CourseSelection, TeeSetOption } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
+import { AddPlayerPanel, type AddedPlayer } from '@/components/add-player-panel';
 import { PoolShareButton } from '@/components/pool-share';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
 import { PairingLocks } from '@/components/pairing-locks';
@@ -1822,7 +1823,9 @@ function FieldStep({
   course, players, setPlayers, handicapAllowance, handicapBasis, nine, getGroupDefaults, applyGroupDefaults, onGroupLoaded, preselectedGroupId, formatSeedAppliedRef, nextLabel, onNext,
 }: {
   course: CourseSelection | null;
-  players: Player[]; setPlayers: (p: Player[]) => void;
+  // Dispatch (not a plain setter): a pasted GHIN list appends several players
+  // from one closure, so adds must use the functional form (F-040).
+  players: Player[]; setPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
   handicapAllowance: number;
   handicapBasis: 'course' | 'index';
   nine: 'front9' | 'back9' | null;
@@ -1843,23 +1846,6 @@ function FieldStep({
   const [rosterResults, setRosterResults] = useState<RosterPlayer[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshNote, setRefreshNote] = useState('');
-
-  const [ghinInput, setGhinInput] = useState('');
-  const [ghinLoading, setGhinLoading] = useState(false);
-  const [ghinError, setGhinError] = useState('');
-
-  const [nameInput, setNameInput] = useState('');
-  const [handicapInput, setHandicapInput] = useState('');
-  const [genderInput, setGenderInput] = useState<'M' | 'F'>('M');
-
-  // GHIN name search
-  const [gsFirst, setGsFirst] = useState('');
-  const [gsLast, setGsLast] = useState('');
-  const [gsState, setGsState] = useState('VA');
-  const [gsResults, setGsResults] = useState<any[]>([]);
-  const [gsLoading, setGsLoading] = useState(false);
-  const [gsSearched, setGsSearched] = useState(false);
-  const [gsNote, setGsNote] = useState('');
 
   // Shown when a GHIN call fails (token expired). Re-login, then retry via retryRef.
   const [showLogin, setShowLogin] = useState(false);
@@ -2074,137 +2060,27 @@ function FieldStep({
     }
   }
 
-  async function addByGhin() {
-    if (!ghinInput) return;
-    const token = getToken();
-    if (!token) { retryRef.current = addByGhin; setShowLogin(true); return; }
-    setGhinLoading(true);
-    setGhinError('');
-    try {
-      const res = await fetch('/api/ghin/golfer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, ghin_number: Number(ghinInput) }),
-      });
-      const data = await res.json();
-      if (!res.ok) { retryRef.current = addByGhin; setShowLogin(true); return; }
-      const golfer = data.golfer;
-      const hi = parseGhinIndex(golfer.handicap_index ?? golfer.hi_value);
-      const ghinGender = (golfer.gender || golfer.Gender || '').toLowerCase();
-      const gender: 'M' | 'F' = ghinGender === 'female' || ghinGender === 'f' ? 'F' : 'M';
-      const ghinNumber = Number(ghinInput);
-      const rememberedRp = getRosterPlayerByGhin(ghinNumber);
-      const newPlayer: Player = {
-        id: crypto.randomUUID(),
-        // GHIN can return empty/missing name fields (privacy-restricted golfers,
-        // partial responses) — never write "undefined undefined" or "" to the roster (F-027).
-        name: [golfer.first_name, golfer.last_name].filter(Boolean).join(' ').trim() || `GHIN #${ghinNumber}`,
-        handicapIndex: hi,
-        gender,
-        ghinNumber,
-        teeSetId: pickTeeForPlayer(course, gender, rememberedRp?.defaultTeeName ?? null, rememberedRp?.defaultTeeRank),
-      };
-      setPlayers([...players, newPlayer]);
-      upsertRosterPlayer({
-        id: newPlayer.id,
-        ghinNumber,
-        name: newPlayer.name,
-        handicapIndex: newPlayer.handicapIndex,
-        gender,
-        defaultTeeName: null,
-      });
-      setGhinInput('');
-      refreshRoster(rosterQuery);
-    } catch {
-      setGhinError('Network error');
-    } finally {
-      setGhinLoading(false);
-    }
-  }
-
-  function addManual() {
-    if (!nameInput) return;
-    const id = crypto.randomUUID();
-    const handicapIndex = handicapInput ? parseFloat(handicapInput) : null;
+  // One handler for every AddPlayerPanel path (search / GHIN list / manual):
+  // build the Player (remembered tee where we know the GHIN), keep the roster
+  // in sync, and append to today's field. Functional setPlayers because a
+  // pasted GHIN list adds several players inside one closure (F-040).
+  function addResolvedPlayer(info: AddedPlayer) {
+    const rememberedRp = info.ghinNumber != null ? getRosterPlayerByGhin(info.ghinNumber) : null;
     const newPlayer: Player = {
-      id,
-      name: nameInput,
-      handicapIndex,
-      gender: genderInput,
-      teeSetId: pickTeeForPlayer(course, genderInput, null),
+      id: crypto.randomUUID(),
+      name: info.name,
+      handicapIndex: info.handicapIndex,
+      gender: info.gender,
+      ghinNumber: info.ghinNumber ?? undefined,
+      teeSetId: pickTeeForPlayer(course, info.gender, rememberedRp?.defaultTeeName ?? null, rememberedRp?.defaultTeeRank),
     };
-    setPlayers([...players, newPlayer]);
+    setPlayers((prev) => [...prev, newPlayer]);
     upsertRosterPlayer({
-      id,
-      ghinNumber: null,
-      name: nameInput,
-      handicapIndex,
-      gender: genderInput,
-      defaultTeeName: null,
-    });
-    setNameInput('');
-    setHandicapInput('');
-  }
-
-  async function searchGhinByName() {
-    // GHIN name search requires a last name AND a state to return results.
-    if (!gsLast.trim()) { setGsNote('Enter a last name to search.'); return; }
-    if (!gsState.trim()) { setGsNote('Enter a state (e.g. VA) — GHIN requires it to search by name.'); return; }
-    const token = getToken();
-    if (!token) { retryRef.current = searchGhinByName; setShowLogin(true); return; }
-    setGsLoading(true);
-    setGsSearched(false);
-    setGsNote('');
-    try {
-      const res = await fetch('/api/ghin/search-golfer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, first_name: gsFirst, last_name: gsLast, state: gsState }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setGsResults([]);
-        retryRef.current = searchGhinByName;
-        setShowLogin(true);
-        return;
-      }
-      const golfers: any[] = data.golfers || [];
-      setGsResults(golfers);
-      setGsSearched(true);
-      if (golfers.length === 0) {
-        setGsNote(`No golfers named "${gsLast}" found in ${gsState.toUpperCase()}. Check spelling/state, or add by GHIN #.`);
-      }
-    } catch {
-      setGsResults([]);
-      setGsNote('Search failed — check your connection or add by GHIN #');
-    } finally {
-      setGsLoading(false);
-    }
-  }
-
-  function addGhinSearchResult(g: any) {
-    const ghinNumber = Number(g.ghin ?? g.id);
-    if (!isNaN(ghinNumber) && existingGhins.has(ghinNumber)) return;
-    const hi = parseGhinIndex(g.handicap_index ?? g.hi_value);
-    const ghinGender = (g.gender || g.Gender || '').toLowerCase();
-    const gender: 'M' | 'F' = ghinGender === 'female' || ghinGender === 'f' ? 'F' : 'M';
-    const id = crypto.randomUUID();
-    const rememberedRp = !isNaN(ghinNumber) ? getRosterPlayerByGhin(ghinNumber) : null;
-    const newPlayer: Player = {
-      id,
-      name: `${g.first_name ?? ''} ${g.last_name ?? ''}`.trim(),
-      handicapIndex: hi,
-      gender,
-      ghinNumber: isNaN(ghinNumber) ? undefined : ghinNumber,
-      teeSetId: pickTeeForPlayer(course, gender, rememberedRp?.defaultTeeName ?? null, rememberedRp?.defaultTeeRank),
-    };
-    setPlayers([...players, newPlayer]);
-    upsertRosterPlayer({
-      id,
-      ghinNumber: isNaN(ghinNumber) ? null : ghinNumber,
-      name: newPlayer.name,
-      handicapIndex: newPlayer.handicapIndex,
-      gender,
+      id: newPlayer.id,
+      ghinNumber: info.ghinNumber,
+      name: info.name,
+      handicapIndex: info.handicapIndex,
+      gender: info.gender,
       defaultTeeName: null,
     });
     refreshRoster(rosterQuery);
@@ -2342,7 +2218,7 @@ function FieldStep({
           };
 
           if (rosterResults.length === 0) {
-            return <p className="mt-2 text-xs text-gray-500">No saved players{rosterQuery ? ' match' : ' yet'}. Add by GHIN # or manually below.</p>;
+            return <p className="mt-2 text-xs text-gray-500">No saved players{rosterQuery ? ' match' : ' yet'}. Search by name or add manually below.</p>;
           }
 
           // When a group is loaded, split the roster into that group's members
@@ -2382,122 +2258,15 @@ function FieldStep({
         })()}
       </div>
 
-      {/* Add by GHIN # + manual */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <p className="text-sm font-semibold text-gray-800 mb-2">Add by GHIN #</p>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={ghinInput}
-            onChange={(e) => setGhinInput(e.target.value)}
-            placeholder="GHIN number"
-            className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          />
-          <button
-            onClick={addByGhin}
-            disabled={ghinLoading || !ghinInput}
-            className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800 disabled:opacity-50"
-          >
-            {ghinLoading ? '...' : 'Add'}
-          </button>
-        </div>
-        {ghinError && <p className="text-xs text-red-600 mt-1">{ghinError}</p>}
-
-        <div className="mt-3 pt-3 border-t">
-          <p className="text-sm font-semibold text-gray-800 mb-2">Or add manually</p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              placeholder="Name"
-              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-            <input
-              type="text"
-              inputMode="decimal"
-              value={handicapInput}
-              onChange={(e) => setHandicapInput(e.target.value)}
-              placeholder="HCP"
-              className="w-16 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-            <button
-              type="button"
-              onClick={() => setGenderInput(genderInput === 'M' ? 'F' : 'M')}
-              className={`w-9 rounded-md border text-sm font-bold py-2 ${genderInput === 'M' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-pink-300 bg-pink-50 text-pink-700'}`}
-            >
-              {genderInput}
-            </button>
-            <button
-              onClick={addManual}
-              disabled={!nameInput}
-              className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800 disabled:opacity-50"
-            >
-              Add
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* GHIN name search */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <p className="text-sm font-semibold text-gray-800 mb-0.5">Search GHIN by name</p>
-        <p className="text-xs text-gray-500 mb-2">Last name and state required. First name optional to narrow it down.</p>
-        <div className="flex gap-2 flex-wrap">
-          <input
-            type="text"
-            value={gsFirst}
-            onChange={(e) => setGsFirst(e.target.value)}
-            placeholder="First (optional)"
-            className="flex-1 min-w-[100px] rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          />
-          <input
-            type="text"
-            value={gsLast}
-            onChange={(e) => setGsLast(e.target.value)}
-            placeholder="Last name"
-            className="flex-1 min-w-[100px] rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          />
-          <input
-            type="text"
-            value={gsState}
-            onChange={(e) => setGsState(e.target.value.toUpperCase())}
-            placeholder="ST"
-            maxLength={2}
-            className="w-14 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          />
-          <button
-            onClick={searchGhinByName}
-            disabled={gsLoading || !gsLast.trim() || !gsState.trim()}
-            className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800 disabled:opacity-50"
-          >
-            {gsLoading ? '...' : 'Search GHIN'}
-          </button>
-        </div>
-        {gsNote && <p className="text-xs text-gray-500 mt-2">{gsNote}</p>}
-        {gsSearched && gsResults.length > 0 && (
-          <ul className="mt-2 max-h-48 overflow-y-auto divide-y divide-gray-100">
-            {gsResults.map((g: any, i: number) => (
-              <li key={g.ghin ?? g.id ?? i}>
-                <button
-                  onClick={() => addGhinSearchResult(g)}
-                  className="w-full text-left px-2 py-1.5 hover:bg-gray-50 rounded"
-                >
-                  <span className="text-sm font-medium text-gray-900">
-                    {g.first_name} {g.last_name}
-                  </span>
-                  <span className="text-xs text-gray-500 ml-2">
-                    {g.handicap_index ?? g.hi_value ?? '—'}
-                    {g.gender ? ` · ${g.gender}` : ''}
-                    {g.club_name ? ` · ${g.club_name}` : ''}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {/* F-040 option B: the shared add-player stack — name search first, manual
+          second (with the no-GHIN note), GHIN numbers behind a disclosure that
+          takes a pasted list. */}
+      <AddPlayerPanel
+        existingGhins={existingGhins}
+        getTokenAction={getToken}
+        onNeedLoginAction={(retry) => { retryRef.current = retry; setShowLogin(true); }}
+        onAddAction={addResolvedPlayer}
+      />
 
       {/* Field list */}
       {players.length > 0 && (
