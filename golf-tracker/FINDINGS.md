@@ -2775,8 +2775,10 @@ login isn't a differentiator. The real fallback when name search fails is manual
 as one shared component, or at minimum the same change four times with an e2e on each
 (the audit's one-axis-drift lesson).
 
-**Status:** open — Craig's pick pending. Reorder (A) is safe and mechanical; B needs a
-small design pass on error reporting; the "no official GHIN" note ships with any of them.
+**Status:** PICKED 2026-09-14 — Craig chose **B**: name search first, manual add second with
+the "no official GHIN" note, GHIN-# entry folded into a disclosure, plus a paste-a-list bulk
+box (comma/newline GHIN numbers via the existing `addByGhin` fetch, per-number
+success/failure reporting). All four surfaces change together or the stack gets extracted.
 
 ---
 
@@ -2906,7 +2908,12 @@ degrades sensibly when junk is $0.
 **Downstream check when built:** scorecard CTP button + leaderboard junk column should follow
 the game's junk config, not assume it.
 
-**Status:** open — needs Craig's pick on the default + the no-junk pot-split shape.
+**Status:** PICKED 2026-09-14 (§5.bg), ready to build: junk $0/off on a fresh classic pool
+behind an "add bonuses" affordance; when junk is $0 its pot quarter folds into OVERALL
+(front/back keep their weights) — sanity-check a worked example; saved formats keep their
+junk (the Warriors format especially). Deeper direction recorded in §5.bg: the money step
+should read as per-player/per-leg dollars that visibly add up, splits editable by player
+count — the historical table lives on as the Warriors' saved format, not the baseline.
 
 ---
 

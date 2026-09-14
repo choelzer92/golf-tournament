@@ -1465,6 +1465,38 @@ silently built or silently dropped.
 
 ---
 
+## 5.bg The classic pool's money defaults are a FORMAT, not the baseline (2026-09-14)
+
+Craig, picking the F-045 shape: *"I think option 1 [fold junk's quarter into overall], but
+the thing is, that game format was set up so the weekend warriors could play easily. it
+should all be available as a possible format that could be saved. this way, the hard coded
+pot splits could be editable based on how many people are playing. I think if it makes
+sense, option 1 is ok, but it more should be a situation where you are adding bonuses if
+you want, listing the payments per player/how much each leg pays, and ensuring it adds up."*
+
+**What this settles.** `DEFAULT_JUNK_VALUES` and `POOL_SPLIT_TABLE` encode the Weekend
+Warriors' game — right as a SAVED FORMAT, wrong as the app-wide default (§5d's "do not tune
+shipped defaults from Craig's own usage data," now applied to his own numbers). Three parts:
+
+1. **Junk starts at $0/off on a fresh classic pool**, behind an "add bonuses" affordance —
+   the registered modes' bonuses-off convention, extended to the classic pool. Saved formats
+   keep whatever they saved (the Warriors format keeps its junk).
+2. **When junk is $0, its quarter of the pot folds into overall** (option 1) — front/back
+   keep their table weights. Acceptable "if it makes sense" — sanity-check the resulting
+   splits against a worked example before shipping.
+3. **The deeper shape (the real ask):** the money step should read as *what does each leg
+   pay, per player* — editable splits that scale with the player count, bonuses added by
+   choice, and a visible **adds-up check** (legs + junk = pot; zero-sum stays the tested
+   invariant). The historical table survives as the Warriors' saved format, selectable like
+   any other.
+
+**How to apply.** Build parts 1–2 as F-045; treat part 3 as the money step's direction —
+prefer per-player/per-leg dollar readouts over ratio tables anywhere the split surfaces.
+Any new default must still satisfy the zero-sum unit tests, and changed split math needs
+Craig's worked-example sign-off before merge (money rule, §2).
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

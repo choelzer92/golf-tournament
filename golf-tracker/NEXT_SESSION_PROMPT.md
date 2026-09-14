@@ -1,4 +1,4 @@
-# Next session: Craig's picks (F-045 junk, F-040 add-player), then the merge call
+# Next session: build F-045 + F-040 (picks are in), then commit → push → MERGE
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
@@ -6,62 +6,58 @@ Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 Read `AGENTS.md` first. **Context economy** (Craig raised it 2026-09-14): read DECISIONS.md
 whole (short); grep DECISIONS_ARCHIVE.md by § only when touched; delegate broad searches to
-subagents; read `pool/new/page.tsx` in targeted slices only. A backlog item exists to split
-that file — don't do it unprompted.
+subagents; read `pool/new/page.tsx` in targeted slices only.
 
-**State:** branch `live-feedback-2026-09-10` (off main, unmerged), verify GREEN — 1517 unit /
-typecheck / build / 140 e2e, exit 0 at d412ade. From the 2026-09-14 walkthrough batch:
-F-043 (handicap chain disclosure) and F-046 (group formats follow the group) are BUILT,
-verified, committed (9143b54, d412ade). Also fixed: aefa30c's F-041 redirect never fired
-(mode id `stableford` vs registry `stableford-ind`) — its own unverified e2e caught it.
+**State:** branch `live-feedback-2026-09-10`, verify GREEN (1517 unit / typecheck / build /
+140 e2e) at d412ade + docs commits. Built this batch: F-043 handicap chain, F-046 group
+formats, F-041 id correction. Craig's picks arrived 2026-09-14 and are RECORDED — don't
+re-ask: **§5.bg** for F-045, **option B** for F-040 (full text in each finding's Status).
 
-## The work — everything left is gated on Craig's answers
+## The plan Craig set (2026-09-14, his words: "address F-045 and F-040 in the next session, then commiting, pushing, and merging")
 
-1. **F-045 — junk defaults** (MONEY-ADJACENT). Proposal on the table: fresh classic pool
-   defaults junk to $0/off with an "add bonuses" affordance (the registered modes'
-   convention); saved formats keep what they saved (his Friday format keeps junk on).
-   NEEDS HIS PICK on the 4-way pot split when junk is $0: fold junk's quarter into overall,
-   or re-split three ways? His historical `POOL_SPLIT_TABLE` has junk as a leg.
-   Downstream when built: scorecard CTP button + leaderboard junk column follow the game's
-   junk config.
-2. **F-040 — add-player reorder.** His pick among the finding's options: A reorder only /
-   B reorder + paste-a-list bulk (matches his words best) / C retire the GHIN-# box.
-   The "no official GHIN" note on manual add ships under any option. All four surfaces
-   (pool/new, pool/roster, game/new, tournament/new) share the stack BY COPY — change all
-   four or extract one component.
-3. **Merge/deploy call** (§5.ab) — he said "maybe it's time" before the walkthrough; the
-   walkthrough batch is now built and green. His call, not ours; don't nag, but the summary
-   he was given asks explicitly.
-4. If all three are still unanswered, promote from BACKLOG.md instead — top candidates: the
-   course-data correctness audit (needs his Meadows payload:
-   `GHIN_USER=... GHIN_PASS=... node scripts/fetch-course-payload.mjs "The Meadows" WV`,
-   read-only, gitignored output), or the context-economy split of pool/new/page.tsx (M,
-   mechanical) if he approves it, or the sharing/login audit (document-first, unblocked).
-
-## The BIG discussion to keep alive (do NOT build it unprompted)
-
-F-041/§5g: structure-first wizard question (how do N players compete) before scoring;
-pre-composed modes become shortcuts; the Team Competition engine's UI framing. Record as a
-decision entry when Craig confirms scope.
+1. **F-045 per §5.bg** (MONEY — read §5.bg in DECISIONS_ARCHIVE first).
+   - Fresh classic pool: junk $0/off behind an "add bonuses" affordance; `JUNK_FIELDS`/CTP
+     surfaces (scorecard CTP button, leaderboard junk column) follow the game's junk config.
+   - Junk $0 → its pot quarter folds into OVERALL; front/back keep their table weights.
+     **Show Craig a worked example** (e.g. 8 players × $25, 2 teams) before relying on it —
+     his "if it makes sense" was conditional.
+   - Saved formats keep their saved junk. Seed/keep the Warriors' historical table as a
+     saved format so nothing he plays gets harder to start.
+   - Direction (don't over-build): money step reads as per-player/per-leg dollars that
+     visibly add up. Land the minimum that makes the defaults honest; the full money-step
+     redesign can be its own finding.
+   - Zero-sum unit tests are the invariant; prove a new money test can FAIL (§5.z).
+2. **F-040 option B** — on all four add-player surfaces (`pool/new` ~2318, `pool/roster`
+   ~339, `game/new` ~567, `tournament/new` ~465; they're copies — extract one component if
+   cleaner): name search first (First/Last/ST one card), manual add second with a
+   "no official GHIN — handicap won't update itself" note, GHIN-# folded into a "have a
+   GHIN #?" disclosure, plus a paste-a-list textarea (comma/newline GHIN numbers) resolving
+   via the existing `addByGhin` fetch with per-number success/failure. e2e per surface.
+3. **Commit each, verify green, then: PUSH the branch and MERGE to main** — explicitly
+   authorized by Craig 2026-09-14 for this session ("then commiting, pushing, and merging").
+   Confirm with him that nobody's mid-round at merge time (§5.ab spirit), then merge.
+   Remember: the feedback box + all branch fixes go live with this deploy.
+4. **After the merge** (same session if room, else next): the context-economy work — split
+   `pool/new/page.tsx` into per-step files + archive fixed findings out of FINDINGS.md
+   (both in BACKLOG), then other backlog/todos.
 
 ## Waiting on Craig (full table in BACKLOG.md)
 
-F-045 pick · F-040 pick · merge call · Meadows payload · F-034 A/B/C · F-039 color repro ·
-F-022 on-course GHIN spot-check · §7 q4.
+Meadows payload (course-data audit) · F-034 A/B/C · F-039 color repro · F-022 on-course
+spot-check · §7 q4. The BIG structure discussion (§5g framing) stays alive — do NOT build.
 
 ## Traps that keep biting
 
 - **Do NOT edit app code while `npm run verify` runs** — the e2e dev server hot-reloads
-  edits and fails tests that were fine (cost one full run this session).
-- Killing a dev server can corrupt `.next` (routes.d.ts) → `rm -rf .next` and rerun.
-- Stale `next dev` on 3200 → e2e times out; kill by PID, confirm port free
-  (`netstat -ano | grep :3200`). 3000 = Craig's.
+  edits and fails tests that were fine.
+- Killing a dev server can corrupt `.next` (routes.d.ts parse error) → `rm -rf .next`.
+- Stale `next dev` on 3200 → e2e times out; kill by PID, confirm port free. 3000 = Craig's.
 - Check `npm run verify`'s own exit code, not a tail of its log.
-- e2e must assert it reached the right screen; the sides-step row is now `flex flex-wrap`
-  (F-043 chain panel wraps under it) — locate side buttons by `name: /^[A-Z]$/`, the CHcp
-  chip is a button too.
-- Game-mode ids ≠ display names (`stableford-ind`, not `stableford`) — select by VALUE and
-  key on registry ids.
+- Game-mode ids ≠ display names (`stableford-ind`, not `stableford`) — select by VALUE.
+- The sides-step row is `flex flex-wrap` (F-043 panel wraps under it); the CHcp chip is a
+  button — locate side buttons by `name: /^[A-Z]$/`.
+- Junk/pot changes touch `pool-game.ts` money math — every mode's zero-sum test must still
+  pass, and `distributePot`/`POOL_SPLIT_TABLE` callers need a grep before changing shape.
 
 ## End the session by grooming BACKLOG.md
 
