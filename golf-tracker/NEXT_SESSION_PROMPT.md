@@ -1,4 +1,4 @@
-# Next session: BUILD F-055 + sharing trio F-056/57/58 + F-059 ownership rekey
+# Next session: course-data correctness audit (slope/rating per tee)
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
@@ -7,57 +7,42 @@ Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 Read `AGENTS.md` first. Delegate broad searches to subagents; grep DECISIONS_ARCHIVE.md
 by § and FINDINGS_ARCHIVE.md by F-0NN — don't read either whole.
 
-**State (2026-09-14):** branch `audit-sharing-login-2026-09-14` holds the sharing/login
-audit (F-047…F-055) AND the built fixes F-047…F-054 (verify green, 168 e2e). Nothing
-merged or pushed. Craig then DECIDED the rest — **§5.bh and §5.bi** (read both in the
-archive): F-055 option A, the sharing scaling principles ("one link kind per job, token
-on the game row — never add link kinds"), the recommended options for F-056/57/58, and
-F-059 option A (ownership = identity, not the invite code). All five are **decided,
-ready to build, no re-asking**. Continue on the same branch.
+**State (2026-09-14):** branch `audit-sharing-login-2026-09-14` now holds the audit
+(F-047…F-055) AND all thirteen built fixes (F-047…F-059), each with tagged e2e; verify
+green, 179 e2e. Nothing merged or pushed — that's Craig's call (§5.ab). Two things wait
+on him: review/merge the branch, and set **`NEXT_PUBLIC_OWNER_GHIN`** (his real GHIN) in
+`.env.local` + the deploy env — until then F-059's `isAppOwner()` deliberately falls back
+to legacy full-access-=-owner, so the deploy is safe but members aren't scoped yet.
 
-## The work (one commit + tagged e2e per finding; `npm run verify` exit 0 each slice)
+## The work: course-data correctness audit (Craig 2026-09-10, re-raised 2026-09-14)
 
-1. **F-056** — show the Share button/panel to `pool`-access visitors on the game hub
-   (`pool/[id]/page.tsx:351` moves Share OUT of the `!poolOnly` guard; Save format/Edit
-   stay hidden). Guests already hold the link; the line is mutating vs read-only (F-004).
-2. **F-057** — `setAccessCookie` gets level-dependent lifetime: `full` = 30d (sliding
-   refresh stays), `pool` = 48h. Update the F-051 e2e (it asserts ≥20d on a FULL grant —
-   keep that; add the pool-grant ≤48h case). `src/lib/invite-gate.ts`.
-3. **F-058** — QR generated locally in both panels (`pool-share.tsx:14`,
-   `pool/[id]/page.tsx:785`). Prefer a tiny well-known dep (e.g. `qrcode` → data-URL/SVG)
-   or a vendored encoder; assert the img src is NOT api.qrserver.com and IS a data:/blob.
-4. **F-055 option A** (the M of the session — see the finding + §5.bh):
-   - `/home` "Your groups": add **create group** (name → `upsertGroup`, lib fns all exist
-     in `roster-groups.ts`); repoint/remove the "Manage" → /pool/roster button
-     (`home/page.tsx:207`).
-   - `/home/groups/[id]`: add **rename** + **delete** (confirm; `renameGroup`/`deleteGroup`
-     exist). Keep the F-010 dashboard shape — management joins the dashboard, doesn't
-     displace it.
-   - `/pool/roster`: DELETE the GroupsManager component (`roster/page.tsx:149,252+`);
-     page becomes saved players only — retitle ("Saved Players"), fix intro copy.
-     "Full roster manager" links (group page :457, /pool :84) stay valid (players only).
-   - e2e `F-055`: create a group on /home → rename + delete on its dashboard → /pool/roster
-     shows no Groups panel. Check e2e that used the old GroupsManager UI
-     (grep "Select a group" in e2e/ — critique/user-walk may walk it) and update.
-   - Data: NOTHING migrates — roster_groups rows, games, links untouched.
+Craig: *"we really need to investigate the situation with having improper slope/course
+ratings to a tee for different courses."* Extends F-023 (the ratings-parse honesty
+finding — grep the archive). Three parts, document-first:
 
-5. **F-059 option A (§5.bi) — LAST, after F-055 settles the seams:** a shared
-   `isAppOwner()` (full access AND the configured owner GHIN) replaces the ~15
-   `getAccessLevel() === 'full'` owner checks (grep `isOwner` in src/app — /pool, /home,
-   stats, groups pages, roster, solo, wizard steps, tournament/new). Owner GHIN is
-   config, not scattered literals. A code-holder with no GHIN identity gets /pool's
-   "log in to see your games" prompt pattern — never false-empty, never everyone's data.
-   Sanity-check each surface on screen as it flips (Craig's "if it makes sense"): Craig
-   sees all; a member sees exactly their own. e2e `F-059` both ways. **If the session
-   runs long, F-059 may spill to its own follow-up — it's last on purpose.**
+1. **Inventory** — read-only queries over live games' stored courses: which have
+   missing/zero/implausible slope, rating, or par per tee? Live DB reads were
+   Craig-authorized for F-027's query; keep it SELECT-only and say so before running.
+   Also sweep the sandbox fixtures so the harness can reproduce whatever you find.
+2. **Harden the parse** — where `GetCourseDetails` payloads come in (tee sets,
+   Ratings[Front/Back/Total], gender rows), make the extraction fail LOUDLY into a
+   diagnostic rather than silently storing zeros. Document first; change on request.
+3. **Diagnostic view** — a way for Craig to see WHAT the app extracted for a course
+   (per tee: name, gender, yardage, par, CR/slope front/back/total) so on-course
+   disputes become screenshots, not guesses.
 
-**Do NOT build:** F-055 option B (share-link visitors on /home) — that's the §5c
-accounts conversation. F-049's tappable identity chip only if trivially composable.
+Blocked sub-part: the Meadows payload (F-023B) still needs Craig to run
+`scripts/fetch-course-payload.mjs`. Don't wait on it — inventory + diagnostic are
+buildable without it. The default-TEE question (tips as default?) belongs here too.
+
+**Fallback if this stalls:** the §5.bg money-step redesign is shaped and ready
+(BACKLOG "Next few sessions") — but it's money math: worked-example sign-off with Craig
+before merge (§2), so don't take it deep unattended.
 
 ## Waiting on Craig (full table in BACKLOG.md)
 
-Review/merge the audit branch · Meadows payload (F-023B) · F-034 A/B/C · F-022 on-course
-spot-check · §7 q4. (Access policy is DECIDED — §5.bi — don't re-ask.)
+Review/merge the audit branch · set `NEXT_PUBLIC_OWNER_GHIN` · Meadows payload (F-023B) ·
+F-034 A/B/C · F-022 on-course spot-check · §7 q4.
 
 ## Traps that keep biting
 
@@ -66,14 +51,13 @@ spot-check · §7 q4. (Access policy is DECIDED — §5.bi — don't re-ask.)
   verify's tsc reads dev's half-written routes.d.ts otherwise (bit us twice). Kill by
   PID, confirm 3200 free (TIME_WAIT rows are fine). 3000 = Craig's.
 - Check `npm run verify`'s own exit code, not a tail of its log.
+- Live DB: SELECT-only, announce first, never write (F-027 precedent).
 - A JSX comment can't sit as a sibling before the element inside a `.map()`'s
   parenthesized return — use `//` lines inside the parens.
 - Editor diagnostics lag one edit behind — trust `npx tsc --noEmit`, not the squiggles.
-- Playwright: `expect(page).toHaveURL(...)` over `waitForURL`; a screenshot right after a
-  client-side `router.push` races it. Mid-round sandbox scenarios "Open →" onto the
-  LEADERBOARD — the Share button lives on the hub (`/pool/{id}`).
+- Playwright: `expect(page).toHaveURL(...)` over `waitForURL`; strict mode — prefer
+  `exact: true` when a button label is a prefix of another ("Save" vs "Save format").
 - Game-mode ids ≠ display names (`stableford-ind`, not `stableford`) — select by VALUE.
-- The wizard's `setPlayers`/`setTeamAssignments` props are `React.Dispatch` — don't narrow.
 
 ## End the session by grooming BACKLOG.md
 

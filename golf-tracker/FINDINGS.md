@@ -1056,7 +1056,8 @@ link to — every persona managing people lands here, on a phone.
 
 **Recommendation:** A now if F-055 waits; C if the consolidation is imminent.
 
-**Status:** FIXED 2026-09-14 per option A (F-055 is waiting on Craig's pick) — the row is
+**Status:** FIXED 2026-09-14 per option A (F-055 has since landed too — the two-line row
+survived the consolidation) — the row is
 two lines: name + gender + Remove on top, index/GHIN + usual-tee below. e2e `F-054`
 asserts the first row's name and Remove sit inside a 390px viewport.
 
@@ -1094,7 +1095,10 @@ their roster. Moving group management to /home as-is would strand that persona.
 persona question has a defensible answer. B is the accounts conversation (§5c) — STOP
 there if Craig wants it.
 
-**Status:** open
+**Status:** FIXED 2026-09-14 per option A (§5.bh): /home "Your groups" gained create
+(+ New group → lands on the new dashboard), the group dashboard gained rename + delete,
+/pool/roster is saved players only (GroupsManager deleted, retitled). Nothing migrated.
+e2e `F-055` (create → rename → delete, and the roster page has no group manager).
 
 ---
 
@@ -1122,7 +1126,9 @@ nothing, it just forces the "text me the link again" round-trip through the owne
 
 **Recommendation:** A.
 
-**Status:** chosen A (Craig 2026-09-14, "that makes sense") — build next session with F-055.
+**Status:** FIXED 2026-09-14 per option A — Share sits outside the `poolOnly` guard on
+the game hub (Save format/Edit stay hidden). e2e `F-056` (guest opens the panel; mutating
+buttons absent).
 
 ---
 
@@ -1143,7 +1149,9 @@ one-time scoring guest now keeps `pool` scope (including game creation at /pool/
 
 **Recommendation:** A — the asymmetry matches how each persona actually returns.
 
-**Status:** chosen A (Craig 2026-09-14) — build next session with F-055.
+**Status:** FIXED 2026-09-14 per option A — `setAccessCookie` picks lifetime by level
+(`full` 30d sliding, `pool` 48h; the gate's sliding refresh passes the level through).
+e2e `F-057` (pool grant ≤48h) alongside the kept F-051 ≥20d full-grant assertion.
 
 ---
 
@@ -1164,7 +1172,9 @@ case shows a broken image where the QR should be.
 
 **Recommendation:** A — cheap, and it removes a scaling liability before tokens mean more.
 
-**Status:** chosen A (Craig 2026-09-14) — build next session with F-055.
+**Status:** FIXED 2026-09-14 per option A — shared `QrImage` component encodes locally
+via the `qrcode` package to a data: URL; both panels use it. e2e `F-058` asserts the img
+src is data:/blob and never qrserver.
 
 ---
 
@@ -1193,8 +1203,14 @@ identity did the scoping; it's the credential.
 
 **Recommendation:** A — it makes Craig's mental model true from parts that already exist.
 
-**Status:** chosen A (Craig 2026-09-14, "lets go ahead with option 1 if it makes sense") —
-build next session AFTER F-055 (same isOwner seams; consolidate first, then rekey).
+**Status:** FIXED 2026-09-14 per option A — `isAppOwner()` (full access AND the
+configured owner GHIN, `NEXT_PUBLIC_OWNER_GHIN`; sandbox defaults to 1234567) replaced
+every `getAccessLevel() === 'full'` owner check, plus two surfaces that had NO check:
+/dashboard (listed every game) and /home/feedback (everyone's notes). No-identity
+code-holders get /pool's login prompt. ROLLOUT: until Craig sets `NEXT_PUBLIC_OWNER_GHIN`
+(his real GHIN) in the deploy env, the helper falls back to legacy full=owner, so the
+deploy is safe but members aren't scoped yet. e2e `F-059` (owner sees all / member sees
+own / no-identity gets the prompt).
 
 ---
 
