@@ -178,7 +178,8 @@ test('F-054: at phone width every saved-player row shows its NAME and Remove', a
   await grantAndReset(ctx, page);
   await seedCard(page, 'Groups — 61-member standing group + small crew + saved format');
   await page.goto(`${BASE}/pool/roster`);
-  await expect(page.getByRole('heading', { name: /Saved Players & Groups/i })).toBeVisible();
+  // Retitled from "Saved Players & Groups" when group management moved to /home (F-055).
+  await expect(page.getByRole('heading', { name: /Saved Players/i })).toBeVisible();
 
   // The first row's name must be INSIDE the viewport, not overflowed out of it.
   const name = page.locator('li', { hasText: 'Index' }).first().locator('span.font-medium').first();

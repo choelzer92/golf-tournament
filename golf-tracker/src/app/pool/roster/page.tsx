@@ -10,26 +10,19 @@ import {
   type RosterPlayer,
   hydrateRoster,
   searchRoster,
-  getRoster,
   upsertRosterPlayer,
   deleteRosterPlayer,
   refreshRosterHandicaps,
 } from '@/lib/roster';
-import {
-  type RosterGroup,
-  hydrateGroups,
-  upsertGroup,
-  renameGroup,
-  deleteGroup,
-  setGroupMembers,
-} from '@/lib/roster-groups';
-import { getPlayerGroups } from '@/lib/pool-formats';
 
-// Dedicated, clearly-labeled roster manager — SEPARATE from picking a game's
-// field. Building your saved-player list and choosing who plays today are two
-// different tasks the organizer was conflating, so this page does only the
-// former: see everyone saved, add new players, remove players, refresh
+// Dedicated, clearly-labeled SAVED PLAYERS manager — SEPARATE from picking a
+// game's field. Building your saved-player list and choosing who plays today
+// are two different tasks the organizer was conflating, so this page does only
+// the former: see everyone saved, add new players, remove players, refresh
 // handicaps. Every add shows a plain "Added to your saved players" confirmation.
+// Groups are managed on /home and each group's own dashboard — this page had a
+// SECOND group manager, and two UIs for one concept meant neither felt
+// authoritative (F-055, §5.bh).
 
 function getToken() {
   return sessionStorage.getItem('ghin_token');
@@ -127,7 +120,7 @@ export default function RosterPage() {
 
       <header className="bg-green-800 text-white shadow">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">Saved Players &amp; Groups</h1>
+          <h1 className="text-xl font-bold">Saved Players</h1>
           <button onClick={() => router.push('/pool')} className="text-sm text-green-200 hover:text-white">My Games</button>
         </div>
       </header>
@@ -135,7 +128,7 @@ export default function RosterPage() {
       <main className="max-w-3xl mx-auto px-4 py-6">
         <p className="text-sm text-gray-600 mb-4">
           These are the players saved for reuse. Add someone once here and they&apos;ll be available to pick
-          for every game. Adding to this list is permanent until you remove them.
+          for every game. Groups — named sets of these players — are managed from the Home screen.
         </p>
 
         {/* Sticky confirmation banner so it's obvious an add/remove persisted */}
@@ -144,9 +137,6 @@ export default function RosterPage() {
             ✓ {confirmation}
           </div>
         )}
-
-        {/* Groups — named sets of saved players, reusable when starting a game */}
-        <GroupsManager rosterLoading={loading} />
 
         {/* Saved players list */}
         <div className="bg-white rounded-lg shadow p-4 mb-4">
@@ -240,167 +230,6 @@ export default function RosterPage() {
           }}
         />
       </main>
-    </div>
-  );
-}
-
-// Full group manager: create a named group from scratch, rename/delete, and
-// add/remove members from the saved roster. Groups store canonical roster ids
-// (the roster is the source of truth), scoped to the viewer's GHIN. Separate
-// from the wizard's "save current field as a group" — this is where you curate
-// a reusable group directly.
-function GroupsManager({ rosterLoading }: { rosterLoading: boolean }) {
-  const [groups, setGroups] = useState<RosterGroup[]>([]);
-  const [roster, setRoster] = useState<RosterPlayer[]>([]);
-  const [selectedId, setSelectedId] = useState<string>('');
-  const [newName, setNewName] = useState('');
-  const [memberQuery, setMemberQuery] = useState('');
-  const [note, setNote] = useState('');
-  const [renaming, setRenaming] = useState(false);
-  const [renameText, setRenameText] = useState('');
-
-  // Load groups (roster is already hydrated by the page; re-read the cache after
-  // it finishes so member names resolve).
-  useEffect(() => {
-    hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' })
-      .then(() => setGroups(getPlayerGroups()))
-      .catch(() => {});
-  }, []);
-  useEffect(() => {
-    if (!rosterLoading) setRoster(getRoster());
-  }, [rosterLoading]);
-
-  const selected = groups.find((g) => g.id === selectedId) ?? null;
-  const rosterById = new Map(roster.map((r) => [r.id, r]));
-
-  function flash(msg: string) {
-    setNote(msg);
-    window.setTimeout(() => setNote(''), 3000);
-  }
-
-  async function createGroup() {
-    const name = newName.trim();
-    if (!name) return;
-    const group: RosterGroup = {
-      id: crypto.randomUUID(),
-      name,
-      ownerGhin: getCreatorGhin(),
-      playerIds: [],
-      defaults: null,
-    };
-    await upsertGroup(group);
-    setGroups(getPlayerGroups());
-    setSelectedId(group.id);
-    setNewName('');
-    flash(`Created group “${name}”. Add players below.`);
-  }
-
-  async function doRename() {
-    if (!selected) return;
-    const name = renameText.trim();
-    if (!name) return;
-    await renameGroup(selected.id, name);
-    setGroups(getPlayerGroups());
-    setRenaming(false);
-    flash('Group renamed.');
-  }
-
-  async function doDelete() {
-    if (!selected) return;
-    if (!confirm(`Delete group “${selected.name}”? This does not remove any players from your roster.`)) return;
-    await deleteGroup(selected.id);
-    setGroups(getPlayerGroups());
-    setSelectedId('');
-    flash('Group deleted.');
-  }
-
-  async function toggleMember(playerId: string) {
-    if (!selected) return;
-    const has = selected.playerIds.includes(playerId);
-    const next = has ? selected.playerIds.filter((id) => id !== playerId) : [...selected.playerIds, playerId];
-    await setGroupMembers(selected.id, next);
-    setGroups(getPlayerGroups());
-  }
-
-  const inputCls = 'rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500';
-  const memberMatches = memberQuery.trim()
-    ? roster.filter((r) => r.name.toLowerCase().includes(memberQuery.trim().toLowerCase()))
-    : roster;
-
-  return (
-    <div className="bg-white rounded-lg shadow p-4 mb-4">
-      <p className="text-sm font-semibold text-gray-800 mb-0.5">Groups</p>
-      <p className="text-xs text-gray-500 mb-3">
-        A group is a named set of your saved players (e.g. “Weekend Warriors”). Load one when starting a game to fill the field in one tap.
-      </p>
-
-      {note && <p className="mb-2 rounded-md bg-green-50 border border-green-200 px-3 py-1.5 text-xs font-medium text-green-800">{note}</p>}
-
-      {/* Pick an existing group, or create a new one */}
-      <div className="flex gap-2 flex-wrap">
-        <select className={`${inputCls} flex-1 min-w-[160px]`} value={selectedId} onChange={(e) => { setSelectedId(e.target.value); setRenaming(false); }}>
-          <option value="">{groups.length ? 'Select a group…' : 'No groups yet'}</option>
-          {groups.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.playerIds.length})</option>)}
-        </select>
-      </div>
-      <div className="flex gap-2 mt-2">
-        <input className={`${inputCls} flex-1`} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New group name…" />
-        <button onClick={createGroup} disabled={!newName.trim()} className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800 disabled:opacity-50">Create</button>
-      </div>
-
-      {selected && (
-        <div className="mt-4 border-t pt-3">
-          <div className="flex items-center justify-between mb-2">
-            {renaming ? (
-              <div className="flex gap-2 flex-1">
-                <input className={`${inputCls} flex-1`} value={renameText} onChange={(e) => setRenameText(e.target.value)} placeholder="Group name" />
-                <button onClick={doRename} className="text-xs text-green-700 font-medium hover:text-green-900">Save</button>
-                <button onClick={() => setRenaming(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
-              </div>
-            ) : (
-              <>
-                <p className="text-sm font-semibold text-gray-900">{selected.name} <span className="text-xs font-normal text-gray-500">({selected.playerIds.length} member{selected.playerIds.length === 1 ? '' : 's'})</span></p>
-                <div className="flex gap-3">
-                  <button onClick={() => { setRenaming(true); setRenameText(selected.name); }} className="text-xs text-green-700 font-medium hover:text-green-900">Rename</button>
-                  <button onClick={doDelete} className="text-xs text-red-500 font-medium hover:text-red-700">Delete</button>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Current members (removable) */}
-          {selected.playerIds.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {selected.playerIds.map((id) => {
-                const rp = rosterById.get(id);
-                return (
-                  <button key={id} onClick={() => toggleMember(id)} className="rounded-full bg-green-100 text-green-800 px-2 py-0.5 text-xs font-medium hover:bg-green-200" title="Remove from group">
-                    {rp ? rp.name : 'Unknown player'} ✕
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Add members from the roster */}
-          <input className={`${inputCls} w-full`} value={memberQuery} onChange={(e) => setMemberQuery(e.target.value)} placeholder="Search saved players to add…" />
-          <ul className="mt-2 max-h-56 overflow-y-auto divide-y divide-gray-100 rounded-md border border-gray-100">
-            {memberMatches.map((rp) => {
-              const inGroup = selected.playerIds.includes(rp.id);
-              return (
-                <li key={rp.id}>
-                  <button onClick={() => toggleMember(rp.id)} className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-gray-50">
-                    <span className="flex-1 text-sm text-gray-900 truncate">{rp.name}</span>
-                    <span className="text-xs text-gray-500">{rp.handicapIndex ?? '—'}{rp.ghinNumber ? '' : ' · manual'}</span>
-                    <span className={`text-xs font-medium ${inGroup ? 'text-red-500' : 'text-green-700'}`}>{inGroup ? 'Remove' : '+ Add'}</span>
-                  </button>
-                </li>
-              );
-            })}
-            {memberMatches.length === 0 && <li className="px-3 py-2 text-xs text-gray-500">No saved players match.</li>}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
