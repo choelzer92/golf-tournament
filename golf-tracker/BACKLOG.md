@@ -19,17 +19,17 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
-| **Sharing/login/identity AUDIT** — next buildable item (see its row below); the course-data audit still waits on the Meadows payload. Start on a NEW branch (Craig, 2026-09-14). | M | Craig 2026-09-10 |
+| **Sharing/login/identity FIXES** — the audit is DONE (F-047…F-055 in FINDINGS.md, branch `audit-sharing-login-2026-09-14`); buildable as soon as Craig picks options. Likely first slice: F-051 sliding cookie + F-050 copy + F-052 redirect + F-047 full sign-out — all small, none touch money. F-055 (group consolidation) is its own M. | M | this audit, 2026-09-14 |
 | **Game-structure simplification direction** (Craig 2026-09-14: "a pool is effectively just a 4v4 game… choose your groups, game style, players, how many teams, and go"). Agreed direction: structure-first wizard question, modes as shortcuts — the UI framing for the Team Competition engine (§5g). RECORD AS A DECISION when Craig confirms scope; near-term language slice already built (F-041/F-042). | L (design first) | F-041 + Craig 2026-09-14 |
 | **Course-data correctness audit** (Craig 2026-09-10, re-raised 2026-09-14: "we really need to investigate the situation with having improper slope/course ratings to a tee for different courses"). Extends F-023: (a) inventory live games' courses for missing/odd ratings via read-only queries; (b) harden the parse; (c) a diagnostic view that says WHAT the app extracted. Unblocker: `scripts/fetch-course-payload.mjs` (Craig runs with his GHIN creds, read-only). F-038 (tee order) fixed; the default-TEE question (tips as default?) belongs to this audit. | M | Craig 2026-09-10/14 + F-023 |
-| **Sharing/login/identity AUDIT** (Craig: "I want to get this polished"). Walk all four personas, screenshot, log findings, propose. Fold the group-management consolidation below into the same walk (same surfaces). | M | Craig 2026-09-10 |
-| Merge-audit polish batch (all four S items below) — fallback if the audit runs short | S×4 | merge audit / §5.ak |
-| **Consolidate group management on the NEW pages** (Craig 2026-09-10: "I don't know if this saved players and groups page is necessary… the new one should be the standard"). Overlap today: `/pool/roster`'s GroupsManager (dropdown + chips) duplicates `/home/groups/[id]` (dashboard + members + add). Shape: make /home the only group UI, keep /pool/roster for the PLAYER roster only (or fold that in too), rewire the three "Full roster manager"/"Manage" links. Needs a small design pass first — /pool/roster is also where groups are CREATED and where a `pool`-level share-link visitor lands (/home is full-only). | M | Craig 2026-09-10 |
+| Merge-audit polish batch (all four S items below) — fallback while F-047…F-055 wait on Craig | S×4 | merge audit / §5.ak |
+| **Consolidate group management on the NEW pages** — now shaped as **F-055** (options A/B/C recorded, screenshots share-audit-19/20/21; the gating constraint — /pool/roster is reachable at `pool` access, /home is GHIN-gated — is written down). Awaiting Craig's pick; recommendation A. F-054 (roster phone layout hides names) folds in if A. | M | Craig 2026-09-10 + F-055 |
 
 ## Done recently
 
 | Item | When |
 |---|---|
+| **Sharing/login/identity AUDIT done** (branch `audit-sharing-login-2026-09-14`): walked all four personas in the sandbox via `e2e/sharing-audit.spec.ts` (21 screenshots, `share-audit-*`), logged **F-047…F-055** with options. Headlines: Sign Out never clears the 48h cookie or localStorage identity (F-047); the per-game share token is shape-checked but never validated — `shareTokenMatches` has no callers (F-048); 48h cookie < weekly cadence (F-051); /pool/roster hides player names at phone width (F-054); group-UI consolidation shaped with its access-gating constraint (F-055). What WORKS: deep links survive the invite gate round-trip; the player share link is genuinely one-tap. No app code changed | 2026-09-14 |
 | **Context economy pair MERGED to main (f1e5e8e, Craig-approved)** (9d598e2 + 036ea4c): `pool/new/page.tsx` split into per-step files under `steps/` (777-line orchestrator; verify green, unchanged e2e as proof) and 30 settled findings archived to FINDINGS_ARCHIVE.md with a one-line index (verbatim moves, sorted-line diff proved nothing lost) | 2026-09-14 |
 | **MERGED to main + pushed (4c33964)**: `live-feedback-2026-09-10` — feedback box, F-027…F-046 fixes, F-045 junk defaults, F-040 add-player stack. Craig confirmed the §5.bg worked example ("makes sense — keep it") and the merge window (nobody mid-round). The 💬 feedback button is now live | 2026-09-14 |
 | **F-045 junk defaults** (e924dbe, §5.bg): fresh classic pool = bonuses off behind "Add bonuses"; junk's pot quarter folds into OVERALL at creation (`foldJunkIntoOverall`, proven failable per §5.z); scorecard CTP / CTP editor / Pot panel / leaderboard junk surfaces all follow the game's junk config; JY Classic Pool format keeps its junk; 3 unit + 5 e2e. NOT built (queued below): the §5.bg money-step redesign (per-player/per-leg dollars, splits editable by player count) | 2026-09-14 |
@@ -59,6 +59,8 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | F-023 part B (widen the GHIN ratings parse) | The real `GetCourseDetails` payload for The Meadows (Greenbrier, WV) — search it with the network tab open |
 | §7 q4 | Confirm dark = live / light = setup is deliberate |
 | F-034 stale draft name | His pick among A/B/C in the finding |
+| **F-047…F-055 option picks** (sharing/login audit) | One pass through the nine new FINDINGS.md entries; recommendations are marked. F-055 option B would open the §5c/F-002 accounts conversation — everything else is small product work |
+| **Read /home/feedback** | The audit session's live read-only query was blocked by the tool permission gate — check the 💬 notes in-app (live since 4c33964), or allow a one-off read-only query next session |
 
 ## Next few sessions (shaped, ready to build)
 
