@@ -1005,9 +1005,11 @@ function DetailsStep({
     if (teamFormat === 'net-and-gross' || teamFormat === 'two-best-net' || teamFormat === 'two-best-gross') {
       // Two-ball formats are four-ball; the USGA number differs between match and stroke
       // play, and the classic pool has always quoted 85% for the stroke-play pool.
+      // F-044: the two numbers differ because head-to-head IS match play and the pot IS stroke
+      // play — say which toggle answer drove the number, or the 85↔90 flip looks like a glitch.
       return moneyMode === 'match'
-        ? { pct: 90, note: 'USGA suggests 90% for four-ball match play' }
-        : { pct: 85, note: 'USGA suggests 85% for four-ball stroke play (two scores counting)' };
+        ? { pct: 90, note: 'USGA suggests 90% for four-ball match play (head-to-head)' }
+        : { pct: 85, note: 'USGA suggests 85% for four-ball stroke play (pot — two scores counting)' };
     }
     return { pct, note: `USGA suggests ${pct}% for ${mode.name.toLowerCase()}` };
   })();
@@ -1092,6 +1094,20 @@ function DetailsStep({
                 // Point at what WOULD work, so the constraint arrives with an option attached
                 // rather than as a dead end. §5.ao: guidance, not validation.
                 const alternatives = GAME_MODES.filter((m) => modeFits(m, playerCount)).map((m) => m.name);
+                // F-041: the mode NAME is also a scoring system's name, and the golfer reads
+                // "Stableford — 4 too many" as "this app can't play Stableford with 8". The pool
+                // scores any field Stableford (its Strokes/Stableford toggle), and Sides/Match
+                // carries the same toggle to 8 — so when the refused mode's SCORING lives on in
+                // a structure that fits, say that instead of just listing other game names.
+                const scoringCarriers: Record<string, string> = {
+                  stableford: 'Stableford', quota: 'points-to-quota',
+                };
+                const scoring = selectedMode ? scoringCarriers[selectedMode.id] : undefined;
+                if (scoring && playerCount > selectedMode!.playersMax) {
+                  const sides = getGameMode('team-2v2');
+                  const sidesFit = sides && modeFits(sides, playerCount);
+                  return `${playerCount} players can still score ${scoring} — as a team Pool (see "How is the hole scored?")${sidesFit ? ' or as Sides / Match' : ''}.`;
+                }
                 return alternatives.length > 0
                   ? `${alternatives.length === 1 ? 'This one fits' : 'These fit'} ${playerCount}: ${alternatives.join(', ')}.`
                   : `A team pool works with any number.`;
@@ -1203,10 +1219,14 @@ function DetailsStep({
 
         {!isRegisteredMode && showMoney && (
         <div className="pt-2 border-t">
-          <label className="block text-sm font-medium text-gray-800 mb-1">How does the money work?</label>
+          {/* F-042: ask this as STRUCTURE, not payment mechanics. "Everyone buys in" vs "Two
+              teams, head-to-head" made Craig ask what the difference even was — the real
+              question is whether all the teams compete for one pot or exactly two face off.
+              The money mechanics follow from that answer and the helper text still states them. */}
+          <label className="block text-sm font-medium text-gray-800 mb-1">Who competes against whom?</label>
           <div className="flex gap-2">
             {([
-              { v: 'pot', label: 'Everyone buys in' },
+              { v: 'pot', label: 'All teams, for a pot' },
               { v: 'match', label: 'Two teams, head-to-head' },
             ] as const).map(({ v, label }) => (
               <button
@@ -3901,6 +3921,14 @@ function CreateStep({
               </button>
             )}
           </div>
+          {/* F-044: the defaults come from a table of the organizer's historical splits by team
+              count — and read as arbitrary hard-coding when nothing says so. Craig read his OWN
+              numbers as "weird". Name the source; the fields stay editable either way. */}
+          {!potEdited && (
+            <p className="text-xs text-gray-500 mb-2">
+              The usual split for {teams.length} team{teams.length === 1 ? '' : 's'} — edit any leg to change it.
+            </p>
+          )}
           <div className="grid grid-cols-4 gap-2">
             {potFields.map(({ key, label }) => (
               <div key={key}>

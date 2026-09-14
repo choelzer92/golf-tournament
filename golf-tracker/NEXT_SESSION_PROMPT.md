@@ -1,73 +1,76 @@
-# Next session: course-data correctness audit (The Meadows payload first)
+# Next session: the walkthrough follow-ups (F-043…F-046), then the merge call
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 ---
 
 Read `AGENTS.md` first. **Context economy:** read DECISIONS.md whole (short); grep
-DECISIONS_ARCHIVE.md by § only when touched. F-023's original notes are in FINDINGS.md.
+DECISIONS_ARCHIVE.md by § only when touched. The new findings are F-040…F-046 in
+FINDINGS.md — read those six entries in full; they carry Craig's exact words and
+the diagnosis for each.
 
-**State:** branch `live-feedback-2026-09-10` (off main, unmerged), verify green
-(136 e2e). All six friend-feedback fixes F-028…F-033 are BUILT and committed
-(8018429, d54cfe2, e2788c4, 60e5fe2, a22e359, e038fff — one per finding, each with
-e2e). Merge is Craig's call (§5.ab).
+**State:** branch `live-feedback-2026-09-10` (off main, unmerged), verify green.
+Craig's 2026-09-14 walkthrough produced F-040…F-046. Already FIXED on the branch:
+F-035/36/37(partial)/38/39a (quick-fix batch) and the F-041/F-042/F-044
+language-level fixes (misfit redirect line, "Who competes against whom?" toggle,
+pot-split "usual split" note, 85↔90 note naming its driver). Merge is Craig's call —
+he said "maybe it's time" but wanted the walkthrough first; the walkthrough then
+produced this batch, so ASK HIM whether to merge now or after these follow-ups.
 
-## The work
+## The work, in order
 
-**Course-data correctness audit** (Craig: "important that it works for all courses…
-The Meadows is a good test. Others too may have them typed in differently").
-Extends F-023 — GHIN course payloads aren't uniform (missing 'Total' ratings rows,
-differently-shaped tee/ratings blocks).
+1. **F-043 — handicap transparency disclosure** (Craig wants it; display-only).
+   A tap/disclosure per player showing the chain:
+   `12.4 index → 14.8 course (slope 131) → ×85% → 12.6 → plays off 13`.
+   One shared component; surfaces: teams step, sides step, player-details sheet.
+   Fold in F-023's "no rating on this tee — using index" honesty. The math lives in
+   `getPoolPlayingHandicap` (§5.bb: allowance on unrounded CH, round once) — the
+   component must SHOW that order, never recompute differently.
+2. **F-046 — repro the saved-format miss.** Sandbox walk: save a format from a game
+   ("Save format" on the hub) → does it attach to the group? → new game → pick
+   Friday Group on the field step → what does the game step offer? Suspect (c) in
+   the finding: attached formats don't surface at the moment the group is chosen.
+   Fix = the game step offers the chosen group's formats first, labeled as such.
+3. **F-045 — junk defaults** (MONEY-ADJACENT — get Craig's explicit pick first).
+   Proposal: classic pool defaults junk to $0/off with an "add bonuses" affordance
+   (matching the registered modes' bonuses-off convention); saved formats keep what
+   they saved. Needs his call on the 4-way pot split when junk is $0 (fold junk's
+   quarter into overall? re-split three ways? his historical table has junk in it).
+4. **F-040 — add-player reorder** (his pick pending between options A/B/C in the
+   finding; he leaned "name first, GHIN # as bulk fallback, manual gets a no-GHIN
+   note"). Option B (reorder + paste-a-list bulk + the note) matches his words
+   best. All four surfaces share the stack by copy — change all four or extract.
 
-1. **Capture the Meadows payload.** Craig runs `npx next dev` (port 3000, REAL
-   backend) and logs in; a temporary log in `src/lib/ghin-api.ts` captures
-   `GetCourseDetails`; save to `course-payloads/` (gitignored). Or
-   `scripts/fetch-course-payload.mjs` with his token. This is the step that's been
-   waiting since 2026-09-10 — do it FIRST while he's present.
-2. **Inventory live games' courses** for missing/odd ratings via READ-ONLY queries
-   (Craig-authorized reads only; never write to live — §3).
-3. **Harden the parse** for the shapes found; unit-test each captured shape.
-4. **A diagnostic view or log** that says WHAT the app extracted from a course, so
-   a wrong pull is visible instead of silent.
+## The BIG discussion to keep alive (do NOT build it unprompted)
 
-Document first (§2): findings + options before code changes beyond the capture rig.
-
-## Queued right behind (BACKLOG "Now")
-
-- **Sharing/login/identity audit** (four personas, screenshots; group-management
-  consolidation folded in; §5c boundary).
-- Merge-audit polish batch (4 × S) as fallback if the session runs short.
+F-041/§5g: Craig's framing — "a pool is effectively just a 4v4 game… choose your
+groups, your game style, your players, how many teams, and go." Direction agreed
+in-session (2026-09-14): structure-first wizard question (how do N players compete)
+before scoring; pre-composed modes become shortcuts; this is the Team Competition
+engine's UI framing. Record as a decision entry when Craig confirms scope. The
+language fixes above are the near-term slice of it, already built.
 
 ## Waiting on Craig
 
-- **When he asks "when should I run localhost":** the course-payload capture above
-  IS that moment — `npx next dev` on port 3000 + GHIN login, this session or any.
-  For REVIEWING the F-028…F-033 fixes, the sandbox is enough:
-  `NEXT_PUBLIC_SANDBOX=1 npx next dev --port 3200`, seed `stableford-ind-partial` /
-  `-complete` from /sandbox — or just merge-review the branch (§5.ab, his timing).
-- F-030 opt C (standings strip on the card) and F-031 opt B (bigger card to-par
-  superscript) — both optional follow-ups, in BACKLOG "Next few sessions".
-- Relay the friend's answers (BACKLOG has the one-liner).
-- F-022 on-course GHIN spot-check (§5.ba protocol if off).
-- §7 q4 (dark = live / light = setup).
-- Branch merge/deploy (§5.ab) — the feedback box AND all six fixes ship with it.
+- **Merge/deploy call** (§5.ab) — everything above can also land after merge; the
+  feedback box + all fixes ship only when the branch deploys.
+- **Meadows payload capture** for the course-data audit (F-023/F-038 evidence):
+  `GHIN_USER=... GHIN_PASS=... node scripts/fetch-course-payload.mjs "The Meadows" WV`
+  — read-only, saves to gitignored `course-payloads/`. Any time he's willing.
+- F-034 (stale draft name) — his pick among A/B/C.
+- F-039 color half — sandbox repro (5 players, 2 sides 2v3, scorecard colors).
+- F-022 on-course GHIN spot-check; §7 q4 (dark=live/light=setup).
 
 ## Traps that keep biting
 
-- Stale `next dev` on port 3200 → every e2e times out (`netstat -ano | grep :3200`).
-  Craig sometimes runs his own dev server — check WHOSE process it is before killing.
-- **TaskStop on a backgrounded `npx next dev` can leave the CHILD server alive** —
-  Next 16 then refuses a second dev server in the same directory, and verify's e2e
-  webServer silently REUSES the survivor. Kill by PID, confirm the port is free.
-  Convention: port 3200 = sandbox/e2e, port 3000 = Craig's real app.
-- Turbopack crash can corrupt `.next` — `rm -rf .next` fixes it.
-- Check `npm run verify`'s own exit code, not a `tail` of its log.
-- On LOCALHOST with the real backend, groups/roster only show after GHIN login
-  succeeds (visibility is scoped to `viewerGhin` — roster-groups.ts:83).
-- The scorecard resumes at the FIRST UNSCORED hole on remount (by design) — it is
-  not a preserved cursor; don't file that as a bug (learned in F-030's e2e).
-- The pill's "Standings" tab collides with page-wide `getByText('STANDINGS')`
-  locators — scope to `getByRole('main')` in new e2e.
+- Stale `next dev` on 3200 → e2e times out; TaskStop can orphan the CHILD server —
+  kill by PID, confirm port free (`netstat -ano | grep :3200`). 3000 = Craig's.
+- Check `npm run verify`'s own exit code, not a tail of its log.
+- Turbopack crash → `rm -rf .next`.
+- e2e must assert it reached the right screen; scope 'Standings' locators to
+  `getByRole('main')`.
+- The pot/match toggle labels changed (F-042): "All teams, for a pot" /
+  "Two teams, head-to-head" under "Who competes against whom?".
 
 ## End the session by grooming BACKLOG.md
 

@@ -2807,7 +2807,12 @@ the engine: when a picked mode misfits, the F-020 alternative line should also s
 or SIDES can play that scoring ("8 players can play Stableford as a pool — team toggle — or as
 sides"), and/or the badge should not read as refusing a scoring system the app offers.
 
-**Status:** open — the DISCUSSION Craig asked for; direction feeds the team-competition plan.
+**Status:** redirect line FIXED 2026-09-14 (misfit note now says "N players can still score
+Stableford — as a team Pool… or as Sides / Match"; e2e). DIRECTION AGREED in-session, Craig:
+"a pool is effectively just a 4v4 game… choose your groups, your game style, your players, how
+many teams, and go… lets think about how to simplify this" — structure-first wizard question,
+modes become shortcuts; the Team Competition engine's UI framing. Record as a decision when
+scope is confirmed; do NOT build the engine unprompted.
 
 ---
 
@@ -2827,7 +2832,9 @@ also silently changes the recommended allowance 85%↔90% (see F-043). Candidate
 as structure ("All foursomes compete" vs "Two teams against each other"), or move it after teams
 are built where "two teams" is concrete.
 
-**Status:** open — fold into the F-041 taxonomy discussion.
+**Status:** label layer FIXED 2026-09-14 — toggle asks "Who competes against whom?" with
+"All teams, for a pot" / "Two teams, head-to-head"; e2e asserts. The move-after-teams idea
+stays open with the F-041 structure discussion.
 
 ---
 
@@ -2865,7 +2872,9 @@ recommended value changes from 85% to 90%."
 2. 85→90 is USGA: four-ball STROKE play 85%, four-ball MATCH play 90% (`usgaRec`, wizard:1005).
    The note names the format but the FLIP is unexplained at the moment it happens.
 
-**Status:** open — explanation-layer fixes; the "saved per group" idea feeds the format library.
+**Status:** explanation layer FIXED 2026-09-14 — pot split says "The usual split for N teams —
+edit any leg"; the USGA notes name their driver ("(head-to-head)" / "(pot — two scores
+counting)"). The "saved per group" idea stays open, feeds the format library.
 
 ---
 

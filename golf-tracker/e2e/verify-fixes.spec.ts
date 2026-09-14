@@ -332,9 +332,13 @@ test.describe('USGA allowance recommendation', () => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
     await fieldToGameStep(page);
-    // Head-to-head is four-ball MATCH play -> 90%.
+    // F-042: the toggle asks WHO COMPETES, not how payment works.
+    await expect(page.getByText('Who competes against whom?')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'All teams, for a pot' })).toBeVisible();
+    // Head-to-head is four-ball MATCH play -> 90%, and the note names the toggle answer
+    // that drove the number so the 85↔90 flip doesn't read as a glitch (F-044).
     await page.getByRole('button', { name: 'Two teams, head-to-head' }).click();
-    await expect(page.getByText(/USGA suggests 90% for four-ball match play/)).toBeVisible();
+    await expect(page.getByText(/USGA suggests 90% for four-ball match play \(head-to-head\)/)).toBeVisible();
   });
 });
 
@@ -1794,6 +1798,13 @@ test.describe('F-020: the game picker annotates fit', () => {
     // And it does NOT send them back a step — that was the old copy's whole problem.
     expect(body).not.toMatch(/go back/i);
     await page.screenshot({ path: 'e2e/screenshots/f020-wolf-misfit.png', fullPage: true });
+
+    // F-041: "Stableford" names a SCORING SYSTEM, not just the 2–4 player individual mode —
+    // and the pool scores any field Stableford. The misfit note must redirect to that, not
+    // read as "this app can't play Stableford with 5".
+    await page.locator('select').first().selectOption('stableford');
+    const body2 = await page.locator('body').innerText();
+    expect(body2).toMatch(/5 players can still score Stableford — as a team Pool/);
   });
 
   // F-019 falsified two strings that claimed a side game is played "within a single group". A side
