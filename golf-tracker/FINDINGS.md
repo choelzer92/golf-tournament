@@ -850,7 +850,9 @@ signs out to "log in as someone else" will find the old identity ghosting /pool.
 
 **Recommendation:** A — one function call that's already written, and the label becomes true.
 
-**Status:** open
+**Status:** FIXED 2026-09-14 per option A (Craig: "address these") — `logout()` on /home and
+/dashboard now clears the cookie AND both identity stores (`clearGhinIdentity`); e2e
+`F-047` proves the cookie is gone and /pool re-gates.
 
 ---
 
@@ -881,7 +883,10 @@ point of per-game tokens, can't work until something checks the token.
 
 **Recommendation:** A — it's the missing half of an approved, built feature, not new security surface.
 
-**Status:** open
+**Status:** FIXED 2026-09-14 per option A — the game page checks a present `?key=` with
+`shareTokenMatches` for pool-access visitors and shows "This link isn't valid for this
+game" on a mismatch; real links and keyless in-app navigation unaffected. e2e `F-048`
+covers both the refusal and the real-link regression.
 
 ---
 
@@ -911,7 +916,10 @@ cue that the app doesn't know who they are. And feedback notes from guests arriv
 **Recommendation:** A — it consolidates F-047's relabeled sign-out, this, and the
 scattering into one small header affordance.
 
-**Status:** open
+**Status:** PARTLY FIXED 2026-09-14 — the game hub header now says "Viewing as {name}"
+(identified) or "Viewing as guest · scoring link" (token guest); e2e `F-049` ×2. Still
+open from option A: making it tappable (sign-out / switch) and extending it beyond the
+hub — fold into whichever session touches the pool header next.
 
 ---
 
@@ -937,7 +945,9 @@ the exact URL you asked for — screenshots 05→06.)
 
 **Recommendation:** B now (words are free), A if F-051 doesn't make expiry rare anyway.
 
-**Status:** open
+**Status:** FIXED 2026-09-14 per option B — the gate now says "Enter the invite code —
+the same one works every time." (F-051's sliding cookie makes the returner case rare,
+so option A's marker wasn't built.) e2e `F-050/F-051`.
 
 ---
 
@@ -962,7 +972,10 @@ never persists between rounds. Nothing refreshes it on use (the gate only reads 
 **Recommendation:** B — regulars never re-enter, and it composes with F-050's copy for
 whoever still does.
 
-**Status:** open
+**Status:** FIXED 2026-09-14 as A+B COMBINED — sliding expiry alone at 48h would still
+lapse between weekly rounds, so the max-age is now 30 days AND the gate re-sets the
+cookie on every visit (a weekly regular never re-enters; a lapsed visitor ages out after
+a month). e2e `F-051` ×2 (fresh grant ≥20d out; a 2-day cookie refreshed on visit).
 
 ---
 
@@ -986,7 +999,7 @@ where their login card lives.
 
 **Recommendation:** A — the fence should land people on a floor, not a form.
 
-**Status:** open
+**Status:** FIXED 2026-09-14 per option A — the fence redirects to `/pool`. e2e `F-052`.
 
 ---
 
@@ -1014,7 +1027,9 @@ cited from `ghin-login-modal.tsx:51-54` and `page.tsx:55`.)
 
 **Recommendation:** A.
 
-**Status:** open
+**Status:** FIXED 2026-09-14 per option A — the login page reads the durable identity and
+greets a returner ("Welcome back, {first} — your GHIN session expired…"); after a real
+Sign Out (F-047 clears the identity) it correctly reverts to the stranger copy. e2e `F-053`.
 
 ---
 
@@ -1041,7 +1056,9 @@ link to — every persona managing people lands here, on a phone.
 
 **Recommendation:** A now if F-055 waits; C if the consolidation is imminent.
 
-**Status:** open
+**Status:** FIXED 2026-09-14 per option A (F-055 is waiting on Craig's pick) — the row is
+two lines: name + gender + Remove on top, index/GHIN + usual-tee below. e2e `F-054`
+asserts the first row's name and Remove sit inside a 390px viewport.
 
 ---
 
