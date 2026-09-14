@@ -9,11 +9,11 @@ Read `AGENTS.md` first. Context economy is now structural: `pool/new/page.tsx` i
 the open working set (settled entries: grep `FINDINGS_ARCHIVE.md` by F-0NN). Still:
 delegate broad searches to subagents; grep DECISIONS_ARCHIVE.md by §.
 
-**State (2026-09-14):** everything through the F-045/F-040 batch is MERGED to `main`
-(4c33964, Craig-confirmed) and live — the 💬 feedback box included, so **check
-`/home/feedback` for notes**. Branch `context-economy-2026-09-14` (pushed) holds the
-wizard split + FINDINGS archive: pure refactor + docs, verify green (149 e2e), waiting
-on Craig's review/merge — ask, don't merge.
+**State (2026-09-14):** EVERYTHING is merged to `main` and pushed (f1e5e8e) — the
+F-045/F-040 batch (4c33964, live with the 💬 feedback box: **check `/home/feedback`
+for notes**) and the context-economy refactor (wizard split + FINDINGS archive,
+Craig-approved). **Start this session's work on a NEW branch off main** (Craig,
+2026-09-14).
 
 ## The work: sharing/login/identity audit (BACKLOG "Now"; Craig: "I want to get this polished")
 
@@ -34,7 +34,7 @@ findings with options in FINDINGS.md:
 
 ## Waiting on Craig (full table in BACKLOG.md)
 
-`context-economy-2026-09-14` merge call · Meadows payload (F-023B) · F-034 A/B/C ·
+Meadows payload (F-023B) · F-034 A/B/C ·
 F-022 on-course spot-check · §7 q4 · telling the friend the queued answers (fixes are
 deployed now). The BIG structure discussion (§5g framing) stays alive — do NOT build.
 
