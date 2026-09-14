@@ -2502,6 +2502,213 @@ answer back may simply be "update: they're there now / clearer once the branch s
 
 ---
 
+### F-034 — Choosing a group can "recommend" a STALE game name from the wizard draft  [P3] [start]
+
+**Where:** `app/pool/new/page.tsx` — draft hydration (line ~255 restores `name` from
+sessionStorage `WIZARD_KEY`) + `onGroupLoaded` (line ~627: `setName((prev) => prev.trim() ? prev : g.name)`)
+**Reported:** Craig, 2026-09-10 — "opened a test game, chose Friday group, and it's
+recommending Weekend Warriors as the name. that's weird."
+
+**Diagnosis (code inspection, mechanism confirmed):** the wizard auto-saves every field
+to a sessionStorage draft, including `name`, and restores it on mount. Loading a group
+only names the game **when the name is empty** — a courtesy fill. So the sequence
+"started/abandoned a game involving Weekend Warriors earlier in this tab → open a new
+game → pick Friday Group" shows Weekend Warriors in the name box: it isn't a
+recommendation at all, it's the previous draft's leftover, and the group load politely
+declines to overwrite what looks like something you typed. The draft deliberately does
+NOT restore players/step (a fresh field per game) — but `name` is restored, which is
+right for "resume my setup" and wrong-looking the moment you change groups.
+
+**Options**
+- **A. When a group/format loads and the current name equals a STALE auto-fill (tracked
+  the way `appliedFormat` already tracks its name), replace it with the new group's
+  name.** Track "the name came from group X" in state; a hand-typed name is never touched.
+- **B. Clear `name` from the draft when the wizard is opened fresh from a group page or
+  /pool hub (arrival context says "new game").** Cheapest; loses "resume my half-built
+  setup keeps its name" only for those entry points.
+- **C. Leave it; it's a draft-resume feature.** Evidence against: Craig read it as a
+  recommendation — the box gives no hint the name is left over from a previous setup.
+
+**Status:** open — needs Craig's pick.
+
+---
+
+### F-035 — The wizard's GROUPS step shows raw floating-point handicaps (16 decimals)  [P2] [start]
+
+**Where:** `app/pool/new/page.tsx:2829` — the playing-groups step renders
+`hcapOf(player)` (line 2709: unrounded `getPoolPlayingHandicap`) straight into JSX
+**Reported:** Craig, 2026-09-10 — "the handicaps are not just 1 decimal. it's like 16
+decimals, which I'm not sure how that's possible."
+
+**Diagnosis (code inspection):** `getPoolPlayingHandicap` is deliberately unrounded
+(§5.bb: allowance applies to the unrounded CH; callers round once). Every other wizard
+step obeys that contract — the tee step (line 2625), the teams step (line 3311), and the
+sides step (line 3463) all `Math.round(...)` before display. The Groups step (F-019's
+playing-groups screen, shown for a >4-player side game) is the one consumer that
+forgot: it renders the raw float, and with Friday Group's 90% allowance a 14.3 index
+becomes e.g. `12.870000000000003`. Classic one-axis-drift: each screen individually
+fine, wrong only by comparison. Display-only — the math underneath is correct.
+
+**Fix shape (when asked):** `Math.round(hcapOf(...))` at line 2829, matching its three
+sibling steps; e2e-assert no `.` longer than 1 decimal on that screen.
+
+**Status:** open — trivial display fix awaiting go-ahead.
+
+---
+
+### F-036 — Reshaping to MORE sides than exist mints DUPLICATE side ids: A, B, C, C  [P1 MONEY] [start]
+
+**Where:** `app/pool/new/page.tsx:3457` — `applySideShape`:
+`id: effective[i]?.id ?? nextSideId(effective.slice(0, i))`
+**Reported:** Craig, 2026-09-10 — "in sides game, it lists sides for a 2v2v2v2 game as
+A B C and then C again."
+
+**Diagnosis (code inspection, arithmetic confirmed):** when the field starts on the
+default TWO sides (`a`,`b`) and the organizer picks a 4-side shape (8 players → 2v2v2v2),
+the builder derives each new side's id from a slice of the **old** sides array:
+- i=2 → `nextSideId([a,b])` → `'c'` ✓
+- i=3 → `nextSideId(effective.slice(0,3))` — but `effective` has only 2 entries, so the
+  slice is still `[a,b]` → `'c'` **again**.
+
+Every side added beyond `old count + 1` in a single reshape repeats the same id. The
+slice needed is of the NEW list being built, not the old one.
+
+**Why P1 MONEY, not P2 display:** side ids are identity (the file's own comment: "the
+ids are identity, not position… re-lettering would silently relabel money rows").
+With two sides both `'c'`: `assign()` adds a tapped player to BOTH (its map matches
+`side.id === sideId`) — one player on two sides is exactly the impossible data §5.ac
+says to prevent; `sideMembers`/`sideOfPlayer` resolve only the first; pairwise
+settlement (§5.ae) would treat two distinct pairs as one/duplicated party. React also
+gets duplicate keys (`key={side.id}`). The same `?? nextSideId(...)` idiom exists in
+`addSide` (safe — appends one) and the hub's editor at `pool/[id]/page.tsx:967` (safe —
+adds one at a time); only the reshape path can add ≥2 at once.
+
+**Fix shape (when asked):** build the list incrementally so each new id sees the ids
+already minted (e.g. reduce, or `nextSideId` over the accumulated result); pin with a
+unit test "2 sides + [2,2,2,2] shape → ids a,b,c,d" in sides/group-shapes tests, plus
+the zero-sum settlement assertion at 4 sides.
+
+**Status:** open — needs Craig's go (touches side identity, adjacent to money).
+
+---
+
+### F-037 — Eight players who want "two separate 2v2 best-balls" can't say so — and Craig can't tell what IS possible  [P1] [start]
+
+**Reported:** Craig, 2026-09-10 — "how would I run 4v4 if it's not a pool? like 2v2 and
+2v2? I'm confused at why I can only choose pools" and "once I've chosen a player pool, I
+should be able to choose how many teams. like two different 2v2 best balls going on
+between 8 players — I'm not sure I could set that up."
+
+**What the app CAN do today (verified in code):**
+- **4v4 best ball, 8 players, no pool:** BUILT. Sides/Match (`team-game.ts`,
+  `playersMax: 8`) + the F-020 shape chooser offers `[4,4]`; F-019 playing groups
+  split them into two foursomes; §5.ae settles sides pairwise. It exists — Craig
+  didn't find it, which per the north star is the same as not existing.
+- **2v2v2v2, one game:** BUILT (same screen, `[2,2,2,2]` shape) — but that is FOUR
+  sides in ONE round-robin settlement: every pair competes against every other pair.
+- **Two INDEPENDENT 2v2 matches (A&B vs C&D, and separately E&F vs G&H):** NOT
+  expressible in one game. A sides game has one settlement pool across all its sides;
+  the only partitioned-competition container is the classic pool (foursome vs foursome,
+  or 2-foursome head-to-head via matchups). The workaround — create two separate
+  games — splits the ledger, the share link, and the evening's recap.
+
+**Two findings inside the report:**
+1. **Capability gap:** "sides" and "who settles with whom" are conflated. The approved
+   team-competition plan (pool-team-competition-plan, §5g N-sides engine, NOT built)
+   is the designed home for N-teams-of-K; independent PAIRINGS of sides (bracket-style
+   "these two settle, those two settle") is a further axis nobody has designed yet.
+   Craig's mental model — field first, then "how many teams", then the game — is §5.au
+   EXACTLY (field → game → …); what's missing is the structure question after the field.
+2. **Discoverability (F-033's older sibling):** at 8 players the picker still defaults
+   to Pool, and nothing says "Sides/Match handles 4v4 or 2v2v2v2 here." The F-033 hint
+   line was built for ≤3 players only — the same confusion at the other end of the range.
+
+**Options**
+- **A. Extend the F-033 hint to larger fields:** when playerCount ≥ 5 fits a sides game,
+  say "8 players can also play Sides/Match — 4v4, 2v2v2v2…". Cheap, discoverability only.
+- **B. Design the pairings axis:** let a 4-side game declare A↔B and C↔D settle
+  independently (two matches, one game, one recap). Real design work — feeds the
+  team-competition plan rather than a quick fix.
+- **C. Both: A now, B into BACKLOG as a design task attached to the team-competition plan.**
+
+**Recommendation:** C. Answer to Craig's question directly: 4v4 IS there today (choose
+Sides / Match at 8 players, pick the 4v4 split); two independent 2v2s needs two games
+for now.
+
+**Status:** open — awaiting Craig's read; nothing built.
+
+**Craig, same session, two more data points that sharpen this into a NAMING finding:**
+"if I choose 4 players playing, how can I just make it 2 v 2?" and "I also can't make a
+2v2 game anymore for some reason. or not sure how." The capability is fully built — at
+4 players, pick **"Sides / Match"** in the game picker and the sides step defaults to
+2v2 — but the mode was RENAMED from its 2v2-era label to "Sides / Match" (team-game.ts:681,
+the F-019 widening), and nothing in the picker says "2v2" anymore. Craig, the app's
+OWNER, could not map "I want 2v2" to "Sides / Match": the strongest possible evidence
+that the label lost the game's most common name. §5.at in reverse — the rename dated
+the VOCABULARY users search by, not a limit. Option D for the list above: **rename or
+subtitle the mode so "2v2" appears in the picker** (e.g. "Sides / Match (1v1, 2v2, up
+to 4v4)") and/or make the description line say it before a mode is even selected.
+
+**Craig, after finding it (2026-09-10):** "i figured out the 2 v 2 game, but its not
+clear to me" — locating the mode didn't resolve the confusion. The problem isn't only
+the label; the flow from "Sides / Match" to an actual 2v2 doesn't announce itself
+either (the sides step arrives without saying "this is where your 2v2 happens").
+
+---
+
+### F-038 — Tee lists render in GHIN's payload order, not by distance — The Meadows reads Gold, Green, Blue, White  [P2] [start]
+
+**Where:** `app/pool/new/page.tsx:1517-1541` — course-details parse maps `TeeSets`
+straight through; men's/women's split preserves payload order; `selectedTeeId` defaults
+to `teeSets[0]` whatever that is.
+**Reported:** Craig, 2026-09-10 — "it lists the tees as gold, green, blue, white,
+white (W), green (W). this is weird because the distances are off."
+
+**Diagnosis (verified against the live game's stored payload — The Meadows, course
+5682):** GHIN returns The Meadows' tees in the order Gold 6602y, Green 4885y, Blue
+6109y, White 5622y. The parse never sorts, so the picker shows a jumble — Green (the
+shortest, forward tee) second, between the tips and Blue. The DATA is right (each tee's
+yardage/slope/rating match GHIN); only the ORDER is raw. Spring Creek never showed this
+because GHIN happens to return its tees longest-first. `lib/tee-pick.ts:33` already
+sorts by yardage for its own picking logic — display just doesn't use it. Also note
+`selectedTeeId = teeSets[0]` silently defaults every game to whatever tee GHIN lists
+first — at The Meadows, the tips.
+
+**Fix shape (when asked):** sort each gender block by `totalYardage` descending at
+parse time (one line, same idiom as tee-pick.ts), or at render. Belongs to the F-023
+course-data audit: same lesson — payload shape/order is not uniform across courses.
+
+**Status:** open — display ordering; data confirmed correct.
+
+---
+
+### F-039 — Meadows side game: "everyone is the same color, and says Bill and Bill after them"  [P2] [track]
+
+**Reported:** Craig, 2026-09-10, live game `47d97408` ("sidestest", The Meadows, 5
+players, Sides/Match best-ball, off-the-low 95%).
+**What the stored game says (read from tonight's snapshot):** sides persisted fine as
+legacy `subTeams` — side A = Bill McAuliffe & Bill Grupp, side B = Briggs, Brandon &
+Morgan (a 2 v 3). Assignment WORKED; this is a display problem, not lost data.
+
+**Two symptoms, likely two causes:**
+1. **"Bill and Bill"** — CONFIRMED by code: `sideNameFrom` (team-game.ts:101) builds a
+   side's auto-name from its first two members' FIRST names. Side A is literally
+   "Bill & Bill" — two Bills. Working as designed; the design assumes first names
+   distinguish people. Fix shape: when first names within a side (or across the board)
+   collide, fall back to `First L.` ("Bill M. & Bill G.") — same collision rule
+   scorecards use for duplicate first names elsewhere, if one exists; add one if not.
+2. **"Everyone is the same color"** — NOT yet reproduced. The scorecard colors rows
+   blue/red off `player.team` ('A'/'B'), tagged in `pool/[id]/page.tsx:229-234` when
+   `sides.length <= 2`. This game IS two sides, so tags should apply. Suspects: the
+   2v3 uneven split, the `subTeams` legacy load path, or Craig was on a different
+   screen (hub sides editor / scorecards page) whose buttons don't color. NEEDS a
+   screenshot repro in the sandbox: 5 players, 2 sides (2v3), open the scorecard —
+   blocked tonight on port 3000/3200 being held by Craig's own dev server.
+
+**Status:** open — half confirmed (naming), half needs repro (color).
+
+---
+
 ## Fixed & verified
 
 Findings confirmed fixed with an e2e assertion guarding them. (The 11 fixes from
