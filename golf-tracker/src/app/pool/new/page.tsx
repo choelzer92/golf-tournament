@@ -19,6 +19,9 @@ import {
   type PoolMoneyMode,
   type PoolMatchConfig,
   DEFAULT_JUNK_VALUES,
+  ZERO_JUNK_VALUES,
+  junkIsOff,
+  foldJunkIntoOverall,
   DEFAULT_MATCH_CONFIG,
   savePoolGame,
   getPoolPlayingHandicap,
@@ -120,6 +123,14 @@ function legDollarsToStrings(d: { front: number; back: number; overall: number; 
   return { front: String(d.front), back: String(d.back), overall: String(d.overall), junk: String(d.junk) };
 }
 
+// F-045: junk's dollars fold into OVERALL when the game plays no bonuses —
+// string-field twin of pool-game's foldJunkIntoOverall, total preserved.
+function foldJunkStrings(d: PotDollars): PotDollars {
+  const j = parseFloat(d.junk) || 0;
+  const o = parseFloat(d.overall) || 0;
+  return { ...d, overall: String(o + j), junk: '0' };
+}
+
 function potDollarsTotal(d: PotDollars): number {
   return (parseFloat(d.front) || 0) + (parseFloat(d.back) || 0) + (parseFloat(d.overall) || 0) + (parseFloat(d.junk) || 0);
 }
@@ -156,7 +167,10 @@ export default function NewPoolGamePage() {
   const [potDollars, setPotDollars] = useState<PotDollars | null>(null);
   const [potEdited, setPotEdited] = useState(false);
   const [positionSplitText, setPositionSplitText] = useState('100');
-  const [junkValues, setJunkValues] = useState<PoolJunkValues>({ ...DEFAULT_JUNK_VALUES });
+  // F-045 (§5.bg): a fresh classic pool plays no bonuses — junk starts at zero
+  // behind an "Add bonuses" affordance on the money step. Saved formats restore
+  // whatever they saved (applyGroupDefaults), so the Warriors' game keeps its junk.
+  const [junkValues, setJunkValues] = useState<PoolJunkValues>({ ...ZERO_JUNK_VALUES });
   // Manual bonuses this game plays (sandies, barkies, …) — the ones the app can't read off
   // a scorecard, so a scorer taps them per hole. Empty = the game plays none, which is
   // every game today. Seeded from a group's saved set when one is chosen.
@@ -458,9 +472,13 @@ export default function NewPoolGamePage() {
     const id = crypto.randomUUID();
     // Effective dollar split: manual override if set, else the standard for this
     // team count. Stored as pot fractions (compute engine multiplies by the pot).
-    const effectiveDollars = potDollars
+    const enteredDollars = potDollars
       ? { front: parseFloat(potDollars.front) || 0, back: parseFloat(potDollars.back) || 0, overall: parseFloat(potDollars.overall) || 0, junk: parseFloat(potDollars.junk) || 0 }
       : poolSplitDollarsForTeams(teams.length);
+    // F-045 (§5.bg): no bonuses in this game → the junk quarter folds into
+    // OVERALL at creation, whatever the split fields held. This is the guard the
+    // money math relies on, not the UI's field-hiding.
+    const effectiveDollars = junkIsOff(junkValues) ? foldJunkIntoOverall(enteredDollars) : enteredDollars;
     const game: PoolGame = {
       id,
       name: name || 'Pool Game',
@@ -3744,32 +3762,53 @@ function CreateStep({
   const pot = players.length * entryPerPlayer;
   const teeNameOf = (p: Player) => course?.teeSets.find((t) => t.id === p.teeSetId)?.name ?? null;
 
+  // F-045 (§5.bg): bonuses are OFF on a fresh classic pool and live behind an
+  // "Add bonuses" affordance. `junkShown` (opened, or a saved format restored
+  // nonzero values) drives the junk grid AND the junk pot-split field; the
+  // money itself is guarded at creation, where an all-zero junk config folds
+  // the junk dollars into OVERALL.
+  const [bonusesOpened, setBonusesOpened] = useState(() => !junkIsOff(junkValues));
+  const junkShown = bonusesOpened || !junkIsOff(junkValues);
+
   // Auto-fill the dollar split from the team-count standard, unless the user has
-  // edited it. Re-runs if the number of teams changes.
+  // edited it. Re-runs if the number of teams changes or bonuses toggle.
   useEffect(() => {
     if (potEdited) return;
-    setPotDollars(legDollarsToStrings(poolSplitDollarsForTeams(teams.length)));
-  }, [teams.length, potEdited, setPotDollars]);
+    const std = poolSplitDollarsForTeams(teams.length);
+    setPotDollars(legDollarsToStrings(junkShown ? std : foldJunkIntoOverall(std)));
+  }, [teams.length, potEdited, setPotDollars, junkShown]);
 
   const effective: PotDollars = potDollars ?? legDollarsToStrings(poolSplitDollarsForTeams(teams.length));
   const splitTotal = potDollarsTotal(effective);
   const balanced = Math.abs(splitTotal - pot) < 0.01;
 
+  function addBonuses() {
+    setJunkValues({ ...DEFAULT_JUNK_VALUES });
+    setBonusesOpened(true);
+  }
+  function removeBonuses() {
+    setJunkValues({ ...ZERO_JUNK_VALUES });
+    setBonusesOpened(false);
+    // A hand-edited split keeps its numbers, minus the junk leg (folded into
+    // overall). An untouched one re-fills from the standard via the effect.
+    if (potEdited) setPotDollars(foldJunkStrings(effective));
+  }
+
   // A 9-hole game has no front/back split — the whole non-junk pot rides on one
   // leg over the nine played (computePoolResult collapses them the same way). So
   // don't ASK for front/back amounts that can never pay out.
   const nineOnly = holesPlaying !== '18';
-  const potFields: { key: keyof PotDollars; label: string }[] = nineOnly
-    ? [
-        { key: 'overall', label: holesPlaying === 'front9' ? 'Front 9' : 'Back 9' },
-        { key: 'junk', label: 'Junk' },
-      ]
-    : [
-        { key: 'front', label: 'Front 9' },
-        { key: 'back', label: 'Back 9' },
-        { key: 'overall', label: 'Overall' },
-        { key: 'junk', label: 'Junk' },
-      ];
+  // The junk leg is asked about only when the game plays bonuses (F-045).
+  const potFields: { key: keyof PotDollars; label: string }[] = [
+    ...(nineOnly
+      ? [{ key: 'overall', label: holesPlaying === 'front9' ? 'Front 9' : 'Back 9' } as const]
+      : [
+          { key: 'front', label: 'Front 9' } as const,
+          { key: 'back', label: 'Back 9' } as const,
+          { key: 'overall', label: 'Overall' } as const,
+        ]),
+    ...(junkShown ? [{ key: 'junk', label: 'Junk' } as const] : []),
+  ];
 
   function setLeg(key: keyof PotDollars, value: string) {
     setPotEdited(true);
@@ -3949,9 +3988,33 @@ function CreateStep({
         </div>
         )}
 
-        {!isIndividual && (
+        {/* F-045 (§5.bg): bonuses are an ADDED choice, not a default — a fresh pool
+            shows one button; the grid (and the junk pot leg) appear only when the
+            game plays them. A saved format with junk restores with the grid open. */}
+        {!isIndividual && !junkShown && (
         <div className="pt-2 border-t">
-          <p className="text-sm font-semibold text-gray-800 mb-1">Bonus points for good holes</p>
+          <button
+            type="button"
+            onClick={addBonuses}
+            className="min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-green-400"
+          >
+            + Add bonuses
+            <span className="ml-1 text-xs text-gray-400">birdies, eagles, closest to the pin…</span>
+          </button>
+        </div>
+        )}
+        {!isIndividual && junkShown && (
+        <div className="pt-2 border-t">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-semibold text-gray-800">Bonus points for good holes</p>
+            <button
+              type="button"
+              onClick={removeBonuses}
+              className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+            >
+              Remove bonuses
+            </button>
+          </div>
           <p className="text-xs text-gray-500 mb-2">These add to a team&apos;s bonus total. Set any to 0 to skip it.</p>
           <div className="grid grid-cols-5 gap-2">
             {JUNK_FIELDS.map(({ key, label, hint }) => (
@@ -3976,7 +4039,11 @@ function CreateStep({
             <p className="text-sm font-semibold text-gray-800">Pot Split ($ per pot)</p>
             {potEdited && (
               <button
-                onClick={() => { setPotEdited(false); setPotDollars(legDollarsToStrings(poolSplitDollarsForTeams(teams.length))); }}
+                onClick={() => {
+                  setPotEdited(false);
+                  const std = poolSplitDollarsForTeams(teams.length);
+                  setPotDollars(legDollarsToStrings(junkShown ? std : foldJunkIntoOverall(std)));
+                }}
                 className="text-xs text-green-700 hover:text-green-900 font-medium"
               >
                 Reset to standard

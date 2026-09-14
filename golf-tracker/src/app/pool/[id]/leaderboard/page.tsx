@@ -13,6 +13,8 @@ import {
   computePoolPlayerDetails,
   filterConcealedScores,
   DEFAULT_MATCH_CONFIG,
+  DEFAULT_JUNK_VALUES,
+  junkIsOff,
   getGameHoles,
 } from '@/lib/pool-game';
 import { getGameMode, type IndividualResult } from '@/lib/game-modes';
@@ -331,6 +333,9 @@ export default function PoolLeaderboardPage() {
             {result.legs
               .filter((leg) =>
                 (game.holesPlaying ?? '18') === '18' || leg.leg === 'overall' || leg.leg === 'junk')
+              // F-045: a game with no junk money (folded into overall at setup)
+              // shouldn't show a $0 pot row nobody can win.
+              .filter((leg) => leg.leg !== 'junk' || leg.subPot > 0)
               .map((leg) => {
               const winners = leg.standings.filter((s) => s.place === 1);
               const label =
@@ -472,7 +477,19 @@ export default function PoolLeaderboardPage() {
           })}
         </div>
 
-        {/* Per-team junk breakdown */}
+        {/* Per-team junk breakdown — only the bonuses THIS game plays (F-045).
+            A game with junk off shows no breakdown at all; absent junkValues =
+            a pre-setting game that played the classic defaults (all columns). */}
+        {!junkIsOff(game.junkValues) && (() => {
+          const jv = game.junkValues ?? DEFAULT_JUNK_VALUES;
+          const junkCols: { label: string; value: (j: (typeof rankedJunk)[number]) => number }[] = [
+            ...(jv.birdie > 0 ? [{ label: 'Bird', value: (j: (typeof rankedJunk)[number]) => j.birdies }] : []),
+            ...(jv.eagle > 0 ? [{ label: 'Eagle', value: (j: (typeof rankedJunk)[number]) => j.eagles }] : []),
+            ...(jv.albatross > 0 ? [{ label: 'Alb', value: (j: (typeof rankedJunk)[number]) => j.albatrosses }] : []),
+            ...(jv.groupHug > 0 ? [{ label: 'Hug', value: (j: (typeof rankedJunk)[number]) => j.groupHugs }] : []),
+            ...(jv.ctp > 0 ? [{ label: 'CTP', value: (j: (typeof rankedJunk)[number]) => j.ctps }] : []),
+          ];
+          return (
         <div className="bg-gray-800 rounded-xl overflow-hidden">
           <div className="px-4 py-2 border-b border-gray-700">
             <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Junk Breakdown</p>
@@ -482,11 +499,9 @@ export default function PoolLeaderboardPage() {
               <thead>
                 <tr className="text-gray-500 border-b border-gray-700/50">
                   <th className="text-left px-3 py-1.5 font-medium">Team</th>
-                  <th className="text-center px-2 py-1.5 font-medium">Bird</th>
-                  <th className="text-center px-2 py-1.5 font-medium">Eagle</th>
-                  <th className="text-center px-2 py-1.5 font-medium">Alb</th>
-                  <th className="text-center px-2 py-1.5 font-medium">Hug</th>
-                  <th className="text-center px-2 py-1.5 font-medium">CTP</th>
+                  {junkCols.map((c) => (
+                    <th key={c.label} className="text-center px-2 py-1.5 font-medium">{c.label}</th>
+                  ))}
                   <th className="text-center px-3 py-1.5 font-bold text-gray-400">Total</th>
                 </tr>
               </thead>
@@ -494,11 +509,9 @@ export default function PoolLeaderboardPage() {
                 {rankedJunk.map((j, idx) => (
                   <tr key={j.teamId} className={`${idx > 0 ? 'border-t border-gray-700/30' : ''}`}>
                     <td className="px-3 py-1.5 text-gray-300 font-medium whitespace-nowrap">{j.teamName}</td>
-                    <td className="text-center px-2 py-1.5 text-gray-300">{j.birdies || '-'}</td>
-                    <td className="text-center px-2 py-1.5 text-gray-300">{j.eagles || '-'}</td>
-                    <td className="text-center px-2 py-1.5 text-gray-300">{j.albatrosses || '-'}</td>
-                    <td className="text-center px-2 py-1.5 text-gray-300">{j.groupHugs || '-'}</td>
-                    <td className="text-center px-2 py-1.5 text-gray-300">{j.ctps || '-'}</td>
+                    {junkCols.map((c) => (
+                      <td key={c.label} className="text-center px-2 py-1.5 text-gray-300">{c.value(j) || '-'}</td>
+                    ))}
                     <td className="text-center px-3 py-1.5 font-bold text-green-300">{j.total}</td>
                   </tr>
                 ))}
@@ -506,6 +519,8 @@ export default function PoolLeaderboardPage() {
             </table>
           </div>
         </div>
+          );
+        })()}
 
         {/* Per-person payouts */}
         <div className="bg-gray-800 rounded-xl px-4 py-3">
@@ -736,6 +751,9 @@ function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult })
             </div>
           );
         })}
+        {/* F-045: a match with no bonuses configured has no junk points to
+            differentiate — skip the permanently-pushed row. */}
+        {!junkIsOff(game.junkValues) && (
         <div className="px-4 py-2.5 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-gray-200">Junk</p>
@@ -755,6 +773,7 @@ function MatchLegBoard({ game, result }: { game: PoolGame; result: PoolResult })
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

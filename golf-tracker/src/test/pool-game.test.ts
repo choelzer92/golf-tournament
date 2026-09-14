@@ -24,6 +24,12 @@ import {
   customBonusCountsForTeam,
   balanceTeamsWithCaptains,
   teeHasRating,
+  foldJunkIntoOverall,
+  junkIsOff,
+  poolSplitDollarsForTeams,
+  dollarsToPotSplit,
+  DEFAULT_JUNK_VALUES,
+  ZERO_JUNK_VALUES,
   type PoolGame,
 } from '@/lib/pool-game';
 import type { GameScore } from '@/lib/game-state';
@@ -657,6 +663,59 @@ describe('junk leg with nobody scoring (F-007 regression)', () => {
     expect(winner.teamId).toBe('t1');
     expect(winner.payout).toBeCloseTo(junk.subPot, 6);   // winner-take-all
     expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F-045 (§5.bg): a fresh pool plays NO bonuses — junk's quarter folds into
+// OVERALL at setup, and the resulting game must still settle zero-sum.
+// ---------------------------------------------------------------------------
+
+describe('junk-off pool (F-045 / §5.bg)', () => {
+  it('junkIsOff: absent = a pre-setting game that played the defaults (ON)', () => {
+    expect(junkIsOff(undefined)).toBe(false);
+    expect(junkIsOff({ ...DEFAULT_JUNK_VALUES })).toBe(false);
+    expect(junkIsOff({ ...ZERO_JUNK_VALUES })).toBe(true);
+    // One live bonus is enough to keep junk on.
+    expect(junkIsOff({ ...ZERO_JUNK_VALUES, ctp: 1 })).toBe(false);
+  });
+
+  it('foldJunkIntoOverall moves exactly the junk dollars, front/back untouched', () => {
+    // The Warriors' 4-team table: 100/100/100/100 → 100/100/200/0.
+    const folded = foldJunkIntoOverall(poolSplitDollarsForTeams(4));
+    expect(folded).toEqual({ front: 100, back: 100, overall: 200, junk: 0 });
+    // Total preserved for every team count the table knows — that's the
+    // property the pot's zero-sum rests on.
+    for (const n of [2, 3, 4, 5, 6, 8]) {
+      const d = poolSplitDollarsForTeams(n);
+      const f = foldJunkIntoOverall(d);
+      expect(f.front + f.back + f.overall + f.junk).toBeCloseTo(d.front + d.back + d.overall + d.junk, 6);
+      expect(f.junk).toBe(0);
+      expect(f.front).toBe(d.front);
+      expect(f.back).toBe(d.back);
+    }
+  });
+
+  it('a junk-off game settles zero-sum with a $0 junk leg and the whole pot on front/back/overall', () => {
+    // Exactly what the wizard creates for 2 foursomes with bonuses off:
+    // 70/70/60/0 from the 2-team table (40 overall + 20 junk folded).
+    const potSplit = dollarsToPotSplit(foldJunkIntoOverall(poolSplitDollarsForTeams(2)));
+    const game = twoFoursomes({ junkValues: { ...ZERO_JUNK_VALUES }, potSplit });
+    const r = computePoolResult(game, new Map([
+      ['m1', flatRound(team1, 1)],
+      ['m2', flatRound(team2, 2)],
+    ]));
+    const junk = r.legs.find((l) => l.leg === 'junk')!;
+    expect(junk.subPot).toBeCloseTo(0, 6);
+    for (const s of junk.standings) expect(s.payout).toBeCloseTo(0, 6);
+    // The other legs carry the WHOLE pot ($200 for 8 × $25)…
+    const paid = r.legs.reduce((s, l) => s + l.standings.reduce((x, t) => x + t.payout, 0), 0);
+    expect(paid).toBeCloseTo(r.pot, 6);
+    // …and the game stays zero-sum, the invariant everything rests on.
+    expect(netSum(r.payouts)).toBeCloseTo(0, 6);
+    // Team 1 (better on every leg) collects the full pot minus its own ante.
+    const t1 = r.payouts.find((p) => p.teamId === 't1')!;
+    expect(t1.net).toBeCloseTo(r.pot / 2, 6);
   });
 });
 

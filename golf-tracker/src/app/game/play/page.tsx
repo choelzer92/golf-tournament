@@ -11,7 +11,7 @@ import { computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, comp
 import { computeSideGameResult } from '@/lib/side-game';
 import type { SideGameResult } from '@/lib/side-game';
 import type { PoolGame, PoolResult, PoolLeg } from '@/lib/pool-game';
-import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores, buildHcapMap, playerHoleStrokeIndexForGame, numHolesForStrokes, defaultSubTeams, isPoolGameFullyScored } from '@/lib/pool-game';
+import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores, buildHcapMap, playerHoleStrokeIndexForGame, numHolesForStrokes, defaultSubTeams, isPoolGameFullyScored, DEFAULT_JUNK_VALUES } from '@/lib/pool-game';
 import { getMoneyStrokesOnHole } from '@/lib/money-games';
 import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
 import { getGameMode } from '@/lib/game-modes';
@@ -1066,8 +1066,10 @@ export default function PlayGamePage() {
           </button>
         </div>
 
-        {/* Closest to the pin — pool game, par 3s only. Last team to claim it holds it. */}
-        {poolCtx && poolGame && currentHoleData?.par === 3 && (
+        {/* Closest to the pin — pool game, par 3s only, and only when CTP is part
+            of this game's bonuses (F-045). Absent junkValues = a game from before
+            the setting existed, which played the classic defaults (CTP on). */}
+        {poolCtx && poolGame && (poolGame.junkValues ?? DEFAULT_JUNK_VALUES).ctp > 0 && currentHoleData?.par === 3 && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-3">
             <p className="text-xs font-semibold text-emerald-800 mb-2">
               📍 Closest to the pin — who&apos;s inside on hole {currentHole}?

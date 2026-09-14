@@ -273,6 +273,23 @@ export const DEFAULT_JUNK_VALUES: PoolJunkValues = {
   ctp: 1,
 };
 
+// F-045 (§5.bg): a fresh classic pool plays NO bonuses — these values are the
+// Weekend Warriors' game, kept as their saved format, not the app-wide default.
+export const ZERO_JUNK_VALUES: PoolJunkValues = {
+  birdie: 0,
+  eagle: 0,
+  albatross: 0,
+  groupHug: 0,
+  ctp: 0,
+};
+
+// A junk config is OFF when nothing can score a point. Absent means a game from
+// before junkValues existed, which played the classic defaults — treat as ON.
+export function junkIsOff(j: PoolJunkValues | undefined): boolean {
+  const v = j ?? DEFAULT_JUNK_VALUES;
+  return v.birdie === 0 && v.eagle === 0 && v.albatross === 0 && v.groupHug === 0 && v.ctp === 0;
+}
+
 export const DEFAULT_POT_SPLIT: PoolPotSplit = {
   front: 0.25,
   back: 0.25,
@@ -313,6 +330,13 @@ export function poolSplitDollarsForTeams(numTeams: number): PoolLegDollars {
   const pot = Math.max(1, numTeams) * 100;
   const q = pot / 4;
   return { front: q, back: q, overall: q, junk: q };
+}
+
+// F-045 (§5.bg): with junk off, its share of the pot folds into OVERALL —
+// front/back keep their table weights — so no quarter rides on a leg nobody
+// can win. Total is preserved, which is what keeps the game zero-sum.
+export function foldJunkIntoOverall(d: PoolLegDollars): PoolLegDollars {
+  return { front: d.front, back: d.back, overall: d.overall + d.junk, junk: 0 };
 }
 
 // Convert dollar legs to pot fractions (what PoolGame stores). Guards against a

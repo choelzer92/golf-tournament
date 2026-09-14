@@ -1508,7 +1508,9 @@ function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
     { label: 'Front 9', amount: pot * game.potSplit.front },
     { label: 'Back 9', amount: pot * game.potSplit.back },
     { label: 'Overall 18', amount: pot * game.potSplit.overall },
-    { label: 'Junk', amount: pot * game.potSplit.junk },
+    // F-045: a junk-off game folded this quarter into Overall at setup — don't
+    // show a $0 leg nobody can win.
+    ...(game.potSplit.junk > 0 ? [{ label: 'Junk', amount: pot * game.potSplit.junk }] : []),
   ];
 
   return (
@@ -1520,7 +1522,7 @@ function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
             {game.players.length} × ${game.entryPerPlayer} = <span className="font-bold text-gray-900">${Math.round(pot)}</span>
           </span>
         </div>
-        <div className="grid grid-cols-4 divide-x divide-gray-100">
+        <div className={`grid ${rows.length === 4 ? 'grid-cols-4' : 'grid-cols-3'} divide-x divide-gray-100`}>
           {rows.map((r) => (
             <div key={r.label} className="px-2 py-3 text-center">
               <p className="text-xs font-medium text-gray-500 uppercase">{r.label}</p>
@@ -3125,6 +3127,9 @@ function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) 
 function CtpEditor({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
   const par3Holes = getPar3Holes(game.course);
   if (par3Holes.length === 0) return null;
+  // F-045: CTP surfaces only when it's part of this game's bonuses. Absent
+  // junkValues = pre-setting game that played the classic defaults (CTP on).
+  if ((game.junkValues ?? DEFAULT_JUNK_VALUES).ctp === 0) return null;
 
   function setWinner(hole: number, playerId: string | null) {
     const updated: PoolGame = {
