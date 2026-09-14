@@ -1,10 +1,15 @@
 const COOKIE_NAME = 'golf_access';
 const VALID_CODES = ['birdie2026'];
-// 30 days, SLIDING: the gate re-sets the cookie on every successful visit (see
-// InviteGate), so a weekly regular never re-enters the code while a visitor who
-// stops coming ages out. 48h was the old value — it expired mid-week for a
-// weekly game, so every player re-authenticated every single round (F-051).
-const EXPIRY_SECONDS = 60 * 60 * 24 * 30;
+// FULL access: 30 days, SLIDING — the gate re-sets the cookie on every
+// successful visit (see InviteGate), so a weekly regular never re-enters the
+// code while a visitor who stops coming ages out. 48h was the old value — it
+// expired mid-week for a weekly game, so every player re-authenticated every
+// single round (F-051).
+const FULL_EXPIRY_SECONDS = 60 * 60 * 24 * 30;
+// POOL access: 48h is enough — the grant came from a link the visitor still
+// holds, so re-opening it re-grants instantly; nothing is lost by expiring
+// (F-057). Keeping it short limits how long a stale device stays let in.
+const POOL_EXPIRY_SECONDS = 60 * 60 * 48;
 
 // Access levels:
 //  - 'full': the owner (entered the invite code) — the whole app.
@@ -46,7 +51,8 @@ export function checkInviteCode(code: string): boolean {
 }
 
 export function setAccessCookie(level: AccessLevel = 'full') {
-  document.cookie = `${COOKIE_NAME}=${level}; path=/; max-age=${EXPIRY_SECONDS}; SameSite=Lax`;
+  const maxAge = level === 'full' ? FULL_EXPIRY_SECONDS : POOL_EXPIRY_SECONDS;
+  document.cookie = `${COOKIE_NAME}=${level}; path=/; max-age=${maxAge}; SameSite=Lax`;
 }
 
 export function getAccessLevel(): AccessLevel | null {
