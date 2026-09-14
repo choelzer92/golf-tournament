@@ -30,6 +30,35 @@ async function seedGameAndShareLink(page: import('@playwright/test').Page) {
   return { id, link, store }; // NOTE: leaves the Share panel open on `page`
 }
 
+async function freshGuest(browser: import('@playwright/test').Browser, store: string) {
+  const ctx = await browser.newContext({ viewport: PHONE });
+  const guest = await ctx.newPage();
+  await guest.goto(`${BASE}/sandbox`);
+  await guest.evaluate((d) => sessionStorage.setItem('__sandbox_supabase__', d), store);
+  await ctx.clearCookies();
+  return { ctx, guest };
+}
+
+test('F-056: a scoring-link guest can open Share, but not Save format or Edit', async ({ browser, context, page }) => {
+  await grantAndReset(context, page);
+  const { link, store } = await seedGameAndShareLink(page);
+
+  const { ctx, guest } = await freshGuest(browser, store);
+  await guest.goto(link);
+  await guest.waitForLoadState('networkidle');
+  // Prove we're on the game hub as a guest.
+  await expect(guest.getByText('Viewing as guest · scoring link')).toBeVisible();
+
+  // The mutating controls stay hidden (the read-only vs mutating line, F-004)…
+  await expect(guest.getByRole('button', { name: 'Save format' })).toHaveCount(0);
+  await expect(guest.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0);
+
+  // …but Share is spreading a link the guest already holds.
+  await guest.getByRole('button', { name: 'Share' }).first().click();
+  await expect(guest.getByText(/Player scoring link/i)).toBeVisible();
+  await ctx.close();
+});
+
 test('F-057: a pool-scope grant expires in ~48h, not 30 days', async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: PHONE });
   const page = await ctx.newPage();

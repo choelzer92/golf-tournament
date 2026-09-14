@@ -388,14 +388,17 @@ export default function PoolHubPage() {
             {/* Feedback is for EVERYONE in the game — the share-link friend
                 using the app mid-round is exactly who we want to hear from. */}
             <FeedbackButton gameId={game.id} />
+            {/* F-056: Share is READ-ONLY spreading of a link the guest already
+                holds, so it sits outside the poolOnly guard. Save format and
+                Edit mutate shared state and stay owner-side of the line. */}
+            <button
+              onClick={() => setSharing(true)}
+              className="text-sm font-medium text-green-200 hover:text-white"
+            >
+              Share
+            </button>
             {!poolOnly && (
               <>
-                <button
-                  onClick={() => setSharing(true)}
-                  className="text-sm font-medium text-green-200 hover:text-white"
-                >
-                  Share
-                </button>
                 <button
                   onClick={() => setSavingFormat(true)}
                   className="text-sm font-medium text-green-200 hover:text-white"
