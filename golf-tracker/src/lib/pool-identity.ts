@@ -28,6 +28,18 @@ export function saveGhinIdentity(golfer: unknown): void {
   }
 }
 
+// Forget the identity in BOTH stores — the localStorage mirror included.
+// Sign Out must actually forget who you are (F-047): a borrowed phone or a
+// "log in as someone else" both depend on the durable copy going away too.
+export function clearGhinIdentity(): void {
+  try {
+    sessionStorage.removeItem(GOLFER_KEY);
+    localStorage.removeItem(GOLFER_KEY);
+  } catch {
+    /* storage unavailable — ignore */
+  }
+}
+
 // The stored golfer object: the fresh session copy first, else the durable
 // local copy from a previous visit.
 function readGolfer(): Record<string, unknown> | null {

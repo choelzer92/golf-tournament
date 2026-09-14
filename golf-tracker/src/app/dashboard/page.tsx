@@ -7,6 +7,8 @@ import { parseGhinIndex } from '@/lib/game-state';
 import { PoolShareButton } from '@/components/pool-share';
 import { getPoolGameList, hydratePoolGames, type PoolGameListItem } from '@/lib/pool-game';
 import { SOLO_ROUNDS } from '@/lib/flags';
+import { clearAccessCookie } from '@/lib/invite-gate';
+import { clearGhinIdentity } from '@/lib/pool-identity';
 
 interface TeeRating {
   RatingType: 'Front' | 'Back' | 'Total';
@@ -174,8 +176,11 @@ export default function DashboardPage() {
     }
   }
 
+  // Sign Out is a FULL exit (F-047) — mirrors /home. See clearGhinIdentity.
   function logout() {
     sessionStorage.clear();
+    clearGhinIdentity();
+    clearAccessCookie();
     router.push('/');
   }
 

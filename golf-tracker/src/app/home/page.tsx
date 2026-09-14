@@ -12,8 +12,8 @@ import {
 import { gameListSubtitle } from '@/lib/game-modes/result';
 import { hydrateGroups, type RosterGroup } from '@/lib/roster-groups';
 import { getPlayerGroups } from '@/lib/pool-formats';
-import { getAccessLevel } from '@/lib/invite-gate';
-import { getCreatorGhin, getCreatorName } from '@/lib/pool-identity';
+import { clearAccessCookie, getAccessLevel } from '@/lib/invite-gate';
+import { clearGhinIdentity, getCreatorGhin, getCreatorName } from '@/lib/pool-identity';
 import { SOLO_ROUNDS } from '@/lib/flags';
 import { FeedbackButton } from '@/components/feedback-box';
 
@@ -127,8 +127,13 @@ export default function HomePage() {
     });
   }, [router]);
 
+  // Sign Out is a FULL exit (F-047): forget the GHIN session, the durable
+  // identity mirror, AND the invite-gate cookie — the button must do what it
+  // says on a borrowed phone. Next visit re-enters the invite code.
   function logout() {
     sessionStorage.clear();
+    clearGhinIdentity();
+    clearAccessCookie();
     router.push('/');
   }
 

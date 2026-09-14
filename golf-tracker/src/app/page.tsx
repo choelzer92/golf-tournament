@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { saveGhinIdentity } from '@/lib/pool-identity';
+import { getCreatorName, saveGhinIdentity } from '@/lib/pool-identity';
 import { HOME_V2 } from '@/lib/flags';
 
 export default function LoginPage() {
@@ -11,6 +11,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // F-053: a bounced-here user with a durable identity is a RETURNER whose GHIN
+  // session expired — greet them as one, not with "get started". Read in an
+  // effect (localStorage isn't available during SSR/hydration).
+  const [returningName, setReturningName] = useState<string | null>(null);
+  useEffect(() => { setReturningName(getCreatorName()); }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -52,7 +57,9 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Golf Tracker</h1>
           <p className="mt-2 text-gray-600">
-            Sign in with your GHIN account to get started
+            {returningName
+              ? `Welcome back, ${returningName.split(' ')[0]} — your GHIN session expired (they last about 12 hours). Sign in to continue.`
+              : 'Sign in with your GHIN account to get started'}
           </p>
         </div>
 
