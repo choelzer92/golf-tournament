@@ -35,6 +35,7 @@ const PRIMARY_KEYS: Record<string, string> = {
   players: 'id',
   roster_groups: 'id',
   solo_rounds: 'id',
+  feedback_notes: 'id',
   score_audit: '__append__',   // append-only log, no upsert key
 };
 

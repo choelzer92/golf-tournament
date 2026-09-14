@@ -273,6 +273,23 @@ export const DEFAULT_JUNK_VALUES: PoolJunkValues = {
   ctp: 1,
 };
 
+// F-045 (§5.bg): a fresh classic pool plays NO bonuses — these values are the
+// Weekend Warriors' game, kept as their saved format, not the app-wide default.
+export const ZERO_JUNK_VALUES: PoolJunkValues = {
+  birdie: 0,
+  eagle: 0,
+  albatross: 0,
+  groupHug: 0,
+  ctp: 0,
+};
+
+// A junk config is OFF when nothing can score a point. Absent means a game from
+// before junkValues existed, which played the classic defaults — treat as ON.
+export function junkIsOff(j: PoolJunkValues | undefined): boolean {
+  const v = j ?? DEFAULT_JUNK_VALUES;
+  return v.birdie === 0 && v.eagle === 0 && v.albatross === 0 && v.groupHug === 0 && v.ctp === 0;
+}
+
 export const DEFAULT_POT_SPLIT: PoolPotSplit = {
   front: 0.25,
   back: 0.25,
@@ -313,6 +330,13 @@ export function poolSplitDollarsForTeams(numTeams: number): PoolLegDollars {
   const pot = Math.max(1, numTeams) * 100;
   const q = pot / 4;
   return { front: q, back: q, overall: q, junk: q };
+}
+
+// F-045 (§5.bg): with junk off, its share of the pot folds into OVERALL —
+// front/back keep their table weights — so no quarter rides on a leg nobody
+// can win. Total is preserved, which is what keeps the game zero-sum.
+export function foldJunkIntoOverall(d: PoolLegDollars): PoolLegDollars {
+  return { front: d.front, back: d.back, overall: d.overall + d.junk, junk: 0 };
 }
 
 // Convert dollar legs to pot fractions (what PoolGame stores). Guards against a
@@ -614,6 +638,118 @@ export function getPoolPlayingHandicap(
   const courseHcap = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, tee.totalPar);
   if (isNaN(courseHcap)) return 0;
   return withAllowance(courseHcap);
+}
+
+// --- F-043: the handicap chain, made visible ---------------------------------
+//
+// A per-player breakdown of how the number on a handicap chip came to be:
+//   12.4 index → 14.8 course handicap (slope 131) → ×85% → 12.6 → plays off 13
+// getPoolPlayingHandicap stays the source of truth — this mirrors its branches
+// step by step, and a unit test pins `value` to its output across every branch,
+// so the explanation cannot drift from the math it explains. The §5.bb order is
+// visible by construction: the allowance line shows the UNROUNDED product, and
+// rounding happens once, at `playsOff`.
+
+export interface HandicapChainStep {
+  label: string;
+  value: string;
+}
+
+export interface HandicapChain {
+  steps: HandicapChainStep[];
+  /** Honesty notes (F-023 "no slope/rating on this tee — using index", basis, 9-hole fallbacks). */
+  note?: string;
+  /** Unrounded playing handicap — identical to getPoolPlayingHandicap's return. */
+  value: number;
+  /** The integer the chips show: round(value), once. */
+  playsOff: number;
+}
+
+export function explainPlayingHandicap(
+  player: Player,
+  course: CourseSelection | null,
+  allowance: number,
+  basis: 'course' | 'index' = 'course',
+  nine?: 'front9' | 'back9' | null,
+): HandicapChain {
+  const fmt = (n: number): string => {
+    const r = Math.round(n * 10) / 10;
+    return Number.isInteger(r) ? String(r) : r.toFixed(1);
+  };
+  const steps: HandicapChainStep[] = [];
+  const done = (value: number, note?: string): HandicapChain =>
+    ({ steps, ...(note ? { note } : {}), value, playsOff: Math.round(value) });
+  // At 100% the allowance line would just repeat the previous number, so it only
+  // appears when it changes something.
+  const allowanceLine = (ch: number): number => {
+    const v = applyAllowance(ch, allowance);
+    if (allowance !== 100) steps.push({ label: `× ${allowance}% allowance`, value: fmt(v) });
+    return v;
+  };
+
+  if (player.handicapIndex == null || Number.isNaN(player.handicapIndex)) {
+    return done(0, 'No handicap index yet — playing off 0.');
+  }
+  const idx = player.handicapIndex;
+  steps.push({ label: 'Handicap index', value: fmt(idx) });
+
+  if (basis === 'index') {
+    let base = idx;
+    if (nine) {
+      base = idx / 2;
+      steps.push({ label: 'Halved for 9 holes', value: fmt(base) });
+    }
+    return done(allowanceLine(base), 'This game plays off the handicap index — no slope/rating conversion.');
+  }
+
+  const tee = getPlayerTee(player, course);
+  if (!tee) return done(allowanceLine(idx), 'No tee data — using the index as the course handicap.');
+  const teeName = tee.name.replace(/\s*\(w\)\s*$/i, '').trim();
+
+  if (nine) {
+    const ratingType = nine === 'front9' ? 'Front' : 'Back';
+    const nineRating = tee.ratings?.find((r) => r.type === ratingType);
+    const ninePar = (tee.holes || [])
+      .filter((h) => (nine === 'front9' ? h.number <= 9 : h.number > 9))
+      .reduce((sum, h) => sum + h.par, 0) || Math.round(tee.totalPar / 2);
+    if (nineRating?.slopeRating && nineRating?.courseRating) {
+      const half = idx / 2;
+      steps.push({ label: 'Halved for 9 holes', value: fmt(half) });
+      const ch = calcCourseHandicap(half, nineRating.slopeRating, nineRating.courseRating, ninePar);
+      if (Number.isNaN(ch)) return done(0, 'Course data incomplete — playing off 0.');
+      steps.push({
+        label: `9-hole course handicap — ${teeName} (slope ${nineRating.slopeRating}, rating ${nineRating.courseRating}, par ${ninePar})`,
+        value: fmt(ch),
+      });
+      return done(allowanceLine(ch));
+    }
+    const totalRating = tee.ratings?.find((r) => r.type === 'Total');
+    if (!totalRating?.slopeRating || !totalRating?.courseRating) {
+      const half = idx / 2;
+      steps.push({ label: 'Halved for 9 holes', value: fmt(half) });
+      return done(allowanceLine(half), `No slope/rating on ${teeName} — using the index.`);
+    }
+    const full = calcCourseHandicap(idx, totalRating.slopeRating, totalRating.courseRating, tee.totalPar);
+    if (Number.isNaN(full)) return done(0, 'Course data incomplete — playing off 0.');
+    steps.push({
+      label: `Course handicap — ${teeName} (slope ${totalRating.slopeRating}, rating ${totalRating.courseRating}, par ${tee.totalPar})`,
+      value: fmt(full),
+    });
+    steps.push({ label: 'Halved for 9 holes', value: fmt(full / 2) });
+    return done(allowanceLine(full / 2), `No 9-hole rating on ${teeName} — half the 18-hole course handicap.`);
+  }
+
+  const totalRating = tee.ratings?.find((r) => r.type === 'Total');
+  if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) {
+    return done(allowanceLine(idx), `No slope/rating on ${teeName} — using the index as the course handicap.`);
+  }
+  const courseHcap = calcCourseHandicap(idx, totalRating.slopeRating, totalRating.courseRating, tee.totalPar);
+  if (Number.isNaN(courseHcap)) return done(0, 'Course data incomplete — playing off 0.');
+  steps.push({
+    label: `Course handicap — ${teeName} (slope ${totalRating.slopeRating}, rating ${totalRating.courseRating}, par ${tee.totalPar})`,
+    value: fmt(courseHcap),
+  });
+  return done(allowanceLine(courseHcap));
 }
 
 // The USGA nine to pass to getPoolPlayingHandicap for a game, or null when the

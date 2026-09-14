@@ -11,7 +11,7 @@ import { computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, comp
 import { computeSideGameResult } from '@/lib/side-game';
 import type { SideGameResult } from '@/lib/side-game';
 import type { PoolGame, PoolResult, PoolLeg } from '@/lib/pool-game';
-import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores, buildHcapMap, playerHoleStrokeIndexForGame, numHolesForStrokes, defaultSubTeams, isPoolGameFullyScored } from '@/lib/pool-game';
+import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores, buildHcapMap, playerHoleStrokeIndexForGame, numHolesForStrokes, defaultSubTeams, isPoolGameFullyScored, DEFAULT_JUNK_VALUES } from '@/lib/pool-game';
 import { getMoneyStrokesOnHole } from '@/lib/money-games';
 import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
 import { getGameMode } from '@/lib/game-modes';
@@ -19,6 +19,7 @@ import { sideNamesForGame } from '@/lib/game-modes/team-game';
 import { fromLegacySubTeams, sidesOfGame } from '@/lib/game-modes/sides';
 import { wolfForHole } from '@/lib/game-modes/wolf';
 import type { WolfHoleDecision } from '@/lib/pool-game';
+import { CardBoardToggle } from '@/components/card-board-toggle';
 
 interface PoolGameContext {
   poolGameId: string;
@@ -731,13 +732,14 @@ export default function PlayGamePage() {
                 Leaderboard
               </button>
             )}
+            {/* F-030: the primary toggle, not another corner link — the same pill the
+                leaderboard header shows, so the two screens read as one game's views. */}
             {poolCtx && (
-              <button
-                onClick={() => router.push(`/pool/${poolCtx.poolGameId}/leaderboard`)}
-                className="text-sm text-green-200 hover:text-white font-medium"
-              >
-                Leaderboard
-              </button>
+              <CardBoardToggle
+                active="card"
+                cardHref="/game/play"
+                boardHref={`/pool/${poolCtx.poolGameId}/leaderboard`}
+              />
             )}
             <button
               onClick={() => {
@@ -973,7 +975,7 @@ export default function PlayGamePage() {
                             const strokes = getTeamStrokesOnHole(tp, h.handicap);
                             return (
                               <td key={h.number} className="px-1.5 py-1 text-center">
-                                {strokes > 0 && <span className="text-orange-600">{'●'.repeat(strokes)}</span>}
+                                {strokes > 0 && <span className="text-sm text-orange-600">{'●'.repeat(strokes)}</span>}
                               </td>
                             );
                           })}
@@ -1031,8 +1033,8 @@ export default function PlayGamePage() {
                                 const strokes = getPlayerStrokesOnHole(player, h.handicap, h.number);
                                 return (
                                   <td key={h.number} className="px-1.5 py-1 text-center">
-                                    {strokes > 0 && <span className="text-orange-600">{'●'.repeat(strokes)}</span>}
-                                    {strokes < 0 && <span className="text-purple-600">{'○'.repeat(Math.abs(strokes))}</span>}
+                                    {strokes > 0 && <span className="text-sm text-orange-600">{'●'.repeat(strokes)}</span>}
+                                    {strokes < 0 && <span className="text-sm text-purple-600">{'○'.repeat(Math.abs(strokes))}</span>}
                                   </td>
                                 );
                               })}
@@ -1064,8 +1066,10 @@ export default function PlayGamePage() {
           </button>
         </div>
 
-        {/* Closest to the pin — pool game, par 3s only. Last team to claim it holds it. */}
-        {poolCtx && poolGame && currentHoleData?.par === 3 && (
+        {/* Closest to the pin — pool game, par 3s only, and only when CTP is part
+            of this game's bonuses (F-045). Absent junkValues = a game from before
+            the setting existed, which played the classic defaults (CTP on). */}
+        {poolCtx && poolGame && (poolGame.junkValues ?? DEFAULT_JUNK_VALUES).ctp > 0 && currentHoleData?.par === 3 && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-3">
             <p className="text-xs font-semibold text-emerald-800 mb-2">
               📍 Closest to the pin — who&apos;s inside on hole {currentHole}?
@@ -1206,7 +1210,7 @@ export default function PlayGamePage() {
                         ({tp.map((p) => p.name.split(' ')[0]).join(', ')})
                       </span>
                       {strokes > 0 && (
-                        <span className="ml-1 text-xs text-orange-600">
+                        <span className="ml-1 text-sm text-orange-600">
                           {'●'.repeat(strokes)}
                         </span>
                       )}
@@ -1265,7 +1269,7 @@ export default function PlayGamePage() {
                       {player.name}
                       {teamDisplayName && <span className={`ml-1.5 text-[10px] font-bold ${teamLabelColor}`}>{teamDisplayName}</span>}
                       {strokes > 0 && (
-                        <span className="ml-1 text-xs text-orange-600">
+                        <span className="ml-1 text-sm text-orange-600">
                           {'●'.repeat(strokes)}
                         </span>
                       )}

@@ -24,11 +24,14 @@ the fact, and a season-long money ledger. Bias effort there.
 
 ## Read these first
 
-- **`DECISIONS.md`** — Craig's decisions, corrections, and preferences *with the
-  reasoning*. Read before proposing anything about product direction, process, or
-  safety. Append to it in-session whenever he decides something; a decision that
-  lives only in a chat transcript is lost. Its §7 lists open questions — don't
-  re-ask what's already settled, and don't guess where it says his call.
+- **`DECISIONS.md`** — the WORKING SET of Craig's decisions: active constraints in
+  full plus a one-line index of everything settled. Short by design — read it whole.
+  Full reasoning lives in **`DECISIONS_ARCHIVE.md`**; grep the archive by § number
+  only when a task touches that topic (don't read it whole — it's ~1,450 lines and
+  was the biggest context cost per session). New decisions: append the full entry
+  to the ARCHIVE and the index line to DECISIONS.md, in-session — a decision that
+  lives only in a chat transcript is lost. §7 lists open questions — don't re-ask
+  what's settled, and don't guess where it says his call.
 - **`UI_CONVENTIONS.md`** — money formatting, vocabulary, labels, empty states,
   layout, and the lifecycle rules. Read before changing any screen.
 - **`UI_CRITIQUE_PROCESS.md`** — the loop for seeing the UI, recording findings,

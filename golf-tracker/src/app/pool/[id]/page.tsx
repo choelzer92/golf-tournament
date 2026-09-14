@@ -63,7 +63,9 @@ import { getCreatorGhin } from '@/lib/pool-identity';
 import { getGameMode, GAME_MODES, buildGameModeContext, defaultSettings, settingValue, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { SideNames } from '@/components/side-names';
-import { saveFormat, formatFromGame } from '@/lib/pool-formats';
+import { FeedbackButton } from '@/components/feedback-box';
+import { saveFormat, formatFromGame, attachFormatToGroup } from '@/lib/pool-formats';
+import { type RosterGroup, hydrateGroups, getGroupById } from '@/lib/roster-groups';
 import { PairingLocks } from '@/components/pairing-locks';
 import { CaptainsPanel } from '@/components/captains-panel';
 import { TeeTimePicker } from '@/components/tee-time-picker';
@@ -77,6 +79,7 @@ import {
   upsertRosterPlayer,
 } from '@/lib/roster';
 import { pickTeeForPlayer, teeRankInPool } from '@/lib/tee-pick';
+import { gameRollups, settleUp } from '@/lib/stats-ledger';
 
 function getToken() {
   return sessionStorage.getItem('ghin_token');
@@ -342,6 +345,9 @@ export default function PoolHubPage() {
               teams, Close out ends the round for all four foursomes, GHIN refresh
               needs a token they don't have. Those are hidden. */}
           <div className="flex items-center gap-4">
+            {/* Feedback is for EVERYONE in the game — the share-link friend
+                using the app mid-round is exactly who we want to hear from. */}
+            <FeedbackButton gameId={game.id} />
             {!poolOnly && (
               <>
                 <button
@@ -447,6 +453,11 @@ export default function PoolHubPage() {
             </div>
           )}
         </section>
+
+        {/* F-032: a completed game answers "who pays whom" for EVERYONE — a guest in
+            the parking lot needs the transfer list as much as the organizer (who gets
+            it inside the close-out panel below). */}
+        {poolOnly && game.status === 'completed' && <GuestSettleUp game={game} />}
 
         {/* Organizer-only surfaces. A guest tapping "Close out game" would end the
             round for every foursome, and CTP/Wolf setup is the organizer's job. */}
@@ -627,10 +638,26 @@ function SaveFormatModal({ game, onClose }: { game: PoolGame; onClose: () => voi
   const modeName = getGameMode(game.gameMode)?.name
     ?? (game.moneyMode === 'match' ? 'Head-to-head match' : 'Pool (pot split)');
 
+  // F-046: a game that came FROM a group saves its format TO that group (opt-out). "Save
+  // format" used to write to the flat library only — Craig saved "friday game in the friday
+  // group" and the group never learned about it, so the next Friday round couldn't offer it.
+  const [sourceGroup, setSourceGroup] = useState<RosterGroup | null>(null);
+  const [attachToGroup, setAttachToGroup] = useState(true);
+  useEffect(() => {
+    if (!game.sourceGroupId) return;
+    hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' })
+      .then(() => {
+        const g = getGroupById(game.sourceGroupId!);
+        if (g && g.defaults?.kind !== 'format') setSourceGroup(g);
+      })
+      .catch(() => {});
+  }, [game.sourceGroupId]);
+
   async function doSave() {
     setSaving(true);
     try {
-      await saveFormat(name, formatFromGame(game), { shared });
+      const saved = await saveFormat(name, formatFromGame(game), { shared });
+      if (attachToGroup && sourceGroup) await attachFormatToGroup(sourceGroup, saved.id);
       setDone(true);
       setTimeout(onClose, 900);
     } finally {
@@ -655,6 +682,17 @@ function SaveFormatModal({ game, onClose }: { game: PoolGame; onClose: () => voi
           onChange={(e) => setName(e.target.value)}
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
         />
+        {/* F-046: offered only when the game came from a group. Default ON — "I saved it in
+            the friday group" is what saving from a group's game means to the organizer. */}
+        {sourceGroup && (
+          <label className="flex items-start gap-2 cursor-pointer mt-3">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500" checked={attachToGroup} onChange={(e) => setAttachToGroup(e.target.checked)} />
+            <span>
+              <span className="block text-sm font-medium text-gray-800">Attach to {sourceGroup.name}</span>
+              <span className="block text-xs text-gray-500">Listed as one of the group&apos;s usual games when you start its next round.</span>
+            </span>
+          </label>
+        )}
         <label className="flex items-start gap-2 cursor-pointer mt-3">
           <input type="checkbox" className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500" checked={shared} onChange={(e) => setShared(e.target.checked)} />
           <span>
@@ -1470,7 +1508,9 @@ function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
     { label: 'Front 9', amount: pot * game.potSplit.front },
     { label: 'Back 9', amount: pot * game.potSplit.back },
     { label: 'Overall 18', amount: pot * game.potSplit.overall },
-    { label: 'Junk', amount: pot * game.potSplit.junk },
+    // F-045: a junk-off game folded this quarter into Overall at setup — don't
+    // show a $0 leg nobody can win.
+    ...(game.potSplit.junk > 0 ? [{ label: 'Junk', amount: pot * game.potSplit.junk }] : []),
   ];
 
   return (
@@ -1482,7 +1522,7 @@ function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
             {game.players.length} × ${game.entryPerPlayer} = <span className="font-bold text-gray-900">${Math.round(pot)}</span>
           </span>
         </div>
-        <div className="grid grid-cols-4 divide-x divide-gray-100">
+        <div className={`grid ${rows.length === 4 ? 'grid-cols-4' : 'grid-cols-3'} divide-x divide-gray-100`}>
           {rows.map((r) => (
             <div key={r.label} className="px-2 py-3 text-center">
               <p className="text-xs font-medium text-gray-500 uppercase">{r.label}</p>
@@ -2326,7 +2366,9 @@ function AddPlayerPanel({
       const rememberedRp = getRosterPlayerByGhin(ghinNumber);
       const newPlayer: Player = {
         id: crypto.randomUUID(),
-        name: `${golfer.first_name} ${golfer.last_name}`,
+        // GHIN can return empty/missing name fields (privacy-restricted golfers,
+        // partial responses) — never write "undefined undefined" or "" to the roster (F-027).
+        name: [golfer.first_name, golfer.last_name].filter(Boolean).join(' ').trim() || `GHIN #${ghinNumber}`,
         handicapIndex: hi,
         gender,
         ghinNumber,
@@ -2847,6 +2889,63 @@ function WolfRotationEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
   );
 }
 
+// F-032: who pays whom, for ONE completed game. "Need a 'summary' type view after
+// you click finish — player A owes player C x. No Venmo, nothing crazy." The
+// leaderboard shows each player's net; the parking-lot question is who HANDS whom
+// what. settleUp() over this game's nets (gameRollups mirrors the stats ledger's
+// per-team split), rendered the moment the game closes AND on any later view of the
+// completed game. framed=true draws its own section (the guest view has no close-out
+// panel to live in); framed=false sits inside the organizer's panel.
+function SettleUpList({ game, scoresByMatchup, framed }: {
+  game: PoolGame;
+  scoresByMatchup: Map<string, GameScore[]>;
+  framed: boolean;
+}) {
+  const transfers = useMemo(
+    () => settleUp(gameRollups(game, scoresByMatchup)),
+    [game, scoresByMatchup],
+  );
+  if (transfers.length === 0) return null;
+  const list = (
+    <>
+      <p className="text-xs font-semibold uppercase tracking-wider text-green-900">Who pays whom</p>
+      <ul className="mt-1.5 space-y-1">
+        {transfers.map((t, i) => (
+          <li key={i} className="text-sm text-gray-800">
+            <span className="font-medium">{t.fromName.split(' ')[0]}</span>
+            {' pays '}
+            <span className="font-medium">{t.toName.split(' ')[0]}</span>
+            {' '}
+            <span className="font-semibold text-green-700">${Math.round(t.amount)}</span>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+  return framed
+    ? <section className="bg-green-50 rounded-lg shadow px-4 py-3">{list}</section>
+    : <div className="px-4 py-3 border-b bg-green-50">{list}</div>;
+}
+
+// The guest view has no GameCloseOut (organizer-only), so it fetches this game's
+// scores itself — the same fetch the panel does — and shows the same recap.
+function GuestSettleUp({ game }: { game: PoolGame }) {
+  const [scoresByMatchup, setScoresByMatchup] = useState<Map<string, GameScore[]> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const ids = Array.from(new Set(game.teams.map((t) => t.matchupId)));
+    Promise.all(ids.map(async (mid) => [mid, await fetchGameScores(mid)] as const)).then((pairs) => {
+      if (cancelled) return;
+      const byMatchup = new Map<string, GameScore[]>();
+      for (const [mid, s] of pairs) if (s && Array.isArray(s)) byMatchup.set(mid, s as GameScore[]);
+      setScoresByMatchup(byMatchup);
+    });
+    return () => { cancelled = true; };
+  }, [game]);
+  if (!scoresByMatchup) return null;
+  return <SettleUpList game={game} scoresByMatchup={scoresByMatchup} framed />;
+}
+
 // Close out / reopen a game — the explicit lifecycle control.
 //
 // status:'completed' is what the stats & money ledger selects on, and until now
@@ -2856,6 +2955,8 @@ function WolfRotationEditor({ game, onSave }: { game: PoolGame; onSave: (g: Pool
 // regardless (and to reopen it if a score needs fixing).
 function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
   const [fullyScored, setFullyScored] = useState<boolean | null>(null);
+  // F-032: the fetched scores, kept so the who-pays-whom recap can settle this game.
+  const [scoresByMatchup, setScoresByMatchup] = useState<Map<string, GameScore[]> | null>(null);
   // Legs not every side finished (F-016b). Empty unless this game settles per leg.
   const [shortLegs, setShortLegs] = useState<IncompleteLeg[]>([]);
   // The confirmation step. null = not asking; otherwise the leg keys the organizer has marked
@@ -2875,6 +2976,7 @@ function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) 
       const byMatchup = new Map<string, GameScore[]>();
       for (const [mid, s] of pairs) if (s && Array.isArray(s)) byMatchup.set(mid, s as GameScore[]);
       setFullyScored(isPoolGameFullyScored(game, byMatchup));
+      setScoresByMatchup(byMatchup);
 
       const mode = getGameMode(game.gameMode);
       if (mode?.category !== 'team-within-group') { setShortLegs([]); return; }
@@ -2929,6 +3031,11 @@ function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) 
           </p>
         )}
       </div>
+
+      {/* F-032: the settle-up moment, the instant the game closes. */}
+      {isDone && scoresByMatchup && (
+        <SettleUpList game={game} scoresByMatchup={scoresByMatchup} framed={false} />
+      )}
 
       {/* THE PROMPT (F-016b, DECISIONS.md §5.ai). Craig: "if someone clicks finish game, and all
           legs are not complete, it should prompt the user." Asked here, at close-out, rather than
@@ -3020,6 +3127,9 @@ function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) 
 function CtpEditor({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
   const par3Holes = getPar3Holes(game.course);
   if (par3Holes.length === 0) return null;
+  // F-045: CTP surfaces only when it's part of this game's bonuses. Absent
+  // junkValues = pre-setting game that played the classic defaults (CTP on).
+  if ((game.junkValues ?? DEFAULT_JUNK_VALUES).ctp === 0) return null;
 
   function setWinner(hole: number, playerId: string | null) {
     const updated: PoolGame = {

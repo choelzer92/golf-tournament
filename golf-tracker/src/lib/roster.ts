@@ -52,6 +52,19 @@ function isVisibleToViewer(p: RosterPlayer): boolean {
   return p.ownerGhin === viewerGhin;       // the viewer's own scoped players
 }
 
+// A never-blank label for a roster player. Live rows written before the F-027
+// writer fixes can carry an empty name; render this instead of raw `name`.
+export function rosterDisplayName(p: Pick<RosterPlayer, 'name' | 'ghinNumber'>): string {
+  return p.name.trim() || (p.ghinNumber != null ? `GHIN #${p.ghinNumber}` : 'Unnamed player');
+}
+
+// The name an upsert may store (F-027): an update must never blank a non-empty
+// stored name — the 24h handicap refresh re-upserts every player, so one bad
+// write would otherwise self-perpetuate.
+export function resolveUpsertName(incoming: string, existingName: string | undefined, ghinNumber: number | null): string {
+  return incoming.trim() || existingName?.trim() || (ghinNumber != null ? `GHIN #${ghinNumber}` : incoming);
+}
+
 function rowToPlayer(row: RosterRow): RosterPlayer {
   return {
     id: row.id,
@@ -116,6 +129,7 @@ export async function deleteRosterPlayer(id: string): Promise<void> {
 // reuse its id so the same person stays a single roster entry across games.
 export async function upsertRosterPlayer(player: RosterPlayer): Promise<RosterPlayer> {
   const existing = player.ghinNumber != null ? getRosterPlayerByGhin(player.ghinNumber) : rosterCache.get(player.id) || null;
+  const name = resolveUpsertName(player.name, existing?.name, player.ghinNumber);
   // Preserve previously remembered fields when this call doesn't supply them
   // (e.g. a tee edit shouldn't wipe the handicap-refresh time, and vice versa).
   const defaultTeeName = player.defaultTeeName ?? existing?.defaultTeeName ?? null;
@@ -129,7 +143,7 @@ export async function upsertRosterPlayer(player: RosterPlayer): Promise<RosterPl
     : player.ownerGhin !== undefined
       ? player.ownerGhin
       : (viewerIsOwner ? null : viewerGhin);
-  const merged: RosterPlayer = { ...player, id: existing?.id || player.id, defaultTeeName, defaultTeeRank, hcapUpdatedAt, ownerGhin };
+  const merged: RosterPlayer = { ...player, id: existing?.id || player.id, name, defaultTeeName, defaultTeeRank, hcapUpdatedAt, ownerGhin };
   rosterCache.set(merged.id, merged);
 
   const row = {

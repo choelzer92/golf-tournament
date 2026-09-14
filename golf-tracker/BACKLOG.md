@@ -17,20 +17,35 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 ## Now (promoted)
 
-Craig's feedback batch (2026-09-10), his words. **All three observed on the LIVE app
-(main), not the branch** — they are pre-existing, not regressions from the wizard track:
-
 | Item | Size | Source |
 |---|---|---|
-| **Group tap selects ALL members** — "when i click a group, all players are checked. this makes it very tough to select 12 out of 61 or so players that are playing on a given day." Likely fix: a large group should load with members UNCHECKED (or ask), so the day's field is picked BY checking, not by unchecking ~49. Small groups (a 4-man crew) probably still want all-checked. | S–M | Craig 2026-09-10 |
-| **Bring back the classic golf verbiage** — "i liked the verbiage before just off the low, not the basic explanation of what classic golf terms mean." The plain-language labels/explanations (e.g. "Only above the best player") should say **"Off the low"** etc. — golfers know the terms; explaining them reads as condescending. Sweep the wizard's handicap/scoring copy for other over-explained terms while there. | S | Craig 2026-09-10 |
-| **In-app feedback box** — "i have another friend that is using the app, maybe a feedback box where he can type his observations/feedback while he plays, and then we can save it and then use it in other sessions." Shape: a small always-reachable input (hub or a floating affordance) that saves to the live DB with who/when/which-game context, plus a way to read entries back in a work session (a simple page or even a script). Feeds FINDINGS.md — real users become a critique source, on-course, in the moment. Keep it tiny: a text box and a list, not a ticket system. | S–M | Craig 2026-09-10 |
-| **My-groups page shows handicaps but NO NAMES** — "it is more i just see handicaps, i can tell they are people, but i dont see names." Rows render and handicaps show, so `playerIds` resolve — the NAME specifically is blank. Seen on the LIVE app (his real group). Suspects, most likely first: (a) the member row renders name and handicap from different sources and the name one is empty/mis-keyed; (b) roster rows reached the DB with a null/empty `name` column (check the live `players` table for his group's ids); (c) a snake_case/camelCase mapping miss on `name` in the groups-page hydration path specifically. Diagnose read-only against live data before touching anything. "Lets investigate this later" — Craig. | ? | Craig 2026-09-10 |
+| **Merge `live-feedback-2026-09-10`** — F-045 + F-040 BUILT and green (149 e2e), branch pushed; waiting on Craig's two confirmations: the §5.bg worked example (70/70/40/20 → 70/70/60 for 2 teams) "makes sense", and nobody's mid-round (§5.ab). Then merge to main — the feedback box + every branch fix goes live. | S | Craig 2026-09-14 |
+| **Game-structure simplification direction** (Craig 2026-09-14: "a pool is effectively just a 4v4 game… choose your groups, game style, players, how many teams, and go"). Agreed direction: structure-first wizard question, modes as shortcuts — the UI framing for the Team Competition engine (§5g). RECORD AS A DECISION when Craig confirms scope; near-term language slice already built (F-041/F-042). | L (design first) | F-041 + Craig 2026-09-14 |
+| **Course-data correctness audit** (Craig 2026-09-10, re-raised 2026-09-14: "we really need to investigate the situation with having improper slope/course ratings to a tee for different courses"). Extends F-023: (a) inventory live games' courses for missing/odd ratings via read-only queries; (b) harden the parse; (c) a diagnostic view that says WHAT the app extracted. Unblocker: `scripts/fetch-course-payload.mjs` (Craig runs with his GHIN creds, read-only). F-038 (tee order) fixed; the default-TEE question (tips as default?) belongs to this audit. | M | Craig 2026-09-10/14 + F-023 |
+| **Sharing/login/identity AUDIT** (Craig: "I want to get this polished"). Walk all four personas, screenshot, log findings, propose. Fold the group-management consolidation below into the same walk (same surfaces). | M | Craig 2026-09-10 |
+| Merge-audit polish batch (all four S items below) — fallback if the audit runs short | S×4 | merge audit / §5.ak |
+| **Consolidate group management on the NEW pages** (Craig 2026-09-10: "I don't know if this saved players and groups page is necessary… the new one should be the standard"). Overlap today: `/pool/roster`'s GroupsManager (dropdown + chips) duplicates `/home/groups/[id]` (dashboard + members + add). Shape: make /home the only group UI, keep /pool/roster for the PLAYER roster only (or fold that in too), rewire the three "Full roster manager"/"Manage" links. Needs a small design pass first — /pool/roster is also where groups are CREATED and where a `pool`-level share-link visitor lands (/home is full-only). | M | Craig 2026-09-10 |
 
 ## Done recently
 
 | Item | When |
 |---|---|
+| **F-045 junk defaults** (e924dbe, §5.bg): fresh classic pool = bonuses off behind "Add bonuses"; junk's pot quarter folds into OVERALL at creation (`foldJunkIntoOverall`, proven failable per §5.z); scorecard CTP / CTP editor / Pot panel / leaderboard junk surfaces all follow the game's junk config; JY Classic Pool format keeps its junk; 3 unit + 5 e2e. NOT built (queued below): the §5.bg money-step redesign (per-player/per-leg dollars, splits editable by player count) | 2026-09-14 |
+| **F-040 add-player stack** (a35f7f9, option B): the four copies EXTRACTED into `src/components/add-player-panel.tsx` — name search first, manual second with the "no official GHIN" note, GHIN numbers behind a disclosure with paste-a-list bulk resolve (per-number report); game/new + tournament/new gained name search; e2e on all four surfaces with mocked GHIN routes | 2026-09-14 |
+| **F-043 handicap chain** (9143b54): every handicap chip on the wizard (field list, teams step, sides step) opens the index → CH (slope/rating/par named) → allowance → plays-off chain; `explainPlayingHandicap` PINNED to `getPoolPlayingHandicap` by a full-matrix unit test; F-023 honesty folded in; e2e + screenshot. Same commit: F-041 correction — the misfit redirect keyed on `stableford`, registry id is `stableford-ind`, so it never fired; caught by aefa30c's unverified e2e on its first real run | 2026-09-14 |
+| **F-046 group formats follow the group** (d412ade): "Save format" on a game with a sourceGroupId offers "Attach to {group}" (default ON); the wizard game step leads with the chosen group's formats under "{Group} plays", library follows deduped; 2 e2e walking Craig's exact repro | 2026-09-14 |
+| **aefa30c e2e verified** — the handoff's first action; full gate green (140 e2e) | 2026-09-14 |
+| **Quick-fix batch F-035/36/37p/38/39a** (5028c54, 8ab44fd): Groups-step rounding; duplicate side ids on reshape (P1 money); "This makes it a 2 v 2 match"; tees sorted longest-first; "Bill M. & Bill G." | 2026-09-14 |
+| **Language fixes F-041/F-042/F-044**: misfit note redirects ("5 players can still score Stableford — as a team Pool"); money toggle asks "Who competes against whom?" (All teams, for a pot / Two teams, head-to-head); pot split says "The usual split for N teams"; 85↔90 note names its driver | 2026-09-14 |
+| **F-040…F-046 intaked** from Craig's functionality walkthrough (add-player flow, game taxonomy, money-mode confusion, handicap black box, pot-split opacity, junk defaults, saved-format miss) | 2026-09-14 |
+| **F-028…F-033 ALL BUILT** — Craig picked all recommendations (F-030: segmented toggle over swipe; F-032: recap in the close-out panel). Six commits on `live-feedback-2026-09-10` (8018429 dots, d54cfe2 to-par, e2788c4 pts/hole, 60e5fe2 fit hint, a22e359 [Card\|Standings] pill, e038fff who-pays-whom + `gameRollups()`), each with e2e; verify green (136 e2e). Still open from the batch: F-030 opt C (standings strip on the card, §6b); F-031 opt B (bigger card superscript); telling the friend the answers (men's/women's SI factored; 1v1 = Sides/Match; 3p = Nines etc.) | 2026-09-10 |
+| **In-app feedback box** BUILT (065956f) — Craig OK'd with "easy to find, doesn't cover things up": header 💬 button (hub + /home), bottom sheet, `feedback_notes` migration WRITTEN BUT NOT APPLIED to live (Craig's step), `src/lib/feedback.ts`, `/home/feedback` read-back, 2 e2e | 2026-09-10 |
+| **F-027 code fixes** (ca931fa) — Craig: "fix writers now, query later". Writers trim + fall back to `GHIN #…`; `upsertRosterPlayer` refuses to blank a stored name; group page renders `rosterDisplayName`; unit + e2e | 2026-09-10 |
+| **F-027 live query** (Craig-authorized, read-only) — ZERO blank names in live `players` (83 rows, min name length 8): no backfill needed. Found instead: one dangling member id in "Friday Group" (deleted player still referenced) | 2026-09-10 |
+| **feedback_notes migration APPLIED to live** (Craig-authorized; dry-run showed exactly the one migration; table verified present + empty) | 2026-09-10 |
+| **F-028…F-033 all VERIFIED on screen** (§5.bf pass): screenshots + 3–4 options each recorded in FINDINGS.md; 2 sandbox scenarios added (individual Stableford mid-round + complete); friend's questions answered in FINDINGS intake note | 2026-09-10 |
+| Group tap: >8 members loads UNCHECKED — field picked by checking (ddb3e95) | 2026-09-10 |
+| Classic verbiage: wizard says "Off the low" / "Full handicap" (1b0b897) | 2026-09-10 |
 | §5.av — saved formats are choices in the wizard's game picker (b69b665) | 2026-09-09 |
 | §5.au — wizard reorder: field → game → course → tees → money (f08dd22) | 2026-09-10 |
 
@@ -40,19 +55,26 @@ Craig's feedback batch (2026-09-10), his words. **All three observed on the LIVE
 |---|---|
 | F-022 on-course verification | Spot-check 90% strokes vs the GHIN app (incl. an off-the-low game); screenshots if anything is off by one |
 | F-023 part B (widen the GHIN ratings parse) | The real `GetCourseDetails` payload for The Meadows (Greenbrier, WV) — search it with the network tab open |
-| Branch merge | `captains-deal-and-game-rename` review (§5.ab — his timing) |
+| Branch merge/deploy | The feedback_notes table is LIVE (migration applied 2026-09-10, Craig-authorized) but the 💬 button ships with this branch — notes can't arrive until the branch deploys |
+| Branch merge | `live-feedback-2026-09-10` review (§5.ab — his timing; `captains-deal-and-game-rename` merged 2026-09-10) |
 | §7 q4 | Confirm dark = live / light = setup is deliberate |
+| F-034 stale draft name | His pick among A/B/C in the finding |
 
 ## Next few sessions (shaped, ready to build)
 
 | Item | Size | Source |
 |---|---|---|
+| **§5.bg money-step redesign** (the deeper F-045 ask, deliberately not built with the fold): the classic pool's money step reads as WHAT EACH LEG PAYS PER PLAYER — editable splits that scale with player count, bonuses added by choice, a visible adds-up check (legs + junk = pot). The "Split total: $X vs pot $Y ✓" line exists; the rest is the redesign. Zero-sum stays the tested invariant; worked-example sign-off before merge (money rule §2) | M | §5.bg part 3 |
 | Merge-audit polish: loss-red leg results on the dark board | S | §5.ak |
 | Merge-audit polish: "Sides / Match" as a category label | S | merge audit |
 | Merge-audit polish: the `70, 30` position-split mini-DSL | S | merge audit |
 | Merge-audit polish: three different renderings of course handicap | S | merge audit |
 | Uncaptured walks: group format sheet (walk 2 stopped there), create-group mid-wizard, format-tap → confirmation | S | NEXT_SESSION_PROMPT history |
+| **Context economy: split `pool/new/page.tsx` (~4,300 lines) into per-step component files** — every step is already a self-contained component; the one file dominates session context cost. Mechanical, no behavior change; e2e unchanged. Craig: "why am i filling up context so quickly… we might need a better process." Companion S: archive fixed findings out of FINDINGS.md (DECISIONS_ARCHIVE pattern) | M | Craig 2026-09-14 |
 | Leaderboard shows front/back columns for a 9-hole game (redundant, not wrong) | S | roadmap #13 note |
+| F-030 opt C: standings strip ON the scorecard (mini-leaderboard above the grid) — the deeper "captain glancing between shots" fix; composes with the built toggle | S | F-030, §6b |
+| F-031 opt B: the card's running to-par superscript is typo-sized — enlarge/clarify (ask Craig first) | S | F-031 |
+| Tell the friend (via Craig): men's/women's hole handicaps ARE factored (playerHoleStrokeIndex); 1v1 = Sides/Match; 3-player = Nines + skins/quota/Stableford/low-total; stats + GHIN export in Ideas; and the F-028…F-033 fixes land when the branch deploys | S | friend feedback 2026-09-10 |
 | Live scoring experience pass | M | §6 item 3 — Craig's named focus, never had its session |
 | Offline / PWA resilience (`sw.js` exists, caches nothing — cart-path wifi) | M | §6 item 4; core to "continuing" |
 
@@ -60,6 +82,7 @@ Craig's feedback batch (2026-09-10), his words. **All three observed on the LIVE
 
 | Item | Size | Source |
 |---|---|---|
+| **Sharing / login / identity polish** (Craig 2026-09-10: "we should add better sharing/logins/everything… I want to get this polished"). START WITH AN AUDIT SESSION (document-first): walk every entry path as each persona — owner via invite code, organizer via legacy `?key=` link, player via per-game token, returning visitor with expired 48h cookie or expired 12h GHIN token — screenshot each, log findings. Known rough edges to check: invite-code screen wording; the 48h cookie expiring mid-week (friends re-enter the code); GHIN re-login prompts; share panel copy/QR; "who am I" clarity for share-link players; sign-out scattering. The EXPERIENCE layer is product work and unblocked; if the shape turns into real accounts/auth, that's the §5c/F-002 trigger — pause for Craig there. Per-game tokens (built) + backups/export are the two §5c items already in scope. | L (audit M, then fixes) | Craig 2026-09-10 |
 | **Home screen & Event model** — P1 flag-gated read-only /home → stats/ledger → shared Event → flights | L | approved plan `.claude/plans/adaptive-squishing-locket.md` |
 | **Team Competition engine** — N teams of size K within foursomes (4 pairs combined Stableford etc.) | L | approved 2026-08-03, plan `.claude/plans/tingly-petting-reddy.md` + memory `project_pool-team-competition-plan` |
 | **Flight mode** — handicap flights/divisions competing separately | L | folded in as Phase 4 of the Home/Event plan |
@@ -94,3 +117,7 @@ it's real. Never build from this section directly.
 - Match-by-match scorecard view on round detail (needs per-matchup score persistence) — roadmap #9
 - Smart-anything (tee recommender by skill, score predictions) — Craig explicitly cut the tee
   RECOMMENDER down to "the tee they typically play" (built); keep that instinct
+- Individual stat tracking (friend, 2026-09-10) — partially exists at /home/stats (money);
+  he likely means golf stats (scoring avg, per-hole). Unshaped.
+- Export scores to GHIN (friend, 2026-09-10) — score POSTING to GHIN; needs API research
+  (is it even open to third parties?) before shaping.

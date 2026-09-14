@@ -2158,6 +2158,817 @@ asserts the stakes line and the save button.
 
 ---
 
+### F-027 — My-groups page: handicaps render but names are blank (LIVE app)  [P2] [continue]
+
+**Observation (Craig, 2026-09-10, live app):** on `/home/groups/[id]` "i just see handicaps,
+i can tell they are people, but i dont see names."
+
+**Diagnosis (code-level, read-only — live DB not queried):**
+
+The page CANNOT lose the name on its own. Member rows resolve via `getRosterPlayerById`
+and render `m.name` and `m.handicapIndex` from the SAME `RosterPlayer` object
+(`home/groups/[id]/page.tsx:428-430`). The hydration mapping is `name: row.name`
+(`roster.ts:59`) — the column is literally `name`, so there is no snake/camel seam to miss.
+Suspect (a) (name and handicap from different sources) and suspect (c) (mapping miss) are
+therefore ruled out by inspection.
+
+That leaves **(b): live roster rows with an empty or whitespace `name`**, and there is a
+plausible writer. `upsertRosterPlayer` never validates `name`, and two GHIN-add paths build
+it WITHOUT trimming:
+
+- `pool/new/page.tsx:2013` — `` `${golfer.first_name} ${golfer.last_name}` `` (no trim)
+- `pool/[id]/page.tsx:2329` — same (no trim)
+- (`pool/roster/page.tsx:123` DOES trim — the inconsistency is the tell)
+
+If GHIN ever returns empty/undefined name fields (e.g. a privacy-restricted golfer, or a
+partial API response), those paths write `"undefined undefined"`, `" "`, or `""` to the
+roster row — and the schema allows it (`name TEXT NOT NULL` accepts `''`). A group member
+pointing at such a row shows EXACTLY the symptom: the row renders (id resolves), the index
+shows, the name is visually blank. Note `refreshRosterHandicaps` re-upserts `{...player}`
+on every 24h auto-refresh, so a once-blank name self-perpetuates.
+
+**To confirm (needs Craig or a read-only query):** in Supabase, run
+`select id, name, ghin_number from players where name is null or trim(name) = '';`
+— or Craig can open his group and say which members are blank; if they were added via
+GHIN search on a day GHIN was flaky, that's the writer.
+
+**Options**
+- **A. Defensive read + fix the writers.** Trim at every name construction site, have
+  `upsertRosterPlayer` refuse to overwrite an existing non-empty name with an empty one,
+  and render a fallback on the page (`name || 'GHIN #1234567'`) so a bad row is visible
+  and identifiable instead of blank. Plus a one-time backfill of the affected rows (needs
+  Craig — touches live data).
+- **B. Backfill only.** Fix the rows by hand; leave the writers. Symptom returns next time
+  GHIN hiccups.
+- **C. Wait for confirmation first** — query the live table before building anything.
+
+**Recommendation:** **C then A** — confirm the empty-name rows exist (one read-only query),
+then fix writers + fallback in one pass, with the backfill as a separate Craig-approved step.
+
+**Status:** CODE-FIXED 2026-09-10 per option A, writers-first on Craig's call ("fix writers
+now, query later"). The two GHIN-add writers build the name with filter/join/trim + a
+`GHIN #…` fallback; `upsertRosterPlayer` refuses to blank a non-empty stored name
+(`resolveUpsertName`, unit-tested); the group page renders `rosterDisplayName` so a
+pre-fix live row shows `GHIN #…` instead of a blank card (e2e `F-027` blanks a seeded
+row and asserts the fallback). LIVE QUERY RUN 2026-09-10 (Craig authorized, read-only,
+via `supabase db query --linked`): **zero blank-name rows** — 83 players, min trimmed
+name length 8, no 'undefined' substrings. NO BACKFILL NEEDED; the defensive code stays
+(it prevents the write path that would create them). One separate anomaly found:
+"Friday Group" carries a dangling member id (`d09d8260-…`) pointing at a deleted
+players row — renders "Unknown player" on /pool/roster and is counted as "N members no
+longer on your roster" on the group page. Craig clarified the surface he saw was
+/pool/roster's Groups box; with the live data clean, the blank-name symptom there is
+not reproducible from current rows — if it recurs, a screenshot pins it.
+
+---
+
+### Friend-feedback intake, 2026-09-10 (F-028 … F-033)
+
+One friend's written batch, split per §5.bf: each item verified/triaged on its own,
+none taken as fact. His two QUESTIONS are answered here, not filed as work:
+
+- **"Do men's and women's hole handicaps get factored in?" — YES, already built.**
+  `playerHoleStrokeIndex` (`pool-game.ts:514`) reads each hole's stroke index from
+  THE PLAYER'S OWN TEE, precisely because men's and women's tees rank difficulty
+  differently (the code cites Spring Creek differing on 14 of 18). Worth TELLING
+  him — that it wasn't visible to him may itself be a UI finding.
+- **Future thoughts** (individual stat tracking; export scores to GHIN) → Ideas
+  section of BACKLOG.md. Stats partially exist at /home/stats; GHIN score posting
+  needs API research before it's even shapeable.
+
+---
+
+### F-028 — Stableford: per-hole points aren't shown  [P2] [track]
+
+**Report:** "Stableford show points by hole."
+**Triage (code):** the engine already computes them — `stableford.ts:72-85` fills
+`perHole` per player. So this is a DISPLAY gap, not a compute gap; the scorecard/
+leaderboard hole grid presumably shows gross strokes only. NEEDS A SCREEN LOOK to
+confirm what renders where before proposing (leaderboard Player Details vs scorecard).
+
+**Status:** open — verify on screen, then options.
+
+**Verified 2026-09-10** (`e2e/screenshots/f028-scorecard-phone.png`,
+`f028-leaderboard-phone.png`; new sandbox scenario `stableford-ind-partial`): confirmed
+on both surfaces. The scorecard grid shows gross strokes only (color-coded vs par); the
+leaderboard's PLAYER DETAILS grid also shows GROSS per hole (with stroke dots), plus
+Gross/Net totals — the points a player earned on a hole appear NOWHERE, only the summed
+`pts` in standings. The engine's `perHole` (points) is computed and dropped on the floor
+by both grids.
+
+**Options**
+- **A. Leaderboard Player Details: show points per hole instead of gross when the mode's
+  metric is points** (Stableford/quota/Nines already fill `perHole` with points — the
+  grid is just rendering gross). Gross stays on the scorecard. One surface, mode-aware.
+- **B. Add a second row per player (gross above, pts below) in Player Details.** Both
+  visible, but doubles the grid height on a phone.
+- **C. Scorecard: small points chip next to the entered gross** (e.g. "4 ³pts"). Puts it
+  where scoring happens, but crowds the entry grid.
+
+**Recommendation:** A — the leaderboard is the "how am I doing" surface; showing gross
+twice is redundant there. C could follow if the friend wants it at entry time.
+
+**BUILT 2026-09-10** (opt A, Craig's pick; commit e2788c4): the individual details grid
+renders the engine's perHole points whenever the game's metric is points (keyed off the
+metric, so quota/Nines/Wolf get it too); Out/In sum points, Gross/Net totals stay, panel
+header says "pts per hole". e2e `F-028` asserts Out == standings pts.
+
+---
+
+### F-029 — Stroke dots too faint on the scorecard  [P3] [track]
+
+**Report:** "Make the dots brighter showing where strokes are given."
+**Triage:** cosmetic and plausible — the card is read in sunlight (UI_CONVENTIONS §5's
+phone-in-sunlight bar). Check current dot rendering + contrast on the dark card, and
+that any change keeps dots matching the money engine (`getMoneyStrokesOnHole`).
+
+**Status:** open.
+
+**Verified 2026-09-10** (`f028-scorecard-phone.png`, `f028-leaderboard-phone.png`):
+confirmed, and the worst case is the DARK leaderboard: dots there are 8px
+`text-blue-400` superscript on the navy card (leaderboard/page.tsx:444,458,1283,1290)
+— at 8px a "dot" is barely a pixel cluster, and blue-400-on-dark-navy is low contrast.
+The score-entry cards use `text-orange-600` at xs on white (game/play/page.tsx:976,
+1034,1210,1269) — better, but still small. All render from the engine's strokes
+(`getMoneyStrokesOnHole` / `detail.holes[].strokes`), so a pure CSS change can't
+desync money — keep it CSS-only.
+
+**Options**
+- **A. Bump size + contrast, keep the dot glyph:** dark card → `text-[11px]
+  text-sky-300` (or amber-300); white card → keep orange-600, raise to text-sm.
+  Smallest change; dots stay dots.
+- **B. Replace superscript dots with a filled corner marker per cell** (like paper
+  cards: a diagonal-corner tick). Most legible in sunlight, but a real markup change
+  across two grids × two axes.
+- **C. Leave the card, fix only the dark leaderboard.** Friend said "scorecard,"
+  but the faintest render is the board — verify with him which screen he meant.
+
+**Recommendation:** A on both surfaces (one class per call site, six call sites,
+zero logic).
+
+**BUILT 2026-09-10** (opt A, Craig's pick; commit 8018429): dark board 8px blue-400 →
+11px sky-300 (4 sites); play page orange dots xs → sm (incl. the purple negative-stroke
+circles). CSS-only. e2e `F-029` ×2.
+
+---
+
+### F-030 — Score entry ↔ leaderboard round-trip is too many taps  [P2] [track]
+
+**Report:** "I want to be more easily able to go back and forth between the score
+entry and the leaderboard as 'captain'."
+**Triage:** count the actual taps each way before proposing (scorecard → hub →
+leaderboard → back?). A standing-on-the-tee flow. Candidate shapes: a leaderboard
+shortcut on the card, or standings summarized ON the card (§6b already says "show
+standing without leaving the card" — check what exists for pool games).
+
+**Status:** open — measure the current path first.
+
+**Verified 2026-09-10** (`f028-scorecard-phone.png`, `f028-leaderboard-phone.png`,
+`f030-back-on-scorecard-phone.png`): the mechanics are better than the report implies —
+**1 tap each way**, and the return leg PRESERVES state (left on Hole 8, came back to
+Hole 8). Scorecard header has "Leaderboard" (top-right, small green text on dark green);
+leaderboard header has "Scorecard" (top-right, small yellow text). So the finding is not
+tap count; it's **discoverability/affordance**: both are low-contrast text links in the
+header corner, visually identical to "Back" beside them, nothing signals they're the
+primary toggle. Craig (2026-09-10, mid-session): "it isn't intuitive to switch back and
+forth… maybe a better method like a swipe, or a cleaner button to switch."
+
+**Options**
+- **A. Swipe between card and leaderboard** (horizontal swipe or swipeable tabs on both
+  screens). Most native-feeling; cost: gesture is invisible until discovered, and swipe
+  already means prev/next hole on the card — conflict risk is real.
+- **B. Segmented toggle in the header** — a two-tab pill [Card | Standings] centered in
+  the header on BOTH screens, same position, same look. One tap, self-describing, no
+  gesture conflict. Cost: header space on a 390px phone.
+- **C. Standings strip ON the card** (mini-leaderboard: rank + pts for each player,
+  collapsible, above the grid) — §6b's "standing without leaving the card". Removes the
+  need to switch at all for the glance case; full board stays a tap away. Cost: vertical
+  space while entering scores.
+- **D. Leave as is** — 1 tap, state preserved; label the links better (e.g. "⇄ Standings").
+
+**Recommendation:** B now (cheap, discoverable, symmetric), C as the deeper fix for the
+"captain glancing between shots" moment — they compose.
+
+**BUILT 2026-09-10** (opt B, Craig's pick; commit a22e359): shared `CardBoardToggle`
+pill ([Card | Standings], white-on-translucent) replaces the corner links on the pool
+scorecard header and BOTH leaderboard variants; tournament flows keep their links.
+NOTE learned building the e2e: the card resumes at the FIRST UNSCORED hole on remount
+(by design, play/page.tsx) — it is not a preserved cursor; browsing without scoring
+doesn't stick. Opt C (standings strip on the card, §6b) remains open as the deeper fix.
+
+---
+
+### F-031 — Playing Stableford, you can't see your score to par  [P2] [track]
+
+**Report:** "I still want to see my score to par when I'm playing Stableford."
+**Triage:** the leaderboard ranks on points with PACE (§5.af/§5.am); the ask is the
+PLAYER's own to-par while playing — likely a scorecard surface. Gross per hole is
+entered there, so to-par is derivable with no new data. Check what the card header
+shows mid-round for a Stableford game.
+
+**Status:** open.
+
+**Verified 2026-09-10** (`f028-scorecard-phone.png`, `f028-leaderboard-phone.png`):
+partially confirmed. The scorecard's grid ALREADY shows running to-par — the Tot
+column reads "24₋₇", "34ᴇ", "41₊₇" (tiny superscript, easy to miss in sunlight), and
+each entry card shows "Net: 4 (E)" per hole once scored. What's genuinely missing:
+the **leaderboard** in a points game shows pts/Thru/$ only — no to-par column at all,
+and no GROSS to-par anywhere (the card's figure is gross-relative... verify: the Tot
+superscript is gross vs par; the leaderboard has Gross and Net TOTALS in Player
+Details but relative-to-par nowhere). So the friend playing Stableford and glancing
+at the standings can't see anyone's to-par.
+
+**Options**
+- **A. Add a "to par" column to the individual-game STANDINGS table** (pts · thru ·
+  to-par · $). One column, derivable from gross already in hand; mirrors how the
+  team leaderboard already leans on score-to-par (§5.af).
+- **B. Enlarge/clarify the scorecard Tot to-par** (it exists but reads as a typo-
+  sized superscript). Cosmetic companion to A.
+- **C. Leave it — the per-hole "Net: 4 (E)" already answers it.** But that's per
+  hole, not cumulative, and vanishes as you move holes.
+
+**Recommendation:** A (+B if Craig agrees the superscript is too subtle).
+
+**BUILT 2026-09-10** (opt A, Craig's pick; commit d54cfe2): "To par" column (gross vs
+par, strokes valence: under green / over red) in the individual STANDINGS whenever the
+engine isn't already supplying its ranked to-par/PACE column. Derived from the details
+grid's gross+par — no engine change. Opt B (bigger card superscript) not done — ask if
+he still wants it. e2e `F-031`.
+
+---
+
+### F-032 — No payout recap moment at Finish  [P2 MONEY] [continue]
+
+**Report:** "Need a 'summary' type view after you click 'finish' — player A owes
+player C x, player B owes player D y. No Venmo, nothing crazy."
+**Triage:** the math exists — per-person money renders on the leaderboard, and
+`settleUp()` (`stats-ledger.ts:322`) already computes greedy who-owes-whom transfers.
+What's missing is the MOMENT: close-out (`pool/[id]/page.tsx` CloseOutPanel) flips
+status and… check what it shows after. This is squarely the north star's "continuing"
+pillar (money is the question groups argue about later). Likely shape: a settle-up
+recap on/after close-out reusing `settleUp` per-game.
+
+**Status:** open — strong candidate, needs Craig's shape pick (where the recap lives).
+
+**Verified 2026-09-10** (`f032-after-closeout-phone.png`, `f032-leaderboard-complete-
+phone.png`; new sandbox scenario `stableford-ind-complete`): confirmed exactly as
+reported. Tapping "Close out game" flips the panel to "Game closed out — Final — this
+game now counts in Stats & money. Reopen it if a score needs fixing." and that's the
+entire moment — no money shown, no navigation offered. The completed game's leaderboard
+shows each player's NET $ (+$24 / +$20 / −$8 / −$36) but never who pays whom; the only
+settle-up view is buried in /home/stats, season-scoped, behind an organizer login.
+
+**Options** (all reuse `settleUp()` per-game — no new math; §2 stop-and-ask on display)
+- **A. Recap appears IN the close-out panel the moment the game closes** — the
+  "Game closed out" box grows a "Who pays whom" list (Rick pays Craig $24, …), also
+  rendered any time the game is viewed while completed. No new screen, lives at the
+  exact moment the group is standing in the parking lot.
+- **B. Recap section on the completed game's LEADERBOARD** (below STANDINGS) — the
+  board is where everyone already looks; hub stays terse. Same list, different home.
+- **C. Both: one-line summary in the close-out panel + full transfers on the board.**
+- **D. A dedicated /pool/{id}/settle screen linked from both.** A bespoke screen for
+  one list — the design smell §1 warns about.
+
+**Recommendation:** A (or C if the board should show it too). "No Venmo, nothing
+crazy" — a text list of transfers is exactly `settleUp()`'s output shape.
+
+**BUILT 2026-09-10** (opt A, Craig's pick; commit e038fff): the close-out panel grows a
+"Who pays whom" list the moment the game closes and on every later view; share-link
+guests get the same list as its own section. New `gameRollups()` (stats-ledger) reduces
+one game to per-player rollups → `settleUp()`. Unit tests pin zero-sum + full-settlement
++ per-person divide, each proven able to fail (§5.z). e2e `F-032` incl. reopen-removes-it.
+
+---
+
+### F-033 — "1v1 and more 3-player game types" — mostly EXIST; he can't find them  [P2] [start]
+
+**Report:** "1v1 game types and more 3-player game types (or the capability to
+create them)."
+**Triage — the §5.bf case in miniature:** the capability is largely BUILT. 1v1:
+Sides/Match plays at `playersMin: 2` (team-game.ts:689, lowered deliberately —
+singles match front/back/overall). 3 players: Nines is EXACTLY 3 (nines.ts:128);
+skins/quota/Stableford/low-total all take 2–3; Wolf variants exist. So the real
+finding is DISCOVERABILITY: does a 2- or 3-player field make these visible enough
+(fit badges exist per F-020)? Verify what a 2/3-player wizard walk actually offers
+before building anything new. If a specific game he wants is missing (e.g. 9-point
+game variants), that's a one-file mode add — ask him WHICH game he missed.
+
+**Status:** open — walk the wizard at 2 and 3 players; likely an exposure fix + an
+answer back to him, not new modes.
+
+**Verified 2026-09-10** (`e2e/screenshots/f033-details-2p.png`, `-3p.png`; sandbox walk
+at phone width): the triage holds — the games EXIST and the wizard even knows it. At
+2 players the picker offers Skins/Stableford/Quota/Low Total/Sides-Match all badged
+"✓ 2 players"; at 3, those plus Nines "✓ 3 players". **The discoverability gap is
+real and specific:**
+
+1. **The picker DEFAULTS to "Pool (foursomes vs foursomes)"** — for a 2- or 3-player
+   field, the one game that makes no sense. The screen then fills with pool money
+   settings, so a 2-player organizer sees a foursomes game with no hint anything else
+   exists.
+2. **The fit badges only render inside the OPEN dropdown** (native `<select>` option
+   labels). Closed — which is how the screen loads — nothing says "6 games fit your 3."
+3. The classic pool never gets a badge or a fit warning at any field size (descriptor-
+   less = always fits), so it isn't even marked as odd at 2 players.
+
+**Violates:** north star (possibility invisible = possibility absent); §5.ao (the app
+knows the rule — playerCount — and doesn't spend it as guidance here).
+
+**Options**
+- **A. Fit-aware default: with ≤3 players, default the picker to the best-fitting game
+  instead of Pool** (e.g. Sides/Match at 2, Nines at 3 — or simply the first fitting
+  mode). Pool stays one tap away in the list. Cost: "default" choice needs Craig's
+  pick; a saved format still wins per §5.av.
+- **B. Keep Pool as default, add a hint line under the picker when playerCount ≤ 3:**
+  "With 2 players you can also play: Sides / Match, Skins, Stableford…" — reuses
+  `modeFits`, mirrors the existing amber fit-warning pattern, changes no defaults.
+- **C. Leave it; answer the friend** that the games are in the dropdown. Cheapest, but
+  the friend DID open this screen and still couldn't find them — evidence C fails.
+
+**Recommendation:** B (guidance without changing anyone's default), possibly + A later.
+**Answer back to the friend:** 1v1 = "Sides / Match" (plays at 2, front/back/overall);
+3-player = Nines/Split Sixes, plus Skins/Quota/Stableford/Low Total at 2–3. If a game
+he wanted is still missing, name it — a new mode is one file.
+
+**BUILT 2026-09-10** (opt B, Craig's pick; commit 60e5fe2): sky-toned hint line under
+the picker when the pool is selected with ≤3 players, listing the fitting modes via
+`modeFits`; picking a real mode dismisses it; default stays Pool. Opt A (fit-aware
+default) deliberately not done. e2e `F-033` ×2 (2p, 3p, absent at 4).
+
+**Craig (2026-09-10):** the friend used the app BEFORE this branch's changes deployed —
+so what he saw may predate the F-020 fit badges and the current mode list entirely. The
+verification above is of THIS branch; his experience was of live/main. Part of the
+answer back may simply be "update: they're there now / clearer once the branch ships."
+
+---
+
+### F-034 — Choosing a group can "recommend" a STALE game name from the wizard draft  [P3] [start]
+
+**Where:** `app/pool/new/page.tsx` — draft hydration (line ~255 restores `name` from
+sessionStorage `WIZARD_KEY`) + `onGroupLoaded` (line ~627: `setName((prev) => prev.trim() ? prev : g.name)`)
+**Reported:** Craig, 2026-09-10 — "opened a test game, chose Friday group, and it's
+recommending Weekend Warriors as the name. that's weird."
+
+**Diagnosis (code inspection, mechanism confirmed):** the wizard auto-saves every field
+to a sessionStorage draft, including `name`, and restores it on mount. Loading a group
+only names the game **when the name is empty** — a courtesy fill. So the sequence
+"started/abandoned a game involving Weekend Warriors earlier in this tab → open a new
+game → pick Friday Group" shows Weekend Warriors in the name box: it isn't a
+recommendation at all, it's the previous draft's leftover, and the group load politely
+declines to overwrite what looks like something you typed. The draft deliberately does
+NOT restore players/step (a fresh field per game) — but `name` is restored, which is
+right for "resume my setup" and wrong-looking the moment you change groups.
+
+**Options**
+- **A. When a group/format loads and the current name equals a STALE auto-fill (tracked
+  the way `appliedFormat` already tracks its name), replace it with the new group's
+  name.** Track "the name came from group X" in state; a hand-typed name is never touched.
+- **B. Clear `name` from the draft when the wizard is opened fresh from a group page or
+  /pool hub (arrival context says "new game").** Cheapest; loses "resume my half-built
+  setup keeps its name" only for those entry points.
+- **C. Leave it; it's a draft-resume feature.** Evidence against: Craig read it as a
+  recommendation — the box gives no hint the name is left over from a previous setup.
+
+**Status:** open — needs Craig's pick.
+
+---
+
+### F-035 — The wizard's GROUPS step shows raw floating-point handicaps (16 decimals)  [P2] [start]
+
+**Where:** `app/pool/new/page.tsx:2829` — the playing-groups step renders
+`hcapOf(player)` (line 2709: unrounded `getPoolPlayingHandicap`) straight into JSX
+**Reported:** Craig, 2026-09-10 — "the handicaps are not just 1 decimal. it's like 16
+decimals, which I'm not sure how that's possible."
+
+**Diagnosis (code inspection):** `getPoolPlayingHandicap` is deliberately unrounded
+(§5.bb: allowance applies to the unrounded CH; callers round once). Every other wizard
+step obeys that contract — the tee step (line 2625), the teams step (line 3311), and the
+sides step (line 3463) all `Math.round(...)` before display. The Groups step (F-019's
+playing-groups screen, shown for a >4-player side game) is the one consumer that
+forgot: it renders the raw float, and with Friday Group's 90% allowance a 14.3 index
+becomes e.g. `12.870000000000003`. Classic one-axis-drift: each screen individually
+fine, wrong only by comparison. Display-only — the math underneath is correct.
+
+**Fix shape (when asked):** `Math.round(hcapOf(...))` at line 2829, matching its three
+sibling steps; e2e-assert no `.` longer than 1 decimal on that screen.
+
+**Status:** FIXED 2026-09-14 (5028c54) — `Math.round` at the render site, matching the sibling steps.
+
+---
+
+### F-036 — Reshaping to MORE sides than exist mints DUPLICATE side ids: A, B, C, C  [P1 MONEY] [start]
+
+**Where:** `app/pool/new/page.tsx:3457` — `applySideShape`:
+`id: effective[i]?.id ?? nextSideId(effective.slice(0, i))`
+**Reported:** Craig, 2026-09-10 — "in sides game, it lists sides for a 2v2v2v2 game as
+A B C and then C again."
+
+**Diagnosis (code inspection, arithmetic confirmed):** when the field starts on the
+default TWO sides (`a`,`b`) and the organizer picks a 4-side shape (8 players → 2v2v2v2),
+the builder derives each new side's id from a slice of the **old** sides array:
+- i=2 → `nextSideId([a,b])` → `'c'` ✓
+- i=3 → `nextSideId(effective.slice(0,3))` — but `effective` has only 2 entries, so the
+  slice is still `[a,b]` → `'c'` **again**.
+
+Every side added beyond `old count + 1` in a single reshape repeats the same id. The
+slice needed is of the NEW list being built, not the old one.
+
+**Why P1 MONEY, not P2 display:** side ids are identity (the file's own comment: "the
+ids are identity, not position… re-lettering would silently relabel money rows").
+With two sides both `'c'`: `assign()` adds a tapped player to BOTH (its map matches
+`side.id === sideId`) — one player on two sides is exactly the impossible data §5.ac
+says to prevent; `sideMembers`/`sideOfPlayer` resolve only the first; pairwise
+settlement (§5.ae) would treat two distinct pairs as one/duplicated party. React also
+gets duplicate keys (`key={side.id}`). The same `?? nextSideId(...)` idiom exists in
+`addSide` (safe — appends one) and the hub's editor at `pool/[id]/page.tsx:967` (safe —
+adds one at a time); only the reshape path can add ≥2 at once.
+
+**Fix shape (when asked):** build the list incrementally so each new id sees the ids
+already minted (e.g. reduce, or `nextSideId` over the accumulated result); pin with a
+unit test "2 sides + [2,2,2,2] shape → ids a,b,c,d" in sides/group-shapes tests, plus
+the zero-sum settlement assertion at 4 sides.
+
+**Status:** FIXED 2026-09-14 (5028c54, Craig's "fold in quick fixes" go-ahead) — `applySideShape`
+builds the list with a reduce so each new id is minted against the ids already built; e2e pins
+8 players → 2v2v2v2 → sides A,B,C,D distinct.
+
+---
+
+### F-037 — Eight players who want "two separate 2v2 best-balls" can't say so — and Craig can't tell what IS possible  [P1] [start]
+
+**Reported:** Craig, 2026-09-10 — "how would I run 4v4 if it's not a pool? like 2v2 and
+2v2? I'm confused at why I can only choose pools" and "once I've chosen a player pool, I
+should be able to choose how many teams. like two different 2v2 best balls going on
+between 8 players — I'm not sure I could set that up."
+
+**What the app CAN do today (verified in code):**
+- **4v4 best ball, 8 players, no pool:** BUILT. Sides/Match (`team-game.ts`,
+  `playersMax: 8`) + the F-020 shape chooser offers `[4,4]`; F-019 playing groups
+  split them into two foursomes; §5.ae settles sides pairwise. It exists — Craig
+  didn't find it, which per the north star is the same as not existing.
+- **2v2v2v2, one game:** BUILT (same screen, `[2,2,2,2]` shape) — but that is FOUR
+  sides in ONE round-robin settlement: every pair competes against every other pair.
+- **Two INDEPENDENT 2v2 matches (A&B vs C&D, and separately E&F vs G&H):** NOT
+  expressible in one game. A sides game has one settlement pool across all its sides;
+  the only partitioned-competition container is the classic pool (foursome vs foursome,
+  or 2-foursome head-to-head via matchups). The workaround — create two separate
+  games — splits the ledger, the share link, and the evening's recap.
+
+**Two findings inside the report:**
+1. **Capability gap:** "sides" and "who settles with whom" are conflated. The approved
+   team-competition plan (pool-team-competition-plan, §5g N-sides engine, NOT built)
+   is the designed home for N-teams-of-K; independent PAIRINGS of sides (bracket-style
+   "these two settle, those two settle") is a further axis nobody has designed yet.
+   Craig's mental model — field first, then "how many teams", then the game — is §5.au
+   EXACTLY (field → game → …); what's missing is the structure question after the field.
+2. **Discoverability (F-033's older sibling):** at 8 players the picker still defaults
+   to Pool, and nothing says "Sides/Match handles 4v4 or 2v2v2v2 here." The F-033 hint
+   line was built for ≤3 players only — the same confusion at the other end of the range.
+
+**Options**
+- **A. Extend the F-033 hint to larger fields:** when playerCount ≥ 5 fits a sides game,
+  say "8 players can also play Sides/Match — 4v4, 2v2v2v2…". Cheap, discoverability only.
+- **B. Design the pairings axis:** let a 4-side game declare A↔B and C↔D settle
+  independently (two matches, one game, one recap). Real design work — feeds the
+  team-competition plan rather than a quick fix.
+- **C. Both: A now, B into BACKLOG as a design task attached to the team-competition plan.**
+
+**Recommendation:** C. Answer to Craig's question directly: 4v4 IS there today (choose
+Sides / Match at 8 players, pick the 4v4 split); two independent 2v2s needs two games
+for now.
+
+**Status:** open — awaiting Craig's read; nothing built.
+
+**Craig, same session, two more data points that sharpen this into a NAMING finding:**
+"if I choose 4 players playing, how can I just make it 2 v 2?" and "I also can't make a
+2v2 game anymore for some reason. or not sure how." The capability is fully built — at
+4 players, pick **"Sides / Match"** in the game picker and the sides step defaults to
+2v2 — but the mode was RENAMED from its 2v2-era label to "Sides / Match" (team-game.ts:681,
+the F-019 widening), and nothing in the picker says "2v2" anymore. Craig, the app's
+OWNER, could not map "I want 2v2" to "Sides / Match": the strongest possible evidence
+that the label lost the game's most common name. §5.at in reverse — the rename dated
+the VOCABULARY users search by, not a limit. Option D for the list above: **rename or
+subtitle the mode so "2v2" appears in the picker** (e.g. "Sides / Match (1v1, 2v2, up
+to 4v4)") and/or make the description line say it before a mode is even selected.
+
+**Craig, after finding it (2026-09-10):** "i figured out the 2 v 2 game, but its not
+clear to me" — locating the mode didn't resolve the confusion. The problem isn't only
+the label; the flow from "Sides / Match" to an actual 2v2 doesn't announce itself
+either (the sides step arrives without saying "this is where your 2v2 happens").
+
+**Partial fix 2026-09-14 (5028c54):** the sides step now says what it makes — "This
+makes it a 2 v 2 match" (derived from the data, so any split describes itself).
+STILL OPEN: the picker label itself (option D: subtitle "Sides / Match" with "1v1,
+2v2, up to 4v4"), the ≥5-player fit hint (option A), and the pairings axis (option B,
+design work for the team-competition plan).
+
+---
+
+### F-038 — Tee lists render in GHIN's payload order, not by distance — The Meadows reads Gold, Green, Blue, White  [P2] [start]
+
+**Where:** `app/pool/new/page.tsx:1517-1541` — course-details parse maps `TeeSets`
+straight through; men's/women's split preserves payload order; `selectedTeeId` defaults
+to `teeSets[0]` whatever that is.
+**Reported:** Craig, 2026-09-10 — "it lists the tees as gold, green, blue, white,
+white (W), green (W). this is weird because the distances are off."
+
+**Diagnosis (verified against the live game's stored payload — The Meadows, course
+5682):** GHIN returns The Meadows' tees in the order Gold 6602y, Green 4885y, Blue
+6109y, White 5622y. The parse never sorts, so the picker shows a jumble — Green (the
+shortest, forward tee) second, between the tips and Blue. The DATA is right (each tee's
+yardage/slope/rating match GHIN); only the ORDER is raw. Spring Creek never showed this
+because GHIN happens to return its tees longest-first. `lib/tee-pick.ts:33` already
+sorts by yardage for its own picking logic — display just doesn't use it. Also note
+`selectedTeeId = teeSets[0]` silently defaults every game to whatever tee GHIN lists
+first — at The Meadows, the tips.
+
+**Fix shape (when asked):** sort each gender block by `totalYardage` descending at
+parse time (one line, same idiom as tee-pick.ts), or at render. Belongs to the F-023
+course-data audit: same lesson — payload shape/order is not uniform across courses.
+
+**Status:** FIXED 2026-09-14 (5028c54) — tees sort longest-first per gender at parse time, so the
+picker reads tips → forward and the `teeSets[0]` default is the longest men's tee, not payload
+luck. NOTE: the default-tee CHOICE (tips may not be the right default either) is a fair follow-up
+question for the course-data audit.
+
+---
+
+### F-039 — Meadows side game: "everyone is the same color, and says Bill and Bill after them"  [P2] [track]
+
+**Reported:** Craig, 2026-09-10, live game `47d97408` ("sidestest", The Meadows, 5
+players, Sides/Match best-ball, off-the-low 95%).
+**What the stored game says (read from tonight's snapshot):** sides persisted fine as
+legacy `subTeams` — side A = Bill McAuliffe & Bill Grupp, side B = Briggs, Brandon &
+Morgan (a 2 v 3). Assignment WORKED; this is a display problem, not lost data.
+
+**Two symptoms, likely two causes:**
+1. **"Bill and Bill"** — CONFIRMED by code: `sideNameFrom` (team-game.ts:101) builds a
+   side's auto-name from its first two members' FIRST names. Side A is literally
+   "Bill & Bill" — two Bills. FIXED 2026-09-14 (8ab44fd): a first name shared by anyone
+   in the game gains a last initial, game-wide ("Bill M. & Bill G."); unit-tested
+   including the different-sides and single-word-name cases.
+2. **"Everyone is the same color"** — NOT yet reproduced. The scorecard colors rows
+   blue/red off `player.team` ('A'/'B'), tagged in `pool/[id]/page.tsx:229-234` when
+   `sides.length <= 2`. This game IS two sides, so tags should apply. Suspects: the
+   2v3 uneven split, the `subTeams` legacy load path, or Craig was on a different
+   screen (hub sides editor / scorecards page) whose buttons don't color. NEEDS a
+   screenshot repro in the sandbox: 5 players, 2 sides (2v3), open the scorecard —
+   blocked tonight on port 3000/3200 being held by Craig's own dev server.
+
+**Status:** naming half FIXED 2026-09-14 (8ab44fd); color half still needs a sandbox repro
+(5 players, 2 sides 2v3, open the scorecard).
+
+---
+
+### F-040 — Three ways to add a player, ordered by API mechanics rather than by how people think  [P2] [start]
+
+**Where:** the add-player stack appears on FOUR surfaces — `pool/new/page.tsx:2318`
+(wizard field step), `pool/roster/page.tsx:339`, `game/new/page.tsx:567`,
+`tournament/new/page.tsx:465`. All order it: **Add by GHIN # → add manually → Search
+GHIN by name**.
+**Reported:** Craig, 2026-09-14 (functionality walkthrough) — "the add player by ghin
+number is redundant if we also have the first name, last name basis. I feel the first
+name last name should be primary, and then maybe if they have some sort of csv or other
+file with ghin numbers, that is a fall back if bulk adding players. But otherwise, seems
+unnecessary. Also, the manually add portion should definitely show something along the
+lines of 'doesn't have official ghin number' or something along those lines."
+
+**Diagnosis (code inspection):** three findings inside the report.
+
+1. **Ordering.** "Add by GHIN #" is the FIRST and most prominent box, but knowing a
+   GHIN number cold is the rare case; knowing a name is universal. Name search arrives
+   LAST and in a separate card, below manual add. The order reflects the API's history
+   (GHIN-# lookup was built first) not the organizer's mental model. Name search is
+   also strictly more capable: its results carry the GHIN #, handicap, and gender in
+   one tap — everything the GHIN-# box returns.
+2. **Nothing distinguishes a manual player as GHIN-less.** `addManual`
+   (`pool/new/page.tsx:2058`) stores `ghinNumber: null` — the data knows — but the form
+   says only "Or add manually" with Name/HCP fields. Nothing tells the organizer this
+   creates a player OUTSIDE the handicap system: the typed HCP is static (never
+   refreshes from GHIN), and the round won't feed a revision. The organizer can't tell
+   "I added Dave manually" from "I added Dave's GHIN" later, either — saved-player rows
+   don't show a GHIN badge (needs a screenshot pass to confirm on every surface).
+3. **Bulk add doesn't exist** in any form (no CSV/paste-a-list path on any of the four
+   surfaces). Craig frames GHIN-# entry as acceptable only as a bulk fallback — one
+   number at a time serves neither the "I know one guy's number" case well nor the
+   "here's my league's 24 numbers" case at all.
+
+**Options**
+- **A. Reorder only:** name search first (one card: First / Last / ST), manual add
+  second with a "no GHIN — handicap won't update itself" note, GHIN-# entry folded
+  into a small "have a GHIN #?" disclosure under name search. No behavior change.
+- **B. A + a paste-a-list bulk path:** a textarea accepting GHIN numbers (comma/newline
+  separated — covers CSV by copy-paste without a file-upload UI), resolving each via
+  the existing `addByGhin` fetch, reporting per-number success/failure. The bulk case
+  is where GHIN-# entry genuinely earns its place.
+- **C. A + retire the GHIN-# box entirely** (name search covers the single-add case).
+  Cheapest surface, but loses the number path for identically-named golfers and for
+  the CSV-in-hand organizer Craig himself described.
+- **The GHIN-less note applies under every option** — it's §5.ac honesty about what a
+  manual player IS, not a preference.
+
+**Consideration against burying GHIN-#:** GHIN name search requires the ORGANIZER to be
+GHIN-logged-in AND requires last name + state; the GHIN-# box has the same login wall, so
+login isn't a differentiator. The real fallback when name search fails is manual add.
+
+**Note:** all four surfaces duplicate this stack by copy — whatever changes should land
+as one shared component, or at minimum the same change four times with an e2e on each
+(the audit's one-axis-drift lesson).
+
+**Status:** BUILT 2026-09-14 (commit a35f7f9), per Craig's pick **B**. The stack was
+EXTRACTED into one shared component — `src/components/add-player-panel.tsx` — used by all
+four surfaces, so the copies can't drift again: name search first (results add in one tap,
+grey out once added), manual add second with the "no official GHIN — the handicap won't
+update itself" note, GHIN numbers behind a "Have GHIN numbers?" disclosure whose textarea
+takes one number or a pasted comma/newline list with per-number added/not-found/already-added
+reporting (failures stay in the box for retry). game/new and tournament/new gained name
+search for the first time; game/new keeps its playersMax cap. e2e (`f040-add-player.spec.ts`)
+exercises the order contract, the note, bulk paste, and name search on ALL FOUR surfaces
+with the GHIN endpoints mocked via Playwright routes.
+
+---
+
+### F-041 — "Stableford — 4 too many" at 8 players is FALSE as the golfer reads it: the pool plays Stableford fine  [P1] [start]
+
+**Where:** `stableford.ts:115` (`playersMax: 4`) + the F-020 fit badge; meanwhile the classic
+pool has a Strokes/Stableford toggle (`teamScoreBasis`, wizard line 1362) and every team format
+(best ball, two best, combined, scramble…) at ANY field size.
+**Reported:** Craig, 2026-09-14 — "Feels weird that it says we couldn't play stableford in this
+case, even with 8 players… The idea of a pool is really just a side, but with 4 teams per side
+[per team]… you could play best ball stableford, best 2 balls stableford, all 4 combined
+stableford, etc."
+
+**Diagnosis:** the registry's "Stableford" mode is the INDIVIDUAL single-group game (everyone
+for themselves, 2–4 players). The fit badge honestly reports that mode's cap — but the golfer
+reads the label as the SCORING SYSTEM, and the scoring system is available at 8 players in two
+other places (pool's Stableford toggle; Sides/Match `scoring: stableford`). Same failure class
+as F-037's naming half: the picker's vocabulary is mode-registry taxonomy, not golfer taxonomy.
+Golfers compose a game from THREE independent axes — (1) team structure (solo / pairs / foursomes
+/ N sides), (2) hole scoring (strokes / stableford / quota / match), (3) money (pot / per-leg /
+per-point / skins) — and the picker presents ~10 pre-composed bundles whose names collide with
+axis-2 words ("Stableford", "Skins") and axis-1 words ("Sides").
+
+**This is the approved Team Competition engine's problem statement** (§5g,
+`.claude/plans/tingly-petting-reddy.md`, memory `project_pool-team-competition-plan`: "N teams
+of size K, combined Stableford etc."), plus F-037's pairings axis. The wizard-level fix short of
+the engine: when a picked mode misfits, the F-020 alternative line should also say when the POOL
+or SIDES can play that scoring ("8 players can play Stableford as a pool — team toggle — or as
+sides"), and/or the badge should not read as refusing a scoring system the app offers.
+
+**Status:** redirect line FIXED 2026-09-14 (misfit note now says "N players can still score
+Stableford — as a team Pool… or as Sides / Match"; e2e). CORRECTION same day: the redirect
+keyed on mode id `stableford` but the registry id is `stableford-ind`, so the line never
+fired — caught by the (then-unverified) e2e assertion on its first real run; id fixed. DIRECTION AGREED in-session, Craig:
+"a pool is effectively just a 4v4 game… choose your groups, your game style, your players, how
+many teams, and go… lets think about how to simplify this" — structure-first wizard question,
+modes become shortcuts; the Team Competition engine's UI framing. Record as a decision when
+scope is confirmed; do NOT build the engine unprompted.
+
+---
+
+### F-042 — "Everyone buys in" vs "Two teams, head-to-head" answers a question the organizer hasn't been asked  [P2] [start]
+
+**Where:** wizard `pool/new/page.tsx:1204-1231` (classic pool only).
+**Reported:** Craig, 2026-09-14 — "what is the difference between two teams, head to head, and
+'everyone buys in'? I'm confused here."
+
+**Diagnosis:** `moneyMode: pot | match`. 'pot' = every player antes, pot split across
+front/back/overall/junk, paid by finishing place across N foursomes. 'match' = exactly TWO
+foursomes, no ante — the losing side pays fixed $ per leg + junk differential (§ memory
+`pool-money-modes-and-groups`). The helper text under the toggle does explain this, but the
+LABELS name payment mechanics while the real question is game structure ("is this a
+tournament-style pool or one team against another?"), asked before teams even exist. The toggle
+also silently changes the recommended allowance 85%↔90% (see F-043). Candidate framing: ask it
+as structure ("All foursomes compete" vs "Two teams against each other"), or move it after teams
+are built where "two teams" is concrete.
+
+**Status:** label layer FIXED 2026-09-14 — toggle asks "Who competes against whom?" with
+"All teams, for a pot" / "Two teams, head-to-head"; e2e asserts. The move-after-teams idea
+stays open with the F-041 structure discussion.
+
+---
+
+### F-043 — Handicap arithmetic is a black box: nowhere shows index → CH → allowance → strokes  [P2] [start]
+
+**Where:** teams step (`pool/new/page.tsx:3311` area) shows one rounded number per player; no
+surface shows the chain. Related: F-023's amber note is the ONLY place the basis is ever named.
+**Reported:** Craig, 2026-09-14 — "on the teams page… no way to track the progression of the
+handicaps, it never shows the raw decimal player index, course handicap, where the allowance is
+applied, etc."
+
+**Diagnosis:** the math is right and §5.bb-ordered (allowance on unrounded CH, round once), and
+it's exactly the kind of number a golfer wants to VERIFY (GHIN is the reference, §5.ba). Today
+verifying requires trusting the app. Fix shape: a tap/disclosure per player showing
+`12.4 index → 14.8 course (slope 131) → ×85% → 12.6 → plays off 13`. One shared component,
+usable on the teams step, sides step, and player-details sheet. Also the natural home for
+F-023's "this tee has no rating — using index" honesty. Display-only; no math changes.
+
+**Status:** FIXED 2026-09-14. Every handicap chip on the wizard's field list, teams step, and
+sides step is now a tap-to-open disclosure showing the chain (`HandicapChip`,
+`components/handicap-chain.tsx`), one line per step with the tee's slope/rating/par named.
+The chain comes from `explainPlayingHandicap` (pool-game.ts), which mirrors
+`getPoolPlayingHandicap` branch-for-branch and is PINNED to it by unit test across the full
+matrix (`src/test/handicap-chain.test.ts`) — the explanation cannot drift from the math.
+F-023's honesty folded in: the no-rating fallback, the 'index' basis, and the 9-hole
+fallbacks all say so in the panel. e2e: `F-043:` in verify-fixes.spec.ts + screenshot.
+
+---
+
+### F-044 — Pot-split defaults and the 85↔90 flip look arbitrary because their reasons are invisible  [P3] [start]
+
+**Reported:** Craig, 2026-09-14 — "the pot split seems weird. maybe that was hard coded, but
+this should be saved differently. Also, when I toggle everyone-buys-in vs head-to-head, the
+recommended value changes from 85% to 90%."
+
+**Diagnosis — both are deliberate, neither says so:**
+1. The pot split defaults come from `POOL_SPLIT_TABLE` (`pool-game.ts:295`) — CRAIG'S OWN
+   historical splits by team count (2 teams: 70/70/40/20 … extended +$25/leg beyond 5), recorded
+   as a decision. Editable per game. That he read his own table as "hard coded and weird" says
+   the SOURCE is invisible ("your usual split for 2 teams" would explain itself) — and/or the
+   numbers deserve a per-group saved default rather than a global table ("saved differently").
+2. 85→90 is USGA: four-ball STROKE play 85%, four-ball MATCH play 90% (`usgaRec`, wizard:1005).
+   The note names the format but the FLIP is unexplained at the moment it happens.
+
+**Status:** explanation layer FIXED 2026-09-14 — pot split says "The usual split for N teams —
+edit any leg"; the USGA notes name their driver ("(head-to-head)" / "(pot — two scores
+counting)"). The "saved per group" idea stays open, feeds the format library.
+
+---
+
+### F-045 — Junk is on by default, and CTP shows up whether or not it's part of the game  [P2] [start]
+
+**Where:** `DEFAULT_JUNK_VALUES` (`pool-game.ts:268`) — birdie 1, eagle 2, albatross 3, groupHug
+1, ctp 1 — all nonzero from the first render of a classic pool; `JUNK_FIELDS` always lists CTP.
+**Reported:** Craig, 2026-09-14 — "closest to the pin should probably not show up if it's not
+being included in a bonus. And the junk bonuses should be an added bonus perhaps, not defaulted
+on unless it is a saved game that someone always uses."
+
+**Diagnosis:** the defaults encode Craig's OWN Friday game (junk built into the pot split's
+fourth leg), which is right for his saved format and wrong as the app-wide default. Note the
+registered modes already got this right — bonuses are OFF by default and pickable on the money
+step (e2e 'bonuses are off by default'); the CLASSIC pool predates that convention. Fix shape:
+classic pool defaults junk to zero/off with an "add bonuses" affordance; saved formats keep
+whatever they saved (his Friday format keeps junk on). MONEY-ADJACENT: changes what a fresh
+pool's pot pays — needs Craig's explicit go, plus care that the 4-way pot split (junk = a leg)
+degrades sensibly when junk is $0.
+**Downstream check when built:** scorecard CTP button + leaderboard junk column should follow
+the game's junk config, not assume it.
+
+**Status:** BUILT 2026-09-14 (commit e924dbe), per §5.bg. Junk starts $0/off on a fresh
+classic pool behind an "Add bonuses" affordance on the money step; with junk off its pot
+quarter folds into OVERALL at creation (`foldJunkIntoOverall`, front/back keep their table
+weights) — the fold is the money-math guard, not UI field-hiding. Every junk/CTP surface
+follows the game's config now: scorecard CTP button, pool-page CTP editor + Pot panel,
+leaderboard junk breakdown (per-column) + pots list, match board junk row. Saved formats
+keep their junk (JY Classic Pool restores with the grid open). Zero-sum unit tests pin the
+fold and were proven FAILABLE (§5.z). Worked example (2 teams, 8 × $25): 70/70/40/20 →
+70/70/60 — **shown to Craig for the conditional "if it makes sense" sign-off before merge.**
+Deeper §5.bg direction (money step as per-player/per-leg dollars that visibly add up,
+splits editable by player count) is NOT built — queued in BACKLOG as its own item.
+
+---
+
+### F-046 — A format saved to a group still had to be fetched "from library" when starting the group's game  [P2] [needs-repro]
+
+**Reported:** Craig, 2026-09-14 — "I saved this format, but still had to import from library.
+I saved it as friday game in the friday group."
+
+**What the code says should happen:** saved formats appear in the game picker's "Your saved
+games" optgroup (§5.av, wizard:1050); a group's ATTACHED formats (`defaults.formatIds`) surface
+on the group page's format picker and the §5.aw two-tap flow. Possible gaps between those and
+what Craig hit: (a) "Save format" saves to the LIBRARY but does NOT attach to the group he was
+thinking of — attachment is a separate step on /home/groups/[id]; (b) naming a format "Friday
+game" inside the Friday group's page may not round-trip to the wizard's optgroup if hydration
+raced; (c) he may have expected picking the GROUP on the field step to surface its formats right
+there, and it doesn't — group defaults apply silently but attached formats aren't offered as a
+choice at that moment.
+**(c) is the likely real finding:** the field step knows the group; the game step lists formats
+UNGROUPED by group. "Friday Group" chosen → "Friday game" should be the first thing the game
+step offers, labeled as the group's usual.
+
+**Repro (code-confirmed, 2026-09-14):** BOTH (a) and (c) are real, and together they explain
+the miss end-to-end.
+- (a) `SaveFormatModal` (`pool/[id]/page.tsx:632`) calls `saveFormat(...)` only — it never
+  attaches the new format to `game.sourceGroupId`, even when the game was started FROM that
+  group. Craig's "I saved it as friday game in the friday group" was a save to the flat
+  library; the group never learned about it. Attachment exists only as a separate "+ Import
+  from library" step on `/home/groups/[id]`.
+- (c) the wizard game step (`DetailsStep`) lists `getFormats()` flat in one "Your saved
+  games" optgroup — it receives no `sourceGroupId`, so the group chosen one step earlier
+  can't surface its own formats first.
+
+**Status:** FIXED 2026-09-14, both threads:
+- (a) `SaveFormatModal` on a game with a `sourceGroupId` now offers "Attach to {group}" —
+  default ON (that's what "I saved it in the friday group" means), untickable, only shown
+  when the game came from a group.
+- (c) the wizard game step receives `sourceGroupId` and leads the picker with the group's
+  attached formats under an optgroup named "{Group} plays"; the rest of the library follows
+  as "Other saved games" (deduped). No group chosen → the picker reads exactly as before.
+- e2e: two `F-046:` tests walk Craig's exact repro (save from the group's game → new game →
+  pick the group → its usual games lead, including the just-saved one) + screenshot.
+
+---
+
 ## Fixed & verified
 
 Findings confirmed fixed with an e2e assertion guarding them. (The 11 fixes from

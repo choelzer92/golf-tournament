@@ -15,6 +15,7 @@ import { getPlayerGroups } from '@/lib/pool-formats';
 import { getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorGhin, getCreatorName } from '@/lib/pool-identity';
 import { SOLO_ROUNDS } from '@/lib/flags';
+import { FeedbackButton } from '@/components/feedback-box';
 
 // PHASE 1 Home hub — a user-centric landing that only READS existing data:
 // your groups, your active/recent games (pool + tournament merged), and a
@@ -148,6 +149,7 @@ export default function HomePage() {
             {name && <p className="text-sm text-green-200">Welcome back, {name}</p>}
           </div>
           <div className="flex items-center gap-4">
+            <FeedbackButton />
             <button
               onClick={() => router.push('/dashboard')}
               className="text-sm text-green-200 hover:text-white"
@@ -277,6 +279,15 @@ export default function HomePage() {
             <p className="text-sm text-gray-500 mt-1">
               Who owes whom across your games — overall, by group, by game, or by player.
             </p>
+          </button>
+          {/* Owner-only in effect: /home is already gated to full access, and the
+              read-back page re-checks. A quiet link, not a card — reading feedback
+              is an occasional owner chore, not a daily surface. */}
+          <button
+            onClick={() => router.push('/home/feedback')}
+            className="mt-2 text-sm text-green-700 hover:text-green-900 font-medium"
+          >
+            Read feedback notes →
           </button>
         </section>
       </main>

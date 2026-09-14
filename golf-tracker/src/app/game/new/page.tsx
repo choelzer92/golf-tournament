@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FORMATS, TEAM_MODES, getTeamModeConfig, resolveAllowance, type GameFormat, type FormatSetting, type TeamMode } from '@/lib/formats';
 import type { Player, CourseSelection, TeeSetOption, GameSetup, StrokeMethod, HandicapBasis } from '@/lib/game-state';
-import { calcCourseHandicap, parseGhinIndex } from '@/lib/game-state';
+import { calcCourseHandicap } from '@/lib/game-state';
+import { AddPlayerPanel, type AddedPlayer } from '@/components/add-player-panel';
 import type { Tournament, TournamentRound, RoundMatchup } from '@/lib/tournament-state';
 import { saveTournament } from '@/lib/tournament-state';
 
@@ -442,73 +443,35 @@ function PlayersStep({
   teamMode: TeamMode;
   course: CourseSelection | null;
   players: Player[];
-  setPlayers: (p: Player[]) => void;
+  // Dispatch (not a plain setter): a pasted GHIN list appends several players
+  // from one closure, so adds must use the functional form (F-040).
+  setPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
   handicapAllowance: number;
   defaultTeeId: number | null;
   setDefaultTeeId: (id: number | null) => void;
   onNext: () => void;
   onBack: () => void;
 }) {
-  const [name, setName] = useState('');
-  const [handicap, setHandicap] = useState('');
-  const [ghinInput, setGhinInput] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  async function addByGhin() {
-    const token = getToken();
-    if (!token || !ghinInput) return;
-
-    setLoading(true);
-    try {
-      const res = await fetch('/api/ghin/golfer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, ghin_number: Number(ghinInput) }),
-      });
-      const data = await res.json();
-      if (!res.ok) return;
-
-      const golfer = data.golfer;
-      const hi = parseGhinIndex(golfer.handicap_index ?? golfer.hi_value) ?? 0;
-      const newPlayer: Player = {
-        id: crypto.randomUUID(),
-        name: `${golfer.first_name} ${golfer.last_name}`,
-        handicapIndex: hi,
-        ghinNumber: Number(ghinInput),
-        teeSetId: defaultTeeId || undefined,
-      };
-
-      if (teamMode !== 'individual') {
-        const teamACount = players.filter((p) => p.team === 'A').length;
-        const teamBCount = players.filter((p) => p.team === 'B').length;
-        newPlayer.team = teamACount <= teamBCount ? 'A' : 'B';
-      }
-
-      setPlayers([...players, newPlayer]);
-      setGhinInput('');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function addManual() {
-    if (!name) return;
+  // One handler for every AddPlayerPanel path (search / GHIN list / manual).
+  // Functional setPlayers because a pasted GHIN list adds several players
+  // inside one closure (F-040); team balance reads the up-to-date list.
+  function addResolvedPlayer(info: AddedPlayer) {
     const newPlayer: Player = {
       id: crypto.randomUUID(),
-      name,
-      handicapIndex: handicap ? parseFloat(handicap) : null,
+      name: info.name,
+      // GHIN adds always carried a number here (?? 0 predates the panel).
+      handicapIndex: info.ghinNumber != null ? (info.handicapIndex ?? 0) : info.handicapIndex,
+      ghinNumber: info.ghinNumber ?? undefined,
       teeSetId: defaultTeeId || undefined,
     };
-
-    if (teamMode !== 'individual') {
-      const teamACount = players.filter((p) => p.team === 'A').length;
-      const teamBCount = players.filter((p) => p.team === 'B').length;
-      newPlayer.team = teamACount <= teamBCount ? 'A' : 'B';
-    }
-
-    setPlayers([...players, newPlayer]);
-    setName('');
-    setHandicap('');
+    setPlayers((prev) => {
+      if (teamMode !== 'individual') {
+        const teamACount = prev.filter((p) => p.team === 'A').length;
+        const teamBCount = prev.filter((p) => p.team === 'B').length;
+        newPlayer.team = teamACount <= teamBCount ? 'A' : 'B';
+      }
+      return [...prev, newPlayer];
+    });
   }
 
   function removePlayer(id: string) {
@@ -563,54 +526,16 @@ function PlayersStep({
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <p className="text-sm font-medium text-gray-700 mb-2">Add by GHIN #</p>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={ghinInput}
-            onChange={(e) => setGhinInput(e.target.value)}
-            placeholder="GHIN number"
-            className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          />
-          <button
-            onClick={addByGhin}
-            disabled={loading || !ghinInput || players.length >= format.playersMax}
-            className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800 disabled:opacity-50"
-          >
-            {loading ? '...' : 'Add'}
-          </button>
-        </div>
-
-        <div className="mt-3 pt-3 border-t">
-          <p className="text-sm font-medium text-gray-700 mb-2">Or add manually</p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Name"
-              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-            <input
-              type="text"
-              inputMode="decimal"
-              value={handicap}
-              onChange={(e) => setHandicap(e.target.value)}
-              placeholder="HCP"
-              className="w-16 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-            <button
-              onClick={addManual}
-              disabled={!name || players.length >= format.playersMax}
-              className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800 disabled:opacity-50"
-            >
-              Add
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* F-040 option B: the shared add-player stack — name search first, manual
+          second (with the no-GHIN note), GHIN numbers behind a disclosure that
+          takes a pasted list. This surface has no Player.gender, so no toggle. */}
+      <AddPlayerPanel
+        existingGhins={new Set(players.map((p) => p.ghinNumber).filter((g): g is number => g != null))}
+        getTokenAction={getToken}
+        onAddAction={addResolvedPlayer}
+        showGender={false}
+        addDisabled={players.length >= format.playersMax}
+      />
 
       {players.length > 0 && (
         <div className="bg-white rounded-lg shadow overflow-hidden mb-4">

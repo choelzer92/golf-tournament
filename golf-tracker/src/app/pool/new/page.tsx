@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { TwoBestBallsVariant } from '@/lib/formats';
 import type { Player, CourseSelection, TeeSetOption } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
+import { AddPlayerPanel, type AddedPlayer } from '@/components/add-player-panel';
 import { PoolShareButton } from '@/components/pool-share';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
 import { PairingLocks } from '@/components/pairing-locks';
@@ -19,6 +20,9 @@ import {
   type PoolMoneyMode,
   type PoolMatchConfig,
   DEFAULT_JUNK_VALUES,
+  ZERO_JUNK_VALUES,
+  junkIsOff,
+  foldJunkIntoOverall,
   DEFAULT_MATCH_CONFIG,
   savePoolGame,
   getPoolPlayingHandicap,
@@ -63,7 +67,7 @@ import {
   getGroupById,
   upsertGroup,
 } from '@/lib/roster-groups';
-import { getFormats, getPlayerGroups, saveFormat } from '@/lib/pool-formats';
+import { getFormats, getPlayerGroups, getGroupFormats, saveFormat } from '@/lib/pool-formats';
 import {
   formatOfGame,
   persistedTeamScoring,
@@ -81,6 +85,7 @@ import { POOL_GROUP_SEED_KEY } from '@/lib/group-seed';
 import { GAME_MODES, getGameMode, defaultSettings, playerRangeSentence, fitBadge, fitExplanation, modeFits, formatSummaryLine, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { SideNames } from '@/components/side-names';
+import { HandicapChip } from '@/components/handicap-chain';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 
 const WIZARD_KEY = 'pool_wizard_draft';
@@ -119,6 +124,14 @@ function legDollarsToStrings(d: { front: number; back: number; overall: number; 
   return { front: String(d.front), back: String(d.back), overall: String(d.overall), junk: String(d.junk) };
 }
 
+// F-045: junk's dollars fold into OVERALL when the game plays no bonuses —
+// string-field twin of pool-game's foldJunkIntoOverall, total preserved.
+function foldJunkStrings(d: PotDollars): PotDollars {
+  const j = parseFloat(d.junk) || 0;
+  const o = parseFloat(d.overall) || 0;
+  return { ...d, overall: String(o + j), junk: '0' };
+}
+
 function potDollarsTotal(d: PotDollars): number {
   return (parseFloat(d.front) || 0) + (parseFloat(d.back) || 0) + (parseFloat(d.overall) || 0) + (parseFloat(d.junk) || 0);
 }
@@ -155,7 +168,10 @@ export default function NewPoolGamePage() {
   const [potDollars, setPotDollars] = useState<PotDollars | null>(null);
   const [potEdited, setPotEdited] = useState(false);
   const [positionSplitText, setPositionSplitText] = useState('100');
-  const [junkValues, setJunkValues] = useState<PoolJunkValues>({ ...DEFAULT_JUNK_VALUES });
+  // F-045 (§5.bg): a fresh classic pool plays no bonuses — junk starts at zero
+  // behind an "Add bonuses" affordance on the money step. Saved formats restore
+  // whatever they saved (applyGroupDefaults), so the Warriors' game keeps its junk.
+  const [junkValues, setJunkValues] = useState<PoolJunkValues>({ ...ZERO_JUNK_VALUES });
   // Manual bonuses this game plays (sandies, barkies, …) — the ones the app can't read off
   // a scorecard, so a scorer taps them per hole. Empty = the game plays none, which is
   // every game today. Seeded from a group's saved set when one is chosen.
@@ -457,9 +473,13 @@ export default function NewPoolGamePage() {
     const id = crypto.randomUUID();
     // Effective dollar split: manual override if set, else the standard for this
     // team count. Stored as pot fractions (compute engine multiplies by the pot).
-    const effectiveDollars = potDollars
+    const enteredDollars = potDollars
       ? { front: parseFloat(potDollars.front) || 0, back: parseFloat(potDollars.back) || 0, overall: parseFloat(potDollars.overall) || 0, junk: parseFloat(potDollars.junk) || 0 }
       : poolSplitDollarsForTeams(teams.length);
+    // F-045 (§5.bg): no bonuses in this game → the junk quarter folds into
+    // OVERALL at creation, whatever the split fields held. This is the guard the
+    // money math relies on, not the UI's field-hiding.
+    const effectiveDollars = junkIsOff(junkValues) ? foldJunkIntoOverall(enteredDollars) : enteredDollars;
     const game: PoolGame = {
       id,
       name: name || 'Pool Game',
@@ -553,6 +573,8 @@ export default function NewPoolGamePage() {
             // §5.au: the field is built FIRST, so the count is real by the time the picker
             // renders and every F-020 fit badge has something true to say.
             playerCount={players.length}
+            // F-046: the group chosen on the field step, so its usual games lead the picker.
+            sourceGroupId={sourceGroupId}
             // F-021: when a saved format was applied, step 1 confirms rather than re-asks.
             appliedFormat={appliedFormat}
             formatDirty={formatDirty}
@@ -873,7 +895,7 @@ function DetailsStep({
   junkValues, setJunkValues, teamFormat, setTeamFormat, teamScoreBasis, setTeamScoreBasis,
   moneyMode, setMoneyMode, matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
   onFormatChosen, onFormatCleared,
-  playerCount,
+  playerCount, sourceGroupId,
   appliedFormat, formatDirty, onFormatEdited,
   onNext, onBack,
 }: {
@@ -899,6 +921,10 @@ function DetailsStep({
   /** How many players are in the field. Real by the time this step renders (§5.au — the
       field comes first), so every F-020 fit annotation has something true to say. */
   playerCount: number;
+  /** F-046: the group chosen on the field step (game.sourceGroupId), or undefined. The group
+      knows its usual games (defaults.formatIds) — they must lead the picker HERE, at the
+      moment of choosing, not sit unlabeled in the flat library list. */
+  sourceGroupId: string | undefined;
   /** The saved format this game started from, or undefined when built from scratch. When set, this
       step shows a SUMMARY with per-section [Change] instead of ~15 fields (F-021, §5.ax). */
   appliedFormat: string | undefined;
@@ -922,13 +948,27 @@ function DetailsStep({
       .catch(() => {});
   }, []);
 
+  // F-046: the group chosen on the field step knows its usual games (defaults.formatIds) —
+  // they lead the picker HERE, labeled as the group's, instead of sitting unlabeled in the
+  // flat library list. Craig saved "Friday game" for the Friday group and still had to go
+  // hunting for it at the moment the group was already chosen. Resolved from the same
+  // hydrated cache as `formats` (the setFormats above re-renders once it lands); deduped out
+  // of the library list so nothing appears twice.
+  const sourceGroup = sourceGroupId ? getGroupById(sourceGroupId) : null;
+  const groupFormats = sourceGroup ? getGroupFormats(sourceGroup) : [];
+  const groupFormatIds = new Set(groupFormats.map((f) => f.id));
+  const libraryFormats = formats.filter((f) => !groupFormatIds.has(f.id));
+  // Everything pickable, group formats first. pickGame and the applied-format lookup search
+  // THIS list, so a group-attached format missing from the personal library still resolves.
+  const allPickerFormats = [...groupFormats, ...libraryFormats];
+
   // What the game <select> shows. An applied, un-forked format IS the answer to "which game
   // are you playing?" — so the select names it, whichever way it was applied (this picker or
   // a seed from the library/group page). Once renamed into a fork it's a new style, and the
   // select falls back to the underlying mode.
   const appliedFormatEntry =
     appliedFormat !== undefined && name.trim() === appliedFormat
-      ? formats.find((f) => f.name === appliedFormat)
+      ? allPickerFormats.find((f) => f.name === appliedFormat)
       : undefined;
   const gamePickerValue = appliedFormatEntry ? `format:${appliedFormatEntry.id}` : (gameMode ?? 'pool');
 
@@ -960,7 +1000,7 @@ function DetailsStep({
   // defaults into modeSettings — and configures FRESH, dropping any applied format.
   function pickGame(value: string) {
     if (value.startsWith('format:')) {
-      const f = formats.find((x) => x.id === value.slice('format:'.length));
+      const f = allPickerFormats.find((x) => x.id === value.slice('format:'.length));
       if (f) onFormatChosen(f);
       return;
     }
@@ -1005,9 +1045,11 @@ function DetailsStep({
     if (teamFormat === 'net-and-gross' || teamFormat === 'two-best-net' || teamFormat === 'two-best-gross') {
       // Two-ball formats are four-ball; the USGA number differs between match and stroke
       // play, and the classic pool has always quoted 85% for the stroke-play pool.
+      // F-044: the two numbers differ because head-to-head IS match play and the pot IS stroke
+      // play — say which toggle answer drove the number, or the 85↔90 flip looks like a glitch.
       return moneyMode === 'match'
-        ? { pct: 90, note: 'USGA suggests 90% for four-ball match play' }
-        : { pct: 85, note: 'USGA suggests 85% for four-ball stroke play (two scores counting)' };
+        ? { pct: 90, note: 'USGA suggests 90% for four-ball match play (head-to-head)' }
+        : { pct: 85, note: 'USGA suggests 85% for four-ball stroke play (pot — two scores counting)' };
     }
     return { pct, note: `USGA suggests ${pct}% for ${mode.name.toLowerCase()}` };
   })();
@@ -1046,15 +1088,23 @@ function DetailsStep({
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
           >
             {/* §5.av: SAVED FORMATS FIRST — "the game style you chose is usable forever".
-                Picking one fills everything below; the raw modes stay for a new style. */}
-            {formats.length > 0 && (
-              <optgroup label="Your saved games">
-                {formats.map((f) => (
+                Picking one fills everything below; the raw modes stay for a new style.
+                F-046: the chosen group's usual games lead, labeled as the group's. */}
+            {sourceGroup && groupFormats.length > 0 && (
+              <optgroup label={`${sourceGroup.name} plays`}>
+                {groupFormats.map((f) => (
                   <option key={f.id} value={`format:${f.id}`}>{f.name}</option>
                 ))}
               </optgroup>
             )}
-            <optgroup label={formats.length > 0 ? 'Start a new style' : 'Game types'}>
+            {libraryFormats.length > 0 && (
+              <optgroup label={groupFormats.length > 0 ? 'Other saved games' : 'Your saved games'}>
+                {libraryFormats.map((f) => (
+                  <option key={f.id} value={`format:${f.id}`}>{f.name}</option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label={allPickerFormats.length > 0 ? 'Start a new style' : 'Game types'}>
             <option value="pool">Pool (foursomes vs foursomes)</option>
             {GAME_MODES.map((m) => {
               // F-020: annotate each game with how it fits the field you actually have. The badge
@@ -1092,12 +1142,40 @@ function DetailsStep({
                 // Point at what WOULD work, so the constraint arrives with an option attached
                 // rather than as a dead end. §5.ao: guidance, not validation.
                 const alternatives = GAME_MODES.filter((m) => modeFits(m, playerCount)).map((m) => m.name);
+                // F-041: the mode NAME is also a scoring system's name, and the golfer reads
+                // "Stableford — 4 too many" as "this app can't play Stableford with 8". The pool
+                // scores any field Stableford (its Strokes/Stableford toggle), and Sides/Match
+                // carries the same toggle to 8 — so when the refused mode's SCORING lives on in
+                // a structure that fits, say that instead of just listing other game names.
+                const scoringCarriers: Record<string, string> = {
+                  'stableford-ind': 'Stableford', quota: 'points-to-quota',
+                };
+                const scoring = selectedMode ? scoringCarriers[selectedMode.id] : undefined;
+                if (scoring && playerCount > selectedMode!.playersMax) {
+                  const sides = getGameMode('team-2v2');
+                  const sidesFit = sides && modeFits(sides, playerCount);
+                  return `${playerCount} players can still score ${scoring} — as a team Pool (see "How is the hole scored?")${sidesFit ? ' or as Sides / Match' : ''}.`;
+                }
                 return alternatives.length > 0
                   ? `${alternatives.length === 1 ? 'This one fits' : 'These fit'} ${playerCount}: ${alternatives.join(', ')}.`
                   : `A team pool works with any number.`;
               })()}
             </p>
           )}
+          {/* F-033: with 2–3 players and the classic pool selected, the screen fills with
+              foursomes settings and nothing says six other games fit this field — the fit
+              badges live inside the CLOSED dropdown, so a friend opened this exact screen
+              and concluded 1v1/3-player games didn't exist. Same guidance-not-validation
+              posture (§5.ao) as the warning above, which never fires for the pool because
+              the pool fits any count; the default stays Pool. */}
+          {!selectedMode && !appliedFormatEntry && playerCount > 0 && playerCount <= 3 && (() => {
+            const fitting = GAME_MODES.filter((m) => modeFits(m, playerCount)).map((m) => m.name);
+            return fitting.length > 0 ? (
+              <p className="mt-1.5 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs text-sky-800">
+                With {playerCount} player{playerCount === 1 ? '' : 's'} you can also play: {fitting.join(', ')} — all in the list above.
+              </p>
+            ) : null;
+          })()}
         </div>
 
         {/* F-021 / §5.ax — WHEN A FORMAT WAS APPLIED, THIS IS A CONFIRMATION, NOT A FORM.
@@ -1189,10 +1267,14 @@ function DetailsStep({
 
         {!isRegisteredMode && showMoney && (
         <div className="pt-2 border-t">
-          <label className="block text-sm font-medium text-gray-800 mb-1">How does the money work?</label>
+          {/* F-042: ask this as STRUCTURE, not payment mechanics. "Everyone buys in" vs "Two
+              teams, head-to-head" made Craig ask what the difference even was — the real
+              question is whether all the teams compete for one pot or exactly two face off.
+              The money mechanics follow from that answer and the helper text still states them. */}
+          <label className="block text-sm font-medium text-gray-800 mb-1">Who competes against whom?</label>
           <div className="flex gap-2">
             {([
-              { v: 'pot', label: 'Everyone buys in' },
+              { v: 'pot', label: 'All teams, for a pot' },
               { v: 'match', label: 'Two teams, head-to-head' },
             ] as const).map(({ v, label }) => (
               <button
@@ -1267,8 +1349,11 @@ function DetailsStep({
           <label className="block text-sm font-medium text-gray-800 mb-1">Who gets strokes?</label>
           <div className="flex gap-2">
             {([
-              { v: 'full', label: 'Everyone, in full' },
-              { v: 'off-the-low', label: 'Only above the best player' },
+              // The real terms, not explanations of them — golfers know these words, and
+              // "explaining what classic golf terms mean" reads wrong (Craig 2026-09-10).
+              // The helper text under the control still states the consequence.
+              { v: 'full', label: 'Full handicap' },
+              { v: 'off-the-low', label: 'Off the low' },
             ] as const).map(({ v, label }) => (
               <button
                 key={v}
@@ -1515,13 +1600,18 @@ function CourseStep({
           handicap: h.Allocation,
         })),
       }));
-      const mensTeeSets = allTeeSets.filter((t) => t.gender === 'M');
-      const womensTeeSets = allTeeSets.filter((t) => t.gender === 'F');
+      // F-038: GHIN returns tees in no reliable order (The Meadows arrives Gold, Green, Blue,
+      // White). Sort each gender block longest-first, like tee-pick.ts — the picker then reads
+      // tips → forward, and the `teeSets[0]` default below lands on a deliberate tee, not
+      // whatever the payload happened to list first.
+      const byYardageDesc = (a: TeeSetOption, b: TeeSetOption) => (b.totalYardage ?? 0) - (a.totalYardage ?? 0);
+      const mensTeeSets = allTeeSets.filter((t) => t.gender === 'M').sort(byYardageDesc);
+      const womensTeeSets = allTeeSets.filter((t) => t.gender === 'F').sort(byYardageDesc);
       // Suffix women's tees with (W), but idempotently — never produce "(W) (W)"
       // if GHIN already includes it.
       const teeSets = mensTeeSets.length > 0
         ? [...mensTeeSets, ...womensTeeSets.map((t) => ({ ...t, name: /\(w\)/i.test(t.name) ? t.name : `${t.name} (W)` }))]
-        : allTeeSets;
+        : [...allTeeSets].sort(byYardageDesc);
 
       setCourse({
         courseId: courseResult.CourseID,
@@ -1733,7 +1823,9 @@ function FieldStep({
   course, players, setPlayers, handicapAllowance, handicapBasis, nine, getGroupDefaults, applyGroupDefaults, onGroupLoaded, preselectedGroupId, formatSeedAppliedRef, nextLabel, onNext,
 }: {
   course: CourseSelection | null;
-  players: Player[]; setPlayers: (p: Player[]) => void;
+  // Dispatch (not a plain setter): a pasted GHIN list appends several players
+  // from one closure, so adds must use the functional form (F-040).
+  players: Player[]; setPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
   handicapAllowance: number;
   handicapBasis: 'course' | 'index';
   nine: 'front9' | 'back9' | null;
@@ -1754,23 +1846,6 @@ function FieldStep({
   const [rosterResults, setRosterResults] = useState<RosterPlayer[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshNote, setRefreshNote] = useState('');
-
-  const [ghinInput, setGhinInput] = useState('');
-  const [ghinLoading, setGhinLoading] = useState(false);
-  const [ghinError, setGhinError] = useState('');
-
-  const [nameInput, setNameInput] = useState('');
-  const [handicapInput, setHandicapInput] = useState('');
-  const [genderInput, setGenderInput] = useState<'M' | 'F'>('M');
-
-  // GHIN name search
-  const [gsFirst, setGsFirst] = useState('');
-  const [gsLast, setGsLast] = useState('');
-  const [gsState, setGsState] = useState('VA');
-  const [gsResults, setGsResults] = useState<any[]>([]);
-  const [gsLoading, setGsLoading] = useState(false);
-  const [gsSearched, setGsSearched] = useState(false);
-  const [gsNote, setGsNote] = useState('');
 
   // Shown when a GHIN call fails (token expired). Re-login, then retry via retryRef.
   const [showLogin, setShowLogin] = useState(false);
@@ -1848,9 +1923,18 @@ function FieldStep({
     setRosterResults(searchRoster(query));
   }
 
-  // Load a group: REPLACE today's field with the group's members (looked up in
-  // the roster and given a tee), and (unless skipDefaults) apply the group's
-  // saved format defaults. skipDefaults is used when a specific FORMAT was
+  // Above this size, loading a group pre-checks NOBODY: the group becomes the
+  // list you pick today's field FROM, not the field itself. At 61 members,
+  // picking 12 by unchecking 49 is the wrong direction (Craig, 2026-09-10).
+  // 8 = up to two foursomes — a small crew that loads a group almost always
+  // means "we're all playing". The threshold is a judgment call; adjust freely.
+  const GROUP_PRECHECK_MAX = 8;
+
+  // Load a group: make it today's roster context (members listed up top) and,
+  // unless skipDefaults, apply the group's saved format defaults. Small groups
+  // (≤ GROUP_PRECHECK_MAX) also REPLACE today's field with all members
+  // pre-checked; larger groups load with nobody checked, so the day's field is
+  // picked BY checking. skipDefaults is used when a specific FORMAT was
   // chosen for this game (group page's format picker): the format seed already
   // applied the settings on mount, so re-applying the group's OWN baked-in
   // default here would clobber the chosen format. Members still load either way.
@@ -1860,19 +1944,22 @@ function FieldStep({
     // finishes — before setGroups has re-rendered. Falls back to state.
     const group = getGroupById(groupId) ?? groups.find((g) => g.id === groupId);
     if (!group) return;
+    const precheck = group.playerIds.length <= GROUP_PRECHECK_MAX;
     const loaded: Player[] = [];
     let missing = 0;
-    for (const pid of group.playerIds) {
-      const rp = getRosterPlayerById(pid);
-      if (!rp) { missing++; continue; }
-      loaded.push({
-        id: rp.id,
-        name: rp.name,
-        handicapIndex: rp.handicapIndex,
-        gender: rp.gender ?? undefined,
-        ghinNumber: rp.ghinNumber ?? undefined,
-        teeSetId: pickTeeForPlayer(course, rp.gender ?? undefined, rp.defaultTeeName, rp.defaultTeeRank),
-      });
+    if (precheck) {
+      for (const pid of group.playerIds) {
+        const rp = getRosterPlayerById(pid);
+        if (!rp) { missing++; continue; }
+        loaded.push({
+          id: rp.id,
+          name: rp.name,
+          handicapIndex: rp.handicapIndex,
+          gender: rp.gender ?? undefined,
+          ghinNumber: rp.ghinNumber ?? undefined,
+          teeSetId: pickTeeForPlayer(course, rp.gender ?? undefined, rp.defaultTeeName, rp.defaultTeeRank),
+        });
+      }
     }
     setPlayers(loaded);
     if (!opts?.skipDefaults) applyGroupDefaults(group.defaults);
@@ -1880,7 +1967,9 @@ function FieldStep({
     setActiveGroupId(groupId);      // the picker now centers on this group
     setShowOtherPlayers(false);
     setGroupNote(
-      `Loaded “${group.name}” — ${loaded.length} player${loaded.length === 1 ? '' : 's'} pre-selected${missing > 0 ? ` (${missing} no longer on the roster)` : ''}. Uncheck anyone sitting out, or add others below.`
+      precheck
+        ? `Loaded “${group.name}” — ${loaded.length} player${loaded.length === 1 ? '' : 's'} pre-selected${missing > 0 ? ` (${missing} no longer on the roster)` : ''}. Uncheck anyone sitting out, or add others below.`
+        : `Loaded “${group.name}” (${group.playerIds.length} members). Check who's playing today.`
     );
   }
 
@@ -1971,135 +2060,27 @@ function FieldStep({
     }
   }
 
-  async function addByGhin() {
-    if (!ghinInput) return;
-    const token = getToken();
-    if (!token) { retryRef.current = addByGhin; setShowLogin(true); return; }
-    setGhinLoading(true);
-    setGhinError('');
-    try {
-      const res = await fetch('/api/ghin/golfer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, ghin_number: Number(ghinInput) }),
-      });
-      const data = await res.json();
-      if (!res.ok) { retryRef.current = addByGhin; setShowLogin(true); return; }
-      const golfer = data.golfer;
-      const hi = parseGhinIndex(golfer.handicap_index ?? golfer.hi_value);
-      const ghinGender = (golfer.gender || golfer.Gender || '').toLowerCase();
-      const gender: 'M' | 'F' = ghinGender === 'female' || ghinGender === 'f' ? 'F' : 'M';
-      const ghinNumber = Number(ghinInput);
-      const rememberedRp = getRosterPlayerByGhin(ghinNumber);
-      const newPlayer: Player = {
-        id: crypto.randomUUID(),
-        name: `${golfer.first_name} ${golfer.last_name}`,
-        handicapIndex: hi,
-        gender,
-        ghinNumber,
-        teeSetId: pickTeeForPlayer(course, gender, rememberedRp?.defaultTeeName ?? null, rememberedRp?.defaultTeeRank),
-      };
-      setPlayers([...players, newPlayer]);
-      upsertRosterPlayer({
-        id: newPlayer.id,
-        ghinNumber,
-        name: newPlayer.name,
-        handicapIndex: newPlayer.handicapIndex,
-        gender,
-        defaultTeeName: null,
-      });
-      setGhinInput('');
-      refreshRoster(rosterQuery);
-    } catch {
-      setGhinError('Network error');
-    } finally {
-      setGhinLoading(false);
-    }
-  }
-
-  function addManual() {
-    if (!nameInput) return;
-    const id = crypto.randomUUID();
-    const handicapIndex = handicapInput ? parseFloat(handicapInput) : null;
+  // One handler for every AddPlayerPanel path (search / GHIN list / manual):
+  // build the Player (remembered tee where we know the GHIN), keep the roster
+  // in sync, and append to today's field. Functional setPlayers because a
+  // pasted GHIN list adds several players inside one closure (F-040).
+  function addResolvedPlayer(info: AddedPlayer) {
+    const rememberedRp = info.ghinNumber != null ? getRosterPlayerByGhin(info.ghinNumber) : null;
     const newPlayer: Player = {
-      id,
-      name: nameInput,
-      handicapIndex,
-      gender: genderInput,
-      teeSetId: pickTeeForPlayer(course, genderInput, null),
+      id: crypto.randomUUID(),
+      name: info.name,
+      handicapIndex: info.handicapIndex,
+      gender: info.gender,
+      ghinNumber: info.ghinNumber ?? undefined,
+      teeSetId: pickTeeForPlayer(course, info.gender, rememberedRp?.defaultTeeName ?? null, rememberedRp?.defaultTeeRank),
     };
-    setPlayers([...players, newPlayer]);
+    setPlayers((prev) => [...prev, newPlayer]);
     upsertRosterPlayer({
-      id,
-      ghinNumber: null,
-      name: nameInput,
-      handicapIndex,
-      gender: genderInput,
-      defaultTeeName: null,
-    });
-    setNameInput('');
-    setHandicapInput('');
-  }
-
-  async function searchGhinByName() {
-    // GHIN name search requires a last name AND a state to return results.
-    if (!gsLast.trim()) { setGsNote('Enter a last name to search.'); return; }
-    if (!gsState.trim()) { setGsNote('Enter a state (e.g. VA) — GHIN requires it to search by name.'); return; }
-    const token = getToken();
-    if (!token) { retryRef.current = searchGhinByName; setShowLogin(true); return; }
-    setGsLoading(true);
-    setGsSearched(false);
-    setGsNote('');
-    try {
-      const res = await fetch('/api/ghin/search-golfer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, first_name: gsFirst, last_name: gsLast, state: gsState }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setGsResults([]);
-        retryRef.current = searchGhinByName;
-        setShowLogin(true);
-        return;
-      }
-      const golfers: any[] = data.golfers || [];
-      setGsResults(golfers);
-      setGsSearched(true);
-      if (golfers.length === 0) {
-        setGsNote(`No golfers named "${gsLast}" found in ${gsState.toUpperCase()}. Check spelling/state, or add by GHIN #.`);
-      }
-    } catch {
-      setGsResults([]);
-      setGsNote('Search failed — check your connection or add by GHIN #');
-    } finally {
-      setGsLoading(false);
-    }
-  }
-
-  function addGhinSearchResult(g: any) {
-    const ghinNumber = Number(g.ghin ?? g.id);
-    if (!isNaN(ghinNumber) && existingGhins.has(ghinNumber)) return;
-    const hi = parseGhinIndex(g.handicap_index ?? g.hi_value);
-    const ghinGender = (g.gender || g.Gender || '').toLowerCase();
-    const gender: 'M' | 'F' = ghinGender === 'female' || ghinGender === 'f' ? 'F' : 'M';
-    const id = crypto.randomUUID();
-    const rememberedRp = !isNaN(ghinNumber) ? getRosterPlayerByGhin(ghinNumber) : null;
-    const newPlayer: Player = {
-      id,
-      name: `${g.first_name ?? ''} ${g.last_name ?? ''}`.trim(),
-      handicapIndex: hi,
-      gender,
-      ghinNumber: isNaN(ghinNumber) ? undefined : ghinNumber,
-      teeSetId: pickTeeForPlayer(course, gender, rememberedRp?.defaultTeeName ?? null, rememberedRp?.defaultTeeRank),
-    };
-    setPlayers([...players, newPlayer]);
-    upsertRosterPlayer({
-      id,
-      ghinNumber: isNaN(ghinNumber) ? null : ghinNumber,
-      name: newPlayer.name,
-      handicapIndex: newPlayer.handicapIndex,
-      gender,
+      id: newPlayer.id,
+      ghinNumber: info.ghinNumber,
+      name: info.name,
+      handicapIndex: info.handicapIndex,
+      gender: info.gender,
       defaultTeeName: null,
     });
     refreshRoster(rosterQuery);
@@ -2237,7 +2218,7 @@ function FieldStep({
           };
 
           if (rosterResults.length === 0) {
-            return <p className="mt-2 text-xs text-gray-500">No saved players{rosterQuery ? ' match' : ' yet'}. Add by GHIN # or manually below.</p>;
+            return <p className="mt-2 text-xs text-gray-500">No saved players{rosterQuery ? ' match' : ' yet'}. Search by name or add manually below.</p>;
           }
 
           // When a group is loaded, split the roster into that group's members
@@ -2277,122 +2258,15 @@ function FieldStep({
         })()}
       </div>
 
-      {/* Add by GHIN # + manual */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <p className="text-sm font-semibold text-gray-800 mb-2">Add by GHIN #</p>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={ghinInput}
-            onChange={(e) => setGhinInput(e.target.value)}
-            placeholder="GHIN number"
-            className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          />
-          <button
-            onClick={addByGhin}
-            disabled={ghinLoading || !ghinInput}
-            className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800 disabled:opacity-50"
-          >
-            {ghinLoading ? '...' : 'Add'}
-          </button>
-        </div>
-        {ghinError && <p className="text-xs text-red-600 mt-1">{ghinError}</p>}
-
-        <div className="mt-3 pt-3 border-t">
-          <p className="text-sm font-semibold text-gray-800 mb-2">Or add manually</p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              placeholder="Name"
-              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-            <input
-              type="text"
-              inputMode="decimal"
-              value={handicapInput}
-              onChange={(e) => setHandicapInput(e.target.value)}
-              placeholder="HCP"
-              className="w-16 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-            <button
-              type="button"
-              onClick={() => setGenderInput(genderInput === 'M' ? 'F' : 'M')}
-              className={`w-9 rounded-md border text-sm font-bold py-2 ${genderInput === 'M' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-pink-300 bg-pink-50 text-pink-700'}`}
-            >
-              {genderInput}
-            </button>
-            <button
-              onClick={addManual}
-              disabled={!nameInput}
-              className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800 disabled:opacity-50"
-            >
-              Add
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* GHIN name search */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <p className="text-sm font-semibold text-gray-800 mb-0.5">Search GHIN by name</p>
-        <p className="text-xs text-gray-500 mb-2">Last name and state required. First name optional to narrow it down.</p>
-        <div className="flex gap-2 flex-wrap">
-          <input
-            type="text"
-            value={gsFirst}
-            onChange={(e) => setGsFirst(e.target.value)}
-            placeholder="First (optional)"
-            className="flex-1 min-w-[100px] rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          />
-          <input
-            type="text"
-            value={gsLast}
-            onChange={(e) => setGsLast(e.target.value)}
-            placeholder="Last name"
-            className="flex-1 min-w-[100px] rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          />
-          <input
-            type="text"
-            value={gsState}
-            onChange={(e) => setGsState(e.target.value.toUpperCase())}
-            placeholder="ST"
-            maxLength={2}
-            className="w-14 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          />
-          <button
-            onClick={searchGhinByName}
-            disabled={gsLoading || !gsLast.trim() || !gsState.trim()}
-            className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800 disabled:opacity-50"
-          >
-            {gsLoading ? '...' : 'Search GHIN'}
-          </button>
-        </div>
-        {gsNote && <p className="text-xs text-gray-500 mt-2">{gsNote}</p>}
-        {gsSearched && gsResults.length > 0 && (
-          <ul className="mt-2 max-h-48 overflow-y-auto divide-y divide-gray-100">
-            {gsResults.map((g: any, i: number) => (
-              <li key={g.ghin ?? g.id ?? i}>
-                <button
-                  onClick={() => addGhinSearchResult(g)}
-                  className="w-full text-left px-2 py-1.5 hover:bg-gray-50 rounded"
-                >
-                  <span className="text-sm font-medium text-gray-900">
-                    {g.first_name} {g.last_name}
-                  </span>
-                  <span className="text-xs text-gray-500 ml-2">
-                    {g.handicap_index ?? g.hi_value ?? '—'}
-                    {g.gender ? ` · ${g.gender}` : ''}
-                    {g.club_name ? ` · ${g.club_name}` : ''}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {/* F-040 option B: the shared add-player stack — name search first, manual
+          second (with the no-GHIN note), GHIN numbers behind a disclosure that
+          takes a pasted list. */}
+      <AddPlayerPanel
+        existingGhins={existingGhins}
+        getTokenAction={getToken}
+        onNeedLoginAction={(retry) => { retryRef.current = retry; setShowLogin(true); }}
+        onAddAction={addResolvedPlayer}
+      />
 
       {/* Field list */}
       {players.length > 0 && (
@@ -2415,11 +2289,30 @@ function FieldStep({
                         {/* F-023: when this tee has no usable slope/rating the number is the raw
                             index, not a course handicap — SAY so instead of printing a confident
                             "Course HCP" that's wrong on any course whose slope is far from 113.
-                            The 'index' basis skips the conversion on purpose, so no warning there. */}
+                            The 'index' basis skips the conversion on purpose, so no warning there.
+                            Both chips open the F-043 chain (index → CH → allowance → plays off). */}
                         {courseHcap !== null && (handicapBasis === 'index' || teeHasRating(player, course!) ? (
-                          <span className="ml-2 text-green-700">Course HCP: {courseHcap}</span>
+                          <HandicapChip
+                            player={player}
+                            course={course}
+                            allowance={handicapAllowance}
+                            basis={handicapBasis}
+                            nine={nine}
+                            chipClassName="ml-2 text-green-700"
+                          >
+                            Course HCP: {courseHcap}
+                          </HandicapChip>
                         ) : (
-                          <span className="ml-2 text-amber-700">no slope/rating on this tee — using index ({courseHcap})</span>
+                          <HandicapChip
+                            player={player}
+                            course={course}
+                            allowance={handicapAllowance}
+                            basis={handicapBasis}
+                            nine={nine}
+                            chipClassName="ml-2 text-amber-700 text-left"
+                          >
+                            no slope/rating on this tee — using index ({courseHcap})
+                          </HandicapChip>
                         ))}
                       </p>
                     </div>
@@ -2793,7 +2686,7 @@ function PlayingGroupsStep({
                   >
                     <span className="text-sm text-gray-900 truncate">{nameOf(pid)}</span>
                     <span className="text-xs text-gray-500 tabular-nums">
-                      {hcapOf(players.find((p) => p.id === pid)!)}
+                      {Math.round(hcapOf(players.find((p) => p.id === pid)!))}
                     </span>
                   </button>
                 </li>
@@ -3279,19 +3172,22 @@ function TeamsStep({
                   const isCaptain = team.captainId === pid;
                   return (
                     <li key={pid} className={`rounded px-2 py-2 ${isCaptain ? 'bg-green-50 ring-1 ring-green-200' : 'bg-gray-50'}`}>
-                      {/* Line 1: who + their course handicap */}
-                      <div className="flex items-center gap-2">
+                      {/* Line 1: who + their course handicap. The chip opens the F-043 chain
+                          (index → CH → allowance → plays off) — flex-wrap so the panel drops
+                          to its own line under the name. */}
+                      <div className="flex flex-wrap items-center gap-2">
                         {isCaptain && (
                           <span className="flex-shrink-0 rounded-full bg-green-700 text-white text-[10px] font-bold px-1.5 py-0.5" title="Captain">C</span>
                         )}
                         <span className="text-sm font-medium text-gray-900 truncate min-w-0 flex-1">{p.name}</span>
                         {hcap !== null && (
-                          <span
-                            className="flex-shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums"
-                            title="Course handicap on this tee"
-                          >
-                            {hcap}
-                          </span>
+                          <HandicapChip
+                            player={p}
+                            course={course}
+                            allowance={handicapAllowance}
+                            basis={handicapBasis}
+                            nine={nine}
+                          />
                         )}
                       </div>
                       {/* Line 2: clearly-labeled controls with real tap targets */}
@@ -3417,14 +3313,16 @@ function SubTeamsStep({
   function applySideShape(shape: number[]) {
     const ids = sortPlayerIdsByHcap(players.map((p) => p.id), players, course, handicapAllowance, handicapBasis);
     const buckets = dealBalancedIntoShape(ids, shape);
-    setSides(buckets.map((playerIds, i) => ({
-      // Reuse the existing side's id and name where there is one, so a side called "The Hogs"
-      // survives a reshape — the ids are identity, not position (game-modes/sides.ts), and
-      // re-lettering them would silently relabel money rows.
-      id: effective[i]?.id ?? nextSideId(effective.slice(0, i)),
+    // Reuse the existing side's id and name where there is one, so a side called "The Hogs"
+    // survives a reshape — the ids are identity, not position (game-modes/sides.ts), and
+    // re-lettering them would silently relabel money rows. New ids must be minted against the
+    // list BEING BUILT, not the old one: F-036 — growing 2 sides to 4 in one reshape sliced the
+    // old array past its end and minted 'c' twice, putting one player on two money sides.
+    setSides(buckets.reduce<GameSide[]>((built, playerIds, i) => [...built, {
+      id: effective[i]?.id ?? nextSideId(built),
       ...(effective[i]?.name ? { name: effective[i].name } : {}),
       playerIds,
-    })));
+    }], []));
   }
   const emptySides = effective.filter((side) => side.playerIds.length === 0);
   const chcp = (p: Player) => Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine));
@@ -3439,7 +3337,13 @@ function SubTeamsStep({
       <h2 className="text-lg font-semibold text-gray-900 mb-1">
         Sides ({counts.join(' vs ')})
       </h2>
+      {/* F-037: say what game this MAKES, in the words golfers use. Craig found the sides
+          step and still wasn't sure he'd built a 2v2 — "Sides (2 vs 2)" names the mechanism,
+          "a 2 v 2 match" names the game. Derived from the data like the header, so an uneven
+          or multi-side split describes itself the same way and can't drift into a lie. */}
       <p className="text-sm text-gray-500 mb-4">
+        This makes it a <span className="font-medium text-gray-700">{counts.join(' v ')}</span>
+        {counts.length === 2 ? ' match' : ` game — ${counts.length} sides, each playing the others`}.
         Assign each player to a side. Seeded to balance handicaps — adjust as you like.
       </p>
 
@@ -3484,13 +3388,24 @@ function SubTeamsStep({
       <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
         {players.map((p) => {
           const mine = sideIdOf(p.id);
+          // flex-wrap so the F-043 chain panel (opened from the CHcp chip) can drop to
+          // its own full-width line under the row.
           return (
-            <div key={p.id} className="flex items-center justify-between px-4 py-3">
-              <span className="text-sm text-gray-800">
-                {p.name}
-                {course && <span className="ml-2 text-xs text-gray-400">CHcp {chcp(p)}</span>}
-              </span>
-              <div className="flex gap-1.5">
+            <div key={p.id} className="flex flex-wrap items-center gap-x-2 px-4 py-3">
+              <span className="text-sm text-gray-800 flex-1 min-w-0 truncate">{p.name}</span>
+              {course && (
+                <HandicapChip
+                  player={p}
+                  course={course}
+                  allowance={handicapAllowance}
+                  basis={handicapBasis}
+                  nine={nine}
+                  chipClassName="flex-shrink-0 text-xs text-gray-400 tabular-nums"
+                >
+                  CHcp {chcp(p)}
+                </HandicapChip>
+              )}
+              <div className="flex gap-1.5 ml-auto">
                 {effective.map((side) => (
                   <button
                     key={side.id}
@@ -3616,32 +3531,53 @@ function CreateStep({
   const pot = players.length * entryPerPlayer;
   const teeNameOf = (p: Player) => course?.teeSets.find((t) => t.id === p.teeSetId)?.name ?? null;
 
+  // F-045 (§5.bg): bonuses are OFF on a fresh classic pool and live behind an
+  // "Add bonuses" affordance. `junkShown` (opened, or a saved format restored
+  // nonzero values) drives the junk grid AND the junk pot-split field; the
+  // money itself is guarded at creation, where an all-zero junk config folds
+  // the junk dollars into OVERALL.
+  const [bonusesOpened, setBonusesOpened] = useState(() => !junkIsOff(junkValues));
+  const junkShown = bonusesOpened || !junkIsOff(junkValues);
+
   // Auto-fill the dollar split from the team-count standard, unless the user has
-  // edited it. Re-runs if the number of teams changes.
+  // edited it. Re-runs if the number of teams changes or bonuses toggle.
   useEffect(() => {
     if (potEdited) return;
-    setPotDollars(legDollarsToStrings(poolSplitDollarsForTeams(teams.length)));
-  }, [teams.length, potEdited, setPotDollars]);
+    const std = poolSplitDollarsForTeams(teams.length);
+    setPotDollars(legDollarsToStrings(junkShown ? std : foldJunkIntoOverall(std)));
+  }, [teams.length, potEdited, setPotDollars, junkShown]);
 
   const effective: PotDollars = potDollars ?? legDollarsToStrings(poolSplitDollarsForTeams(teams.length));
   const splitTotal = potDollarsTotal(effective);
   const balanced = Math.abs(splitTotal - pot) < 0.01;
 
+  function addBonuses() {
+    setJunkValues({ ...DEFAULT_JUNK_VALUES });
+    setBonusesOpened(true);
+  }
+  function removeBonuses() {
+    setJunkValues({ ...ZERO_JUNK_VALUES });
+    setBonusesOpened(false);
+    // A hand-edited split keeps its numbers, minus the junk leg (folded into
+    // overall). An untouched one re-fills from the standard via the effect.
+    if (potEdited) setPotDollars(foldJunkStrings(effective));
+  }
+
   // A 9-hole game has no front/back split — the whole non-junk pot rides on one
   // leg over the nine played (computePoolResult collapses them the same way). So
   // don't ASK for front/back amounts that can never pay out.
   const nineOnly = holesPlaying !== '18';
-  const potFields: { key: keyof PotDollars; label: string }[] = nineOnly
-    ? [
-        { key: 'overall', label: holesPlaying === 'front9' ? 'Front 9' : 'Back 9' },
-        { key: 'junk', label: 'Junk' },
-      ]
-    : [
-        { key: 'front', label: 'Front 9' },
-        { key: 'back', label: 'Back 9' },
-        { key: 'overall', label: 'Overall' },
-        { key: 'junk', label: 'Junk' },
-      ];
+  // The junk leg is asked about only when the game plays bonuses (F-045).
+  const potFields: { key: keyof PotDollars; label: string }[] = [
+    ...(nineOnly
+      ? [{ key: 'overall', label: holesPlaying === 'front9' ? 'Front 9' : 'Back 9' } as const]
+      : [
+          { key: 'front', label: 'Front 9' } as const,
+          { key: 'back', label: 'Back 9' } as const,
+          { key: 'overall', label: 'Overall' } as const,
+        ]),
+    ...(junkShown ? [{ key: 'junk', label: 'Junk' } as const] : []),
+  ];
 
   function setLeg(key: keyof PotDollars, value: string) {
     setPotEdited(true);
@@ -3821,9 +3757,33 @@ function CreateStep({
         </div>
         )}
 
-        {!isIndividual && (
+        {/* F-045 (§5.bg): bonuses are an ADDED choice, not a default — a fresh pool
+            shows one button; the grid (and the junk pot leg) appear only when the
+            game plays them. A saved format with junk restores with the grid open. */}
+        {!isIndividual && !junkShown && (
         <div className="pt-2 border-t">
-          <p className="text-sm font-semibold text-gray-800 mb-1">Bonus points for good holes</p>
+          <button
+            type="button"
+            onClick={addBonuses}
+            className="min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-green-400"
+          >
+            + Add bonuses
+            <span className="ml-1 text-xs text-gray-400">birdies, eagles, closest to the pin…</span>
+          </button>
+        </div>
+        )}
+        {!isIndividual && junkShown && (
+        <div className="pt-2 border-t">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-semibold text-gray-800">Bonus points for good holes</p>
+            <button
+              type="button"
+              onClick={removeBonuses}
+              className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+            >
+              Remove bonuses
+            </button>
+          </div>
           <p className="text-xs text-gray-500 mb-2">These add to a team&apos;s bonus total. Set any to 0 to skip it.</p>
           <div className="grid grid-cols-5 gap-2">
             {JUNK_FIELDS.map(({ key, label, hint }) => (
@@ -3848,13 +3808,25 @@ function CreateStep({
             <p className="text-sm font-semibold text-gray-800">Pot Split ($ per pot)</p>
             {potEdited && (
               <button
-                onClick={() => { setPotEdited(false); setPotDollars(legDollarsToStrings(poolSplitDollarsForTeams(teams.length))); }}
+                onClick={() => {
+                  setPotEdited(false);
+                  const std = poolSplitDollarsForTeams(teams.length);
+                  setPotDollars(legDollarsToStrings(junkShown ? std : foldJunkIntoOverall(std)));
+                }}
                 className="text-xs text-green-700 hover:text-green-900 font-medium"
               >
                 Reset to standard
               </button>
             )}
           </div>
+          {/* F-044: the defaults come from a table of the organizer's historical splits by team
+              count — and read as arbitrary hard-coding when nothing says so. Craig read his OWN
+              numbers as "weird". Name the source; the fields stay editable either way. */}
+          {!potEdited && (
+            <p className="text-xs text-gray-500 mb-2">
+              The usual split for {teams.length} team{teams.length === 1 ? '' : 's'} — edit any leg to change it.
+            </p>
+          )}
           <div className="grid grid-cols-4 gap-2">
             {potFields.map(({ key, label }) => (
               <div key={key}>

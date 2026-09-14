@@ -949,6 +949,42 @@ describe('side display names by size', () => {
   it('an EMPTY side falls back to its letter', () => {
     expect(sideNameFrom(ps, [], 'c')).toBe('Side C');
   });
+
+  // F-039: The Meadows game paired Bill McAuliffe with Bill Grupp and the board said
+  // "Bill & Bill". A shared first name gains a last initial — everywhere in the game it
+  // appears, so a disambiguated row never faces a bare twin on another side.
+  describe('F-039: duplicate first names', () => {
+    const bills = [
+      { id: 'p1', name: 'Bill McAuliffe' }, { id: 'p2', name: 'Bill Grupp' },
+      { id: 'p3', name: 'Brandon Briggs' }, { id: 'p4', name: 'Morgan Lee' },
+    ];
+
+    it('a side of two Bills reads "Bill M. & Bill G."', () => {
+      expect(sideNameFrom(bills, ['p1', 'p2'], 'a')).toBe('Bill M. & Bill G.');
+    });
+
+    it('the twins are marked even when they are on DIFFERENT sides', () => {
+      expect(sideNameFrom(bills, ['p1', 'p3'], 'a')).toBe('Bill M. & Brandon');
+      expect(sideNameFrom(bills, ['p2', 'p4'], 'b')).toBe('Bill G. & Morgan');
+    });
+
+    it('unique first names are untouched', () => {
+      expect(sideNameFrom(bills, ['p3', 'p4'], 'b')).toBe('Brandon & Morgan');
+    });
+
+    it('a custom name still wins over the collision rule', () => {
+      expect(sideNameFrom(bills, ['p1', 'p2'], 'a', 'The Bills')).toBe('The Bills');
+    });
+
+    it('a solo Bill keeps the initial AND the solo suffix', () => {
+      expect(sideNameFrom(bills, ['p1'], 'c')).toBe('Bill M. (solo)');
+    });
+
+    it('a duplicated SINGLE-WORD name cannot be disambiguated and stays as-is', () => {
+      const mono = [{ id: 'p1', name: 'Bill' }, { id: 'p2', name: 'Bill Grupp' }];
+      expect(sideNameFrom(mono, ['p1', 'p2'], 'a')).toBe('Bill & Bill G.');
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

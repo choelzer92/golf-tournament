@@ -516,6 +516,31 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'pool-2x4-junk-off',
+    label: 'Classic pool — NO bonuses (junk off)',
+    detail: 'F-045 (§5.bg): junk $0/off, its pot quarter folded into Overall at setup. No CTP surfaces, no junk breakdown, and the game must still settle zero-sum.',
+    build: () => {
+      const ps = players([0, 6, 12, 18, 3, 9, 15, 21]);
+      const game = baseGame({
+        players: ps,
+        name: 'No Bonus Pool (seeded)',
+        teams: [
+          { id: 'st1', name: 'Team 1', playerIds: ['sp1', 'sp2', 'sp3', 'sp4'], matchupId: 'sm1', captainId: 'sp1' },
+          { id: 'st2', name: 'Team 2', playerIds: ['sp5', 'sp6', 'sp7', 'sp8'], matchupId: 'sm2', captainId: 'sp5' },
+        ],
+        junkValues: { birdie: 0, eagle: 0, albatross: 0, groupHug: 0, ctp: 0 },
+        // The 2-team table (70/70/40/20 of $200) with junk folded into overall.
+        potSplit: { front: 0.35, back: 0.35, overall: 0.3, junk: 0 },
+      });
+      // Mid-round (thru 6) so the scorecard opens on live holes — hole 7 is a
+      // par 3, where the CTP button must NOT appear for this game.
+      const six = [1, 2, 3, 4, 5, 6];
+      saveGameScores('sm1', scores(['sp1', 'sp2', 'sp3', 'sp4'], [0, 1, 1, 2], six));
+      saveGameScores('sm2', scores(['sp5', 'sp6', 'sp7', 'sp8'], [1, 1, 2, 2], six));
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+  {
     key: 'pool-stableford',
     label: 'Stableford pool — 4 foursomes, most points wins',
     detail: 'F-006: the headline case the classic pool could not express. Team 1 birdies everything (54 pts) and MUST be shown 1st and paid — an earlier pass ranked lower-is-better and paid the 36-point team. Also proves the per-hole grid greens the HIGHEST number under points.',
@@ -642,6 +667,54 @@ const SCENARIOS: Scenario[] = [
         teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1' }],
       });
       saveGameScores('sm1', scores(ps.map((p) => p.id), [0, 1, 1, 2], [1, 2, 3, 4, 5]));
+      return { game, goTo: (id) => `/pool/${id}` };
+    },
+  },
+  {
+    key: 'stableford-ind-partial',
+    label: 'Stableford (individual) — 4 players, thru 7',
+    detail: 'F-028/F-031: what the scorecard + leaderboard show mid-round for individual Stableford — per-hole points and to-par visibility. Handicap spread so stroke dots render (F-029).',
+    build: () => {
+      const ps = players([4, 12, 8, 16]);
+      const game = baseGame({
+        players: ps,
+        name: 'Stableford Four',
+        gameMode: 'stableford-ind',
+        entryPerPlayer: 0,
+        modeSettings: { scoreBasis: 'net', scale: 'standard', moneyModel: 'per-point', dollarsPerPoint: 1 },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1', teeTime: '8:10' }],
+      });
+      // Varied offsets so per-hole points differ (birdies, pars, bogeys, doubles).
+      const seven = [1, 2, 3, 4, 5, 6, 7];
+      saveGameScores('sm1', [
+        ...scores(['sp1'], [-1], [1, 2, 3]), ...scores(['sp1'], [0], [4, 5, 6, 7]),
+        ...scores(['sp2'], [1], seven),
+        ...scores(['sp3'], [0], [1, 2, 3, 4]), ...scores(['sp3'], [2], [5, 6, 7]),
+        ...scores(['sp4'], [2], seven),
+      ]);
+      return { game, goTo: (id) => `/pool/${id}` };
+    },
+  },
+  {
+    key: 'stableford-ind-complete',
+    label: 'Stableford (individual) — 4 players, FULLY scored',
+    detail: 'F-032: ready to close out — what does Finish show about who owes whom?',
+    build: () => {
+      const ps = players([4, 12, 8, 16]);
+      const game = baseGame({
+        players: ps,
+        name: 'Stableford Finish',
+        gameMode: 'stableford-ind',
+        entryPerPlayer: 0,
+        modeSettings: { scoreBasis: 'net', scale: 'standard', moneyModel: 'per-point', dollarsPerPoint: 2 },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1', teeTime: '8:10' }],
+      });
+      saveGameScores('sm1', [
+        ...scores(['sp1'], [-1], [1, 2, 3, 4, 5, 6]), ...scores(['sp1'], [0], [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]),
+        ...scores(['sp2'], [1], ALL18),
+        ...scores(['sp3'], [0], ALL18),
+        ...scores(['sp4'], [2], ALL18),
+      ]);
       return { game, goTo: (id) => `/pool/${id}` };
     },
   },

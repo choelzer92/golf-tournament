@@ -20,6 +20,7 @@ import type { Tournament } from './tournament-state';
 import { computeMoneyLedger } from './money-games';
 import type { PoolGame } from './pool-game';
 import { computePoolResult } from './pool-game';
+import { computeGameResult } from './game-modes/result';
 import type { RosterGroup } from './roster-groups';
 
 // One player's money + activity in ONE finished game.
@@ -319,6 +320,30 @@ export function myGameHistory(ledgers: GameLedger[], playerId: string): GamePlay
 // repeatedly settle the biggest debtor against the biggest creditor. Not
 // provably optimal (that's NP-hard), but near-minimal and stable. Amounts are
 // rounded to cents; balances within a cent of zero are treated as settled.
+// ONE game's per-player nets as rollups, so settleUp can run per-game (F-032: the
+// close-out recap). Branches exactly like the leaderboard: an individual/side game's
+// engine already reports per-PLAYER moneyNet; the classic pool reports per-TEAM net,
+// split evenly across the team (mirroring pool's own perPersonNet and the ledger
+// above). Pure — the caller supplies the scores it already has.
+export function gameRollups(game: PoolGame, scoresByMatchup: Map<string, GameScore[]>): PlayerRollup[] {
+  const result = computeGameResult(game, scoresByMatchup);
+  if (result.kind === 'individual') {
+    return result.standings.map((s) => ({
+      playerId: s.playerId, playerName: s.playerName, gamesPlayed: 1, net: s.moneyNet,
+    }));
+  }
+  const nameOf = (pid: string) => game.players.find((p) => p.id === pid)?.name ?? '?';
+  const rollups: PlayerRollup[] = [];
+  for (const team of game.teams) {
+    const payout = result.payouts.find((p) => p.teamId === team.id);
+    const perPerson = payout && team.playerIds.length > 0 ? payout.net / team.playerIds.length : 0;
+    for (const pid of team.playerIds) {
+      rollups.push({ playerId: pid, playerName: nameOf(pid), gamesPlayed: 1, net: perPerson });
+    }
+  }
+  return rollups;
+}
+
 export function settleUp(rollups: PlayerRollup[]): SettlementTransfer[] {
   const EPS = 0.005;
   const creditors = rollups

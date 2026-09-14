@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FORMATS, TEAM_MODES, getTeamModeConfig, resolveAllowance } from '@/lib/formats';
 import type { TeamMode } from '@/lib/formats';
 import type { Player, CourseSelection, TeeSetOption } from '@/lib/game-state';
-import { parseGhinIndex } from '@/lib/game-state';
+import { AddPlayerPanel, type AddedPlayer } from '@/components/add-player-panel';
 import type { Tournament, TournamentRound, Team, DisplayMode } from '@/lib/tournament-state';
 import { saveTournament } from '@/lib/tournament-state';
 import { hydrateRoster, getRosterPlayerById } from '@/lib/roster';
@@ -376,67 +376,31 @@ function RosterStep({
   players, setPlayers, teamAssignments, setTeamAssignments,
   teamAName, teamBName, onNext, onBack,
 }: {
-  players: Player[]; setPlayers: (p: Player[]) => void;
-  teamAssignments: Record<string, 'A' | 'B'>; setTeamAssignments: (a: Record<string, 'A' | 'B'>) => void;
+  players: Player[]; setPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
+  // Dispatches (not plain setters): a pasted GHIN list appends several players
+  // from one closure, so adds must use the functional form (F-040).
+  teamAssignments: Record<string, 'A' | 'B'>; setTeamAssignments: React.Dispatch<React.SetStateAction<Record<string, 'A' | 'B'>>>;
   teamAName: string; teamBName: string;
   onNext: () => void; onBack: () => void;
 }) {
-  const [nameInput, setNameInput] = useState('');
-  const [handicapInput, setHandicapInput] = useState('');
-  const [genderInput, setGenderInput] = useState<'M' | 'F'>('M');
-  const [ghinInput, setGhinInput] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  async function addByGhin() {
-    const token = getToken();
-    if (!token || !ghinInput) return;
-    setLoading(true);
-    try {
-      const res = await fetch('/api/ghin/golfer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, ghin_number: Number(ghinInput) }),
-      });
-      const data = await res.json();
-      if (!res.ok) return;
-      const golfer = data.golfer;
-      const hi = parseGhinIndex(golfer.handicap_index ?? golfer.hi_value) ?? 0;
-      const ghinGender = (golfer.gender || golfer.Gender || '').toLowerCase();
-      const newPlayer: Player = {
-        id: crypto.randomUUID(),
-        name: `${golfer.first_name} ${golfer.last_name}`,
-        handicapIndex: hi,
-        gender: ghinGender === 'female' || ghinGender === 'f' ? 'F' : 'M',
-        ghinNumber: Number(ghinInput),
-      };
-      const teamACount = Object.values(teamAssignments).filter((t) => t === 'A').length;
-      const teamBCount = Object.values(teamAssignments).filter((t) => t === 'B').length;
-      const assignTeam = teamACount <= teamBCount ? 'A' : 'B';
-
-      setPlayers([...players, newPlayer]);
-      setTeamAssignments({ ...teamAssignments, [newPlayer.id]: assignTeam });
-      setGhinInput('');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function addManual() {
-    if (!nameInput) return;
+  // One handler for every AddPlayerPanel path (search / GHIN list / manual).
+  // Functional updates because a pasted GHIN list adds several players inside
+  // one closure (F-040); the A/B balance reads the up-to-date assignments.
+  function addResolvedPlayer(info: AddedPlayer) {
     const newPlayer: Player = {
       id: crypto.randomUUID(),
-      name: nameInput,
-      handicapIndex: handicapInput ? parseFloat(handicapInput) : null,
-      gender: genderInput,
+      name: info.name,
+      // GHIN adds always carried a number here (?? 0 predates the panel).
+      handicapIndex: info.ghinNumber != null ? (info.handicapIndex ?? 0) : info.handicapIndex,
+      gender: info.gender,
+      ghinNumber: info.ghinNumber ?? undefined,
     };
-    const teamACount = Object.values(teamAssignments).filter((t) => t === 'A').length;
-    const teamBCount = Object.values(teamAssignments).filter((t) => t === 'B').length;
-    const assignTeam = teamACount <= teamBCount ? 'A' : 'B';
-
-    setPlayers([...players, newPlayer]);
-    setTeamAssignments({ ...teamAssignments, [newPlayer.id]: assignTeam });
-    setNameInput('');
-    setHandicapInput('');
+    setPlayers((prev) => [...prev, newPlayer]);
+    setTeamAssignments((prev) => {
+      const teamACount = Object.values(prev).filter((t) => t === 'A').length;
+      const teamBCount = Object.values(prev).filter((t) => t === 'B').length;
+      return { ...prev, [newPlayer.id]: teamACount <= teamBCount ? 'A' : 'B' };
+    });
   }
 
   function removePlayer(id: string) {
@@ -461,61 +425,14 @@ function RosterStep({
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Add Players ({players.length})</h2>
 
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <p className="text-sm font-semibold text-gray-800 mb-2">Add by GHIN #</p>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={ghinInput}
-            onChange={(e) => setGhinInput(e.target.value)}
-            placeholder="GHIN number"
-            className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          />
-          <button
-            onClick={addByGhin}
-            disabled={loading || !ghinInput}
-            className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800 disabled:opacity-50"
-          >
-            {loading ? '...' : 'Add'}
-          </button>
-        </div>
-
-        <div className="mt-3 pt-3 border-t">
-          <p className="text-sm font-semibold text-gray-800 mb-2">Or add manually</p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              placeholder="Name"
-              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-            <input
-              type="text"
-              inputMode="decimal"
-              value={handicapInput}
-              onChange={(e) => setHandicapInput(e.target.value)}
-              placeholder="HCP"
-              className="w-16 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-            <button
-              type="button"
-              onClick={() => setGenderInput(genderInput === 'M' ? 'F' : 'M')}
-              className={`w-9 rounded-md border text-sm font-bold py-2 ${genderInput === 'M' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-pink-300 bg-pink-50 text-pink-700'}`}
-            >
-              {genderInput}
-            </button>
-            <button
-              onClick={addManual}
-              disabled={!nameInput}
-              className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800 disabled:opacity-50"
-            >
-              Add
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* F-040 option B: the shared add-player stack — name search first, manual
+          second (with the no-GHIN note), GHIN numbers behind a disclosure that
+          takes a pasted list. */}
+      <AddPlayerPanel
+        existingGhins={new Set(players.map((p) => p.ghinNumber).filter((g): g is number => g != null))}
+        getTokenAction={getToken}
+        onAddAction={addResolvedPlayer}
+      />
 
       {players.length > 0 && (
         <div className="grid grid-cols-2 gap-3 mb-4">
