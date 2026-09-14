@@ -1819,6 +1819,37 @@ test.describe('F-020: the game picker annotates fit', () => {
     expect(review).not.toMatch(/single group/i);
     expect(review).not.toMatch(/go back to field/i);
   });
+
+  // F-036: growing the side count in ONE reshape must mint distinct ids. The builder used to
+  // derive each new id from a slice of the OLD sides array, so 2 sides reshaped to 4 produced
+  // A, B, C, C — and a player tapped onto "C" joined two money sides at once.
+  test('F-036: reshaping 8 players to 2v2v2v2 yields four DISTINCT sides', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await startWizard(page);
+    await buildField(page, [
+      ['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'],
+      ['Sam', '6'], ['Tony', '10'], ['Bill', '14'], ['Walt', '18'],
+    ]);
+    await page.locator('select').first().selectOption('team-2v2');
+    await pickCourse(page);
+    await page.getByRole('button', { name: 'Next: Groups' }).click();
+    await page.getByRole('button', { name: 'Next: Sides' }).click();
+
+    // F-037: the step names the GAME it makes, not just the mechanism — before the reshape
+    // it's a 4 v 4 match, and the sentence tracks the data.
+    await expect(page.getByText(/This makes it a 4 v 4 match/)).toBeVisible();
+
+    // The field starts on the default two sides; jump straight to four.
+    await expect(page.getByText('How do the sides split?')).toBeVisible();
+    await page.getByRole('button', { name: /^2 v 2 v 2 v 2/ }).click();
+    await expect(page.getByRole('heading', { name: /Sides \(2 vs 2 vs 2 vs 2\)/ })).toBeVisible();
+    await expect(page.getByText(/This makes it a 2 v 2 v 2 v 2 game — 4 sides/)).toBeVisible();
+
+    // Each player's row offers exactly A B C D — no letter twice, no letter missing.
+    const firstRow = page.locator('div.divide-y > div').first();
+    const letters = await firstRow.locator('button').allInnerTexts();
+    expect(letters).toEqual(['A', 'B', 'C', 'D']);
+  });
 });
 
 // ---------------------------------------------------------------------------

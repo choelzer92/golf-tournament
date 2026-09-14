@@ -1532,13 +1532,18 @@ function CourseStep({
           handicap: h.Allocation,
         })),
       }));
-      const mensTeeSets = allTeeSets.filter((t) => t.gender === 'M');
-      const womensTeeSets = allTeeSets.filter((t) => t.gender === 'F');
+      // F-038: GHIN returns tees in no reliable order (The Meadows arrives Gold, Green, Blue,
+      // White). Sort each gender block longest-first, like tee-pick.ts — the picker then reads
+      // tips → forward, and the `teeSets[0]` default below lands on a deliberate tee, not
+      // whatever the payload happened to list first.
+      const byYardageDesc = (a: TeeSetOption, b: TeeSetOption) => (b.totalYardage ?? 0) - (a.totalYardage ?? 0);
+      const mensTeeSets = allTeeSets.filter((t) => t.gender === 'M').sort(byYardageDesc);
+      const womensTeeSets = allTeeSets.filter((t) => t.gender === 'F').sort(byYardageDesc);
       // Suffix women's tees with (W), but idempotently — never produce "(W) (W)"
       // if GHIN already includes it.
       const teeSets = mensTeeSets.length > 0
         ? [...mensTeeSets, ...womensTeeSets.map((t) => ({ ...t, name: /\(w\)/i.test(t.name) ? t.name : `${t.name} (W)` }))]
-        : allTeeSets;
+        : [...allTeeSets].sort(byYardageDesc);
 
       setCourse({
         courseId: courseResult.CourseID,
@@ -2826,7 +2831,7 @@ function PlayingGroupsStep({
                   >
                     <span className="text-sm text-gray-900 truncate">{nameOf(pid)}</span>
                     <span className="text-xs text-gray-500 tabular-nums">
-                      {hcapOf(players.find((p) => p.id === pid)!)}
+                      {Math.round(hcapOf(players.find((p) => p.id === pid)!))}
                     </span>
                   </button>
                 </li>
@@ -3450,14 +3455,16 @@ function SubTeamsStep({
   function applySideShape(shape: number[]) {
     const ids = sortPlayerIdsByHcap(players.map((p) => p.id), players, course, handicapAllowance, handicapBasis);
     const buckets = dealBalancedIntoShape(ids, shape);
-    setSides(buckets.map((playerIds, i) => ({
-      // Reuse the existing side's id and name where there is one, so a side called "The Hogs"
-      // survives a reshape — the ids are identity, not position (game-modes/sides.ts), and
-      // re-lettering them would silently relabel money rows.
-      id: effective[i]?.id ?? nextSideId(effective.slice(0, i)),
+    // Reuse the existing side's id and name where there is one, so a side called "The Hogs"
+    // survives a reshape — the ids are identity, not position (game-modes/sides.ts), and
+    // re-lettering them would silently relabel money rows. New ids must be minted against the
+    // list BEING BUILT, not the old one: F-036 — growing 2 sides to 4 in one reshape sliced the
+    // old array past its end and minted 'c' twice, putting one player on two money sides.
+    setSides(buckets.reduce<GameSide[]>((built, playerIds, i) => [...built, {
+      id: effective[i]?.id ?? nextSideId(built),
       ...(effective[i]?.name ? { name: effective[i].name } : {}),
       playerIds,
-    })));
+    }], []));
   }
   const emptySides = effective.filter((side) => side.playerIds.length === 0);
   const chcp = (p: Player) => Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine));
@@ -3472,7 +3479,13 @@ function SubTeamsStep({
       <h2 className="text-lg font-semibold text-gray-900 mb-1">
         Sides ({counts.join(' vs ')})
       </h2>
+      {/* F-037: say what game this MAKES, in the words golfers use. Craig found the sides
+          step and still wasn't sure he'd built a 2v2 — "Sides (2 vs 2)" names the mechanism,
+          "a 2 v 2 match" names the game. Derived from the data like the header, so an uneven
+          or multi-side split describes itself the same way and can't drift into a lie. */}
       <p className="text-sm text-gray-500 mb-4">
+        This makes it a <span className="font-medium text-gray-700">{counts.join(' v ')}</span>
+        {counts.length === 2 ? ' match' : ` game — ${counts.length} sides, each playing the others`}.
         Assign each player to a side. Seeded to balance handicaps — adjust as you like.
       </p>
 
