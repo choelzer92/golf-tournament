@@ -1468,7 +1468,8 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
     if (opts.thirdSide) {
       await page.getByRole('button', { name: '+ Add a side' }).click();
       for (const nm of [opts.players[4][0], opts.players[5][0]]) {
-        const row = page.locator('div.flex.items-center.justify-between', { hasText: nm }).first();
+        // The sides-step row is flex-wrap (F-043: the handicap chain panel wraps under it).
+        const row = page.locator('div.flex.flex-wrap.items-center', { hasText: nm }).first();
         await row.getByRole('button', { name: 'C', exact: true }).click();
       }
     }
@@ -1802,7 +1803,7 @@ test.describe('F-020: the game picker annotates fit', () => {
     // F-041: "Stableford" names a SCORING SYSTEM, not just the 2–4 player individual mode —
     // and the pool scores any field Stableford. The misfit note must redirect to that, not
     // read as "this app can't play Stableford with 5".
-    await page.locator('select').first().selectOption('stableford');
+    await page.locator('select').first().selectOption('stableford-ind');
     const body2 = await page.locator('body').innerText();
     expect(body2).toMatch(/5 players can still score Stableford — as a team Pool/);
   });
@@ -1857,8 +1858,10 @@ test.describe('F-020: the game picker annotates fit', () => {
     await expect(page.getByText(/This makes it a 2 v 2 v 2 v 2 game — 4 sides/)).toBeVisible();
 
     // Each player's row offers exactly A B C D — no letter twice, no letter missing.
+    // Match the single-letter side buttons only: the row also carries the F-043
+    // handicap-chain chip, which is a button too.
     const firstRow = page.locator('div.divide-y > div').first();
-    const letters = await firstRow.locator('button').allInnerTexts();
+    const letters = await firstRow.getByRole('button', { name: /^[A-Z]$/ }).allInnerTexts();
     expect(letters).toEqual(['A', 'B', 'C', 'D']);
   });
 });
@@ -2321,7 +2324,8 @@ test.describe('F-020: the sides step proposes splits', () => {
     // The heading counts the sides, so it must now read 2 vs 2 vs 1.
     await expect(page.getByRole('heading', { name: /Sides \(2 vs 2 vs 1\)/ })).toBeVisible();
     // Three assignment buttons per player: A, B, C.
-    const firstRow = page.locator('div.flex.items-center.justify-between', { hasText: 'Craig' }).first();
+    // The sides-step row is flex-wrap (F-043: the handicap chain panel wraps under it).
+    const firstRow = page.locator('div.flex.flex-wrap.items-center', { hasText: 'Craig' }).first();
     await expect(firstRow.getByRole('button', { name: 'C', exact: true })).toBeVisible();
 
     // And it carries through to the review step — the split is real, not just a label.
@@ -2861,5 +2865,58 @@ test.describe('F-032: closing out a game shows who pays whom', () => {
     // Reopening the game removes it (the game is no longer final).
     await page.getByRole('button', { name: 'Reopen game' }).click();
     await expect(page.getByText('Who pays whom')).toHaveCount(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F-043 — handicap arithmetic was a black box: no screen showed the chain from
+// index → course handicap → allowance → the rounded number on the chip, so
+// verifying against the GHIN app (§5.ba — the reference) meant trusting us.
+// Every handicap chip is now a disclosure; the chain it opens is pinned to
+// getPoolPlayingHandicap by unit test (src/test/handicap-chain.test.ts).
+// ---------------------------------------------------------------------------
+test.describe('F-043: the handicap chip shows its work', () => {
+  test('F-043: tapping a CHcp chip on the sides step opens the index → CH → plays-off chain', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    // Seed past games so the wizard's course step offers Sandbox National.
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    const card = page.locator('div.bg-white', { hasText: 'Past games (for recent-course' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+    await card.getByRole('button', { name: 'Open →' }).click();
+    await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
+
+    // field → game → course → tees → sides (§5.au).
+    for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']] as const) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Chain Test');
+    await page.locator('select').first().selectOption('team-2v2');
+    await page.getByRole('button', { name: /Next: Select Course/ }).click();
+    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+    await page.getByRole('button', { name: /Next: Set Tees/ }).click();
+    await page.getByRole('button', { name: 'Next: Sides' }).click();
+    // Assert the right screen before touching anything on it.
+    await expect(page.getByRole('heading', { name: /Sides \(/ })).toBeVisible();
+
+    // The chain is hidden until asked for.
+    await expect(page.getByText('Handicap index')).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'CHcp 4', exact: true }).click();
+    await expect(page.getByText('Handicap index')).toBeVisible();
+    // Sandbox National is slope 113 with rating == par, so CH == index — and the
+    // chain names the numbers it used rather than asking to be trusted.
+    await expect(page.getByText(/slope 113, rating 72, par 72/)).toBeVisible();
+    await expect(page.getByText('Plays off')).toBeVisible();
+    await page.screenshot({ path: 'e2e/screenshots/f043-handicap-chain.png', fullPage: true });
+
+    // Tap again to close.
+    await page.getByRole('button', { name: 'CHcp 4', exact: true }).click();
+    await expect(page.getByText('Handicap index')).toHaveCount(0);
   });
 });

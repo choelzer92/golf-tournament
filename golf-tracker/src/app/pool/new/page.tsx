@@ -81,6 +81,7 @@ import { POOL_GROUP_SEED_KEY } from '@/lib/group-seed';
 import { GAME_MODES, getGameMode, defaultSettings, playerRangeSentence, fitBadge, fitExplanation, modeFits, formatSummaryLine, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { SideNames } from '@/components/side-names';
+import { HandicapChip } from '@/components/handicap-chain';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 
 const WIZARD_KEY = 'pool_wizard_draft';
@@ -1100,7 +1101,7 @@ function DetailsStep({
                 // carries the same toggle to 8 — so when the refused mode's SCORING lives on in
                 // a structure that fits, say that instead of just listing other game names.
                 const scoringCarriers: Record<string, string> = {
-                  stableford: 'Stableford', quota: 'points-to-quota',
+                  'stableford-ind': 'Stableford', quota: 'points-to-quota',
                 };
                 const scoring = selectedMode ? scoringCarriers[selectedMode.id] : undefined;
                 if (scoring && playerCount > selectedMode!.playersMax) {
@@ -2473,11 +2474,30 @@ function FieldStep({
                         {/* F-023: when this tee has no usable slope/rating the number is the raw
                             index, not a course handicap — SAY so instead of printing a confident
                             "Course HCP" that's wrong on any course whose slope is far from 113.
-                            The 'index' basis skips the conversion on purpose, so no warning there. */}
+                            The 'index' basis skips the conversion on purpose, so no warning there.
+                            Both chips open the F-043 chain (index → CH → allowance → plays off). */}
                         {courseHcap !== null && (handicapBasis === 'index' || teeHasRating(player, course!) ? (
-                          <span className="ml-2 text-green-700">Course HCP: {courseHcap}</span>
+                          <HandicapChip
+                            player={player}
+                            course={course}
+                            allowance={handicapAllowance}
+                            basis={handicapBasis}
+                            nine={nine}
+                            chipClassName="ml-2 text-green-700"
+                          >
+                            Course HCP: {courseHcap}
+                          </HandicapChip>
                         ) : (
-                          <span className="ml-2 text-amber-700">no slope/rating on this tee — using index ({courseHcap})</span>
+                          <HandicapChip
+                            player={player}
+                            course={course}
+                            allowance={handicapAllowance}
+                            basis={handicapBasis}
+                            nine={nine}
+                            chipClassName="ml-2 text-amber-700 text-left"
+                          >
+                            no slope/rating on this tee — using index ({courseHcap})
+                          </HandicapChip>
                         ))}
                       </p>
                     </div>
@@ -3337,19 +3357,22 @@ function TeamsStep({
                   const isCaptain = team.captainId === pid;
                   return (
                     <li key={pid} className={`rounded px-2 py-2 ${isCaptain ? 'bg-green-50 ring-1 ring-green-200' : 'bg-gray-50'}`}>
-                      {/* Line 1: who + their course handicap */}
-                      <div className="flex items-center gap-2">
+                      {/* Line 1: who + their course handicap. The chip opens the F-043 chain
+                          (index → CH → allowance → plays off) — flex-wrap so the panel drops
+                          to its own line under the name. */}
+                      <div className="flex flex-wrap items-center gap-2">
                         {isCaptain && (
                           <span className="flex-shrink-0 rounded-full bg-green-700 text-white text-[10px] font-bold px-1.5 py-0.5" title="Captain">C</span>
                         )}
                         <span className="text-sm font-medium text-gray-900 truncate min-w-0 flex-1">{p.name}</span>
                         {hcap !== null && (
-                          <span
-                            className="flex-shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums"
-                            title="Course handicap on this tee"
-                          >
-                            {hcap}
-                          </span>
+                          <HandicapChip
+                            player={p}
+                            course={course}
+                            allowance={handicapAllowance}
+                            basis={handicapBasis}
+                            nine={nine}
+                          />
                         )}
                       </div>
                       {/* Line 2: clearly-labeled controls with real tap targets */}
@@ -3550,13 +3573,24 @@ function SubTeamsStep({
       <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
         {players.map((p) => {
           const mine = sideIdOf(p.id);
+          // flex-wrap so the F-043 chain panel (opened from the CHcp chip) can drop to
+          // its own full-width line under the row.
           return (
-            <div key={p.id} className="flex items-center justify-between px-4 py-3">
-              <span className="text-sm text-gray-800">
-                {p.name}
-                {course && <span className="ml-2 text-xs text-gray-400">CHcp {chcp(p)}</span>}
-              </span>
-              <div className="flex gap-1.5">
+            <div key={p.id} className="flex flex-wrap items-center gap-x-2 px-4 py-3">
+              <span className="text-sm text-gray-800 flex-1 min-w-0 truncate">{p.name}</span>
+              {course && (
+                <HandicapChip
+                  player={p}
+                  course={course}
+                  allowance={handicapAllowance}
+                  basis={handicapBasis}
+                  nine={nine}
+                  chipClassName="flex-shrink-0 text-xs text-gray-400 tabular-nums"
+                >
+                  CHcp {chcp(p)}
+                </HandicapChip>
+              )}
+              <div className="flex gap-1.5 ml-auto">
                 {effective.map((side) => (
                   <button
                     key={side.id}

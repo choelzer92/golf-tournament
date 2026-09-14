@@ -2808,7 +2808,9 @@ or SIDES can play that scoring ("8 players can play Stableford as a pool — tea
 sides"), and/or the badge should not read as refusing a scoring system the app offers.
 
 **Status:** redirect line FIXED 2026-09-14 (misfit note now says "N players can still score
-Stableford — as a team Pool… or as Sides / Match"; e2e). DIRECTION AGREED in-session, Craig:
+Stableford — as a team Pool… or as Sides / Match"; e2e). CORRECTION same day: the redirect
+keyed on mode id `stableford` but the registry id is `stableford-ind`, so the line never
+fired — caught by the (then-unverified) e2e assertion on its first real run; id fixed. DIRECTION AGREED in-session, Craig:
 "a pool is effectively just a 4v4 game… choose your groups, your game style, your players, how
 many teams, and go… lets think about how to simplify this" — structure-first wizard question,
 modes become shortcuts; the Team Competition engine's UI framing. Record as a decision when
@@ -2853,7 +2855,14 @@ verifying requires trusting the app. Fix shape: a tap/disclosure per player show
 usable on the teams step, sides step, and player-details sheet. Also the natural home for
 F-023's "this tee has no rating — using index" honesty. Display-only; no math changes.
 
-**Status:** open — shape agreed-ish, needs Craig's go (adjacent to handicap display conventions).
+**Status:** FIXED 2026-09-14. Every handicap chip on the wizard's field list, teams step, and
+sides step is now a tap-to-open disclosure showing the chain (`HandicapChip`,
+`components/handicap-chain.tsx`), one line per step with the tee's slope/rating/par named.
+The chain comes from `explainPlayingHandicap` (pool-game.ts), which mirrors
+`getPoolPlayingHandicap` branch-for-branch and is PINNED to it by unit test across the full
+matrix (`src/test/handicap-chain.test.ts`) — the explanation cannot drift from the math.
+F-023's honesty folded in: the no-rating fallback, the 'index' basis, and the 9-hole
+fallbacks all say so in the panel. e2e: `F-043:` in verify-fixes.spec.ts + screenshot.
 
 ---
 
@@ -2918,6 +2927,17 @@ choice at that moment.
 **(c) is the likely real finding:** the field step knows the group; the game step lists formats
 UNGROUPED by group. "Friday Group" chosen → "Friday game" should be the first thing the game
 step offers, labeled as the group's usual.
+
+**Repro (code-confirmed, 2026-09-14):** BOTH (a) and (c) are real, and together they explain
+the miss end-to-end.
+- (a) `SaveFormatModal` (`pool/[id]/page.tsx:632`) calls `saveFormat(...)` only — it never
+  attaches the new format to `game.sourceGroupId`, even when the game was started FROM that
+  group. Craig's "I saved it as friday game in the friday group" was a save to the flat
+  library; the group never learned about it. Attachment exists only as a separate "+ Import
+  from library" step on `/home/groups/[id]`.
+- (c) the wizard game step (`DetailsStep`) lists `getFormats()` flat in one "Your saved
+  games" optgroup — it receives no `sourceGroupId`, so the group chosen one step earlier
+  can't surface its own formats first.
 
 **Status:** needs repro — walk: save format from a game → attach to group? → new game → pick
 Friday Group → what does the game step offer? Then fix the step that loses the thread.
