@@ -1,4 +1,4 @@
-# Next session: F-055 group-UI consolidation (if Craig picked) — else the polish batch
+# Next session: BUILD F-055 (option A) + the sharing trio F-056/F-057/F-058
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
@@ -8,49 +8,62 @@ Read `AGENTS.md` first. Delegate broad searches to subagents; grep DECISIONS_ARC
 by § and FINDINGS_ARCHIVE.md by F-0NN — don't read either whole.
 
 **State (2026-09-14):** branch `audit-sharing-login-2026-09-14` holds the sharing/login
-AUDIT (F-047…F-055 in FINDINGS.md, capture spec `e2e/sharing-audit.spec.ts`) AND the
-FIXES for F-047…F-054, built on the recommended options at Craig's "address these other
-todos" (9 e2e in `e2e/f047-sharing-fixes.spec.ts`, verify green). Nothing merged or
-pushed — **merging is Craig's call**; note the F-051 cookie change (48h → 30-day
-sliding) quietly renews everyone's access, worth his conscious OK. F-049 is PARTLY
-fixed: the hub identity line exists but isn't tappable yet.
+audit (F-047…F-055) AND the built fixes F-047…F-054 (verify green, 168 e2e). Nothing
+merged or pushed. Craig then DECIDED the rest — **§5.bh** (read it in the archive): F-055
+option A, the sharing scaling principles ("one link kind per job, token on the game row —
+never add link kinds"), and the recommended options for F-056/57/58. All four are
+**decided, ready to build, no re-asking**. Continue on the same branch.
 
-## The work
+## The work (one commit + tagged e2e per finding; `npm run verify` exit 0 each slice)
 
-1. **If Craig has picked an F-055 option** (group-UI consolidation — recommendation A:
-   /home/groups becomes the only group UI, gains create/rename/delete; /pool/roster
-   keeps saved PLAYERS only; rewire the three "Manage"/"Full roster manager" links):
-   build it. The access constraint is in the finding — /pool/roster works at `pool`
-   access, /home is GHIN-gated. **Option B = the §5c/F-002 accounts conversation — STOP.**
-2. **Else:** the merge-audit polish batch (4 S items in BACKLOG "Next few sessions"),
-   or the §5.bg money-step redesign (worked-example sign-off before merge — money rule §2).
+1. **F-056** — show the Share button/panel to `pool`-access visitors on the game hub
+   (`pool/[id]/page.tsx:351` moves Share OUT of the `!poolOnly` guard; Save format/Edit
+   stay hidden). Guests already hold the link; the line is mutating vs read-only (F-004).
+2. **F-057** — `setAccessCookie` gets level-dependent lifetime: `full` = 30d (sliding
+   refresh stays), `pool` = 48h. Update the F-051 e2e (it asserts ≥20d on a FULL grant —
+   keep that; add the pool-grant ≤48h case). `src/lib/invite-gate.ts`.
+3. **F-058** — QR generated locally in both panels (`pool-share.tsx:14`,
+   `pool/[id]/page.tsx:785`). Prefer a tiny well-known dep (e.g. `qrcode` → data-URL/SVG)
+   or a vendored encoder; assert the img src is NOT api.qrserver.com and IS a data:/blob.
+4. **F-055 option A** (the M of the session — see the finding + §5.bh):
+   - `/home` "Your groups": add **create group** (name → `upsertGroup`, lib fns all exist
+     in `roster-groups.ts`); repoint/remove the "Manage" → /pool/roster button
+     (`home/page.tsx:207`).
+   - `/home/groups/[id]`: add **rename** + **delete** (confirm; `renameGroup`/`deleteGroup`
+     exist). Keep the F-010 dashboard shape — management joins the dashboard, doesn't
+     displace it.
+   - `/pool/roster`: DELETE the GroupsManager component (`roster/page.tsx:149,252+`);
+     page becomes saved players only — retitle ("Saved Players"), fix intro copy.
+     "Full roster manager" links (group page :457, /pool :84) stay valid (players only).
+   - e2e `F-055`: create a group on /home → rename + delete on its dashboard → /pool/roster
+     shows no Groups panel. Check e2e that used the old GroupsManager UI
+     (grep "Select a group" in e2e/ — critique/user-walk may walk it) and update.
+   - Data: NOTHING migrates — roster_groups rows, games, links untouched.
 
-One focused commit per item, e2e tagged with the finding id, `npm run verify` exit 0.
+**Do NOT build:** F-055 option B (share-link visitors on /home) — that's the §5c
+accounts conversation. F-049's tappable identity chip only if trivially composable.
 
 ## Waiting on Craig (full table in BACKLOG.md)
 
-F-055 pick · review/merge the audit branch · Meadows payload (F-023B) · F-034 A/B/C ·
-F-022 on-course spot-check · §7 q4. The BIG structure discussion (§5g framing) stays
-alive — do NOT build.
+Review/merge the audit branch · the access-policy OK (game link for players, invite code
+for regulars, retire the legacy organizer link from circulation — proposed, not decided) ·
+Meadows payload (F-023B) · F-034 A/B/C · F-022 on-course spot-check · §7 q4.
 
 ## Traps that keep biting
 
-- **Do NOT edit app code while `npm run verify` runs** — the e2e dev server hot-reloads
-  edits and fails tests that were fine. (Markdown edits are safe.)
+- **Do NOT edit app code while `npm run verify` runs.** (Markdown edits are safe.)
 - **Kill any hand-started dev server AND `rm -rf .next` before `npm run verify`** —
-  verify's tsc reads dev's half-written routes.d.ts otherwise (bit us twice now).
-  Kill by PID, confirm 3200 free (TIME_WAIT rows are fine). 3000 = Craig's.
+  verify's tsc reads dev's half-written routes.d.ts otherwise (bit us twice). Kill by
+  PID, confirm 3200 free (TIME_WAIT rows are fine). 3000 = Craig's.
 - Check `npm run verify`'s own exit code, not a tail of its log.
 - A JSX comment can't sit as a sibling before the element inside a `.map()`'s
-  parenthesized return — use `//` lines inside the parens instead.
-- Game-mode ids ≠ display names (`stableford-ind`, not `stableford`) — select by VALUE.
-- Playwright: assert with `expect(page).toHaveURL(...)`, not `waitForURL`; a screenshot
-  right after a client-side `router.push` can race it — wait for the URL first.
-- Mid-round sandbox scenarios "Open →" onto the LEADERBOARD; the Share button lives on
-  the hub (`/pool/{id}`) — navigate there first.
+  parenthesized return — use `//` lines inside the parens.
 - Editor diagnostics lag one edit behind — trust `npx tsc --noEmit`, not the squiggles.
-- The wizard's `setPlayers`/`setTeamAssignments` props are `React.Dispatch` — the shared
-  AddPlayerPanel relies on functional updates for bulk adds; don't narrow them back.
+- Playwright: `expect(page).toHaveURL(...)` over `waitForURL`; a screenshot right after a
+  client-side `router.push` races it. Mid-round sandbox scenarios "Open →" onto the
+  LEADERBOARD — the Share button lives on the hub (`/pool/{id}`).
+- Game-mode ids ≠ display names (`stableford-ind`, not `stableford`) — select by VALUE.
+- The wizard's `setPlayers`/`setTeamAssignments` props are `React.Dispatch` — don't narrow.
 
 ## End the session by grooming BACKLOG.md
 

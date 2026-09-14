@@ -19,7 +19,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
-| **F-055 group-UI consolidation** — the last open piece of the sharing/login audit (F-047…F-054 all BUILT). Craig's pick among A/B/C; recommendation A (make /home/groups the only group UI, /pool/roster keeps saved players). Option B = the §5c accounts conversation. | M | F-055 |
+| **F-055 build (option A, DECIDED §5.bh) + sharing trio F-056/57/58** — Craig picked A and confirmed the sharing recommendations; sized to its own fresh session (Craig 2026-09-14). /home gains group create/rename/delete, /pool/roster demoted to saved players, links rewired; Share panel for everyone in the game, pool cookie back to 48h (full keeps 30d sliding), local QR. Promoted to NEXT_SESSION_PROMPT.md. | M | §5.bh |
 | **Game-structure simplification direction** (Craig 2026-09-14: "a pool is effectively just a 4v4 game… choose your groups, game style, players, how many teams, and go"). Agreed direction: structure-first wizard question, modes as shortcuts — the UI framing for the Team Competition engine (§5g). RECORD AS A DECISION when Craig confirms scope; near-term language slice already built (F-041/F-042). | L (design first) | F-041 + Craig 2026-09-14 |
 | **Course-data correctness audit** (Craig 2026-09-10, re-raised 2026-09-14: "we really need to investigate the situation with having improper slope/course ratings to a tee for different courses"). Extends F-023: (a) inventory live games' courses for missing/odd ratings via read-only queries; (b) harden the parse; (c) a diagnostic view that says WHAT the app extracted. Unblocker: `scripts/fetch-course-payload.mjs` (Craig runs with his GHIN creds, read-only). F-038 (tee order) fixed; the default-TEE question (tips as default?) belongs to this audit. | M | Craig 2026-09-10/14 + F-023 |
 | Merge-audit polish batch (all four S items below) — fallback while F-047…F-055 wait on Craig | S×4 | merge audit / §5.ak |
@@ -60,8 +60,8 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | F-023 part B (widen the GHIN ratings parse) | The real `GetCourseDetails` payload for The Meadows (Greenbrier, WV) — search it with the network tab open |
 | §7 q4 | Confirm dark = live / light = setup is deliberate |
 | F-034 stale draft name | His pick among A/B/C in the finding |
-| **F-055 pick** (group-UI consolidation) | A/B/C in the finding; recommendation A. Option B opens the §5c/F-002 accounts conversation. F-047…F-054 built 2026-09-14 on the recommended options — review the choices on the branch |
-| **Review + merge `audit-sharing-login-2026-09-14`** | The audit + all eight fixes live there; nothing pushed. The F-051 cookie change means everyone's access quietly renews — worth a conscious OK |
+| **Review + merge `audit-sharing-login-2026-09-14`** | The audit + all eight fixes live there; nothing pushed. The F-051 cookie change means everyone's access quietly renews — worth a conscious OK (F-057 next session narrows it to full access only) |
+| **Access-policy OK** | Proposed rule (not yet decided): game link for players, invite code for trusted regulars, stop handing out the legacy organizer link. Say yes/adjust and it becomes a §5 decision + share-panel copy |
 
 ## Next few sessions (shaped, ready to build)
 

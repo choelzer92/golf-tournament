@@ -1098,6 +1098,76 @@ there if Craig wants it.
 
 ---
 
+<!-- ===== Sharing process think-through — 2026-09-14, second pass (Craig's scaling
+lens: "share things easily, without causing extra bugs… doesnt get more complicated
+when scaling"). Model + principles recorded as DECISIONS §5.bh. ===== -->
+
+### F-056 — The person running a game from the legacy link can't share it  [P2] [continue]
+
+**Screen:** game hub as a `pool`-access visitor · `share-audit-12` (note the missing Share button)
+**Violates:** north star (share easily); F-004's own line — Share is not a mutation of the game
+
+**Observed:** the hub header hides Share behind `!poolOnly` (`pool/[id]/page.tsx:351`,
+alongside genuinely mutating controls). A co-organizer who creates a game via the legacy
+`?key=` link therefore has NO way to send scoring links for their own game. And every
+guest already HOLDS the link they arrived by — hiding the panel from them exposes
+nothing, it just forces the "text me the link again" round-trip through the owner.
+
+**Options**
+- **A. Show Share to everyone in the game.** The panel re-surfaces a URL the viewer
+  effectively has; mutating controls stay hidden. Simplest, no identity check, scales.
+- **B. Show Share only to the game's creator** (`createdByGhin` match). Tighter, but adds
+  an identity check for no real exposure difference, and a no-GHIN guest organizer gets nothing.
+- **C. Leave it.** The owner remains the sharing bottleneck.
+
+**Recommendation:** A.
+
+**Status:** chosen A (Craig 2026-09-14, "that makes sense") — build next session with F-055.
+
+---
+
+### F-057 — The 30-day sliding cookie applies to guests too: one tap = a month of create access  [P3] [continue]
+
+**Screen:** any share-link visit (cookie behavior, no single screen)
+**Violates:** Craig's scaling lens — breadth × duration should not grow silently (F-051 follow-up)
+
+**Observed:** the F-051 fix set ONE `EXPIRY_SECONDS` for both cookie levels, so a
+one-time scoring guest now keeps `pool` scope (including game creation at /pool/new) for
+30 sliding days after one tap. Harmless in the circle of trust; quietly broad at scale.
+
+**Options**
+- **A. Level-dependent lifetime:** `full` keeps 30-day sliding (the F-051 point); `pool`
+  returns to 48h. A guest loses nothing — their bookmark IS the link, and it re-grants
+  instantly on every tap.
+- **B. Leave both at 30 days** until the §5c trigger.
+
+**Recommendation:** A — the asymmetry matches how each persona actually returns.
+
+**Status:** chosen A (Craig 2026-09-14) — build next session with F-055.
+
+---
+
+### F-058 — The share QR ships the token to a third party and dies offline  [P3] [continue]
+
+**Screen:** both share panels · `share-audit-09/11`
+**Violates:** UI_CONVENTIONS §6b (never block on the network); token hygiene at scale
+
+**Observed:** both QR codes are `<img src="https://api.qrserver.com/...?data={link}">`
+(`pool-share.tsx:14`, `pool/[id]/page.tsx:785`) — the full share URL, per-game token
+included, is sent off-device just to render a picture, and the parking-lot/no-signal
+case shows a broken image where the QR should be.
+
+**Options**
+- **A. Generate the QR locally** (small QR encoder rendering to SVG/canvas; one tiny
+  dependency or a vendored encoder). Token never leaves the device; works offline.
+- **B. Leave it** — the token gates UI only today (RLS open by §5c), so the leak is low-stakes.
+
+**Recommendation:** A — cheap, and it removes a scaling liability before tokens mean more.
+
+**Status:** chosen A (Craig 2026-09-14) — build next session with F-055.
+
+---
+
 ## Settled — full text in FINDINGS_ARCHIVE.md
 
 One line per archived finding; the full entry (observation, options, status, and

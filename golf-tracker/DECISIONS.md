@@ -166,6 +166,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.be | F-027 writers-first: ship defensive code before touching live rows; backfill is a separate approved step |
 | 5.bf | Friend feedback is evaluated one by one, never taken as fact — verify, diagnose, then propose |
 | 5.bg | Classic-pool money defaults are the Warriors' FORMAT, not the baseline: junk $0/off + fold into overall; money step shows per-player/per-leg $ that add up |
+| 5.bh | Group management consolidates on /home (F-055 opt A; opt B = §5c, not chosen); sharing scales by ONE LINK KIND PER JOB, token on the game row — never add link kinds; F-056/57/58 queued on recommendations |
 
 ---
 
