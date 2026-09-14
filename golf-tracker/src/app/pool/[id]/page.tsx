@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { GameSetup, Player, TeeSetOption } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
+import { QrImage } from '@/components/qr-image';
 import type { PoolGame, PoolTeam, PoolTeamDetail, PoolJunkValues, PoolMoneyMode } from '@/lib/pool-game';
 import {
   formatOfGame,
@@ -782,7 +783,6 @@ function SharePanel({ game, onSave, onClose }: { game: PoolGame; onSave: (g: Poo
   // constant: it grants a ROLE and exists before any game does, so it can't be
   // per-game. Goes to co-organizers you trust, not a whole group chat.
   const organizerLink = `${origin}/pool/new?key=${ORGANIZER_TOKEN}`;
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(playerLink)}`;
 
   async function shareLink(url: string, title: string, key: 'player' | 'organizer') {
     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -815,8 +815,7 @@ function SharePanel({ game, onSave, onClose }: { game: PoolGame; onSave: (g: Poo
           </button>
         </div>
         <div className="mt-3 flex justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrSrc} alt="QR code — open this game to enter scores" width={180} height={180} className="rounded-lg border border-gray-200" />
+          <QrImage data={playerLink} alt="QR code — open this game to enter scores" className="rounded-lg border border-gray-200" />
         </div>
         <p className="text-center text-[11px] text-gray-400 mt-1">Or scan to open this game on a phone</p>
 

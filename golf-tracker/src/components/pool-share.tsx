@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ORGANIZER_TOKEN } from '@/lib/invite-gate';
+import { QrImage } from '@/components/qr-image';
 
 // Self-contained "share the organizer link" button + modal. Reused from the
 // dashboard, the setup wizard, and a pool game's hub. Kept self-contained (no
@@ -11,7 +12,6 @@ export function PoolShareButton({ className, label = 'Share' }: { className?: st
   const [copied, setCopied] = useState(false);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const organizerLink = `${origin}/pool?key=${ORGANIZER_TOKEN}`;
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(organizerLink)}`;
 
   async function share() {
     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -49,8 +49,7 @@ export function PoolShareButton({ className, label = 'Share' }: { className?: st
               </button>
             </div>
             <div className="mt-3 flex justify-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qrSrc} alt="QR code — create a pool game" width={180} height={180} className="rounded-lg border border-gray-200" />
+              <QrImage data={organizerLink} alt="QR code — create a pool game" className="rounded-lg border border-gray-200" />
             </div>
             <p className="text-center text-[11px] text-gray-400 mt-1">Or scan to open on a phone</p>
           </div>
