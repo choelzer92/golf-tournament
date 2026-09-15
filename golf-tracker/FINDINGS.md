@@ -108,98 +108,6 @@ as security but really a feature, and it makes the eventual RLS work easier.
 
 ---
 
-### F-005 — Wizard step 1 exposes every money setting before the course is chosen  [P1] [start]
-
-**Screen:** `/pool/new` step `details`, 390px viewport ·
-`e2e/screenshots/wizard-1-details-phone.png`
-**Violates:** the north star's central tension — *maximum possibility, **minimum
-exposed complexity***
-
-Craig: *"the wizard is more important since that is what people will use if i
-actually can scale the app."* This is the first screen a new user sees, and the
-parking-lot critical path.
-
-**Observed.** Measured at phone width: **9 buttons + 11 inputs = 20 controls**, on
-one scrolling screen, before a course is even chosen. In order: Game Name, Game,
-Game Type, Entry $, Handicap Allowance %, Handicap Strokes, Handicap Basis,
-Position Split, Junk Values (5 separate number inputs), Team Ball Selection.
-
-**The decisive measurement:** every game *mode* uses `showIf` progressive
-disclosure — 21 usages across `game-modes/*.ts`. The classic pool wizard, which is
-**the default path**, has **zero**. So the app's own mechanism for "depth costs
-nothing until asked for" is not applied to the screen that needs it most.
-
-**Why it matters most of all the findings:** a new user's first impression is a
-tax form. It asks them to decide "Position Split" and "Albatross = 3 points"
-before they've picked a course. Every one of these already has a sensible default —
-so a golfer who wants "the usual Saturday game" should be able to type a name and
-tap Next, and never see any of it.
-
-Also observed at 390px:
-- **8 tap targets under 44px** — the six toggle pairs are 38px; Share/Cancel in the
-  header are 20px. Apple's minimum is 44; Material's is 48.
-- The step indicator (`Details → Course → Field → Tees → Teams → Create`) renders 6
-  chips across a 390px screen, so it's cramped and can't show progress well.
-
-**Options**
-- **A. Collapse advanced settings behind "Money & handicap options".** Step 1
-  becomes Game Name + Game + Game Type; everything else lives in one expandable
-  section, closed by default, with a one-line summary of the current defaults
-  ("$25 · off the low · winner-take-all"). Uses the pattern the modes already use.
-  Cost: one more tap for organizers who *do* tune settings every time.
-- **B. Move money to the last step.** Step 1 becomes purely "what game, what's it
-  called"; money is decided at Create, where the team count is known (the pot-split
-  hint already says it fills in from the number of teams). Better information order,
-  bigger restructure.
-- **C. Defaults from the group.** A game started from a saved group already carries
-  its defaults — so show a summary line and a single "Change" link instead of the
-  full form. Highest leverage for recurring games (the common case), but only helps
-  when a group is chosen.
-- **D. Leave it.** Organizers who play weekly may *want* every dial visible.
-
-**Recommendation:** **A now, C next.** A is contained, reuses the established
-pattern, and directly serves the north star. C then makes the recurring case nearly
-zero-config, which is where the real "seamless" win is. B is the most correct
-information architecture but the largest change — worth considering if A doesn't go
-far enough.
-
-Tap-target sizing is a separate, mechanical fix (raise toggles to 44px) and can be
-done independently of which option is chosen.
-
-**Status: PARTIALLY ADDRESSED (2026-08-11).** Craig chose to start with clarity
-rather than collapsing, which turned out to be the better order — a hidden control
-with a bad label is worse than a visible one.
-
-Done so far:
-- **Every option relabelled as a question** with its consequence stated in strokes or
-  dollars, not in mechanism. Craig's rule: *a label must state what CHANGES for the
-  players, not what the code does.*
-- **USGA allowance recommendations per format**, with one-tap apply. The tables were
-  already in `lib/formats.ts` but never surfaced.
-- **Group picker moved to step 1** (option C, ahead of schedule) — it answers who
-  plays / how we play / what we play at once, and its members auto-load on the Field
-  step so the question isn't asked twice. First-timers with no groups see no picker
-  at all rather than an empty dropdown.
-
-**Money moved to its own step (option B) + tap targets, 2026-08-11.** Step 1 measured
-**20 controls (9 buttons + 11 inputs)** at the start of this work; it now measures
-**14 (10 buttons + 4 inputs)** — inputs down from 11 to 4. Buy-in, who-gets-paid,
-bonus points and match payouts moved to the final step, renamed **"What's it worth?"**,
-where the pot can finally be shown in real dollars (`8 players × $25 = $200`) because
-the field and team count are known. Scoring questions (allowance, who gets strokes,
-strokes exchanged) stayed on step 1 — they decide who *wins* a hole, which is a
-different question from who *pays*.
-
-Tap targets: the six toggle pairs went from 38px to 44px. Undersized elements dropped
-**8 → 3**, and the remaining three are inline text links (Share, Cancel, "Use 85%"),
-which are correctly not tap-targets.
-
-**Status: F-005 ADDRESSED.** Remaining wizard work is tracked separately: the
-multi-day fork, group-defaults-as-confirmations on each step, and F-006's format
-ceiling.
-
----
-
 ### F-013 — The SCORECARD can only express two sides, so a 3+ side game scores untagged  [P2] [track]
 
 **Where:** `src/lib/game-state.ts:9` (`Player.team?: 'A' | 'B'`), consumed at ~27 sites in
@@ -498,45 +406,6 @@ doesn't stick. Opt C (standings strip on the card, §6b) remains open as the dee
 
 ---
 
-### F-031 — Playing Stableford, you can't see your score to par  [P2] [track]
-
-**Report:** "I still want to see my score to par when I'm playing Stableford."
-**Triage:** the leaderboard ranks on points with PACE (§5.af/§5.am); the ask is the
-PLAYER's own to-par while playing — likely a scorecard surface. Gross per hole is
-entered there, so to-par is derivable with no new data. Check what the card header
-shows mid-round for a Stableford game.
-
-**Status:** open.
-
-**Verified 2026-09-10** (`f028-scorecard-phone.png`, `f028-leaderboard-phone.png`):
-partially confirmed. The scorecard's grid ALREADY shows running to-par — the Tot
-column reads "24₋₇", "34ᴇ", "41₊₇" (tiny superscript, easy to miss in sunlight), and
-each entry card shows "Net: 4 (E)" per hole once scored. What's genuinely missing:
-the **leaderboard** in a points game shows pts/Thru/$ only — no to-par column at all,
-and no GROSS to-par anywhere (the card's figure is gross-relative... verify: the Tot
-superscript is gross vs par; the leaderboard has Gross and Net TOTALS in Player
-Details but relative-to-par nowhere). So the friend playing Stableford and glancing
-at the standings can't see anyone's to-par.
-
-**Options**
-- **A. Add a "to par" column to the individual-game STANDINGS table** (pts · thru ·
-  to-par · $). One column, derivable from gross already in hand; mirrors how the
-  team leaderboard already leans on score-to-par (§5.af).
-- **B. Enlarge/clarify the scorecard Tot to-par** (it exists but reads as a typo-
-  sized superscript). Cosmetic companion to A.
-- **C. Leave it — the per-hole "Net: 4 (E)" already answers it.** But that's per
-  hole, not cumulative, and vanishes as you move holes.
-
-**Recommendation:** A (+B if Craig agrees the superscript is too subtle).
-
-**BUILT 2026-09-10** (opt A, Craig's pick; commit d54cfe2): "To par" column (gross vs
-par, strokes valence: under green / over red) in the individual STANDINGS whenever the
-engine isn't already supplying its ranked to-par/PACE column. Derived from the details
-grid's gross+par — no engine change. Opt B (bigger card superscript) not done — ask if
-he still wants it. e2e `F-031`.
-
----
-
 ### F-033 — "1v1 and more 3-player game types" — mostly EXIST; he can't find them  [P2] [start]
 
 **Report:** "1v1 game types and more 3-player game types (or the capability to
@@ -596,37 +465,6 @@ default) deliberately not done. e2e `F-033` ×2 (2p, 3p, absent at 4).
 so what he saw may predate the F-020 fit badges and the current mode list entirely. The
 verification above is of THIS branch; his experience was of live/main. Part of the
 answer back may simply be "update: they're there now / clearer once the branch ships."
-
----
-
-### F-034 — Choosing a group can "recommend" a STALE game name from the wizard draft  [P3] [start]
-
-**Where:** `app/pool/new/page.tsx` — draft hydration (line ~255 restores `name` from
-sessionStorage `WIZARD_KEY`) + `onGroupLoaded` (line ~627: `setName((prev) => prev.trim() ? prev : g.name)`)
-**Reported:** Craig, 2026-09-10 — "opened a test game, chose Friday group, and it's
-recommending Weekend Warriors as the name. that's weird."
-
-**Diagnosis (code inspection, mechanism confirmed):** the wizard auto-saves every field
-to a sessionStorage draft, including `name`, and restores it on mount. Loading a group
-only names the game **when the name is empty** — a courtesy fill. So the sequence
-"started/abandoned a game involving Weekend Warriors earlier in this tab → open a new
-game → pick Friday Group" shows Weekend Warriors in the name box: it isn't a
-recommendation at all, it's the previous draft's leftover, and the group load politely
-declines to overwrite what looks like something you typed. The draft deliberately does
-NOT restore players/step (a fresh field per game) — but `name` is restored, which is
-right for "resume my setup" and wrong-looking the moment you change groups.
-
-**Options**
-- **A. When a group/format loads and the current name equals a STALE auto-fill (tracked
-  the way `appliedFormat` already tracks its name), replace it with the new group's
-  name.** Track "the name came from group X" in state; a hand-typed name is never touched.
-- **B. Clear `name` from the draft when the wizard is opened fresh from a group page or
-  /pool hub (arrival context says "new game").** Cheapest; loses "resume my half-built
-  setup keeps its name" only for those entry points.
-- **C. Leave it; it's a draft-resume feature.** Evidence against: Craig read it as a
-  recommendation — the box gives no hint the name is left over from a previous setup.
-
-**Status:** open — needs Craig's pick.
 
 ---
 
@@ -727,169 +565,6 @@ Morgan (a 2 v 3). Assignment WORKED; this is a display problem, not lost data.
 
 ---
 
-### F-041 — "Stableford — 4 too many" at 8 players is FALSE as the golfer reads it: the pool plays Stableford fine  [P1] [start]
-
-**Where:** `stableford.ts:115` (`playersMax: 4`) + the F-020 fit badge; meanwhile the classic
-pool has a Strokes/Stableford toggle (`teamScoreBasis`, wizard line 1362) and every team format
-(best ball, two best, combined, scramble…) at ANY field size.
-**Reported:** Craig, 2026-09-14 — "Feels weird that it says we couldn't play stableford in this
-case, even with 8 players… The idea of a pool is really just a side, but with 4 teams per side
-[per team]… you could play best ball stableford, best 2 balls stableford, all 4 combined
-stableford, etc."
-
-**Diagnosis:** the registry's "Stableford" mode is the INDIVIDUAL single-group game (everyone
-for themselves, 2–4 players). The fit badge honestly reports that mode's cap — but the golfer
-reads the label as the SCORING SYSTEM, and the scoring system is available at 8 players in two
-other places (pool's Stableford toggle; Sides/Match `scoring: stableford`). Same failure class
-as F-037's naming half: the picker's vocabulary is mode-registry taxonomy, not golfer taxonomy.
-Golfers compose a game from THREE independent axes — (1) team structure (solo / pairs / foursomes
-/ N sides), (2) hole scoring (strokes / stableford / quota / match), (3) money (pot / per-leg /
-per-point / skins) — and the picker presents ~10 pre-composed bundles whose names collide with
-axis-2 words ("Stableford", "Skins") and axis-1 words ("Sides").
-
-**This is the approved Team Competition engine's problem statement** (§5g,
-`.claude/plans/tingly-petting-reddy.md`, memory `project_pool-team-competition-plan`: "N teams
-of size K, combined Stableford etc."), plus F-037's pairings axis. The wizard-level fix short of
-the engine: when a picked mode misfits, the F-020 alternative line should also say when the POOL
-or SIDES can play that scoring ("8 players can play Stableford as a pool — team toggle — or as
-sides"), and/or the badge should not read as refusing a scoring system the app offers.
-
-**Status:** redirect line FIXED 2026-09-14 (misfit note now says "N players can still score
-Stableford — as a team Pool… or as Sides / Match"; e2e). CORRECTION same day: the redirect
-keyed on mode id `stableford` but the registry id is `stableford-ind`, so the line never
-fired — caught by the (then-unverified) e2e assertion on its first real run; id fixed. DIRECTION AGREED in-session, Craig:
-"a pool is effectively just a 4v4 game… choose your groups, your game style, your players, how
-many teams, and go… lets think about how to simplify this" — structure-first wizard question,
-modes become shortcuts; the Team Competition engine's UI framing. Record as a decision when
-scope is confirmed; do NOT build the engine unprompted.
-
----
-
-### F-042 — "Everyone buys in" vs "Two teams, head-to-head" answers a question the organizer hasn't been asked  [P2] [start]
-
-**Where:** wizard `pool/new/page.tsx:1204-1231` (classic pool only).
-**Reported:** Craig, 2026-09-14 — "what is the difference between two teams, head to head, and
-'everyone buys in'? I'm confused here."
-
-**Diagnosis:** `moneyMode: pot | match`. 'pot' = every player antes, pot split across
-front/back/overall/junk, paid by finishing place across N foursomes. 'match' = exactly TWO
-foursomes, no ante — the losing side pays fixed $ per leg + junk differential (§ memory
-`pool-money-modes-and-groups`). The helper text under the toggle does explain this, but the
-LABELS name payment mechanics while the real question is game structure ("is this a
-tournament-style pool or one team against another?"), asked before teams even exist. The toggle
-also silently changes the recommended allowance 85%↔90% (see F-043). Candidate framing: ask it
-as structure ("All foursomes compete" vs "Two teams against each other"), or move it after teams
-are built where "two teams" is concrete.
-
-**Status:** label layer FIXED 2026-09-14 — toggle asks "Who competes against whom?" with
-"All teams, for a pot" / "Two teams, head-to-head"; e2e asserts. The move-after-teams idea
-stays open with the F-041 structure discussion.
-
----
-
-### F-044 — Pot-split defaults and the 85↔90 flip look arbitrary because their reasons are invisible  [P3] [start]
-
-**Reported:** Craig, 2026-09-14 — "the pot split seems weird. maybe that was hard coded, but
-this should be saved differently. Also, when I toggle everyone-buys-in vs head-to-head, the
-recommended value changes from 85% to 90%."
-
-**Diagnosis — both are deliberate, neither says so:**
-1. The pot split defaults come from `POOL_SPLIT_TABLE` (`pool-game.ts:295`) — CRAIG'S OWN
-   historical splits by team count (2 teams: 70/70/40/20 … extended +$25/leg beyond 5), recorded
-   as a decision. Editable per game. That he read his own table as "hard coded and weird" says
-   the SOURCE is invisible ("your usual split for 2 teams" would explain itself) — and/or the
-   numbers deserve a per-group saved default rather than a global table ("saved differently").
-2. 85→90 is USGA: four-ball STROKE play 85%, four-ball MATCH play 90% (`usgaRec`, wizard:1005).
-   The note names the format but the FLIP is unexplained at the moment it happens.
-
-**Status:** explanation layer FIXED 2026-09-14 — pot split says "The usual split for N teams —
-edit any leg"; the USGA notes name their driver ("(head-to-head)" / "(pot — two scores
-counting)"). The "saved per group" idea stays open, feeds the format library.
-
----
-
-<!-- ============ Sharing / login / identity audit — 2026-09-14 session ============
-Walked all four personas in the sandbox (e2e/sharing-audit.spec.ts, screenshots
-share-audit-01…21): owner via invite code, organizer via legacy ?key=, player via
-per-game token, returning visitor with expired cookie / expired GHIN token; plus
-share panels, sign-out, and the /pool/roster vs /home/groups overlap.
-
-What WORKS well (worth protecting, not just criticizing):
-- A deep link behind an expired cookie survives the gate round-trip: enter the code
-  and you land on the EXACT page you were sent (share-audit-05/06). This is the
-  "continuing" story doing its job.
-- The player share link is genuinely one-tap: opens THIS game, Enter Scores is right
-  there, no login (share-audit-12/13). F-004 scoping still holds.
-- Share panel copy is clear about what each link does and doesn't open.
-Sandbox limits: fake backend, no real GHIN — the expired-GHIN-token MODAL (vs the
-redirect) wasn't captured; cited from code (ghin-login-modal.tsx). -->
-
-### F-047 — "Sign Out" only signs you out of GHIN; the app stays open and remembers who you are  [P2] [continue]
-
-**Screen:** /home → Sign Out → /pool · `share-audit-16/17/18`
-**Violates:** golfer trust ("who am I" clarity); a control must do what it says
-
-**Observed:** Sign Out (`home/page.tsx:130`, `dashboard/page.tsx:177`) does
-`sessionStorage.clear()` + push to the login page — but the 48h `golf_access` cookie is
-never cleared (`clearAccessCookie`, `invite-gate.ts:95`, has ZERO callers) and the
-localStorage `ghin_golfer` identity mirror is never cleared either. After signing out,
-navigating to /pool walks straight back into the app (probe: "AFTER SIGN OUT, /pool
-GATED? NO"), still recognized as the same organizer.
-
-**Why it matters:** on a shared or borrowed phone (a real case — a friend scores on
-someone else's device), "Sign Out" promises an exit it doesn't deliver. And a user who
-signs out to "log in as someone else" will find the old identity ghosting /pool.
-
-**Options**
-- **A. Make Sign Out a full exit:** clear the cookie (the function already exists) +
-  both identity stores. Cost: the signer-outer must re-enter the invite code next time —
-  which is exactly what "sign out" should mean.
-- **B. Relabel the button "Sign out of GHIN"** and leave behavior. Honest, zero risk,
-  but keeps the ghost-identity problem.
-- **C. Leave it.** Everyone is in the circle of trust; nobody shares phones. (They do.)
-
-**Recommendation:** A — one function call that's already written, and the label becomes true.
-
-**Status:** FIXED 2026-09-14 per option A (Craig: "address these") — `logout()` on /home and
-/dashboard now clears the cookie AND both identity stores (`clearGhinIdentity`); e2e
-`F-047` proves the cookie is gone and /pool re-gates.
-
----
-
-### F-048 — The per-game share token is never actually checked: any 24-char key opens any game  [P2] [continue]
-
-**Screen:** `/pool/{id}?key=AAAAAAAAAAAAAAAAAAAAAAAA` (a made-up key) · `share-audit-14`
-**Violates:** the feature's own claim (per-game tokens are one of the two §5c items kept in scope "really a feature")
-
-**Observed:** the invite gate grants `pool` access to any token-SHAPED key
-(`/^[A-Za-z0-9_-]{20,32}$/`, `invite-gate.ts:91`) and defers real validation to the game
-page — but `shareTokenMatches` (`pool-game.ts:2394`) has **no callers anywhere in src/**.
-Probe confirmed on screen: a fabricated key landed fully inside the game (screenshot 14
-is the whole hub). So the minted per-game token is functionally identical to the legacy
-shared constant; the "per-game" part is decorative today.
-
-**Why it matters:** NOT re-raising F-002 (RLS stays deferred by decision). This is
-narrower: the feature Craig kept in scope doesn't do the one thing that distinguishes it.
-Practical effect within the trust circle is small — but revoke-by-reissue, the eventual
-point of per-game tokens, can't work until something checks the token.
-
-**Options**
-- **A. Wire the existing check in the game page:** on `pool` access with a key that fails
-  `shareTokenMatches`, show a friendly "this link isn't valid for this game — ask the
-  organizer for a fresh one" screen. Small, contained, uses code already written.
-- **B. Validate inside InviteGate.** Wrong layer — the gate would need to fetch the game.
-- **C. Leave until the §5c trigger.** Defensible; but then the dead `shareTokenMatches`
-  should say so, and the share panel shouldn't imply per-game scoping.
-
-**Recommendation:** A — it's the missing half of an approved, built feature, not new security surface.
-
-**Status:** FIXED 2026-09-14 per option A — the game page checks a present `?key=` with
-`shareTokenMatches` for pool-access visitors and shows "This link isn't valid for this
-game" on a mismatch; real links and keyless in-app navigation unaffected. e2e `F-048`
-covers both the refusal and the real-link regression.
-
----
-
 ### F-049 — Share-link players and invite-code owners have no "who am I" anywhere in the pool surfaces  [P2] [continue]
 
 **Screen:** game hub + scorecard as a token visitor · `share-audit-12/13`; owner landing · `share-audit-04`
@@ -923,294 +598,59 @@ hub — fold into whichever session touches the pool header next.
 
 ---
 
-### F-050 — The invite screen explains nothing to the person it interrupts  [P3] [continue]
+### F-060 — The team-build method cards don't read as ACTIONS; Craig couldn't "choose" Captains' deal  [P2] [start]
 
-**Screen:** cold visit / expired cookie · `share-audit-01/03/05`
-**Violates:** north star ("continuing" — a returning friend is the common case, not a stranger)
+**Reported:** Craig, 2026-09-15 — "the snake draft or 'captains deal' sort of ordering
+for pools seems to not work, i cant click that option" then, clarifying: "i dont
+understand how i choose the captains deal?"
 
-**Observed:** the gate says "Enter your invite code to continue / Ask the organizer for
-your invite code" — identical for a first-timer and for the friend whose cookie expired
-mid-week and who typed this same code last Tuesday. The error is a bare "Invalid code.
-Try again." Nothing says the code is unchanged, that a share LINK also works, or why
-access lapsed. (The redeeming half, worth keeping: after entering the code you land on
-the exact URL you asked for — screenshots 05→06.)
+**Diagnosed (sandbox, desktop AND 390px phone; screenshots
+`walk-17/18-pool-*`, `tmp-deal-phone-*`):** the mechanics WORK on both surfaces —
+tapping the "Captains' deal" card on the wizard's Set Teams step builds the teams
+(verified: best captain took the worst players, 46 vs 42 combined), and the game hub's
+edit-teams panel has its own working "Captains' deal" button. The finding is
+comprehension, not a defect, and the screen shows why:
 
-**Options**
-- **A. Returning-visitor copy:** set a harmless localStorage marker on first grant; when
-  present, the gate says "Your access expired — enter the same code as before." Cheap,
-  honest, no security change.
-- **B. Static copy tweak only:** "Enter the invite code — the same one works every time."
-  Zero mechanism, most of the value.
-- **C. Leave it.** It's one field; friends figure it out (they have — grumbling).
-
-**Recommendation:** B now (words are free), A if F-051 doesn't make expiry rare anyway.
-
-**Status:** FIXED 2026-09-14 per option B — the gate now says "Enter the invite code —
-the same one works every time." (F-051's sliding cookie makes the returner case rare,
-so option A's marker wasn't built.) e2e `F-050/F-051`.
-
----
-
-### F-051 — The 48h access cookie expires mid-week for a weekly game  [P2] [continue]
-
-**Screen:** the same invite gate, hit every week · `share-audit-05`
-**Violates:** north star ("continuing"); the known rough edge named in the session prompt
-
-**Observed:** `golf_access` max-age is 48 hours (`invite-gate.ts:3`). Craig's groups play
-weekly, so every player re-authenticates every single visit — the cookie effectively
-never persists between rounds. Nothing refreshes it on use (the gate only reads it).
+1. **Two rival triggers.** The Captains panel leads with a big green **"Build balanced
+   teams around captains"** button; three grey method cards sit far below under "How
+   should teams be built?" — and the first card ("Even them out around the captains")
+   DOES THE SAME THING as the green button. The screen's one emphatic action competes
+   with the actual choice.
+2. **The method cards read as descriptions, not buttons.** Grey border, no verb, no
+   chevron; the instruction ("Pick one to build them now") is small grey text. Craig —
+   the owner — didn't understand that tapping the card IS the choice. F-037's logic
+   applies: the owner not finding it is the strongest evidence it's invisible.
+3. **No state afterwards.** `teamBuild.method` knows how the teams were built, but the
+   cards show nothing — after a tap, the screen looks the same except the list below
+   changed, off-viewport at phone height.
 
 **Options**
-- **A. Extend max-age to 30 days.** One constant. The invite code's security posture
-  (deferred by §5c) is unchanged — the code itself never expires, so a longer cookie
-  concedes nothing real.
-- **B. Sliding expiry:** re-set the cookie on every gated visit, so regulars never see
-  the gate and a truly lapsed visitor still ages out. Slightly more code, nicest shape.
-- **C. Leave it.** 48h was presumably chosen for a reason — though no decision records one
-  (grep found none; likely an unexamined default).
+- **A. Make the method cards actions with state:** verb labels ("Deal teams now →"),
+  button styling, and after building, a "✓ Teams built by Captains' deal" chip on the
+  used card (from `teamBuild.method`, already tracked). Contained, no flow change.
+- **B. Merge the rivals:** the Captains panel's green button becomes the method list —
+  one box, "How should teams be built?", pick = build. Removes the duplicate trigger
+  entirely; bigger rework of a screen that already works.
+- **C. Answer only** (tap the card). Evidence against: the owner asked twice.
 
-**Recommendation:** B — regulars never re-enter, and it composes with F-050's copy for
-whoever still does.
+**Recommendation:** A now (mechanical, testable), consider B inside the game-structure
+design work (§5.bj) where this screen gets rethought anyway.
 
-**Status:** FIXED 2026-09-14 as A+B COMBINED — sliding expiry alone at 48h would still
-lapse between weekly rounds, so the max-age is now 30 days AND the gate re-sets the
-cookie on every visit (a weekly regular never re-enters; a lapsed visitor ages out after
-a month). e2e `F-051` ×2 (fresh grant ≥20d out; a 2-day cookie refreshed on visit).
+**Craig, same session, third message:** "it says pick one to build them now, (where do i
+pick) when i click the boxes nothing happens, cant even tell im touching them. then says
+or drag nobody at all, what?" — confirming diagnosis point 3 as the heart of it (the
+result is off-viewport, the tap shows nothing), plus a fourth defect: **the "Or drag
+nobody at all" line describes an interaction that doesn't exist** (assignment is by
+"Move to" menus, not dragging).
 
----
-
-### F-052 — A legacy-link organizer who wanders past the fence is silently dumped into a blank New Game wizard  [P2] [start]
-
-**Screen:** `?key=poolparty2026` visitor navigates to /home · `share-audit-07/08`
-**Violates:** UI_CONVENTIONS §4 (say what happened, not just the absence); minimum exposed complexity
-
-**Observed:** a `pool`-access visitor touching any non-pool route is redirected to
-`/pool/new` (`invite-gate.tsx:24`) — the middle of game setup, with no message. From
-their seat: "I tapped something and the app started making me build a game." The natural
-home for this persona is `/pool` (My Games), which is where their link lands them and
-where their login card lives.
-
-**Options**
-- **A. Redirect to `/pool` instead of `/pool/new`.** One-line change of destination;
-  /pool already explains itself ("See your saved games", + New Game).
-- **B. Redirect to /pool + a one-time toast** ("That page needs a full account — you have
-  organizer access"). More honest, slightly more code.
-- **C. Leave it.** The fence is rarely hit; organizers stay in their lane.
-
-**Recommendation:** A — the fence should land people on a floor, not a form.
-
-**Status:** FIXED 2026-09-14 per option A — the fence redirects to `/pool`. e2e `F-052`.
-
----
-
-### F-053 — A returning user with an expired GHIN session is greeted like a stranger  [P3] [continue]
-
-**Screen:** /home with no `ghin_token` → bounced to `/` · `share-audit-15`
-**Violates:** north star ("continuing"); the "GHIN re-login prompts" rough edge
-
-**Observed:** `/home`, `/dashboard`, and `/home/groups/*` check only token PRESENCE and
-bounce to the login page, which says "Sign in with your GHIN account **to get started**."
-The user's identity is sitting in localStorage (`ghin_golfer` survives everything —
-F-047's flip side) but the page doesn't use it. Nothing says "your session expired";
-"get started" reads as if the app lost their data. (In-game, the GhinLoginModal handles
-this case well — "Your GHIN session timed out (they last ~12 hours)" — but the login
-PAGE, where the /home bounce lands, has no such framing. Not capturable in the sandbox;
-cited from `ghin-login-modal.tsx:51-54` and `page.tsx:55`.)
-
-**Options**
-- **A. Recognize the returner:** if `ghin_golfer` exists, the login page says "Welcome
-  back, {first name} — your GHIN session expired (they last about 12 hours). Sign in to
-  continue." Data's already there; copy-only + one read.
-- **B. Bounce to `/` with a query flag** (`/?expired=1`) and branch copy on that. Same
-  effect, no localStorage read, slightly uglier URL.
-- **C. Leave it.** Logging in again works regardless.
-
-**Recommendation:** A.
-
-**Status:** FIXED 2026-09-14 per option A — the login page reads the durable identity and
-greets a returner ("Welcome back, {first} — your GHIN session expired…"); after a real
-Sign Out (F-047 clears the identity) it correctly reverts to the stranger copy. e2e `F-053`.
-
----
-
-### F-054 — At phone width, the saved-players list hides every NAME and clips Remove  [P2] [start]
-
-**Screen:** /pool/roster, 390px viewport · `share-audit-19`
-**Violates:** UI_CONVENTIONS §5 (phone-first); §3 (the name IS the row's identity)
-
-**Observed:** each saved-player row renders name + gender, index · GHIN, a tee select,
-and Remove in one overflowing line: on a phone the visible row is "Index 19.2 · GHIN
-2000044 [Tee: auto] R" — the NAME is pushed out of view and Remove is clipped to a
-letter. The names are in the DOM (innerText shows "Abe Weiss" etc.); it's pure layout.
-A 61-row list where every row is anonymous is unusable for its one job (find a person).
-
-**Why it matters:** this is the "Full roster manager" both /home and the group pages
-link to — every persona managing people lands here, on a phone.
-
-**Options**
-- **A. Two-line row:** name on its own line; index/GHIN + tee + Remove below. Standard
-  phone pattern, no information loss.
-- **B. Hide index/GHIN behind the row tap** and keep one line (name + tee + Remove).
-- **C. Fold into F-055:** if the roster page is being reshaped anyway, fix the layout as
-  part of the consolidation rather than twice.
-
-**Recommendation:** A now if F-055 waits; C if the consolidation is imminent.
-
-**Status:** FIXED 2026-09-14 per option A (F-055 has since landed too — the two-line row
-survived the consolidation) — the row is
-two lines: name + gender + Remove on top, index/GHIN + usual-tee below. e2e `F-054`
-asserts the first row's name and Remove sit inside a 390px viewport.
-
----
-
-### F-055 — Two parallel group-management UIs: /pool/roster's GroupsManager vs /home/groups/[id]  [P2] [start]
-
-**Screen:** both, seeded with the same groups · `share-audit-19/20/21`
-**Violates:** consistency IS ease (UI_CONVENTIONS intro); Craig 2026-09-10: "the new one should be the standard"
-
-**Observed:** group CRUD lives on /pool/roster (create, rename, delete, membership via
-dropdown + chips — screenshot 19), while /home/groups/[id] is the far better surface
-(dashboard: start-something, money rollup, recent games, formats, searchable members —
-screenshot 21) but CANNOT create, rename, or delete a group. So the good page depends on
-the page Craig wants to retire, and three links ("Manage" on /home, "Full roster manager"
-on the group page) route people back to the old UI.
-
-**The gating constraint the consolidation must answer:** /home and /home/groups are
-GHIN-login-only (`sessionStorage.ghin_token` gate) and full-access-only, while
-/pool/roster is reachable at `pool` access — it's where a legacy-link organizer manages
-their roster. Moving group management to /home as-is would strand that persona.
-
-**Options**
-- **A. /home/groups becomes the only group UI:** add create (on /home's "Your groups")
-  and rename/delete (on the group dashboard); /pool/roster keeps saved PLAYERS only;
-  rewire the three links. The `pool`-access organizer keeps players but loses group
-  management — acceptable if groups are an owner concept (they are today: groups are
-  Craig's).
-- **B. Same as A, plus open /home/groups to `pool` access** scoped to their own groups.
-  Bigger; drags /home's GHIN gate into question — starts smelling like the F-002 trigger.
-- **C. Leave both, relabel** ("Saved players" vs "Groups") so at least the duplication is
-  named. Cheapest, changes nothing structural.
-
-**Recommendation:** A — matches Craig's stated direction, smallest honest scope, and the
-persona question has a defensible answer. B is the accounts conversation (§5c) — STOP
-there if Craig wants it.
-
-**Status:** FIXED 2026-09-14 per option A (§5.bh): /home "Your groups" gained create
-(+ New group → lands on the new dashboard), the group dashboard gained rename + delete,
-/pool/roster is saved players only (GroupsManager deleted, retitled). Nothing migrated.
-e2e `F-055` (create → rename → delete, and the roster page has no group manager).
-
----
-
-<!-- ===== Sharing process think-through — 2026-09-14, second pass (Craig's scaling
-lens: "share things easily, without causing extra bugs… doesnt get more complicated
-when scaling"). Model + principles recorded as DECISIONS §5.bh. ===== -->
-
-### F-056 — The person running a game from the legacy link can't share it  [P2] [continue]
-
-**Screen:** game hub as a `pool`-access visitor · `share-audit-12` (note the missing Share button)
-**Violates:** north star (share easily); F-004's own line — Share is not a mutation of the game
-
-**Observed:** the hub header hides Share behind `!poolOnly` (`pool/[id]/page.tsx:351`,
-alongside genuinely mutating controls). A co-organizer who creates a game via the legacy
-`?key=` link therefore has NO way to send scoring links for their own game. And every
-guest already HOLDS the link they arrived by — hiding the panel from them exposes
-nothing, it just forces the "text me the link again" round-trip through the owner.
-
-**Options**
-- **A. Show Share to everyone in the game.** The panel re-surfaces a URL the viewer
-  effectively has; mutating controls stay hidden. Simplest, no identity check, scales.
-- **B. Show Share only to the game's creator** (`createdByGhin` match). Tighter, but adds
-  an identity check for no real exposure difference, and a no-GHIN guest organizer gets nothing.
-- **C. Leave it.** The owner remains the sharing bottleneck.
-
-**Recommendation:** A.
-
-**Status:** FIXED 2026-09-14 per option A — Share sits outside the `poolOnly` guard on
-the game hub (Save format/Edit stay hidden). e2e `F-056` (guest opens the panel; mutating
-buttons absent).
-
----
-
-### F-057 — The 30-day sliding cookie applies to guests too: one tap = a month of create access  [P3] [continue]
-
-**Screen:** any share-link visit (cookie behavior, no single screen)
-**Violates:** Craig's scaling lens — breadth × duration should not grow silently (F-051 follow-up)
-
-**Observed:** the F-051 fix set ONE `EXPIRY_SECONDS` for both cookie levels, so a
-one-time scoring guest now keeps `pool` scope (including game creation at /pool/new) for
-30 sliding days after one tap. Harmless in the circle of trust; quietly broad at scale.
-
-**Options**
-- **A. Level-dependent lifetime:** `full` keeps 30-day sliding (the F-051 point); `pool`
-  returns to 48h. A guest loses nothing — their bookmark IS the link, and it re-grants
-  instantly on every tap.
-- **B. Leave both at 30 days** until the §5c trigger.
-
-**Recommendation:** A — the asymmetry matches how each persona actually returns.
-
-**Status:** FIXED 2026-09-14 per option A — `setAccessCookie` picks lifetime by level
-(`full` 30d sliding, `pool` 48h; the gate's sliding refresh passes the level through).
-e2e `F-057` (pool grant ≤48h) alongside the kept F-051 ≥20d full-grant assertion.
-
----
-
-### F-058 — The share QR ships the token to a third party and dies offline  [P3] [continue]
-
-**Screen:** both share panels · `share-audit-09/11`
-**Violates:** UI_CONVENTIONS §6b (never block on the network); token hygiene at scale
-
-**Observed:** both QR codes are `<img src="https://api.qrserver.com/...?data={link}">`
-(`pool-share.tsx:14`, `pool/[id]/page.tsx:785`) — the full share URL, per-game token
-included, is sent off-device just to render a picture, and the parking-lot/no-signal
-case shows a broken image where the QR should be.
-
-**Options**
-- **A. Generate the QR locally** (small QR encoder rendering to SVG/canvas; one tiny
-  dependency or a vendored encoder). Token never leaves the device; works offline.
-- **B. Leave it** — the token gates UI only today (RLS open by §5c), so the leak is low-stakes.
-
-**Recommendation:** A — cheap, and it removes a scaling liability before tokens mean more.
-
-**Status:** FIXED 2026-09-14 per option A — shared `QrImage` component encodes locally
-via the `qrcode` package to a data: URL; both panels use it. e2e `F-058` asserts the img
-src is data:/blob and never qrserver.
-
----
-
-### F-059 — "Sees everything" is keyed to the invite code, not to Craig — any code-holder is indistinguishable from the owner  [P1] [continue]
-
-**Screen:** every listing surface (`/pool`, `/home`, stats, groups, roster) — verified probe, ~15 call sites
-**Violates:** Craig's stated model ("users see the games made by themselves, and I see everyone's"); §5h (money visibility is scoped)
-
-**Observed:** every owner check is `isOwner = getAccessLevel() === 'full'`. The scoped
-path (games/groups filtered to the viewer's GHIN) exists and works — but it only applies
-to share-link visitors. Friends who enter the invite code get the OWNER view: all games,
-all groups, the full money ledger, and mutating controls on every game. Craig believed
-identity did the scoping; it's the credential.
-
-**Options**
-- **A. Key ownership to identity (CHOSEN):** one shared helper — `isAppOwner()` = full
-  access AND `getCreatorGhin()` matches the configured owner GHIN — replacing the ~15
-  `getAccessLevel() === 'full'` owner checks. The invite code comes to mean MEMBER
-  (keeps /home, stats, groups — scoped to their own GHIN, paths already built); Craig's
-  identity is what unlocks everything. Design care: a code-holder who hasn't GHIN-logged-in
-  resolves no identity — reuse /pool's "log in to see your games" prompt pattern, don't
-  show a false-empty or everyone's data.
-- **B. Behavioral only:** code stays Craig-only, friends use links. Zero code, but
-  link-scoped friends have no /home (no season ledger) — hurts "continuing".
-- **C. Wait for §5c accounts.**
-
-**Recommendation:** A — it makes Craig's mental model true from parts that already exist.
-
-**Status:** FIXED 2026-09-14 per option A — `isAppOwner()` (full access AND the
-configured owner GHIN, `NEXT_PUBLIC_OWNER_GHIN`; sandbox defaults to 1234567) replaced
-every `getAccessLevel() === 'full'` owner check, plus two surfaces that had NO check:
-/dashboard (listed every game) and /home/feedback (everyone's notes). No-identity
-code-holders get /pool's login prompt. ROLLOUT: until Craig sets `NEXT_PUBLIC_OWNER_GHIN`
-(his real GHIN) in the deploy env, the helper falls back to legacy full=owner, so the
-deploy is safe but members aren't scoped yet. e2e `F-059` (owner sees all / member sees
-own / no-identity gets the prompt).
+**Status: opt A BUILT 2026-09-15** (8ef4ebc, while Craig was stuck live): method taps
+scroll to the built teams; the used card shows "✓ Built these teams" (demotes to
+"(hand-adjusted since)" after a manual move); touch pressed-state on the cards; copy now
+says "Or build nothing — put each player on a team by hand with the 'Move to' menus
+below." e2e `F-060` at phone width. STILL OPEN: opt B (merge the rival green
+"Build balanced teams around captains" trigger into the method list) — feeds the
+game-structure design; and hub edit-teams parity (its buttons sit next to their result,
+so the confusion is milder there).
 
 ---
 
@@ -1256,3 +696,21 @@ close-out → completed); their write-ups live in `UI_MODE_AUDIT.md`.
 | F-043 | Handicap arithmetic was a black box — tap-to-open chain disclosure (`explainPlayingHandicap`), pinned to the real math by test; FIXED |
 | F-045 | Junk on by default on a fresh classic pool — starts $0 behind "Add bonuses", junk pot-quarter folds into Overall; Craig signed off, merged (§5.bg) |
 | F-046 | A format saved from a group's game didn't surface when starting that group's next game — save attaches to the group + picker leads with "{Group} plays"; FIXED, both threads |
+| F-005 | Wizard step 1 was a 20-control tax form — labels became questions, group picker moved to step 1, money moved to its own "What's it worth?" step (14 controls), 44px targets; ADDRESSED |
+| F-031 | Playing Stableford you couldn't see to-par — "To par" column in the individual standings (gross vs par, valence colours); opt B (card superscript size) DEFERRED by §5.bj |
+| F-034 | A group pick "recommended" a stale draft name — auto-fill provenance tracked (`autoNamedFrom`, survives the draft); stale fills replaced, typed names never touched; BUILT 2026-09-15 |
+| F-041 | "Stableford — 4 too many" read as refusal — misfit note redirects to team Pool / Sides; mode-id bug (`stableford-ind`) caught by its own e2e; the structure direction became §5.bj's design arc; FIXED |
+| F-042 | Money toggle asked a question nobody was asked — "Who competes against whom?" (All teams, for a pot / Two teams, head-to-head); move-after-teams idea lives with the structure arc; FIXED |
+| F-044 | Pot-split + 85↔90 flip looked arbitrary — "The usual split for N teams — edit any leg" + USGA notes name their driver; per-group split default idea → backlog Ideas; FIXED |
+| F-047 | Sign Out kept the cookie and identity — `logout()` clears access cookie + durable identity everywhere; FIXED |
+| F-048 | Any 24-char key opened any game — `shareTokenMatches` finally wired, friendly refusal screen; FIXED |
+| F-050 | The invite gate explained nothing — copy says the same code repeats for returners; FIXED |
+| F-051 | 48h cookie expired mid-week for a weekly game — 30-day SLIDING expiry (A+B combined); FIXED |
+| F-052 | Legacy-link organizer past the fence hit a blank wizard — fence redirects to /pool; FIXED |
+| F-053 | Expired-GHIN returner greeted like a stranger — login page greets by name from the durable identity; FIXED |
+| F-054 | Phone-width roster rows hid every name — two-line rows, name always visible; FIXED |
+| F-055 | Two parallel group-management UIs — consolidated on /home (§5.bh), GroupsManager deleted, /pool/roster = saved players only; FIXED |
+| F-056 | The legacy-link game runner couldn't share — Share sits outside the poolOnly guard; FIXED |
+| F-057 | One guest tap earned a month of create access — cookie lifetime follows access level (guests 48h, full 30d sliding); FIXED |
+| F-058 | Share QR came from a third party and died offline — local `QrImage` (qrcode dep); FIXED |
+| F-059 | "Sees everything" was keyed to the invite code — `isAppOwner()` = full access + owner GHIN (§5.bi); env var set + verified live 2026-09-15; FIXED + ACTIVATED |

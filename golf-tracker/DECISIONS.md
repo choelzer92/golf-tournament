@@ -168,6 +168,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.bg | Classic-pool money defaults are the Warriors' FORMAT, not the baseline: junk $0/off + fold into overall; money step shows per-player/per-leg $ that add up |
 | 5.bh | Group management consolidates on /home (F-055 opt A; opt B = §5c, not chosen); sharing scales by ONE LINK KIND PER JOB, token on the game row — never add link kinds; F-056/57/58 queued on recommendations |
 | 5.bi | Ownership is IDENTITY, not the invite code (F-059 opt A): `isAppOwner()` = full access + owner GHIN; the code means MEMBER (own games/groups/ledger); access policy = game link for players, code for regulars, legacy link retired from circulation |
+| 5.bj | 2026-09-15 review: F-034 opt A built; F-031 opt B deferred; sharing arc → "Accounts/§5c hardening"; next build = course-data audit, game-structure runs design-first in parallel; harness round 2 (page/spec splits, quiet reporter, FINDINGS sweep) built; STATUS.md rejected |
 
 ---
 
