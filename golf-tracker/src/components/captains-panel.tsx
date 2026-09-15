@@ -8,12 +8,13 @@ import { getPoolPlayingHandicap, rankPlayersForCaptain } from '@/lib/pool-game';
 // (one per team); the organizer can freely reassign any slot. Picking a player
 // who already captains another slot SWAPS the two, so nobody captains twice.
 //
-// Like PairingLocks, the apply step ("Build balanced teams around captains")
-// lives RIGHT HERE so the connection is unmissable for a non-technical organizer:
-// set captains → tap the green button → teams are built with each captain fixed
-// on their own team and everyone else balanced evenly around them.
+// F-060 opt B: this panel used to carry its own "Build balanced teams around
+// captains" button — a second trigger that RIVALED the build-method choice below
+// it and did the same thing as one of its options. Choosing WHO captains and
+// choosing HOW to build are different questions; the build action now lives only
+// in the method list, so there is exactly one place teams get built.
 export function CaptainsPanel({
-  players, course, handicapAllowance, numTeams, captainIds, setCaptainIdsAction, onApplyAction,
+  players, course, handicapAllowance, numTeams, captainIds, setCaptainIdsAction,
   excludeCaptains, setExcludeCaptainsAction, handicapBasis = 'course', nine = null,
 }: {
   players: Player[];
@@ -22,8 +23,6 @@ export function CaptainsPanel({
   numTeams: number;
   captainIds: string[];                          // length numTeams; '' = unset slot
   setCaptainIdsAction: (ids: string[]) => void;
-  // When provided, shows the prominent "build balanced teams around captains" button.
-  onApplyAction?: () => void;
   // When provided, shows the "balance the other players only" toggle. On (default)
   // evens the NON-captain players across teams and lets captain strokes ride as the
   // edge; off evens each whole team (captain included).
@@ -34,7 +33,6 @@ export function CaptainsPanel({
   // (a 9-hole USGA game plays off roughly half these numbers).
   nine?: 'front9' | 'back9' | null;
 }) {
-  const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? '';
   const chcpOf = (id: string) => {
     const p = players.find((x) => x.id === id);
     return p && course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine)) : null;
@@ -65,7 +63,6 @@ export function CaptainsPanel({
     setCaptainIdsAction(Array.from({ length: slots.length }, (_, i) => picks[i] ?? ''));
   }
 
-  const filledCount = slots.filter(Boolean).length;
   const enoughPlayers = players.length >= slots.length;
 
   return (
@@ -80,8 +77,8 @@ export function CaptainsPanel({
         </button>
       </div>
       <p className="text-xs text-gray-600 mb-2.5">
-        One captain per team — the lowest course handicaps by default. Each captain anchors their own
-        team; everyone else is balanced evenly around them. Change any captain below.
+        One captain per team — the lowest course handicaps by default. Change any captain here,
+        then build the teams with a method below; each captain anchors their own team.
       </p>
 
       {!enoughPlayers && (
@@ -155,15 +152,6 @@ export function CaptainsPanel({
         </div>
       )}
 
-      {onApplyAction && (
-        <button
-          onClick={onApplyAction}
-          disabled={filledCount === 0}
-          className="mt-3 w-full rounded-md bg-green-700 px-3 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50"
-        >
-          Build balanced teams around captains
-        </button>
-      )}
     </div>
   );
 }

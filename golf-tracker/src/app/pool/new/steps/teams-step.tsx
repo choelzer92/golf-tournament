@@ -342,7 +342,6 @@ export function TeamsStep({
           setCaptainIdsAction={setCaptainIds}
           excludeCaptains={excludeCaptains}
           setExcludeCaptainsAction={setExcludeCaptains}
-          onApplyAction={autoBalance}
         />
       </div>
       )}

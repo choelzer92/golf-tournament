@@ -218,7 +218,13 @@ panel against any future setting rather than just this one. Craig asked what the
 worth noting the finding was only legible once he saw the screenshot, not the description.
 
 The naming model itself (option A) was chosen separately under F-014, so both halves are going in
-— but as two commits, since C fixes a screen and A changes a schema. Not yet built.
+— but as two commits, since C fixes a screen and A changes a schema.
+
+**Status: BOTH HALVES BUILT — log was stale** (caught in the 2026-09-15 simplification batch).
+Option C landed as 270f257 ("a read-only summary never prints a row with no value" — the generic
+blank-value filter in `MoneySummary`, now `panels/money-panels.tsx`, with e2e
+`verify-f015-f018-review.spec.ts`); option A landed under F-014 (archived, FIXED + VERIFIED).
+Nothing left here — archive in the next sweep.
 
 ---
 

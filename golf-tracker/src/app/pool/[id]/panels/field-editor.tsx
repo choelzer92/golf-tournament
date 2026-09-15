@@ -33,6 +33,11 @@ export function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; on
   const numTeams = Math.max(1, game.teams.length || Math.ceil(game.players.length / 4));
   // Whether this game uses captains at all (default true for older/pot games).
   const useCaptains = game.useCaptains ?? true;
+  // F-060 hub parity: which build method produced the current teams (undefined
+  // after hand moves — markAdjusted sets adjustedAfter, and manual builds don't claim a ✓).
+  const builtWith = game.teams.length > 0 && game.teamBuild && !game.teamBuild.adjustedAfter
+    ? game.teamBuild.method
+    : undefined;
   const [captainIds, setCaptainIds] = useState<string[]>(() => {
     const fromTeams = game.teams.map((t) => t.captainId ?? '');
     if (!useCaptains) return Array.from({ length: numTeams }, () => '');
@@ -424,7 +429,6 @@ export function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; on
           setCaptainIdsAction={setCaptainIds}
           excludeCaptains={excludeCaptains}
           setExcludeCaptainsAction={(v) => onSave({ ...game, balanceExcludeCaptains: v })}
-          onApplyAction={autoBalance}
         />
       )}
       {!isSingleGroup && game.players.length > 0 && (
@@ -438,25 +442,33 @@ export function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; on
       {!isSingleGroup && game.teams.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Build &amp; adjust teams</p>
+          {/* F-060 hub parity: the wizard's method cards mark which method built the
+              teams; these buttons carry the same ✓ so a re-deal is visibly a re-deal. */}
           <div className="flex gap-2 flex-wrap">
             <button
               onClick={autoBalance}
-              className="rounded-md border border-green-700 px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50"
+              className={`rounded-md border px-3 py-2 text-sm font-medium active:bg-green-50 ${
+                builtWith === 'balanced' ? 'border-green-600 bg-green-50 text-green-800' : 'border-green-700 text-green-700 hover:bg-green-50'
+              }`}
             >
-              {useCaptains ? 'Even out around captains' : 'Even out by handicap'}
+              {useCaptains ? 'Even out around captains' : 'Even out by handicap'}{builtWith === 'balanced' ? ' ✓' : ''}
             </button>
             <button
               onClick={autoCaptainsDeal}
-              className="min-h-[44px] rounded-md border border-green-700 px-3 py-2.5 text-sm text-green-700 font-medium hover:bg-green-50"
+              className={`min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium active:bg-green-50 ${
+                builtWith === 'serpentine' ? 'border-green-600 bg-green-50 text-green-800' : 'border-green-700 text-green-700 hover:bg-green-50'
+              }`}
               title="Each round the best captain takes the worst remaining player, down to the worst captain taking the best"
             >
-              Captains&rsquo; deal
+              Captains&rsquo; deal{builtWith === 'serpentine' ? ' ✓' : ''}
             </button>
             <button
               onClick={autoGenerate}
-              className="min-h-[44px] rounded-md border border-gray-300 px-3 py-2.5 text-sm text-gray-700 font-medium hover:bg-gray-100"
+              className={`min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium active:bg-gray-100 ${
+                builtWith === 'sequential' ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+              }`}
             >
-              Auto-generate foursomes
+              Auto-generate foursomes{builtWith === 'sequential' ? ' ✓' : ''}
             </button>
             {game.teams.length > 1 && (
               <button

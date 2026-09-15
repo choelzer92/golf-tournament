@@ -40,6 +40,10 @@ test('F-060: Captains’ deal marks its card as the one that built the teams', a
   // The honest copy (no dragging exists on this screen).
   await expect(page.getByText(/Or build nothing — put each player on a team by hand/)).toBeVisible();
 
+  // F-060 opt B: the Captains panel no longer carries its own rival build button —
+  // the method list below is the ONE place teams get built.
+  await expect(page.getByRole('button', { name: 'Build balanced teams around captains' })).toHaveCount(0);
+
   // No method has built anything yet.
   await expect(page.getByText('✓ Built these teams')).toHaveCount(0);
 
