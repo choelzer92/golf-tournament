@@ -62,7 +62,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | Item | What's needed |
 |---|---|
 | F-022 on-course verification | Spot-check 90% strokes vs the GHIN app (incl. an off-the-low game); screenshots if anything is off by one |
-| F-023 part B (widen the GHIN ratings parse) | Run `GHIN_USER=… GHIN_PASS=… node scripts/fetch-course-payload.mjs "The Meadows" WV` (read-only; works for any course/state) — or the network-tab route |
+| ~~F-023 part B payload~~ DONE 2026-09-15 — Craig ran the script; Meadows payload is CLEAN (see F-023). Optional: capture 1–2 more suspect courses the same way before the audit session | — |
 | §7 q4 | Confirm dark = live / light = setup is deliberate |
 | F-033 answer-back | Send the friend the drafted answer (in the 2026-09-15 session notes): 1v1 = Sides/Match, 3p = Nines etc., SI factored, fixes now live |
 

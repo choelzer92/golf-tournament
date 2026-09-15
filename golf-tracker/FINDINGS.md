@@ -338,9 +338,24 @@ than guessing GHIN's shape.
 **Status:** A FIXED 2026-09-09 — `teeHasRating(player, course)` (`lib/pool-game.ts`, unit-tested)
 centralizes the check; the wizard field list now says "no slope/rating on this tee — using index
 (N)" in amber instead of a confident "Course HCP: N" (skipped on the 'index' basis, where the raw
-index is what the organizer asked for). **B still blocked** on capturing the real
-`GetCourseDetails` response for The Meadows — ask Craig to search the course with the network tab
-open, or add a dev-only log. Do NOT guess GHIN's alternate shapes.
+index is what the organizer asked for).
+
+**B UNBLOCKED 2026-09-15 — Craig ran `scripts/fetch-course-payload.mjs "The Meadows" WV`**
+(`course-payloads/the-meadows-5682.json`, gitignored raw). The payload is **CLEAN**: 6 tee
+sets, every one carrying `TeeSetRatingId`, `TotalPar`, 18 `Holes` with `Par` + `Allocation`,
+and Total/Front/Back `Ratings` with slope+rating. So the bad slope/rating Craig saw was NOT
+missing GHIN data for this course — the hypotheses for the audit shift to:
+1. **Gender-name collisions, confirmed on THIS course:** The Meadows has "White" and "Green"
+   tees in BOTH genders with identical yardage but different ratings (men's White 67.5/125 vs
+   women's White 72.6/133). Any surface matching a tee by NAME rather than id+gender shows the
+   other gender's numbers. Audit: grep for name-keyed tee lookups (`defaultTeeName` matching is
+   gender-aware in `tee-pick.ts` — verify every other path).
+2. **Stored older games** parsed by earlier code (before F-038's sort, before gender fixes) —
+   inventory live rows rather than re-fetching.
+3. The per-player-tee display bug in project memory (`project_tee-per-player-bug`).
+The single-course facility answer: search returned exactly one course (5682), so the
+multi-course-facility hypothesis is dead for the Meadows. Fixture + parse tests belong to the
+audit session; trim the payload before committing anything.
 
 ---
 
