@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "dev:sandbox": "next dev",
     "e2e": "playwright test",
-    "verify": "tsc --noEmit && next build && npm run test && playwright test"
+    "verify": "tsc --noEmit && next build && npm run test && playwright test --reporter=dot"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.107.0",
