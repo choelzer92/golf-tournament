@@ -71,11 +71,13 @@ export function hasAccessCookie(): boolean {
 
 // The app owner's GHIN number — CONFIG, not a scattered literal (§5.bi). Set
 // NEXT_PUBLIC_OWNER_GHIN in .env.local / the deploy environment. The sandbox
-// defaults to its fake organizer (Craig = 1234567 in fixtures-domain.ts) so
-// e2e can exercise both the owner and member views.
+// ALWAYS uses its fake organizer (Craig = 1234567 in fixtures-domain.ts), even
+// when .env.local carries the real owner GHIN for deploys — otherwise setting
+// the var for production silently breaks every owner-view e2e test.
 export function getOwnerGhin(): number | null {
-  const raw = process.env.NEXT_PUBLIC_OWNER_GHIN
-    ?? (process.env.NEXT_PUBLIC_SANDBOX === '1' ? '1234567' : undefined);
+  const raw = process.env.NEXT_PUBLIC_SANDBOX === '1'
+    ? '1234567'
+    : process.env.NEXT_PUBLIC_OWNER_GHIN;
   const n = Number(raw);
   return raw != null && Number.isFinite(n) && n > 0 ? n : null;
 }
