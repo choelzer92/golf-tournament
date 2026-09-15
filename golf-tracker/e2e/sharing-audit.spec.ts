@@ -14,8 +14,7 @@
 
 import { expect, test } from '@playwright/test';
 
-const BASE = process.env.SANDBOX_URL ?? 'http://localhost:3200';
-const PHONE = { width: 390, height: 844 };
+import { BASE, PHONE, grantAndReset, seedCard, seedAndOpenGame } from './helpers';
 
 async function shot(page: import('@playwright/test').Page, name: string) {
   await page.screenshot({ path: `e2e/screenshots/share-audit-${name}.png`, fullPage: true });
@@ -23,30 +22,7 @@ async function shot(page: import('@playwright/test').Page, name: string) {
   console.log(`\n===== share-audit-${name} =====\n${text}\n`);
 }
 
-// Owner-context helpers (cookie granted), copied from verify-fixes.spec.ts.
-async function grantAndReset(context: import('@playwright/test').BrowserContext, page: import('@playwright/test').Page) {
-  await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
-  await page.goto(`${BASE}/sandbox`);
-  await page.evaluate(() => sessionStorage.clear());
-  await page.reload();
-}
-
-async function seedCard(page: import('@playwright/test').Page, label: string) {
-  const card = page.locator('div.bg-white', { hasText: label });
-  await card.getByRole('button', { name: 'Seed' }).click();
-  await expect(card.getByText('Seeded ✓')).toBeVisible();
-  return card;
-}
-
-async function seedAndOpenGame(page: import('@playwright/test').Page, label: string): Promise<string> {
-  const card = await seedCard(page, label);
-  await card.getByRole('button', { name: 'Open →' }).click();
-  await page.waitForURL(/\/pool\/[^/]+/, { timeout: 15_000 });
-  await page.waitForLoadState('networkidle');
-  const m = new URL(page.url()).pathname.match(/\/pool\/([^/]+)/);
-  if (!m) throw new Error(`seed("${label}") did not land on a pool page: ${page.url()}`);
-  return m[1];
-}
+// Owner-context helpers (grantAndReset/seedCard/seedAndOpenGame) come from ./helpers.
 
 test.use({ viewport: PHONE });
 

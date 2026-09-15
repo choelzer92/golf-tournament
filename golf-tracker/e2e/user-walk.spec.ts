@@ -8,7 +8,7 @@
 
 import { test } from '@playwright/test';
 
-const BASE = process.env.SANDBOX_URL ?? 'http://localhost:3200';
+import { BASE } from './helpers';
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -21,8 +21,12 @@ test.beforeEach(async ({ context, page }) => {
 async function capture(page: import('@playwright/test').Page, name: string) {
   await page.waitForTimeout(400);
   await page.screenshot({ path: `e2e/screenshots/walk-${name}.png`, fullPage: true });
-  const text = (await page.locator('body').innerText()).replace(/\n{3,}/g, '\n\n');
-  console.log(`\n===== walk-${name} =====\n${text}\n`);
+  // Page-text dumps are for interactive critique reading; in the verify gate they
+  // were the biggest remaining log noise. Opt in with CAPTURE_TEXT=1.
+  if (process.env.CAPTURE_TEXT === '1') {
+    const text = (await page.locator('body').innerText()).replace(/\n{3,}/g, '\n\n');
+    console.log(`\n===== walk-${name} =====\n${text}\n`);
+  }
 }
 
 async function seed(page: import('@playwright/test').Page, label: string, open = true) {

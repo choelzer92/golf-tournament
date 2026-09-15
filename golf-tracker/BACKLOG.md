@@ -19,15 +19,18 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
-| **Review session with Craig (2026-09-15 ask): walk non-completed todos + this backlog, pick the next iteration, and shape a better harness / context-economy round 2** (pool/[id] page split, verify-fixes.spec split + shared e2e helpers, quiet verify reporter, FINDINGS archive sweep #2). Promoted to NEXT_SESSION_PROMPT.md. | M | Craig 2026-09-15 |
-| **Game-structure simplification direction** (Craig 2026-09-14: "a pool is effectively just a 4v4 game… choose your groups, game style, players, how many teams, and go"). Agreed direction: structure-first wizard question, modes as shortcuts — the UI framing for the Team Competition engine (§5g). RECORD AS A DECISION when Craig confirms scope; near-term language slice already built (F-041/F-042). | L (design first) | F-041 + Craig 2026-09-14 |
-| **Course-data correctness audit** (Craig 2026-09-10, re-raised 2026-09-14: "we really need to investigate the situation with having improper slope/course ratings to a tee for different courses"). Extends F-023: (a) inventory live games' courses for missing/odd ratings via read-only queries; (b) harden the parse; (c) a diagnostic view that says WHAT the app extracted. Unblocker: `scripts/fetch-course-payload.mjs` (Craig runs with his GHIN creds, read-only). F-038 (tee order) fixed; the default-TEE question (tips as default?) belongs to this audit. (Promotion superseded 2026-09-15 by Craig's review-session agenda — still next in line among build work.) | M | Craig 2026-09-10/14 + F-023 |
-| Merge-audit polish batch (all four S items below) — fallback while the audit branch waits on Craig | S×4 | merge audit / §5.ak |
+| **Course-data correctness audit — THE NEXT BUILD SESSION (§5.bj)**. Extends F-023: (a) inventory live games' courses for missing/odd ratings via read-only queries; (b) harden the parse; (c) a diagnostic view that says WHAT the app extracted. Unblocker: `scripts/fetch-course-payload.mjs` (Craig runs with his GHIN creds, read-only — works for ANY course, not just the Meadows). F-038 (tee order) fixed; the default-TEE question (tips as default?) belongs to this audit. | M | Craig 2026-09-10/14 + F-023 + §5.bj |
+| **Game-structure simplification — design-first, runs in parallel with build work (§5.bj)** (Craig 2026-09-14: "a pool is effectively just a 4v4 game… choose your groups, game style, players, how many teams, and go"). Structure-first wizard question, modes as shortcuts — the UI framing for the Team Competition engine (§5g). First deliverable is a DESIGN DOC + mock walk, not code. Feeds/absorbs: F-037 (pairings axis), F-042 (move money-toggle after teams), F-060 opt B (merge the rival build triggers), F-005's group-defaults-as-confirmations. | L (design first) | F-041 + Craig 2026-09-14 + §5.bj |
+| Merge-audit polish batch (all four S items below) — fallback slack work | S×4 | merge audit / §5.ak |
 
 ## Done recently
 
 | Item | When |
 |---|---|
+| **Review session (§5.bj)**: recommendations adopted in order — F-034 opt A BUILT (c4398a2); F-031 opt B deferred; sharing arc reshaped to Accounts/§5c hardening; next build = course-data audit, game-structure design-first in parallel; STATUS.md idea rejected | 2026-09-15 |
+| **F-060 intake + opt A BUILT same session** (8ef4ebc): Craig live-stuck on Captains' deal — the tap worked but the result rendered below the fold with zero feedback. Method cards now scroll to the built teams, wear "✓ Built these teams" (demotes to "hand-adjusted since"), get a touch pressed-state; the false "drag nobody at all" copy replaced. Open: opt B (merge rival triggers → structure design), hub parity | 2026-09-15 |
+| **Sandbox owner un-broken** (bf847f6): Craig's real `NEXT_PUBLIC_OWNER_GHIN` in .env.local silently un-owned the sandbox's fake Craig — 4 owner-gated e2e went red. Sandbox flag now beats the env var | 2026-09-15 |
+| **Harness round 2 COMPLETE (§5.bj)**: FINDINGS archive sweep #2 (18 entries, 1,298→~720 lines, sorted-diff proof); quiet verify (dot reporter, sandbox GHIN-401 silence, CAPTURE_TEXT-gated page dumps — log ~6,000 → a few hundred lines); `e2e/helpers.ts` + verify-fixes.spec split into 7 era files (180 tests before = after); pool/[id]/page.tsx 3,233 → 459 lines + 6 `panels/*` files. Full verify green throughout | 2026-09-15 |
 | **F-059 ACTIVATED on production** — Craig set `NEXT_PUBLIC_OWNER_GHIN` in Vercel (and .env.local); verified by live read-only probe: a code-only visitor with no GHIN identity gets the "See your saved games" prompt, zero games. Members are now scoped to their own games on the live app | 2026-09-15 |
 | **`audit-sharing-login-2026-09-14` MERGED to main + pushed (f62cc74)** on Craig's call — the audit + F-047…F-059 ship on the next deploy. F-059 stays in legacy fallback until the owner-GHIN env var is set | 2026-09-15 |
 | **F-055 + F-056/57/58 + F-059 ALL BUILT** (§5.bh/§5.bi, five commits on `audit-sharing-login-2026-09-14`, verify green ×3, 179 e2e): group management consolidated on /home (create on /home, rename/delete on the group dashboard, /pool/roster = saved players only, GroupsManager deleted); Share visible to scoring-link guests; pool cookie back to 48h (full keeps 30d sliding); QR generated on device (`qrcode` dep, shared `QrImage`); `isAppOwner()` (full access + `NEXT_PUBLIC_OWNER_GHIN`) replaced every credential-keyed owner check PLUS two unchecked surfaces found en route (/dashboard listed every game to any code-holder; /home/feedback showed everyone's notes). Rollout-safe: until the env var is set, full=owner as before | 2026-09-14 |
@@ -59,9 +62,9 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | Item | What's needed |
 |---|---|
 | F-022 on-course verification | Spot-check 90% strokes vs the GHIN app (incl. an off-the-low game); screenshots if anything is off by one |
-| F-023 part B (widen the GHIN ratings parse) | The real `GetCourseDetails` payload for The Meadows (Greenbrier, WV) — search it with the network tab open |
+| ~~F-023 part B payload~~ DONE 2026-09-15 — Craig ran the script; Meadows payload is CLEAN (see F-023). Optional: capture 1–2 more suspect courses the same way before the audit session | — |
 | §7 q4 | Confirm dark = live / light = setup is deliberate |
-| F-034 stale draft name | His pick among A/B/C in the finding |
+| F-033 answer-back | Send the friend the drafted answer (in the 2026-09-15 session notes): 1v1 = Sides/Match, 3p = Nines etc., SI factored, fixes now live |
 
 ## Next few sessions (shaped, ready to build)
 
@@ -72,11 +75,9 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | Merge-audit polish: "Sides / Match" as a category label | S | merge audit |
 | Merge-audit polish: the `70, 30` position-split mini-DSL | S | merge audit |
 | Merge-audit polish: three different renderings of course handicap | S | merge audit |
-| Uncaptured walks: group format sheet (walk 2 stopped there), create-group mid-wizard, format-tap → confirmation | S | NEXT_SESSION_PROMPT history |
 | Leaderboard shows front/back columns for a 9-hole game (redundant, not wrong) | S | roadmap #13 note |
-| F-030 opt C: standings strip ON the scorecard (mini-leaderboard above the grid) — the deeper "captain glancing between shots" fix; composes with the built toggle | S | F-030, §6b |
-| F-031 opt B: the card's running to-par superscript is typo-sized — enlarge/clarify (ask Craig first) | S | F-031 |
-| Tell the friend (via Craig): men's/women's hole handicaps ARE factored (playerHoleStrokeIndex); 1v1 = Sides/Match; 3-player = Nines + skins/quota/Stableford/low-total; stats + GHIN export in Ideas; and the F-028…F-033 fixes land when the branch deploys | S | friend feedback 2026-09-10 |
+| F-030 opt C: standings strip ON the scorecard (mini-leaderboard above the grid) — the deeper "captain glancing between shots" fix; composes with the built toggle; slot into the live-scoring session | S | F-030, §6b |
+| F-060 follow-through: hub edit-teams parity for the build-method feedback (opt B — merging the rival triggers — lives with the structure design) | S | F-060 |
 | Live scoring experience pass | M | §6 item 3 — Craig's named focus, never had its session |
 | Offline / PWA resilience (`sw.js` exists, caches nothing — cart-path wifi) | M | §6 item 4; core to "continuing" |
 | **Backups / JSON export** — the OTHER §5c item Craig kept in scope (per-game tokens, the first, are done); still not built. One "download everything as JSON" per table is the floor; matters more as friends' real money history accumulates | S–M | DECISIONS §3 / §5c |
@@ -85,7 +86,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
-| **Sharing / login / identity polish** (Craig 2026-09-10: "we should add better sharing/logins/everything… I want to get this polished"). START WITH AN AUDIT SESSION (document-first): walk every entry path as each persona — owner via invite code, organizer via legacy `?key=` link, player via per-game token, returning visitor with expired 48h cookie or expired 12h GHIN token — screenshot each, log findings. Known rough edges to check: invite-code screen wording; the 48h cookie expiring mid-week (friends re-enter the code); GHIN re-login prompts; share panel copy/QR; "who am I" clarity for share-link players; sign-out scattering. The EXPERIENCE layer is product work and unblocked; if the shape turns into real accounts/auth, that's the §5c/F-002 trigger — pause for Craig there. Per-game tokens (built) + backups/export are the two §5c items already in scope. | L (audit M, then fixes) | Craig 2026-09-10 |
+| **Accounts / §5c hardening** (reshaped 2026-09-15, §5.bj — the audit + F-047…F-059 delivered the sharing/login polish; this row is what remains): revoke/rotate per-game tokens, real RLS under the settled §5.bi ownership model, and the F-049 remainder (tappable "Viewing as…"). Crossing into real accounts/auth is the §5c/F-002 trigger — pause for Craig there. | M–L | Craig 2026-09-10 + §5.bi/§5.bj |
 | **Home screen & Event model** — P1 flag-gated read-only /home → stats/ledger → shared Event → flights | L | approved plan `.claude/plans/adaptive-squishing-locket.md` |
 | **Team Competition engine** — N teams of size K within foursomes (4 pairs combined Stableford etc.) | L | approved 2026-08-03, plan `.claude/plans/tingly-petting-reddy.md` + memory `project_pool-team-competition-plan` |
 | **Flight mode** — handicap flights/divisions competing separately | L | folded in as Phase 4 of the Home/Event plan |
@@ -124,3 +125,5 @@ it's real. Never build from this section directly.
   he likely means golf stats (scoring avg, per-hole). Unshaped.
 - Export scores to GHIN (friend, 2026-09-10) — score POSTING to GHIN; needs API research
   (is it even open to third parties?) before shaping.
+- Per-group pot-split defaults (from F-044): `POOL_SPLIT_TABLE` is Craig's own history as a
+  global table — a group could save its own usual splits instead; feeds the format library.

@@ -4,20 +4,7 @@
 
 import { expect, test } from '@playwright/test';
 
-const BASE = process.env.SANDBOX_URL ?? 'http://localhost:3200';
-
-async function grantAndReset(context: import('@playwright/test').BrowserContext, page: import('@playwright/test').Page) {
-  await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
-  await page.goto(`${BASE}/sandbox`);
-  await page.evaluate(() => sessionStorage.clear());
-  await page.reload();
-}
-
-async function seedCard(page: import('@playwright/test').Page, label: string) {
-  const card = page.locator('div.bg-white', { hasText: label });
-  await card.getByRole('button', { name: 'Seed' }).click();
-  await expect(card.getByText('Seeded ✓')).toBeVisible();
-}
+import { BASE, grantAndReset, seedCard } from './helpers';
 
 test('F-055: create a group on /home, rename and delete it on its dashboard', async ({ context, page }) => {
   await grantAndReset(context, page);

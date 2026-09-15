@@ -4,15 +4,7 @@
 
 import { expect, test } from '@playwright/test';
 
-const BASE = process.env.SANDBOX_URL ?? 'http://localhost:3200';
-const PHONE = { width: 390, height: 844 };
-
-async function grantAndReset(context: import('@playwright/test').BrowserContext, page: import('@playwright/test').Page) {
-  await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
-  await page.goto(`${BASE}/sandbox`);
-  await page.evaluate(() => sessionStorage.clear());
-  await page.reload();
-}
+import { BASE, PHONE, grantAndReset, freshGuest } from './helpers';
 
 async function seedGameAndShareLink(page: import('@playwright/test').Page) {
   const card = page.locator('div.bg-white', { hasText: 'Classic pool — 2 foursomes, mid-round (thru 6)' });
@@ -30,14 +22,6 @@ async function seedGameAndShareLink(page: import('@playwright/test').Page) {
   return { id, link, store }; // NOTE: leaves the Share panel open on `page`
 }
 
-async function freshGuest(browser: import('@playwright/test').Browser, store: string) {
-  const ctx = await browser.newContext({ viewport: PHONE });
-  const guest = await ctx.newPage();
-  await guest.goto(`${BASE}/sandbox`);
-  await guest.evaluate((d) => sessionStorage.setItem('__sandbox_supabase__', d), store);
-  await ctx.clearCookies();
-  return { ctx, guest };
-}
 
 test('F-056: a scoring-link guest can open Share, but not Save format or Edit', async ({ browser, context, page }) => {
   await grantAndReset(context, page);

@@ -67,7 +67,12 @@ async function ghinFetch(path: string, token: string, params?: Record<string, st
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    console.error(`GHIN API error: ${res.status} ${res.statusText} - ${body}`);
+    // The sandbox has no real GHIN session, so e2e runs spray hundreds of
+    // expected 401 lines into the verify log — the single noisiest thing in it.
+    // The error still throws (callers handle it); only the logging is skipped.
+    if (process.env.NEXT_PUBLIC_SANDBOX !== '1') {
+      console.error(`GHIN API error: ${res.status} ${res.statusText} - ${body}`);
+    }
     throw new Error(`GHIN API error: ${res.status} ${res.statusText}`);
   }
 

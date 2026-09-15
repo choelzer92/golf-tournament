@@ -1573,6 +1573,37 @@ still sees all; a member sees exactly their own.
 
 ---
 
+## 5.bj The 2026-09-15 review session: recommendations adopted in order (2026-09-15)
+
+Craig, given the full agenda (open findings, backlog walk, next-iteration candidates,
+harness round 2): *"lets go with your recommendations. in order."* One session-sized
+approval covering:
+
+1. **F-034 → option A** (auto-fill provenance): the wizard tracks which name a GROUP
+   auto-filled; that name is replaceable when another group loads; a hand-typed name is
+   never touched; provenance survives the sessionStorage draft.
+2. **F-031 option B (bigger card to-par superscript) → deferred**, not built — it's
+   cosmetic; revisit only if it bothers Craig on course. F-030 opt C stays queued for
+   the live-scoring session.
+3. **Backlog reshape:** the "Sharing/login/identity polish" L-arc is rewritten as
+   **"Accounts/§5c hardening"** (revoke/rotate tokens + RLS under §5.bi) — the audit and
+   F-047…F-059 delivered the rest. "Uncaptured walks" is killed (fold into the next UI
+   critique if it recurs). "Tell the friend" folds into F-033's answer-back.
+4. **Next iteration:** the **course-data correctness audit is the next BUILD session**;
+   the **game-structure simplification (§5g UI framing) starts in parallel as
+   design-only** — a design doc + mock walk before any code.
+5. **Harness round 2, built this session** on `review-session-2026-09-15`:
+   split `pool/[id]/page.tsx`; split `e2e/verify-fixes.spec.ts` by finding-era + extract
+   the shared e2e helpers; quiet verify reporter (list reporter stays for interactive
+   runs); FINDINGS archive sweep #2. **STATUS.md rejected** — NEXT_SESSION_PROMPT already
+   carries that state when groomed.
+
+**How to apply.** "In order" means the ranking I presented is the ranking he adopted —
+when a conflict forces a choice, correctness work (course data) outranks design work
+(game structure), which outranks polish. Don't re-ask any of the five.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

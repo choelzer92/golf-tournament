@@ -6,8 +6,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-const BASE = process.env.SANDBOX_URL ?? 'http://localhost:3200';
-const PHONE = { width: 390, height: 844 };
+import { BASE, PHONE } from './helpers';
 
 test.beforeEach(async ({ context, page }) => {
   await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);

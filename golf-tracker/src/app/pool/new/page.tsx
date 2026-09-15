@@ -85,6 +85,10 @@ export default function NewPoolGamePage() {
 
   // Details
   const [name, setName] = useState('');
+  // F-034: the name value a GROUP auto-filled (survives the draft), so a later group
+  // pick can tell a stale courtesy-fill from something the organizer typed. A name
+  // that matches this is replaceable; any other non-empty name is hand-typed and kept.
+  const [autoNamedFrom, setAutoNamedFrom] = useState<string | undefined>(undefined);
   // Game mode: undefined = classic team pool (pot/match). A registry id
   // ('nines'|'skins'|'quota'|...) = an INDIVIDUAL game scored within one group.
   const [gameMode, setGameMode] = useState<string | undefined>(undefined);
@@ -203,6 +207,7 @@ export default function NewPoolGamePage() {
       if (saved) {
         const data = JSON.parse(saved);
         if (typeof data.name === 'string') setName(data.name);
+        if (typeof data.autoNamedFrom === 'string') setAutoNamedFrom(data.autoNamedFrom);
         if (typeof data.entryPerPlayer === 'string') setEntryPerPlayer(data.entryPerPlayer);
         if (typeof data.handicapAllowance === 'string') setHandicapAllowance(data.handicapAllowance);
         if (data.strokeMethod === 'full' || data.strokeMethod === 'off-the-low') setStrokeMethod(data.strokeMethod);
@@ -254,11 +259,11 @@ export default function NewPoolGamePage() {
   useEffect(() => {
     if (!hydrated) return;
     sessionStorage.setItem(WIZARD_KEY, JSON.stringify({
-      name, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
+      name, autoNamedFrom, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step, sides,
       holesPlaying, nineHandicapBasis,
     }));
-  }, [hydrated, name, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
+  }, [hydrated, name, autoNamedFrom, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step, sides,
       holesPlaying, nineHandicapBasis]);
 
@@ -577,10 +582,14 @@ export default function NewPoolGamePage() {
             // the old step-1 chips extended, now that the field IS step 1. Functional update:
             // a group seed loads asynchronously, so `name` here can be a stale '' from the
             // first render even after a format seed has already named the game.
+            // F-034: a name that came from an EARLIER group auto-fill (this tab's draft
+            // included) is replaceable; only a name the organizer typed survives the switch.
             onGroupLoaded={(id) => {
               setSourceGroupId(id);
               const g = getGroupById(id);
-              if (g) setName((prev) => (prev.trim() ? prev : g.name));
+              if (!g) return;
+              setName((prev) => (prev.trim() && prev.trim() !== autoNamedFrom ? prev : g.name));
+              setAutoNamedFrom(g.name.trim());
             }}
             preselectedGroupId={sourceGroupId}
             formatSeedAppliedRef={formatSeedAppliedRef}
