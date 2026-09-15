@@ -29,8 +29,12 @@ async function seedAndOpen(page: import('@playwright/test').Page, label: string)
 
 async function capture(page: import('@playwright/test').Page, name: string) {
   await page.screenshot({ path: `e2e/screenshots/${name}.png`, fullPage: true });
-  const text = (await page.locator('body').innerText()).replace(/\n{3,}/g, '\n\n');
-  console.log(`\n===== ${name} =====\n${text}\n`);
+  // Page-text dumps are for interactive critique reading; in the verify gate they
+  // were the biggest remaining log noise. Opt in with CAPTURE_TEXT=1.
+  if (process.env.CAPTURE_TEXT === '1') {
+    const text = (await page.locator('body').innerText()).replace(/\n{3,}/g, '\n\n');
+    console.log(`\n===== ${name} =====\n${text}\n`);
+  }
 }
 
 test.describe('continuing — the neglected phase', () => {
