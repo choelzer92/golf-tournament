@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { CourseSelection, Player } from '@/lib/game-state';
 import {
   type PoolGame,
@@ -271,6 +271,18 @@ export function TeamsStep({
   const assignedIds = new Set(teams.flatMap((t) => t.playerIds));
   const unassigned = players.filter((p) => !assignedIds.has(p.id));
 
+  // F-060: on a phone the built teams render below the fold, so a method tap looked
+  // like it did nothing (Craig: "when i click the boxes nothing happens"). Every
+  // method now scrolls to its result, and the used card wears a ✓ (from
+  // teamBuild.method, which already records how the teams were built).
+  const builtTeamsRef = useRef<HTMLDivElement>(null);
+  function runAndShow(run: () => void) {
+    run();
+    requestAnimationFrame(() => builtTeamsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
+  const methodOfBuild: Record<string, string> = { balanced: 'optimal', serpentine: 'deal', sequential: 'sequential' };
+  const builtWith = teams.length > 0 && teamBuild ? methodOfBuild[teamBuild.method] : undefined;
+
   function teamCombinedHcap(team: PoolTeam): number {
     return team.playerIds.reduce((sum, id) => {
       const p = players.find((x) => x.id === id);
@@ -379,16 +391,25 @@ export function TeamsStep({
             <button
               key={key}
               type="button"
-              onClick={run}
-              className="w-full min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-left hover:border-green-400"
+              onClick={() => runAndShow(run)}
+              className={`w-full min-h-[44px] rounded-lg border px-3 py-2.5 text-left active:bg-green-50 active:border-green-600 ${
+                builtWith === key ? 'border-green-600 bg-green-50' : 'border-gray-300 bg-white hover:border-green-400'
+              }`}
             >
-              <span className="block text-sm font-medium text-gray-800">{label}</span>
+              <span className="block text-sm font-medium text-gray-800">
+                {label}
+                {builtWith === key && (
+                  <span className="ml-2 text-xs font-semibold text-green-700">
+                    ✓ Built these teams{teamBuild?.adjustedAfter ? ' (hand-adjusted since)' : ''}
+                  </span>
+                )}
+              </span>
               <span className="block text-xs text-gray-500 mt-0.5">{detail}</span>
             </button>
           ))}
         </div>
         <p className="text-xs text-gray-400 mt-2">
-          Or drag nobody at all — assign every player by hand below.
+          Or build nothing — put each player on a team by hand with the &ldquo;Move to&rdquo; menus below.
         </p>
       </div>
 
@@ -425,11 +446,11 @@ export function TeamsStep({
       )}
 
       {teams.length === 0 ? (
-        <div className="rounded-lg border-2 border-dashed border-gray-300 p-6 text-center text-gray-500 mb-4">
+        <div ref={builtTeamsRef} className="rounded-lg border-2 border-dashed border-gray-300 p-6 text-center text-gray-500 mb-4">
           <p className="text-sm">No teams yet. Use a button above to build foursomes.</p>
         </div>
       ) : (
-        <div className="grid gap-3 mb-4 sm:grid-cols-2">
+        <div ref={builtTeamsRef} className="grid gap-3 mb-4 sm:grid-cols-2">
           {teams.map((team, teamIdx) => (
             <div key={team.id} className="bg-white rounded-lg shadow p-3">
               <div className="flex items-center gap-2 mb-2">
