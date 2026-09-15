@@ -28,6 +28,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | When |
 |---|---|
+| **F-059 ACTIVATED on production** — Craig set `NEXT_PUBLIC_OWNER_GHIN` in Vercel (and .env.local); verified by live read-only probe: a code-only visitor with no GHIN identity gets the "See your saved games" prompt, zero games. Members are now scoped to their own games on the live app | 2026-09-15 |
 | **`audit-sharing-login-2026-09-14` MERGED to main + pushed (f62cc74)** on Craig's call — the audit + F-047…F-059 ship on the next deploy. F-059 stays in legacy fallback until the owner-GHIN env var is set | 2026-09-15 |
 | **F-055 + F-056/57/58 + F-059 ALL BUILT** (§5.bh/§5.bi, five commits on `audit-sharing-login-2026-09-14`, verify green ×3, 179 e2e): group management consolidated on /home (create on /home, rename/delete on the group dashboard, /pool/roster = saved players only, GroupsManager deleted); Share visible to scoring-link guests; pool cookie back to 48h (full keeps 30d sliding); QR generated on device (`qrcode` dep, shared `QrImage`); `isAppOwner()` (full access + `NEXT_PUBLIC_OWNER_GHIN`) replaced every credential-keyed owner check PLUS two unchecked surfaces found en route (/dashboard listed every game to any code-holder; /home/feedback showed everyone's notes). Rollout-safe: until the env var is set, full=owner as before | 2026-09-14 |
 | **Sharing/login fixes F-047…F-054 ALL BUILT** (Craig: "address these other todos"; recommended options, same branch): full Sign Out (cookie + identity cleared), per-game token actually validated (`shareTokenMatches` wired, friendly refusal screen), 30-day SLIDING access cookie (48h expired mid-week for a weekly game — sliding alone wouldn't fix that, so A+B), invite-gate copy, pool fence → /pool not the wizard, login page greets returners by name, "Viewing as …" identity line on the game hub (F-049 partial: not yet tappable), two-line roster rows at phone width. 9 e2e in `e2e/f047-sharing-fixes.spec.ts`, verify green | 2026-09-14 |
@@ -61,7 +62,6 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | F-023 part B (widen the GHIN ratings parse) | The real `GetCourseDetails` payload for The Meadows (Greenbrier, WV) — search it with the network tab open |
 | §7 q4 | Confirm dark = live / light = setup is deliberate |
 | F-034 stale draft name | His pick among A/B/C in the finding |
-| **Set `NEXT_PUBLIC_OWNER_GHIN`** (his real GHIN) in `.env.local` + the deploy env | NOW LIVE-RELEVANT (branch merged 2026-09-15): until set, the invite code still equals owner (legacy, deliberate rollout safety). One env var, then members are scoped to their own games |
 
 ## Next few sessions (shaped, ready to build)
 
