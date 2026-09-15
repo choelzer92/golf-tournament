@@ -7,7 +7,7 @@
 
 import { expect, test } from '@playwright/test';
 
-const BASE = process.env.SANDBOX_URL ?? 'http://localhost:3200';
+import { BASE } from './helpers';
 
 async function seedGroups(context: import('@playwright/test').BrowserContext, page: import('@playwright/test').Page) {
   await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);

@@ -3,33 +3,7 @@
 // silently regress. Capture evidence lives in e2e/sharing-audit.spec.ts.
 
 import { expect, test } from '@playwright/test';
-
-const BASE = process.env.SANDBOX_URL ?? 'http://localhost:3200';
-const PHONE = { width: 390, height: 844 };
-
-async function grantAndReset(context: import('@playwright/test').BrowserContext, page: import('@playwright/test').Page) {
-  await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
-  await page.goto(`${BASE}/sandbox`);
-  await page.evaluate(() => sessionStorage.clear());
-  await page.reload();
-}
-
-async function seedCard(page: import('@playwright/test').Page, label: string) {
-  const card = page.locator('div.bg-white', { hasText: label });
-  await card.getByRole('button', { name: 'Seed' }).click();
-  await expect(card.getByText('Seeded ✓')).toBeVisible();
-  return card;
-}
-
-async function seedAndOpenGame(page: import('@playwright/test').Page, label: string): Promise<string> {
-  const card = await seedCard(page, label);
-  await card.getByRole('button', { name: 'Open →' }).click();
-  await page.waitForURL(/\/pool\/[^/]+/, { timeout: 15_000 });
-  await page.waitForLoadState('networkidle');
-  const m = new URL(page.url()).pathname.match(/\/pool\/([^/]+)/);
-  if (!m) throw new Error(`seed("${label}") did not land on a pool page: ${page.url()}`);
-  return m[1];
-}
+import { BASE, PHONE, grantAndReset, seedCard, seedAndOpenGame, freshGuest } from './helpers';
 
 // Seed a game as the owner and hand its share link + backing store to the caller.
 async function seedGameAndShareLink(page: import('@playwright/test').Page) {
@@ -41,16 +15,6 @@ async function seedGameAndShareLink(page: import('@playwright/test').Page) {
   const link = await page.locator('input[readonly]').first().inputValue();
   const store = await page.evaluate(() => sessionStorage.getItem('__sandbox_supabase__') ?? '');
   return { id, link, store };
-}
-
-// A "different device": fresh context carrying only the seeded backend data.
-async function freshGuest(browser: import('@playwright/test').Browser, store: string) {
-  const ctx = await browser.newContext({ viewport: PHONE });
-  const guest = await ctx.newPage();
-  await guest.goto(`${BASE}/sandbox`);
-  await guest.evaluate((d) => sessionStorage.setItem('__sandbox_supabase__', d), store);
-  await ctx.clearCookies();
-  return { ctx, guest };
 }
 
 test('F-050/F-051: the invite gate says the code repeats, and grants a ~30-day sliding cookie', async ({ browser }) => {

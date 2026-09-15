@@ -8,7 +8,7 @@
 
 import { test } from '@playwright/test';
 
-const BASE = process.env.SANDBOX_URL ?? 'http://localhost:3200';
+import { BASE } from './helpers';
 
 test.use({ viewport: { width: 390, height: 844 } });
 

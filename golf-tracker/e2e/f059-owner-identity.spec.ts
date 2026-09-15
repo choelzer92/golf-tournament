@@ -6,14 +6,7 @@
 
 import { expect, test } from '@playwright/test';
 
-const BASE = process.env.SANDBOX_URL ?? 'http://localhost:3200';
-
-async function grantAndReset(context: import('@playwright/test').BrowserContext, page: import('@playwright/test').Page) {
-  await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
-  await page.goto(`${BASE}/sandbox`);
-  await page.evaluate(() => sessionStorage.clear());
-  await page.reload();
-}
+import { BASE, grantAndReset } from './helpers';
 
 // Seed the season: games + groups all created by Craig (GHIN 1234567), signed in.
 async function seedSeason(page: import('@playwright/test').Page) {
