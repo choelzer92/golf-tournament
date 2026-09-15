@@ -1502,6 +1502,77 @@ money-step redesign.
 
 ---
 
+## 5.bh Group management consolidates on /home (F-055 option A); sharing must not get more complicated at scale (2026-09-14)
+
+Craig, picking the F-055 shape: *"I like option A, but will this affect anything from games
+people already have saved? or what do I need to tell my friends that already use the app?"*
+(answer: nothing — groups are rows, only the management UI moves; games snapshot their field
+at creation). And on sharing, mid-discussion: *"i also want to make sure the share links are
+made properly, and this is a situation where we can share things easily, without causing
+extra bugs"* … *"I want this to be something that doesnt get more complicated when scaling."*
+He confirmed the resulting plan ("yes, lets proceed. that makes sense") and sized it to its
+own session.
+
+**What this settles.**
+
+1. **F-055 = option A.** `/home/groups/[id]` becomes the ONLY group UI: it gains rename +
+   delete; `/home`'s "Your groups" gains create; `/pool/roster` is demoted to saved PLAYERS
+   only (GroupsManager deleted); the "Manage"/"Full roster manager" links rewired. Accepted
+   trade: a co-organizer who only ever arrives via the legacy `?key=` link (never
+   GHIN-logs-in with the invite code) loses group management. Groups are an owner concept.
+   **Option B (opening /home to share-link visitors) was explicitly NOT chosen** — it is
+   the §5c accounts conversation.
+2. **The sharing model's scaling shape, to preserve:** one link kind per job (invite code /
+   legacy organizer constant / per-game token), the token lives ON THE GAME ROW, the gate
+   stays dumb (shape check) and the GAME validates (F-048). Adding games, groups, or people
+   must never add link kinds; the future §5c upgrade is revoke/rotate + RLS UNDER this
+   model, not a redesign. Refuse new shared constants and per-surface bespoke links.
+3. **Three sharing findings queued on their recommended options** (Craig: "that makes
+   sense"): F-056 Share panel visible to everyone in the game (guests already hold the
+   link; the mutating/read-only line, not organizer/guest, stays the rule per F-004);
+   F-057 the sliding 30-day cookie is for FULL access only — pool scope returns to 48h
+   (a guest's link re-grants instantly, so they lose nothing); F-058 QR generated locally,
+   not by api.qrserver.com (token stops leaving the device; works offline).
+
+**How to apply.** Build F-055 + F-056/57/58 in ONE fresh session (Craig: "we probably
+should do it in a new session"). Nothing migrates: roster_groups rows, saved games, share
+links, and scores are all untouched by the consolidation. Friends need to be told nothing
+except that group setup lives on the Home screen.
+
+---
+
+## 5.bi Ownership is IDENTITY, not the invite code (2026-09-14)
+
+Craig, on being shown that every owner check is `getAccessLevel() === 'full'` (so any
+friend who typed `birdie2026` sees ALL games, groups, and the full ledger, with mutating
+controls): *"i thought users could just see the games made by themselves, and I could see
+everyones games?"* — his mental model was the design intent, but the credential, not the
+identity, was doing the discriminating. Pick: *"ok, lets go ahead with option 1 if it
+makes sense."* (F-059 option A. It does make sense: the scoped code paths already exist
+for share-link visitors; this points the full-access surfaces at them too.)
+
+**What this settles.**
+
+1. **`isAppOwner()` replaces the ~15 `getAccessLevel() === 'full'` owner checks** — full
+   access AND the configured owner GHIN (Craig's). Only that combination sees everything.
+2. **The invite code comes to mean MEMBER:** a code-holding friend keeps the full app
+   surface (/home, stats, groups, wizard) but scoped to games/groups under their own
+   GHIN — the model Craig believed was already true.
+3. **A code-holder with no resolved GHIN identity** gets the /pool "log in to see your
+   games" prompt pattern — never a false-empty list, never everyone's data.
+4. **The access policy Craig can say out loud:** players get the game link; trusted
+   regulars get the invite code; the legacy organizer constant is retired from
+   circulation (kept valid only for links already in old group chats).
+
+**How to apply.** Build in the same fresh session as F-055, AFTER it (same isOwner seams —
+consolidate the group UI first, then rekey ownership once). The owner GHIN is config, not
+a scatter of literals. Watch the seams: roster/group hydration (`viewerGhin`/`isOwner`
+args), stats rollups, solo rounds, and the wizard's roster steps all take the same flag.
+Craig's caveat "if it makes sense" = sanity-check on screen as each surface flips: Craig
+still sees all; a member sees exactly their own.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

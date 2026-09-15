@@ -6,7 +6,7 @@ import { hydratePoolGames, loadPoolGame, getPoolGameList, getPoolGameListForGhin
 import { hydrateTournaments, loadTournament, getTournamentList } from '@/lib/tournament-state';
 import { hydrateGroups, type RosterGroup } from '@/lib/roster-groups';
 import { getPlayerGroups } from '@/lib/pool-formats';
-import { getAccessLevel } from '@/lib/invite-gate';
+import { isAppOwner } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import {
   buildGameLedgers,
@@ -62,7 +62,7 @@ export default function StatsPage() {
   useEffect(() => {
     const token = sessionStorage.getItem('ghin_token');
     if (!token) { router.push('/'); return; }
-    const isOwner = getAccessLevel() === 'full';
+    const isOwner = isAppOwner();
     const ghin = getCreatorGhin();
 
     Promise.all([

@@ -12,7 +12,7 @@ import { hydrateRoster, getRosterPlayerById } from '@/lib/roster';
 import { hydrateGroups, getGroupById } from '@/lib/roster-groups';
 import { balanceTeamsWithLocks } from '@/lib/pool-game';
 import { getCreatorGhin } from '@/lib/pool-identity';
-import { getAccessLevel } from '@/lib/invite-gate';
+import { isAppOwner } from '@/lib/invite-gate';
 import { TOURNAMENT_GROUP_SEED_KEY } from '@/lib/group-seed';
 
 const WIZARD_KEY = 'tournament_wizard_draft';
@@ -70,7 +70,7 @@ export default function NewTournamentPage() {
     try { seededGroupId = sessionStorage.getItem(TOURNAMENT_GROUP_SEED_KEY); } catch {}
     if (seededGroupId) {
       try { sessionStorage.removeItem(TOURNAMENT_GROUP_SEED_KEY); } catch {}
-      const isOwner = getAccessLevel() === 'full';
+      const isOwner = isAppOwner();
       const ghin = getCreatorGhin();
       hydrateRoster({ viewerGhin: ghin, isOwner })
         .then(() => hydrateGroups({ viewerGhin: ghin, isOwner }))

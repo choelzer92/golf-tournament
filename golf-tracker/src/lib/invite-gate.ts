@@ -1,6 +1,17 @@
+import { getCreatorGhin } from './pool-identity';
+
 const COOKIE_NAME = 'golf_access';
 const VALID_CODES = ['birdie2026'];
-const EXPIRY_SECONDS = 60 * 60 * 48; // 48 hours
+// FULL access: 30 days, SLIDING — the gate re-sets the cookie on every
+// successful visit (see InviteGate), so a weekly regular never re-enters the
+// code while a visitor who stops coming ages out. 48h was the old value — it
+// expired mid-week for a weekly game, so every player re-authenticated every
+// single round (F-051).
+const FULL_EXPIRY_SECONDS = 60 * 60 * 24 * 30;
+// POOL access: 48h is enough — the grant came from a link the visitor still
+// holds, so re-opening it re-grants instantly; nothing is lost by expiring
+// (F-057). Keeping it short limits how long a stale device stays let in.
+const POOL_EXPIRY_SECONDS = 60 * 60 * 48;
 
 // Access levels:
 //  - 'full': the owner (entered the invite code) — the whole app.
@@ -42,7 +53,8 @@ export function checkInviteCode(code: string): boolean {
 }
 
 export function setAccessCookie(level: AccessLevel = 'full') {
-  document.cookie = `${COOKIE_NAME}=${level}; path=/; max-age=${EXPIRY_SECONDS}; SameSite=Lax`;
+  const maxAge = level === 'full' ? FULL_EXPIRY_SECONDS : POOL_EXPIRY_SECONDS;
+  document.cookie = `${COOKIE_NAME}=${level}; path=/; max-age=${maxAge}; SameSite=Lax`;
 }
 
 export function getAccessLevel(): AccessLevel | null {
@@ -55,6 +67,35 @@ export function getAccessLevel(): AccessLevel | null {
 
 export function hasAccessCookie(): boolean {
   return getAccessLevel() !== null;
+}
+
+// The app owner's GHIN number — CONFIG, not a scattered literal (§5.bi). Set
+// NEXT_PUBLIC_OWNER_GHIN in .env.local / the deploy environment. The sandbox
+// defaults to its fake organizer (Craig = 1234567 in fixtures-domain.ts) so
+// e2e can exercise both the owner and member views.
+export function getOwnerGhin(): number | null {
+  const raw = process.env.NEXT_PUBLIC_OWNER_GHIN
+    ?? (process.env.NEXT_PUBLIC_SANDBOX === '1' ? '1234567' : undefined);
+  const n = Number(raw);
+  return raw != null && Number.isFinite(n) && n > 0 ? n : null;
+}
+
+// Ownership is IDENTITY, not the invite code (§5.bi, F-059). Every owner check
+// used to be `getAccessLevel() === 'full'`, so any friend who typed the invite
+// code saw ALL games, groups, and the full ledger. Now only full access AND the
+// configured owner GHIN sees everything; a code-holding member keeps the full
+// app surface scoped to their own GHIN (the paths already built for share-link
+// organizers). A code-holder with no resolved identity must get a "log in to
+// see your games" prompt, never a false-empty list and never everyone's data.
+//
+// ROLLOUT SAFETY: until NEXT_PUBLIC_OWNER_GHIN is configured this falls back to
+// the legacy rule (full access = owner), so deploying without the env var
+// changes nothing. Set the var to activate identity-scoped members.
+export function isAppOwner(): boolean {
+  if (getAccessLevel() !== 'full') return false;
+  const owner = getOwnerGhin();
+  if (owner === null) return true; // unconfigured — legacy behavior
+  return getCreatorGhin() === owner;
 }
 
 // If the URL carries the organizer token (?key=...), grant 'pool' access and

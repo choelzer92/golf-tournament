@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { GameSetup, Player, TeeSetOption } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
+import { QrImage } from '@/components/qr-image';
 import type { PoolGame, PoolTeam, PoolTeamDetail, PoolJunkValues, PoolMoneyMode } from '@/lib/pool-game';
 import {
   formatOfGame,
@@ -55,11 +56,12 @@ import {
   dollarsToPotSplit,
   isPoolGameFullyScored,
   ensureShareToken,
+  shareTokenMatches,
 } from '@/lib/pool-game';
 import type { GameScore } from '@/lib/game-state';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
-import { ORGANIZER_TOKEN, getAccessLevel } from '@/lib/invite-gate';
-import { getCreatorGhin } from '@/lib/pool-identity';
+import { ORGANIZER_TOKEN, getAccessLevel, isAppOwner } from '@/lib/invite-gate';
+import { getCreatorGhin, getCreatorName } from '@/lib/pool-identity';
 import { getGameMode, GAME_MODES, buildGameModeContext, defaultSettings, settingValue, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { SideNames } from '@/components/side-names';
@@ -101,6 +103,18 @@ export default function PoolHubPage() {
   // Share-link (pool) visitors don't have the dashboard; give them "New Game" instead.
   const [poolOnly, setPoolOnly] = useState(false);
   useEffect(() => { setPoolOnly(getAccessLevel() === 'pool'); }, []);
+  // F-048: the invite gate only SHAPE-checks a ?key= (it runs before game data
+  // exists) and defers real validation to this page. Capture the key once on
+  // mount; it's checked against the loaded game below. Owners (full access)
+  // never carry keys and are never blocked.
+  const [urlKey, setUrlKey] = useState<string | null>(null);
+  useEffect(() => {
+    try { setUrlKey(new URLSearchParams(window.location.search).get('key')); } catch { /* ignore */ }
+  }, []);
+  // F-049: who the app thinks you are — shown in the header so a share-link
+  // player isn't left inferring their identity from which buttons are missing.
+  const [viewerName, setViewerName] = useState<string | null>(null);
+  useEffect(() => { setViewerName(getCreatorName()); }, []);
 
   useEffect(() => {
     const cached = loadPoolGame(id);
@@ -121,6 +135,24 @@ export default function PoolHubPage() {
   );
 
   if (!game) return null;
+
+  // F-048: a pool-access visitor arriving with a key that matches NEITHER this
+  // game's token nor the legacy constant got here on a fabricated or stale
+  // link — say so instead of opening someone's game. (No key at all is fine:
+  // in-app navigation drops the query string once access is granted.)
+  if (poolOnly && urlKey && !shareTokenMatches(game, urlKey)) {
+    return (
+      <div className="min-h-full bg-gray-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-sm text-center">
+          <h1 className="text-xl font-bold text-gray-900">This link isn&apos;t valid for this game</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            It may have been mistyped or replaced. Ask the organizer to send a fresh
+            scoring link from the game&apos;s Share panel.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   function playersForTeam(team: PoolTeam): Player[] {
     return team.playerIds
@@ -335,6 +367,14 @@ export default function PoolHubPage() {
           <div>
             <h1 className="text-xl font-bold">{game.name}</h1>
             <p className="text-xs text-green-200">{hubSubtitle}</p>
+            {/* F-049: say who the app thinks you are. A guest on a scoring link
+                has no other cue; an identified viewer sees their own name. The
+                owner-without-login case shows nothing — the controls say it. */}
+            {viewerName ? (
+              <p className="text-[11px] text-green-300">Viewing as {viewerName}</p>
+            ) : poolOnly ? (
+              <p className="text-[11px] text-green-300">Viewing as guest · scoring link</p>
+            ) : null}
           </div>
           {/* THE LINE IS READ-ONLY vs MUTATING, not organizer vs guest.
               A share-link player is in a money game: they're entitled to SEE
@@ -348,14 +388,17 @@ export default function PoolHubPage() {
             {/* Feedback is for EVERYONE in the game — the share-link friend
                 using the app mid-round is exactly who we want to hear from. */}
             <FeedbackButton gameId={game.id} />
+            {/* F-056: Share is READ-ONLY spreading of a link the guest already
+                holds, so it sits outside the poolOnly guard. Save format and
+                Edit mutate shared state and stay owner-side of the line. */}
+            <button
+              onClick={() => setSharing(true)}
+              className="text-sm font-medium text-green-200 hover:text-white"
+            >
+              Share
+            </button>
             {!poolOnly && (
               <>
-                <button
-                  onClick={() => setSharing(true)}
-                  className="text-sm font-medium text-green-200 hover:text-white"
-                >
-                  Share
-                </button>
                 <button
                   onClick={() => setSavingFormat(true)}
                   className="text-sm font-medium text-green-200 hover:text-white"
@@ -645,7 +688,7 @@ function SaveFormatModal({ game, onClose }: { game: PoolGame; onClose: () => voi
   const [attachToGroup, setAttachToGroup] = useState(true);
   useEffect(() => {
     if (!game.sourceGroupId) return;
-    hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' })
+    hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: isAppOwner() })
       .then(() => {
         const g = getGroupById(game.sourceGroupId!);
         if (g && g.defaults?.kind !== 'format') setSourceGroup(g);
@@ -743,7 +786,6 @@ function SharePanel({ game, onSave, onClose }: { game: PoolGame; onSave: (g: Poo
   // constant: it grants a ROLE and exists before any game does, so it can't be
   // per-game. Goes to co-organizers you trust, not a whole group chat.
   const organizerLink = `${origin}/pool/new?key=${ORGANIZER_TOKEN}`;
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(playerLink)}`;
 
   async function shareLink(url: string, title: string, key: 'player' | 'organizer') {
     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -776,8 +818,7 @@ function SharePanel({ game, onSave, onClose }: { game: PoolGame; onSave: (g: Poo
           </button>
         </div>
         <div className="mt-3 flex justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrSrc} alt="QR code — open this game to enter scores" width={180} height={180} className="rounded-lg border border-gray-200" />
+          <QrImage data={playerLink} alt="QR code — open this game to enter scores" className="rounded-lg border border-gray-200" />
         </div>
         <p className="text-center text-[11px] text-gray-400 mt-1">Or scan to open this game on a phone</p>
 
@@ -2311,7 +2352,7 @@ function AddPlayerPanel({
   useEffect(() => {
     // Scope the roster to this organizer (owner sees all; others see the shared
     // base roster plus their own saved players).
-    hydrateRoster({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' }).then(() => setRosterResults(searchRoster('')));
+    hydrateRoster({ viewerGhin: getCreatorGhin(), isOwner: isAppOwner() }).then(() => setRosterResults(searchRoster('')));
   }, []);
 
   // Keep the target team valid if teams change under us.

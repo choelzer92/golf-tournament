@@ -15,7 +15,7 @@ import {
   type SoloRound,
   type SoloRoundListItem,
 } from '@/lib/solo-round';
-import { getAccessLevel } from '@/lib/invite-gate';
+import { isAppOwner } from '@/lib/invite-gate';
 
 // Solo round landing + start flow. The heart of the golf trainer (Layer 1):
 // a single player logs each shot (club + shape + GPS) to learn their real
@@ -64,7 +64,7 @@ export default function SoloLandingPage() {
 
   function refreshList() {
     const ghin = getCreatorGhin();
-    const isOwner = getAccessLevel() === 'full';
+    const isOwner = isAppOwner();
     setRounds(isOwner ? getSoloRoundList() : ghin !== null ? getSoloRoundListForGhin(ghin) : []);
   }
 

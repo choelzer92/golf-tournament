@@ -1,55 +1,63 @@
-# Next session: sharing/login/identity AUDIT (document-first, no code changes)
+# Next session: course-data correctness audit (slope/rating per tee)
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 ---
 
-Read `AGENTS.md` first. Context economy is now structural: `pool/new/page.tsx` is a
-777-line orchestrator (steps live in `src/app/pool/new/steps/`), FINDINGS.md keeps only
-the open working set (settled entries: grep `FINDINGS_ARCHIVE.md` by F-0NN). Still:
-delegate broad searches to subagents; grep DECISIONS_ARCHIVE.md by §.
+Read `AGENTS.md` first. Delegate broad searches to subagents; grep DECISIONS_ARCHIVE.md
+by § and FINDINGS_ARCHIVE.md by F-0NN — don't read either whole.
 
-**State (2026-09-14):** EVERYTHING is merged to `main` and pushed (f1e5e8e) — the
-F-045/F-040 batch (4c33964, live with the 💬 feedback box: **check `/home/feedback`
-for notes**) and the context-economy refactor (wizard split + FINDINGS archive,
-Craig-approved). **Start this session's work on a NEW branch off main** (Craig,
-2026-09-14).
+**State (2026-09-14):** branch `audit-sharing-login-2026-09-14` now holds the audit
+(F-047…F-055) AND all thirteen built fixes (F-047…F-059), each with tagged e2e; verify
+green, 179 e2e. Nothing merged or pushed — that's Craig's call (§5.ab). Two things wait
+on him: review/merge the branch, and set **`NEXT_PUBLIC_OWNER_GHIN`** (his real GHIN) in
+`.env.local` + the deploy env — until then F-059's `isAppOwner()` deliberately falls back
+to legacy full-access-=-owner, so the deploy is safe but members aren't scoped yet.
 
-## The work: sharing/login/identity audit (BACKLOG "Now"; Craig: "I want to get this polished")
+## The work: course-data correctness audit (Craig 2026-09-10, re-raised 2026-09-14)
 
-Document-first (§2) — this session LOOKS and RECORDS, it does not fix. Follow
-`UI_CRITIQUE_PROCESS.md`. Walk every entry path as each persona, screenshot each, log
-findings with options in FINDINGS.md:
+Craig: *"we really need to investigate the situation with having improper slope/course
+ratings to a tee for different courses."* Extends F-023 (the ratings-parse honesty
+finding — grep the archive). Three parts, document-first:
 
-- owner via invite code · organizer via legacy `?key=` link · player via per-game token
-  (`/pool/{id}?key=TOKEN`) · returning visitor with an expired 48h cookie or expired
-  12h GHIN token
-- Known rough edges to check: invite-code screen wording; the 48h cookie expiring
-  mid-week (friends re-enter the code); GHIN re-login prompts; share panel copy/QR;
-  "who am I" clarity for share-link players; sign-out scattering.
-- Fold in the group-management consolidation look (same surfaces): `/pool/roster`'s
-  GroupsManager vs `/home/groups/[id]` — Craig wants the new pages to be the standard.
-- If the shape turns into real accounts/auth, that's the §5c/F-002 trigger — STOP and
-  ask Craig there.
+1. **Inventory** — read-only queries over live games' stored courses: which have
+   missing/zero/implausible slope, rating, or par per tee? Live DB reads were
+   Craig-authorized for F-027's query; keep it SELECT-only and say so before running.
+   Also sweep the sandbox fixtures so the harness can reproduce whatever you find.
+2. **Harden the parse** — where `GetCourseDetails` payloads come in (tee sets,
+   Ratings[Front/Back/Total], gender rows), make the extraction fail LOUDLY into a
+   diagnostic rather than silently storing zeros. Document first; change on request.
+3. **Diagnostic view** — a way for Craig to see WHAT the app extracted for a course
+   (per tee: name, gender, yardage, par, CR/slope front/back/total) so on-course
+   disputes become screenshots, not guesses.
+
+Blocked sub-part: the Meadows payload (F-023B) still needs Craig to run
+`scripts/fetch-course-payload.mjs`. Don't wait on it — inventory + diagnostic are
+buildable without it. The default-TEE question (tips as default?) belongs here too.
+
+**Fallback if this stalls:** the §5.bg money-step redesign is shaped and ready
+(BACKLOG "Next few sessions") — but it's money math: worked-example sign-off with Craig
+before merge (§2), so don't take it deep unattended.
 
 ## Waiting on Craig (full table in BACKLOG.md)
 
-Meadows payload (F-023B) · F-034 A/B/C ·
-F-022 on-course spot-check · §7 q4 · telling the friend the queued answers (fixes are
-deployed now). The BIG structure discussion (§5g framing) stays alive — do NOT build.
+Review/merge the audit branch · set `NEXT_PUBLIC_OWNER_GHIN` · Meadows payload (F-023B) ·
+F-034 A/B/C · F-022 on-course spot-check · §7 q4.
 
 ## Traps that keep biting
 
-- **Do NOT edit app code while `npm run verify` runs** — the e2e dev server hot-reloads
-  edits and fails tests that were fine. (Markdown edits are safe.)
-- Killing a dev server can corrupt `.next` (routes.d.ts parse error) → `rm -rf .next`.
-- Stale `next dev` on 3200 → e2e times out; kill by PID, confirm port free. 3000 = Craig's.
+- **Do NOT edit app code while `npm run verify` runs.** (Markdown edits are safe.)
+- **Kill any hand-started dev server AND `rm -rf .next` before `npm run verify`** —
+  verify's tsc reads dev's half-written routes.d.ts otherwise (bit us twice). Kill by
+  PID, confirm 3200 free (TIME_WAIT rows are fine). 3000 = Craig's.
 - Check `npm run verify`'s own exit code, not a tail of its log.
+- Live DB: SELECT-only, announce first, never write (F-027 precedent).
+- A JSX comment can't sit as a sibling before the element inside a `.map()`'s
+  parenthesized return — use `//` lines inside the parens.
+- Editor diagnostics lag one edit behind — trust `npx tsc --noEmit`, not the squiggles.
+- Playwright: `expect(page).toHaveURL(...)` over `waitForURL`; strict mode — prefer
+  `exact: true` when a button label is a prefix of another ("Save" vs "Save format").
 - Game-mode ids ≠ display names (`stableford-ind`, not `stableford`) — select by VALUE.
-- Playwright `waitForURL` can hang on client-side navigations waiting for `load` —
-  assert with `expect(page).toHaveURL(...)` instead.
-- The wizard's `setPlayers`/`setTeamAssignments` props are `React.Dispatch` — the shared
-  AddPlayerPanel relies on functional updates for bulk adds; don't narrow them back.
 
 ## End the session by grooming BACKLOG.md
 

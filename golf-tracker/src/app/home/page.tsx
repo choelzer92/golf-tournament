@@ -10,10 +10,10 @@ import {
   type PoolGameListItem,
 } from '@/lib/pool-game';
 import { gameListSubtitle } from '@/lib/game-modes/result';
-import { hydrateGroups, type RosterGroup } from '@/lib/roster-groups';
+import { hydrateGroups, upsertGroup, type RosterGroup } from '@/lib/roster-groups';
 import { getPlayerGroups } from '@/lib/pool-formats';
-import { getAccessLevel } from '@/lib/invite-gate';
-import { getCreatorGhin, getCreatorName } from '@/lib/pool-identity';
+import { clearAccessCookie, isAppOwner } from '@/lib/invite-gate';
+import { clearGhinIdentity, getCreatorGhin, getCreatorName } from '@/lib/pool-identity';
 import { SOLO_ROUNDS } from '@/lib/flags';
 import { FeedbackButton } from '@/components/feedback-box';
 
@@ -89,6 +89,12 @@ export default function HomePage() {
   // "Your golf" is a collapsible list — groups are the primary focus, games are
   // one tap away. Defaults collapsed so the page opens on groups + start actions.
   const [gamesOpen, setGamesOpen] = useState(false);
+  // F-055 (§5.bh): groups are created HERE — /pool/roster is saved players only.
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [savingGroup, setSavingGroup] = useState(false);
+  // F-059: owner-only affordances (feedback read-back) hide for members.
+  const [ownerView, setOwnerView] = useState(false);
 
   useEffect(() => {
     // A logged-in convenience: mirror the dashboard's gate — no GHIN token means
@@ -99,7 +105,8 @@ export default function HomePage() {
       return;
     }
 
-    const isOwner = getAccessLevel() === 'full';
+    const isOwner = isAppOwner();
+    setOwnerView(isOwner);
     const ghin = getCreatorGhin();
     setName(getCreatorName());
 
@@ -127,8 +134,35 @@ export default function HomePage() {
     });
   }, [router]);
 
+  // Create a group and land on its dashboard — members, formats, rename, and
+  // delete all live there (F-055). Ownership mirrors the old roster manager:
+  // tagged to the creator's GHIN so a scoped organizer only ever sees their own.
+  async function createGroup() {
+    const name = newGroupName.trim();
+    if (!name || savingGroup) return;
+    setSavingGroup(true);
+    try {
+      const group: RosterGroup = {
+        id: crypto.randomUUID(),
+        name,
+        ownerGhin: getCreatorGhin(),
+        playerIds: [],
+        defaults: null,
+      };
+      await upsertGroup(group);
+      router.push(`/home/groups/${group.id}`);
+    } finally {
+      setSavingGroup(false);
+    }
+  }
+
+  // Sign Out is a FULL exit (F-047): forget the GHIN session, the durable
+  // identity mirror, AND the invite-gate cookie — the button must do what it
+  // says on a borrowed phone. Next visit re-enters the invite code.
   function logout() {
     sessionStorage.clear();
+    clearGhinIdentity();
+    clearAccessCookie();
     router.push('/');
   }
 
@@ -198,16 +232,41 @@ export default function HomePage() {
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-gray-900">Your groups</h2>
+            {/* F-055: creation lives here (the old Manage → /pool/roster button
+                pointed at a second group manager, since deleted). Everything
+                else — members, formats, rename, delete — is on the group's
+                own dashboard, one tap into a card below. */}
             <button
-              onClick={() => router.push('/pool/roster')}
+              onClick={() => setCreatingGroup((c) => !c)}
               className="text-sm text-green-700 hover:text-green-900 font-medium"
             >
-              Manage
+              {creatingGroup ? 'Cancel' : '+ New group'}
             </button>
           </div>
+          {creatingGroup && (
+            <form
+              className="flex gap-2 mb-3"
+              onSubmit={(e) => { e.preventDefault(); void createGroup(); }}
+            >
+              <input
+                autoFocus
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="Group name (e.g. Weekend Warriors)…"
+                className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+              />
+              <button
+                type="submit"
+                disabled={!newGroupName.trim() || savingGroup}
+                className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800 disabled:opacity-50"
+              >
+                {savingGroup ? 'Creating…' : 'Create'}
+              </button>
+            </form>
+          )}
           {groups.length === 0 ? (
             <p className="text-sm text-gray-500 bg-white rounded-lg shadow p-4">
-              No saved groups yet. Save a group of players from the roster to prefill future games.
+              No groups yet. Create one — a named set of your regulars that fills a new game&apos;s field in one tap.
             </p>
           ) : (
             <div className="space-y-2">
@@ -280,15 +339,18 @@ export default function HomePage() {
               Who owes whom across your games — overall, by group, by game, or by player.
             </p>
           </button>
-          {/* Owner-only in effect: /home is already gated to full access, and the
-              read-back page re-checks. A quiet link, not a card — reading feedback
-              is an occasional owner chore, not a daily surface. */}
-          <button
-            onClick={() => router.push('/home/feedback')}
-            className="mt-2 text-sm text-green-700 hover:text-green-900 font-medium"
-          >
-            Read feedback notes →
-          </button>
+          {/* App-owner only (F-059): the read-back shows EVERYONE's notes, so the
+              link hides for members and the page itself re-checks isAppOwner().
+              A quiet link, not a card — reading feedback is an occasional owner
+              chore, not a daily surface. */}
+          {ownerView && (
+            <button
+              onClick={() => router.push('/home/feedback')}
+              className="mt-2 text-sm text-green-700 hover:text-green-900 font-medium"
+            >
+              Read feedback notes →
+            </button>
+          )}
         </section>
       </main>
     </div>

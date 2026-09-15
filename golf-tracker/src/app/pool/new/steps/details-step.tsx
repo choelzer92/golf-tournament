@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { PoolJunkValues, PoolMoneyMode } from '@/lib/pool-game';
-import { getAccessLevel } from '@/lib/invite-gate';
+import { isAppOwner } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import { type RosterGroup, hydrateGroups, getGroupById } from '@/lib/roster-groups';
 import { getFormats, getGroupFormats } from '@/lib/pool-formats';
@@ -70,7 +70,7 @@ export function DetailsStep({
   // (The group question lives on the FIELD step, which now comes first — §5.au.)
   const [formats, setFormats] = useState<RosterGroup[]>([]);
   useEffect(() => {
-    hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: getAccessLevel() === 'full' })
+    hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: isAppOwner() })
       .then(() => setFormats(getFormats()))
       .catch(() => {});
   }, []);

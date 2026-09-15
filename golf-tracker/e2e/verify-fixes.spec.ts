@@ -244,7 +244,7 @@ test.describe('share link on another device', () => {
 
     const body = await guest.locator('body').innerText();
     // Must NOT be stopped by the invite gate...
-    expect(body).not.toContain('Enter your invite code');
+    expect(body).not.toContain('Enter the invite code');
     // ...and must land on the game itself.
     expect(body).toContain('Closeout Test Pool');
     await guest.screenshot({ path: 'e2e/screenshots/guest-share-link.png', fullPage: true });

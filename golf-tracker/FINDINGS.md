@@ -808,6 +808,412 @@ counting)"). The "saved per group" idea stays open, feeds the format library.
 
 ---
 
+<!-- ============ Sharing / login / identity audit — 2026-09-14 session ============
+Walked all four personas in the sandbox (e2e/sharing-audit.spec.ts, screenshots
+share-audit-01…21): owner via invite code, organizer via legacy ?key=, player via
+per-game token, returning visitor with expired cookie / expired GHIN token; plus
+share panels, sign-out, and the /pool/roster vs /home/groups overlap.
+
+What WORKS well (worth protecting, not just criticizing):
+- A deep link behind an expired cookie survives the gate round-trip: enter the code
+  and you land on the EXACT page you were sent (share-audit-05/06). This is the
+  "continuing" story doing its job.
+- The player share link is genuinely one-tap: opens THIS game, Enter Scores is right
+  there, no login (share-audit-12/13). F-004 scoping still holds.
+- Share panel copy is clear about what each link does and doesn't open.
+Sandbox limits: fake backend, no real GHIN — the expired-GHIN-token MODAL (vs the
+redirect) wasn't captured; cited from code (ghin-login-modal.tsx). -->
+
+### F-047 — "Sign Out" only signs you out of GHIN; the app stays open and remembers who you are  [P2] [continue]
+
+**Screen:** /home → Sign Out → /pool · `share-audit-16/17/18`
+**Violates:** golfer trust ("who am I" clarity); a control must do what it says
+
+**Observed:** Sign Out (`home/page.tsx:130`, `dashboard/page.tsx:177`) does
+`sessionStorage.clear()` + push to the login page — but the 48h `golf_access` cookie is
+never cleared (`clearAccessCookie`, `invite-gate.ts:95`, has ZERO callers) and the
+localStorage `ghin_golfer` identity mirror is never cleared either. After signing out,
+navigating to /pool walks straight back into the app (probe: "AFTER SIGN OUT, /pool
+GATED? NO"), still recognized as the same organizer.
+
+**Why it matters:** on a shared or borrowed phone (a real case — a friend scores on
+someone else's device), "Sign Out" promises an exit it doesn't deliver. And a user who
+signs out to "log in as someone else" will find the old identity ghosting /pool.
+
+**Options**
+- **A. Make Sign Out a full exit:** clear the cookie (the function already exists) +
+  both identity stores. Cost: the signer-outer must re-enter the invite code next time —
+  which is exactly what "sign out" should mean.
+- **B. Relabel the button "Sign out of GHIN"** and leave behavior. Honest, zero risk,
+  but keeps the ghost-identity problem.
+- **C. Leave it.** Everyone is in the circle of trust; nobody shares phones. (They do.)
+
+**Recommendation:** A — one function call that's already written, and the label becomes true.
+
+**Status:** FIXED 2026-09-14 per option A (Craig: "address these") — `logout()` on /home and
+/dashboard now clears the cookie AND both identity stores (`clearGhinIdentity`); e2e
+`F-047` proves the cookie is gone and /pool re-gates.
+
+---
+
+### F-048 — The per-game share token is never actually checked: any 24-char key opens any game  [P2] [continue]
+
+**Screen:** `/pool/{id}?key=AAAAAAAAAAAAAAAAAAAAAAAA` (a made-up key) · `share-audit-14`
+**Violates:** the feature's own claim (per-game tokens are one of the two §5c items kept in scope "really a feature")
+
+**Observed:** the invite gate grants `pool` access to any token-SHAPED key
+(`/^[A-Za-z0-9_-]{20,32}$/`, `invite-gate.ts:91`) and defers real validation to the game
+page — but `shareTokenMatches` (`pool-game.ts:2394`) has **no callers anywhere in src/**.
+Probe confirmed on screen: a fabricated key landed fully inside the game (screenshot 14
+is the whole hub). So the minted per-game token is functionally identical to the legacy
+shared constant; the "per-game" part is decorative today.
+
+**Why it matters:** NOT re-raising F-002 (RLS stays deferred by decision). This is
+narrower: the feature Craig kept in scope doesn't do the one thing that distinguishes it.
+Practical effect within the trust circle is small — but revoke-by-reissue, the eventual
+point of per-game tokens, can't work until something checks the token.
+
+**Options**
+- **A. Wire the existing check in the game page:** on `pool` access with a key that fails
+  `shareTokenMatches`, show a friendly "this link isn't valid for this game — ask the
+  organizer for a fresh one" screen. Small, contained, uses code already written.
+- **B. Validate inside InviteGate.** Wrong layer — the gate would need to fetch the game.
+- **C. Leave until the §5c trigger.** Defensible; but then the dead `shareTokenMatches`
+  should say so, and the share panel shouldn't imply per-game scoping.
+
+**Recommendation:** A — it's the missing half of an approved, built feature, not new security surface.
+
+**Status:** FIXED 2026-09-14 per option A — the game page checks a present `?key=` with
+`shareTokenMatches` for pool-access visitors and shows "This link isn't valid for this
+game" on a mismatch; real links and keyless in-app navigation unaffected. e2e `F-048`
+covers both the refusal and the real-link regression.
+
+---
+
+### F-049 — Share-link players and invite-code owners have no "who am I" anywhere in the pool surfaces  [P2] [continue]
+
+**Screen:** game hub + scorecard as a token visitor · `share-audit-12/13`; owner landing · `share-audit-04`
+**Violates:** "who am I" clarity (this audit's named rough edge); UI_CONVENTIONS §6c (rejoining is frictionless — and should be *legible*)
+
+**Observed:** identity is shown in exactly two places, both GHIN-gated (`/home` "Welcome
+back, {name}", `/pool`'s "Showing games created by {name}"). A share-link player sees NO
+indication of who the app thinks they are, on any screen — they infer their access level
+from which buttons are missing. An invite-code owner who never GHIN-logs-in likewise has
+no identity anywhere. Sign Out exists only on /home and /dashboard — nothing pool-side
+(the "sign-out scattering" edge: it's not scattered, it's absent where guests live).
+
+**Why it matters:** the friend mid-round who taps the wrong team's Enter Scores has no
+cue that the app doesn't know who they are. And feedback notes from guests arrive with
+`authorName: ''` — anonymous by accident, not by choice.
+
+**Options**
+- **A. A quiet identity line in the pool header** ("Viewing as guest · scoring link" /
+  "Craig Hoelzer"), tappable for the sign-out / switch actions. One shared component.
+- **B. Only fix the guest case:** a one-time "You're here via a scoring link — pick your
+  team to score" hint on first open. Smaller; doesn't help the signed-in confusion.
+- **C. Leave it.** The button-visibility differences are the identity display.
+
+**Recommendation:** A — it consolidates F-047's relabeled sign-out, this, and the
+scattering into one small header affordance.
+
+**Status:** PARTLY FIXED 2026-09-14 — the game hub header now says "Viewing as {name}"
+(identified) or "Viewing as guest · scoring link" (token guest); e2e `F-049` ×2. Still
+open from option A: making it tappable (sign-out / switch) and extending it beyond the
+hub — fold into whichever session touches the pool header next.
+
+---
+
+### F-050 — The invite screen explains nothing to the person it interrupts  [P3] [continue]
+
+**Screen:** cold visit / expired cookie · `share-audit-01/03/05`
+**Violates:** north star ("continuing" — a returning friend is the common case, not a stranger)
+
+**Observed:** the gate says "Enter your invite code to continue / Ask the organizer for
+your invite code" — identical for a first-timer and for the friend whose cookie expired
+mid-week and who typed this same code last Tuesday. The error is a bare "Invalid code.
+Try again." Nothing says the code is unchanged, that a share LINK also works, or why
+access lapsed. (The redeeming half, worth keeping: after entering the code you land on
+the exact URL you asked for — screenshots 05→06.)
+
+**Options**
+- **A. Returning-visitor copy:** set a harmless localStorage marker on first grant; when
+  present, the gate says "Your access expired — enter the same code as before." Cheap,
+  honest, no security change.
+- **B. Static copy tweak only:** "Enter the invite code — the same one works every time."
+  Zero mechanism, most of the value.
+- **C. Leave it.** It's one field; friends figure it out (they have — grumbling).
+
+**Recommendation:** B now (words are free), A if F-051 doesn't make expiry rare anyway.
+
+**Status:** FIXED 2026-09-14 per option B — the gate now says "Enter the invite code —
+the same one works every time." (F-051's sliding cookie makes the returner case rare,
+so option A's marker wasn't built.) e2e `F-050/F-051`.
+
+---
+
+### F-051 — The 48h access cookie expires mid-week for a weekly game  [P2] [continue]
+
+**Screen:** the same invite gate, hit every week · `share-audit-05`
+**Violates:** north star ("continuing"); the known rough edge named in the session prompt
+
+**Observed:** `golf_access` max-age is 48 hours (`invite-gate.ts:3`). Craig's groups play
+weekly, so every player re-authenticates every single visit — the cookie effectively
+never persists between rounds. Nothing refreshes it on use (the gate only reads it).
+
+**Options**
+- **A. Extend max-age to 30 days.** One constant. The invite code's security posture
+  (deferred by §5c) is unchanged — the code itself never expires, so a longer cookie
+  concedes nothing real.
+- **B. Sliding expiry:** re-set the cookie on every gated visit, so regulars never see
+  the gate and a truly lapsed visitor still ages out. Slightly more code, nicest shape.
+- **C. Leave it.** 48h was presumably chosen for a reason — though no decision records one
+  (grep found none; likely an unexamined default).
+
+**Recommendation:** B — regulars never re-enter, and it composes with F-050's copy for
+whoever still does.
+
+**Status:** FIXED 2026-09-14 as A+B COMBINED — sliding expiry alone at 48h would still
+lapse between weekly rounds, so the max-age is now 30 days AND the gate re-sets the
+cookie on every visit (a weekly regular never re-enters; a lapsed visitor ages out after
+a month). e2e `F-051` ×2 (fresh grant ≥20d out; a 2-day cookie refreshed on visit).
+
+---
+
+### F-052 — A legacy-link organizer who wanders past the fence is silently dumped into a blank New Game wizard  [P2] [start]
+
+**Screen:** `?key=poolparty2026` visitor navigates to /home · `share-audit-07/08`
+**Violates:** UI_CONVENTIONS §4 (say what happened, not just the absence); minimum exposed complexity
+
+**Observed:** a `pool`-access visitor touching any non-pool route is redirected to
+`/pool/new` (`invite-gate.tsx:24`) — the middle of game setup, with no message. From
+their seat: "I tapped something and the app started making me build a game." The natural
+home for this persona is `/pool` (My Games), which is where their link lands them and
+where their login card lives.
+
+**Options**
+- **A. Redirect to `/pool` instead of `/pool/new`.** One-line change of destination;
+  /pool already explains itself ("See your saved games", + New Game).
+- **B. Redirect to /pool + a one-time toast** ("That page needs a full account — you have
+  organizer access"). More honest, slightly more code.
+- **C. Leave it.** The fence is rarely hit; organizers stay in their lane.
+
+**Recommendation:** A — the fence should land people on a floor, not a form.
+
+**Status:** FIXED 2026-09-14 per option A — the fence redirects to `/pool`. e2e `F-052`.
+
+---
+
+### F-053 — A returning user with an expired GHIN session is greeted like a stranger  [P3] [continue]
+
+**Screen:** /home with no `ghin_token` → bounced to `/` · `share-audit-15`
+**Violates:** north star ("continuing"); the "GHIN re-login prompts" rough edge
+
+**Observed:** `/home`, `/dashboard`, and `/home/groups/*` check only token PRESENCE and
+bounce to the login page, which says "Sign in with your GHIN account **to get started**."
+The user's identity is sitting in localStorage (`ghin_golfer` survives everything —
+F-047's flip side) but the page doesn't use it. Nothing says "your session expired";
+"get started" reads as if the app lost their data. (In-game, the GhinLoginModal handles
+this case well — "Your GHIN session timed out (they last ~12 hours)" — but the login
+PAGE, where the /home bounce lands, has no such framing. Not capturable in the sandbox;
+cited from `ghin-login-modal.tsx:51-54` and `page.tsx:55`.)
+
+**Options**
+- **A. Recognize the returner:** if `ghin_golfer` exists, the login page says "Welcome
+  back, {first name} — your GHIN session expired (they last about 12 hours). Sign in to
+  continue." Data's already there; copy-only + one read.
+- **B. Bounce to `/` with a query flag** (`/?expired=1`) and branch copy on that. Same
+  effect, no localStorage read, slightly uglier URL.
+- **C. Leave it.** Logging in again works regardless.
+
+**Recommendation:** A.
+
+**Status:** FIXED 2026-09-14 per option A — the login page reads the durable identity and
+greets a returner ("Welcome back, {first} — your GHIN session expired…"); after a real
+Sign Out (F-047 clears the identity) it correctly reverts to the stranger copy. e2e `F-053`.
+
+---
+
+### F-054 — At phone width, the saved-players list hides every NAME and clips Remove  [P2] [start]
+
+**Screen:** /pool/roster, 390px viewport · `share-audit-19`
+**Violates:** UI_CONVENTIONS §5 (phone-first); §3 (the name IS the row's identity)
+
+**Observed:** each saved-player row renders name + gender, index · GHIN, a tee select,
+and Remove in one overflowing line: on a phone the visible row is "Index 19.2 · GHIN
+2000044 [Tee: auto] R" — the NAME is pushed out of view and Remove is clipped to a
+letter. The names are in the DOM (innerText shows "Abe Weiss" etc.); it's pure layout.
+A 61-row list where every row is anonymous is unusable for its one job (find a person).
+
+**Why it matters:** this is the "Full roster manager" both /home and the group pages
+link to — every persona managing people lands here, on a phone.
+
+**Options**
+- **A. Two-line row:** name on its own line; index/GHIN + tee + Remove below. Standard
+  phone pattern, no information loss.
+- **B. Hide index/GHIN behind the row tap** and keep one line (name + tee + Remove).
+- **C. Fold into F-055:** if the roster page is being reshaped anyway, fix the layout as
+  part of the consolidation rather than twice.
+
+**Recommendation:** A now if F-055 waits; C if the consolidation is imminent.
+
+**Status:** FIXED 2026-09-14 per option A (F-055 has since landed too — the two-line row
+survived the consolidation) — the row is
+two lines: name + gender + Remove on top, index/GHIN + usual-tee below. e2e `F-054`
+asserts the first row's name and Remove sit inside a 390px viewport.
+
+---
+
+### F-055 — Two parallel group-management UIs: /pool/roster's GroupsManager vs /home/groups/[id]  [P2] [start]
+
+**Screen:** both, seeded with the same groups · `share-audit-19/20/21`
+**Violates:** consistency IS ease (UI_CONVENTIONS intro); Craig 2026-09-10: "the new one should be the standard"
+
+**Observed:** group CRUD lives on /pool/roster (create, rename, delete, membership via
+dropdown + chips — screenshot 19), while /home/groups/[id] is the far better surface
+(dashboard: start-something, money rollup, recent games, formats, searchable members —
+screenshot 21) but CANNOT create, rename, or delete a group. So the good page depends on
+the page Craig wants to retire, and three links ("Manage" on /home, "Full roster manager"
+on the group page) route people back to the old UI.
+
+**The gating constraint the consolidation must answer:** /home and /home/groups are
+GHIN-login-only (`sessionStorage.ghin_token` gate) and full-access-only, while
+/pool/roster is reachable at `pool` access — it's where a legacy-link organizer manages
+their roster. Moving group management to /home as-is would strand that persona.
+
+**Options**
+- **A. /home/groups becomes the only group UI:** add create (on /home's "Your groups")
+  and rename/delete (on the group dashboard); /pool/roster keeps saved PLAYERS only;
+  rewire the three links. The `pool`-access organizer keeps players but loses group
+  management — acceptable if groups are an owner concept (they are today: groups are
+  Craig's).
+- **B. Same as A, plus open /home/groups to `pool` access** scoped to their own groups.
+  Bigger; drags /home's GHIN gate into question — starts smelling like the F-002 trigger.
+- **C. Leave both, relabel** ("Saved players" vs "Groups") so at least the duplication is
+  named. Cheapest, changes nothing structural.
+
+**Recommendation:** A — matches Craig's stated direction, smallest honest scope, and the
+persona question has a defensible answer. B is the accounts conversation (§5c) — STOP
+there if Craig wants it.
+
+**Status:** FIXED 2026-09-14 per option A (§5.bh): /home "Your groups" gained create
+(+ New group → lands on the new dashboard), the group dashboard gained rename + delete,
+/pool/roster is saved players only (GroupsManager deleted, retitled). Nothing migrated.
+e2e `F-055` (create → rename → delete, and the roster page has no group manager).
+
+---
+
+<!-- ===== Sharing process think-through — 2026-09-14, second pass (Craig's scaling
+lens: "share things easily, without causing extra bugs… doesnt get more complicated
+when scaling"). Model + principles recorded as DECISIONS §5.bh. ===== -->
+
+### F-056 — The person running a game from the legacy link can't share it  [P2] [continue]
+
+**Screen:** game hub as a `pool`-access visitor · `share-audit-12` (note the missing Share button)
+**Violates:** north star (share easily); F-004's own line — Share is not a mutation of the game
+
+**Observed:** the hub header hides Share behind `!poolOnly` (`pool/[id]/page.tsx:351`,
+alongside genuinely mutating controls). A co-organizer who creates a game via the legacy
+`?key=` link therefore has NO way to send scoring links for their own game. And every
+guest already HOLDS the link they arrived by — hiding the panel from them exposes
+nothing, it just forces the "text me the link again" round-trip through the owner.
+
+**Options**
+- **A. Show Share to everyone in the game.** The panel re-surfaces a URL the viewer
+  effectively has; mutating controls stay hidden. Simplest, no identity check, scales.
+- **B. Show Share only to the game's creator** (`createdByGhin` match). Tighter, but adds
+  an identity check for no real exposure difference, and a no-GHIN guest organizer gets nothing.
+- **C. Leave it.** The owner remains the sharing bottleneck.
+
+**Recommendation:** A.
+
+**Status:** FIXED 2026-09-14 per option A — Share sits outside the `poolOnly` guard on
+the game hub (Save format/Edit stay hidden). e2e `F-056` (guest opens the panel; mutating
+buttons absent).
+
+---
+
+### F-057 — The 30-day sliding cookie applies to guests too: one tap = a month of create access  [P3] [continue]
+
+**Screen:** any share-link visit (cookie behavior, no single screen)
+**Violates:** Craig's scaling lens — breadth × duration should not grow silently (F-051 follow-up)
+
+**Observed:** the F-051 fix set ONE `EXPIRY_SECONDS` for both cookie levels, so a
+one-time scoring guest now keeps `pool` scope (including game creation at /pool/new) for
+30 sliding days after one tap. Harmless in the circle of trust; quietly broad at scale.
+
+**Options**
+- **A. Level-dependent lifetime:** `full` keeps 30-day sliding (the F-051 point); `pool`
+  returns to 48h. A guest loses nothing — their bookmark IS the link, and it re-grants
+  instantly on every tap.
+- **B. Leave both at 30 days** until the §5c trigger.
+
+**Recommendation:** A — the asymmetry matches how each persona actually returns.
+
+**Status:** FIXED 2026-09-14 per option A — `setAccessCookie` picks lifetime by level
+(`full` 30d sliding, `pool` 48h; the gate's sliding refresh passes the level through).
+e2e `F-057` (pool grant ≤48h) alongside the kept F-051 ≥20d full-grant assertion.
+
+---
+
+### F-058 — The share QR ships the token to a third party and dies offline  [P3] [continue]
+
+**Screen:** both share panels · `share-audit-09/11`
+**Violates:** UI_CONVENTIONS §6b (never block on the network); token hygiene at scale
+
+**Observed:** both QR codes are `<img src="https://api.qrserver.com/...?data={link}">`
+(`pool-share.tsx:14`, `pool/[id]/page.tsx:785`) — the full share URL, per-game token
+included, is sent off-device just to render a picture, and the parking-lot/no-signal
+case shows a broken image where the QR should be.
+
+**Options**
+- **A. Generate the QR locally** (small QR encoder rendering to SVG/canvas; one tiny
+  dependency or a vendored encoder). Token never leaves the device; works offline.
+- **B. Leave it** — the token gates UI only today (RLS open by §5c), so the leak is low-stakes.
+
+**Recommendation:** A — cheap, and it removes a scaling liability before tokens mean more.
+
+**Status:** FIXED 2026-09-14 per option A — shared `QrImage` component encodes locally
+via the `qrcode` package to a data: URL; both panels use it. e2e `F-058` asserts the img
+src is data:/blob and never qrserver.
+
+---
+
+### F-059 — "Sees everything" is keyed to the invite code, not to Craig — any code-holder is indistinguishable from the owner  [P1] [continue]
+
+**Screen:** every listing surface (`/pool`, `/home`, stats, groups, roster) — verified probe, ~15 call sites
+**Violates:** Craig's stated model ("users see the games made by themselves, and I see everyone's"); §5h (money visibility is scoped)
+
+**Observed:** every owner check is `isOwner = getAccessLevel() === 'full'`. The scoped
+path (games/groups filtered to the viewer's GHIN) exists and works — but it only applies
+to share-link visitors. Friends who enter the invite code get the OWNER view: all games,
+all groups, the full money ledger, and mutating controls on every game. Craig believed
+identity did the scoping; it's the credential.
+
+**Options**
+- **A. Key ownership to identity (CHOSEN):** one shared helper — `isAppOwner()` = full
+  access AND `getCreatorGhin()` matches the configured owner GHIN — replacing the ~15
+  `getAccessLevel() === 'full'` owner checks. The invite code comes to mean MEMBER
+  (keeps /home, stats, groups — scoped to their own GHIN, paths already built); Craig's
+  identity is what unlocks everything. Design care: a code-holder who hasn't GHIN-logged-in
+  resolves no identity — reuse /pool's "log in to see your games" prompt pattern, don't
+  show a false-empty or everyone's data.
+- **B. Behavioral only:** code stays Craig-only, friends use links. Zero code, but
+  link-scoped friends have no /home (no season ledger) — hurts "continuing".
+- **C. Wait for §5c accounts.**
+
+**Recommendation:** A — it makes Craig's mental model true from parts that already exist.
+
+**Status:** FIXED 2026-09-14 per option A — `isAppOwner()` (full access AND the
+configured owner GHIN, `NEXT_PUBLIC_OWNER_GHIN`; sandbox defaults to 1234567) replaced
+every `getAccessLevel() === 'full'` owner check, plus two surfaces that had NO check:
+/dashboard (listed every game) and /home/feedback (everyone's notes). No-identity
+code-holders get /pool's login prompt. ROLLOUT: until Craig sets `NEXT_PUBLIC_OWNER_GHIN`
+(his real GHIN) in the deploy env, the helper falls back to legacy full=owner, so the
+deploy is safe but members aren't scoped yet. e2e `F-059` (owner sees all / member sees
+own / no-identity gets the prompt).
+
+---
+
 ## Settled — full text in FINDINGS_ARCHIVE.md
 
 One line per archived finding; the full entry (observation, options, status, and

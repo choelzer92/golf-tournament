@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { hydrateGroups, getGroupById, addGroupMember, removeGroupMember, type RosterGroup } from '@/lib/roster-groups';
+import { hydrateGroups, getGroupById, addGroupMember, removeGroupMember, renameGroup, deleteGroup, type RosterGroup } from '@/lib/roster-groups';
 import { hydrateRoster, searchRoster, getRosterPlayerById, rosterDisplayName, type RosterPlayer } from '@/lib/roster';
 import { getFormats, getGroupFormats, attachFormatToGroup, detachFormatFromGroup } from '@/lib/pool-formats';
 import { hydratePoolGames, loadPoolGame, getPoolGameList, getPoolGameListForGhin } from '@/lib/pool-game';
@@ -11,7 +11,7 @@ import {
   buildGameLedgers, ledgersForGroup, rollupByPlayer,
   type GameLedger, type PlayerRollup,
 } from '@/lib/stats-ledger';
-import { getAccessLevel } from '@/lib/invite-gate';
+import { isAppOwner } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import { POOL_GROUP_SEED_KEY, TOURNAMENT_GROUP_SEED_KEY, FORMAT_SEED_KEY } from '@/lib/group-seed';
 
@@ -54,6 +54,11 @@ export default function GroupDetailPage() {
   // look something up in, not something to scroll past on the way to everything else.
   const [membersOpen, setMembersOpen] = useState(false);
   const [memberQuery, setMemberQuery] = useState('');
+
+  // F-055 (§5.bh): this dashboard is the ONLY group manager, so rename and
+  // delete live here — joining the dashboard, not displacing it (F-010 shape).
+  const [renaming, setRenaming] = useState(false);
+  const [renameText, setRenameText] = useState('');
 
   function refreshFormats(g: RosterGroup | null) {
     setGroupFormats(g ? getGroupFormats(g) : []);
@@ -101,7 +106,7 @@ export default function GroupDetailPage() {
   useEffect(() => {
     const token = sessionStorage.getItem('ghin_token');
     if (!token) { router.push('/'); return; }
-    const isOwner = getAccessLevel() === 'full';
+    const isOwner = isAppOwner();
     const ghin = getCreatorGhin();
     // Roster then groups (both viewer-scoped, matching the pool pages). Members
     // are resolved against the roster, so it must load first.
@@ -158,6 +163,22 @@ export default function GroupDetailPage() {
     const updated = await detachFormatFromGroup(group, formatId);
     setGroup(updated);
     refreshFormats(updated);
+  }
+
+  async function doRename() {
+    if (!group) return;
+    const name = renameText.trim();
+    if (!name || name === group.name) { setRenaming(false); return; }
+    await renameGroup(group.id, name);
+    setGroup(getGroupById(group.id));
+    setRenaming(false);
+  }
+
+  async function doDelete() {
+    if (!group) return;
+    if (!confirm(`Delete group “${group.name}”? Past games, money, and your saved players are unaffected.`)) return;
+    await deleteGroup(group.id);
+    router.push('/home');
   }
 
   function startTournament() {
@@ -227,13 +248,39 @@ export default function GroupDetailPage() {
   return (
     <div className="min-h-full bg-gray-50">
       <header className="bg-green-800 text-white shadow">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
+        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <button onClick={() => router.push('/home')} className="text-xs text-green-200 hover:text-white">
               ← Home
             </button>
-            <h1 className="text-xl font-bold">{group.name}</h1>
+            {renaming ? (
+              <form className="flex gap-2 mt-1" onSubmit={(e) => { e.preventDefault(); void doRename(); }}>
+                <input
+                  autoFocus
+                  value={renameText}
+                  onChange={(e) => setRenameText(e.target.value)}
+                  className="flex-1 min-w-0 rounded-md px-2 py-1 text-base font-bold text-gray-900"
+                />
+                <button type="submit" className="text-sm font-medium text-green-200 hover:text-white">Save</button>
+                <button type="button" onClick={() => setRenaming(false)} className="text-sm text-green-200 hover:text-white">Cancel</button>
+              </form>
+            ) : (
+              <h1 className="text-xl font-bold truncate">{group.name}</h1>
+            )}
           </div>
+          {!renaming && (
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                onClick={() => { setRenameText(group.name); setRenaming(true); }}
+                className="text-sm text-green-200 hover:text-white"
+              >
+                Rename
+              </button>
+              <button onClick={doDelete} className="text-sm text-green-200 hover:text-red-200">
+                Delete
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
