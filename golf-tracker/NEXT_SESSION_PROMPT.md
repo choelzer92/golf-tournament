@@ -1,4 +1,4 @@
-# Next session: review todos + backlog with Craig, plan the next iteration, shape a better harness
+# Next session: course-data correctness audit (+ optionally start the game-structure design doc)
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
@@ -7,62 +7,52 @@ Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 Read `AGENTS.md` first. Delegate broad searches to subagents; grep DECISIONS_ARCHIVE.md
 by § and FINDINGS_ARCHIVE.md by F-0NN — don't read either whole.
 
-**State (2026-09-15):** `audit-sharing-login-2026-09-14` is MERGED to main and pushed
-(f62cc74) — the sharing/login audit plus all thirteen fixes F-047…F-059 are live on the
-next deploy. One deploy step still open: **Craig sets `NEXT_PUBLIC_OWNER_GHIN` (his real
-GHIN) in the deploy env** — until then F-059's `isAppOwner()` deliberately falls back to
-legacy invite-code-=-owner, so members aren't scoped yet. Raise this early.
+**State (2026-09-15):** the review session happened (§5.bj — read it): Craig adopted the
+recommendations in order. `review-session-2026-09-15` carries F-034 opt A, F-060 opt A
+(built live while Craig was stuck on it), the sandbox owner-GHIN fix, and harness round 2
+(pool/[id] `panels/` split, verify-fixes.spec split + `e2e/helpers.ts`, quiet verify,
+FINDINGS sweep #2). Check `git log main..review-session-2026-09-15` and whether Craig has
+merged it; **don't merge or push unbidden** (§5.ab). `NEXT_PUBLIC_OWNER_GHIN` is set in
+Vercel AND .env.local — F-059 is ACTIVE on live; the sandbox now always owner-is-1234567.
 
-**This is a CONVERSATION session, not a build session.** Craig asked for it explicitly
-(2026-09-15): *"go through non completed todos, the backlog, and talk about the next
-iteration of the app. Additionally, we need to find a way to build a better harness for
-this project, and reduce unnecessary context bloat."* Present, discuss, record decisions
-(full entry → DECISIONS_ARCHIVE, index line → DECISIONS.md, work lines → BACKLOG);
-build only what he picks, on a fresh branch.
+## The promoted work: course-data correctness audit (M, §5.bj — Craig's #1 build pick)
 
-## Agenda
+Craig, twice: "we really need to investigate the situation with having improper
+slope/course ratings to a tee for different courses." Extends F-023 (part A —
+`teeHasRating` honesty — is FIXED; this is part B+):
 
-1. **Non-completed todos + open findings.** Present the short list, one line each, with
-   your recommendation. Open findings: F-005 (wizard step-1 exposure — the big one),
-   F-030 opt C (standings strip on the card), F-031 opt B (card to-par size), F-033
-   (findability of 1v1/3-player games), F-034 (stale draft name — needs his A/B/C).
-   Waiting-on-Craig table is in BACKLOG.md (owner GHIN env var, F-022 on-course check,
-   Meadows payload, §7 q4).
+1. **Inventory** — read-only queries against live: every course in `pool_games` /
+   `tournaments`, which tees lack usable slope/rating/par, which games computed handicaps
+   off the index fallback. Read-only is authorized by precedent (F-027 pattern): say
+   what you're running, show the query, change nothing.
+2. **Harden the parse** — `scripts/fetch-course-payload.mjs` fetches any course's RAW
+   `GetCourseDetails` payload (Craig runs it with his GHIN creds; works for The Meadows
+   or anything else). Get payloads for the courses the inventory flags; widen the parse;
+   commit trimmed fixtures + unit tests against the REAL shapes.
+3. **A diagnostic surface** — somewhere an organizer can SEE what the app extracted for
+   a course/tee (slope, rating, par, per-hole SI) and whether handicaps are riding the
+   index fallback. Design small; propose before building (§2: more than one defensible answer).
+4. **The default-TEE question** (from F-038): should the default be tips? Ask Craig with
+   evidence from the inventory, don't guess.
 
-2. **Backlog walk.** Go section by section (Now / Next few sessions / Bigger arcs /
-   Ideas); for each row: keep, kill, or reshape. It's grown — pruning is a win.
+**Money warning:** anything that changes which slope/rating a handicap uses IS handicap
+math — stop and ask, worked example first (§2, §5.z).
 
-3. **Next iteration.** Candidates to put in front of him (his own stated interests, not
-   an exhaustive menu): the game-structure simplification ("a pool is effectively just a
-   4v4 game" — the §5g Team Competition engine's UI framing, L, design-first); the §5.bg
-   money-step redesign (M, shaped); course-data correctness audit (M, was promoted before
-   this agenda superseded it); live scoring experience pass (§6 item 3, never had its
-   session); offline/PWA (§6 item 4, core to "continuing"); accounts/§5c hardening (the
-   F-059 follow-through: revoke/rotate + RLS under the settled sharing model). Let HIM
-   rank; record the pick as a decision.
+## Also queued (Craig said "in order" — these follow, don't crowd out the audit)
 
-4. **Better harness + context economy.** Craig has raised context bloat twice (wizard
-   split + FINDINGS archive shipped 2026-09-14 as the first round). Measured candidates
-   to discuss, biggest first:
-   - `src/app/pool/[id]/page.tsx` — **3,233 lines**, the single biggest context cost per
-     read. The wizard split (777-line orchestrator + per-step files) is the proven
-     pattern; a hub/SharePanel/edit-panels split is the obvious cut. Mechanical, safe,
-     e2e already covers the surfaces.
-   - `e2e/verify-fixes.spec.ts` — **2,996 lines**, monolithic; split by finding-era the
-     way newer specs already are (f047-, f055-, f056-058-, f059-…), and extract the
-     grantAndReset/seedCard/seedAndOpenGame helpers duplicated across 6+ spec files into
-     one shared e2e helper module.
-   - **verify output noise** — the log is ~6,000 lines (GHIN 401 spam, the credentials
-     banner, list reporter). A quieter reporter for verify (dot/line + failures-only)
-     plus silencing the sandbox's fake-GHIN 401 logging would cut a session's biggest
-     single tool-output dump. Keep the list reporter for interactive runs.
-   - **FINDINGS.md is back at 1,258 lines** — a second archive sweep is due (same
-     verbatim-move pattern; everything FIXED+verified with nothing waiting on Craig).
-   - **Session-start cost** — AGENTS.md + DECISIONS.md + memory + NEXT_SESSION_PROMPT is
-     the fixed overhead; discuss whether a generated one-page STATUS.md (branch, gate
-     state, open counts) could replace re-deriving state each session.
-   Shape this into a concrete plan with Craig; the mechanical pieces (file splits,
-   reporter, helper extraction) are buildable the same session if he wants.
+- **Game-structure design doc** (§5.bj, L, design-first, runs in parallel): "a pool is
+  effectively just a 4v4 game" — structure-first wizard question, modes as shortcuts,
+  the §5g engine's UI framing. Absorbs F-037 (pairings), F-042 (money-toggle placement),
+  F-060 opt B (merge rival build triggers), F-005's defaults-as-confirmations. Deliverable:
+  design doc + mock walk, NO code.
+- F-060 hub parity (S); F-030 opt C for the live-scoring session; the S-sized
+  merge-audit polish items.
+
+## Waiting on Craig (raise gently, don't block on them)
+
+BACKLOG.md table: F-022 on-course stroke check vs GHIN app; the fetch-course-payload run
+(step 2 needs him once); §7 q4; sending the friend the F-033 answer-back (drafted in the
+2026-09-15 session wrap-up).
 
 ## Traps that keep biting
 
@@ -75,8 +65,10 @@ build only what he picks, on a fresh branch.
 - Playwright strict mode: prefer `exact: true` when a label prefixes another
   ("Save" vs "Save format").
 - Game-mode ids ≠ display names (`stableford-ind`, not `stableford`) — select by VALUE.
-- Sandbox seeds sign in as Craig (GHIN 1234567) since F-059; tests for other personas
-  overwrite or clear the identity themselves.
+- Sandbox seeds sign in as Craig (GHIN 1234567), and since 2026-09-15 the sandbox owner
+  is ALWAYS 1234567 regardless of `.env.local`'s real owner GHIN.
+- e2e specs share `e2e/helpers.ts` (BASE, PHONE, grantAndReset, seedCard,
+  seedAndOpenGame) — extend it, don't re-inline copies.
 
 ## End the session by grooming BACKLOG.md
 
