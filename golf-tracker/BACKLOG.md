@@ -27,6 +27,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | When |
 |---|---|
+| **`review-session-2026-09-15` MERGED to main + pushed (aa4cd48)** on Craig's call — F-034, F-060, sandbox-owner fix, harness round 2, and the F-023 payload finding all ship on the next deploy | 2026-09-15 |
 | **Review session (§5.bj)**: recommendations adopted in order — F-034 opt A BUILT (c4398a2); F-031 opt B deferred; sharing arc reshaped to Accounts/§5c hardening; next build = course-data audit, game-structure design-first in parallel; STATUS.md idea rejected | 2026-09-15 |
 | **F-060 intake + opt A BUILT same session** (8ef4ebc): Craig live-stuck on Captains' deal — the tap worked but the result rendered below the fold with zero feedback. Method cards now scroll to the built teams, wear "✓ Built these teams" (demotes to "hand-adjusted since"), get a touch pressed-state; the false "drag nobody at all" copy replaced. Open: opt B (merge rival triggers → structure design), hub parity | 2026-09-15 |
 | **Sandbox owner un-broken** (bf847f6): Craig's real `NEXT_PUBLIC_OWNER_GHIN` in .env.local silently un-owned the sandbox's fake Craig — 4 owner-gated e2e went red. Sandbox flag now beats the env var | 2026-09-15 |
