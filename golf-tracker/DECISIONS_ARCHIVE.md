@@ -1604,6 +1604,74 @@ when a conflict forces a choice, correctness work (course data) outranks design 
 
 ---
 
+## 5.bk Game structure: one question, collapsed containers (2026-09-15)
+
+Craig answered the four GAME_STRUCTURE_DESIGN.md questions (asked one by one, his
+request):
+
+1. Step 2 asks **"How do you want to compete?"** right after the field.
+2. Fresh games get a **fit-based pre-selection** (8+ → foursome-vs-foursome shape,
+   4–7 → two teams, 2–3 → solo); every fitting option stays listed; a saved
+   format/group default skips the step as a confirmation.
+3. **Pool vs sides COLLAPSE into one structure.** The deciding exchange: shown the
+   real differences (teams=foursomes + pot vs independent teams + head-to-head
+   margins), Craig: *"I really don't understand the difference. what is different
+   about pool 4 v 4 v 4 v 4 for example, vs sides 4 v 4 v 4 v 4?"* — the owner not
+   being able to tell them apart IS the finding. Structure says "N teams of K"; the
+   money model (pot vs head-to-head) and the tee-sheet question (teams aligned with
+   foursomes or not) route to the right machinery invisibly.
+4. **Deep planning before code.** Craig: *"I think we need to collapse, but at the
+   same time, it is a risk. We need to deeply plan how this works, and make sure
+   there arent any other issues that come out of it."* No interim two-option step
+   (§5.at — don't teach vocabulary that will change).
+
+**How to apply.** The next structure session is a PLANNING session, document-first:
+inventory every container branch site (UI_MODE_AUDIT probes), map PoolGame classic vs
+sides data models field by field, define routing rules from (money model × team/foursome
+alignment) → machinery, list risks (live scoring partitioning §5l, both money engines
+§5.ad/§5.ae, leaderboard axes), and produce screen mocks. Money engines do not change;
+they get ROUTED TO. F-061's canonical naming comes from this design's step-2 vocabulary
+— don't unify labels before it.
+
+---
+
+## 5.bl Best possible, not merely easiest (2026-09-15)
+
+Craig, while settling the structure collapse: *"we need to make sure we make sure the
+live scoring and other portions of the app are performing or set up in the best
+possible way, not just the easiest way."*
+
+**What this settles.** A standing quality bar, named live scoring first. When a design
+or plan touches a subsystem, "it already works" is not a pass — the plan must state
+whether the current shape is the BEST one (latency, resilience, offline behavior,
+correctness under concurrent scorers) or just the one that was easiest to build, and
+propose the better shape where they differ.
+
+Craig, same conversation, sharpening the live-scoring half: *"currently, pool live
+scoring works pretty well. we tried something else with merge rpc, but we should be
+diligent and understand what the real best case is for multiple scorers for multiple
+foursomes tracking scores."*
+
+**How to apply.**
+- The §5.bk collapse plan must EVALUATE the live-scoring architecture (§5l matchup
+  partitioning, the 15s poll + self-healing subscribe, close-out flow) as part of the
+  seam inventory — routing to existing machinery is the floor, not the goal.
+- The live-scoring evaluation is a genuine RESEARCH question, not a defense of the
+  incumbent: history is merge-RPC (tournament path, caused real trouble) → matchup
+  partitioning (pool, works well). The plan should compare the design space for
+  multiple scorers × multiple foursomes — per-matchup row (today: what happens when
+  TWO scorers share one foursome?), per-hole/per-cell rows, server-merge RPC,
+  last-write-wins vs merge semantics — against concurrent edits, refresh latency,
+  offline/cart-path wifi, and recovery, and name the real best case with evidence.
+- The live-scoring experience pass (§6 item 3, never had its session) inherits this
+  bar explicitly: measure (taps, refresh latency, offline behavior on cart-path wifi)
+  before and after.
+- This is not license to rewrite working money math unprompted — §2's stop-and-ask
+  lines still govern; the bar changes what PLANS must argue, not what gets changed
+  without Craig.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

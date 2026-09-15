@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { type Player } from '@/lib/game-state';
-import { type PoolGame, type PoolTeam, type PoolTeamDetail, computePoolPlayerDetails, getFieldLow, distinctRankingsForPlayers, summarizeTeamBuild } from '@/lib/pool-game';
+import { type PoolGame, type PoolTeam, type PoolTeamDetail, getFieldLow, distinctRankingsForPlayers, summarizeTeamBuild } from '@/lib/pool-game';
 import { timeAgo } from './shared';
 
 export function HandicapRefresh({ game, onRefresh, onRebalance, onNeedsLogin }: {
@@ -80,7 +80,8 @@ export function FieldLowBanner({ game }: { game: PoolGame }) {
   return (
     <div className="rounded-lg border border-gray-200 bg-white px-4 py-2.5">
       <p className="text-xs text-gray-500">
-        Full handicap — low man: <span className="font-medium text-gray-700">{low.playerName.split(' ')[0]}</span> (CHcp {low.courseHandicap})
+        {/* Same banner as the off-the-low variant above — same spelling (F-062). */}
+        Full handicap — low man: <span className="font-medium text-gray-700">{low.playerName.split(' ')[0]}</span> (Course HCP {low.courseHandicap})
       </p>
     </div>
   );

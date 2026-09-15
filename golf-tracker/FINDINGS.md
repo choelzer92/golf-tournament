@@ -675,6 +675,76 @@ so the confusion is milder there).
 
 ---
 
+### F-061 — The same game kind is labelled up to FOUR different ways across surfaces  [P2] [start]
+
+**Where (survey 2026-09-15, delegated code sweep):** the team-2v2 game renders as
+"Sides / Match" (lists via `gameListSubtitle`, `result.ts:50`; leaderboard header
+`leaderboard/page.tsx:961`; save-format modal; settings editor), "Sides · {format}"
+(wizard summary, `summary.ts:53`), and the raw name ungrouped among individual modes in
+the picker (`details-step.tsx:247`). The classic pool renders as "Pool"
+(`result.ts:52`), "Team pool" (`summary.ts:49`), "Pool (pot split)" (formats page :155,
+share-panel :21), and "Pool (foursomes vs foursomes)" (picker :235). There is no
+`categoryLabel` anywhere — every surface improvises (§5.al's rule enforced the
+side/team WORDS but nothing pinned the game-kind NAMES).
+
+**Why it matters:** vocabulary is the confusion Craig keeps hitting (F-037: he couldn't
+map "2v2" to "Sides / Match"). Four names for one thing means users can never build the
+mapping.
+
+**Options**
+- **A. One shared `gameKindLabel()` helper** in `lib/game-modes`, used by every list,
+  header, and modal — mechanical, but it must PICK the canonical names, which is
+  exactly what the game-structure design (GAME_STRUCTURE_DESIGN.md) is deciding.
+- **B. Fold into the structure design (recommended):** the design's step-2 vocabulary
+  ("Two teams of 4", "Foursome vs foursome") becomes the canonical labels, and the
+  helper lands as part of Phase 1 with names Craig has already reacted to.
+- **C. Leave it.**
+
+**Recommendation:** B — naming twice (once now, once after the design) would date one
+set of strings immediately (§5.at).
+
+**Status:** open — logged for the structure-design conversation.
+
+---
+
+### F-062 — Course handicap renders in 7 styles — and THREE surfaces use different MATH  [P1] [track]
+
+**Where (survey 2026-09-15, delegated code sweep):** pool surfaces show `Course HCP: 8`
+(field list chip), `CHcp 8` (sides chips — e2e-pinned spelling), bare `8`/`(8)` (tees,
+groups, review, captains dropdown), `combined HCP 24` (team cards) — all
+`Math.round(getPoolPlayingHandicap(...))`, so DISPLAY-only drift. But three legacy
+surfaces compute their own numbers:
+- `game/play/page.tsx:944-5` — "CH: 8.4" / "Plays: 8.40" (unrounded, 1–2 decimals,
+  parallel `calcCourseHandicap` math, not `getPoolPlayingHandicap`).
+- `tournament/[id]/page.tsx:816-825` — "CH: 8.4" unrounded with **no allowance applied**.
+- `dashboard/page.tsx:495` — its own formula, no allowance.
+Also `tournament/[id]/money/page.tsx:641` mixes an unrounded "Course" column with
+rounded Nassau/Skins columns in one table.
+
+**Why P1:** the display drift is P2 noise, but the parallel math is trust surface — the
+same player can read two different handicaps in one app (F-022/F-043's whole point was
+one pinned chain). NOTE §2: unifying the MATH is handicap math — Craig must call it, with
+a worked example, and the GHIN app as reference (§5.ba).
+
+**Done now (safe slice):** the FieldLowBanner used both spellings in one file — unified
+to "Course HCP".
+
+**Options**
+- **A. Display pass only:** one spelling + the F-043 `HandicapChip` on every pool
+  surface that shows a labelled CH; legacy surfaces untouched. No number changes.
+- **B. A + retire the parallel math:** point game/play, tournament, dashboard at
+  `getPoolPlayingHandicap`/`explainPlayingHandicap`. Changes displayed numbers on
+  legacy surfaces (allowance applied where it wasn't; rounding where it wasn't) —
+  needs Craig's call + on-screen comparison before/after.
+- **C. Leave legacy pages; A only where friends actually play (pool).**
+
+**Recommendation:** A now (or C — same work), B as its own decision with screenshots of
+the numbers that would change.
+
+**Status:** open — safe slice done; A/B/C needs Craig.
+
+---
+
 ## Settled — full text in FINDINGS_ARCHIVE.md
 
 One line per archived finding; the full entry (observation, options, status, and
