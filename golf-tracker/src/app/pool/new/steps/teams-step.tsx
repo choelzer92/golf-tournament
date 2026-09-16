@@ -382,7 +382,10 @@ export function TeamsStep({
 
       {/* Pairing locks — keep chosen players on the same team through balancing.
           Applying the lock IS auto-balance (around captains), wired right into
-          the box so it's one obvious action. */}
+          the box so it's one obvious action. F-086 (opt A): hidden when every team is a pair
+          or smaller — a lock can only ever be one whole team there, which the cards below
+          already say. Locks still earn their place on triples and foursomes. */}
+      {sizes.some((k) => k > 2) && (
       <div className="mb-4">
         <PairingLocks
           players={players}
@@ -391,6 +394,7 @@ export function TeamsStep({
           onApplyAction={autoBalance}
         />
       </div>
+      )}
 
       {/* ONE QUESTION, not three rival buttons. Each method is a different GOAL, so the
           consequence is spelled out rather than the mechanism — "evens out the totals"
