@@ -5,7 +5,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed, goToGame, fieldToGameStep } from './helpers';
+import { BASE, resetBackend, seed, goToGame, fieldToGameStep, toScoringStep, chooseSolo, addPlayers } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -30,8 +30,9 @@ test.describe('F-025/F-026: skins review step', () => {
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Sunday Skins');
-    // Select by VALUE (F-020 appends fit badges to labels).
-    await page.locator('select').first().selectOption('skins');
+    // §5.bk: everyone for themselves, then skins on the scoring step (by VALUE).
+    await toScoringStep(page, 'solo');
+    await chooseSolo(page, 'skins');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
     await page.getByRole('button', { name: /Next: Set Tees/ }).click();
@@ -137,49 +138,46 @@ test.describe('F-028: a points game shows points per hole in Player Details', ()
 });
 
 test.describe('F-033: a small field is told which games fit it', () => {
-  // The friend asked for "1v1 and more 3-player game types" — they exist, but the
-  // picker defaults to the foursomes pool and the fit badges only render inside the
-  // OPEN dropdown, so he opened this screen and concluded they didn't. A hint line
-  // under the picker now lists the fitting modes when the field is ≤3. The default
-  // stays Pool (§5.ao: guidance, not validation).
-  test('F-033: at 2 players the game step lists the games that fit', async ({ page }) => {
+  // The friend asked for "1v1 and more 3-player game types" — they existed, but the old
+  // picker defaulted to the foursomes pool and hid the fit badges inside a closed dropdown.
+  // §5.bk made the answer a first-class row: the structure step OFFERS 1 v 1 and everyone-
+  // for-themselves, and the scoring step badges every game with its fit (§5.ao: guidance).
+  test('F-033: at 2 players the structure step offers 1 v 1 and singles games directly', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await fieldToGameStep(page);   // adds 2 players, lands on the game step (Pool selected)
-    const hint = page.getByText(/With 2 players you can also play:/);
-    await expect(hint).toBeVisible();
-    // The 1v1 answer he was missing, by name.
-    await expect(hint).toContainText('Sides / Match');
+    await fieldToGameStep(page);   // adds 2 players, lands on the structure step
+    await expect(page.getByRole('radio', { name: '1 v 1', exact: true })).toBeEnabled();
+    await expect(page.getByRole('radio', { name: 'Everyone for themselves', exact: true })).toBeEnabled();
     await page.screenshot({ path: 'e2e/screenshots/f033-fit-hint-2p.png', fullPage: true });
 
-    // Picking a fitting game dismisses the hint — it's about the pool default only.
-    await page.locator('select').first().selectOption('skins');
-    await expect(hint).toHaveCount(0);
+    // One step on, the games that fit two are listed and badged; the ones that don't say why.
+    await toScoringStep(page, 'solo');
+    const body = await page.locator('body').innerText();
+    expect(body).toMatch(/Skins\s*✓ 2 players/);
+    expect(body).toMatch(/Nines \/ Split Sixes\s*needs 1 more/);
   });
 
-  test('F-033: at 3 players the hint includes Nines; at 4 it is absent', async ({ page }) => {
+  test('F-033: at 3 players every singles game fits; at 4 the usual is two pairs', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12'], ['Dave', '8']] as const) {
-      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
-      await page.getByPlaceholder('HCP').fill(hcp);
-      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
-    }
-    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-    await expect(page.getByText('Which game are you playing?')).toBeVisible();
-    const hint = page.getByText(/With 3 players you can also play:/);
-    await expect(hint).toBeVisible();
-    await expect(hint).toContainText('Nines');
+    await fieldToGameStep(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8']]);
+    // Three players: everyone for themselves is the recommendation, pre-selected.
+    await expect(page.locator('input[name="structure"][value="solo"]')).toBeChecked();
+    await toScoringStep(page);
+    const body = await page.locator('body').innerText();
+    expect(body).toMatch(/Nines \/ Split Sixes\s*✓ 3 players/);
+    expect(body).toMatch(/Wolf\s*needs exactly 4/);
 
-    // A fourth player makes the pool sensible — the hint must go away.
+    // A fourth player makes pairs the usual — and singles stay one tap away, never hidden.
+    await page.getByRole('button', { name: /Back/ }).first().click();
+    await expect(page.getByText('How do you want to compete?')).toBeVisible();
     await page.getByRole('button', { name: /Back/ }).first().click();
     await expect(page.getByText("Who's playing?")).toBeVisible();
-    await page.getByPlaceholder('Name', { exact: true }).fill('Rick');
-    await page.getByPlaceholder('HCP').fill('16');
-    await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    await addPlayers(page, [['Rick', '16']]);
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-    await expect(page.getByText('Which game are you playing?')).toBeVisible();
-    await expect(page.getByText(/you can also play:/)).toHaveCount(0);
+    await expect(page.getByText('How do you want to compete?')).toBeVisible();
+    await expect(page.locator('input[name="structure"][value="teams:2+2"]')).toBeChecked();
+    await expect(page.getByRole('radio', { name: 'Everyone for themselves', exact: true })).toBeEnabled();
   });
 });
 
@@ -288,7 +286,7 @@ test.describe('F-043: the handicap chip shows its work', () => {
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Chain Test');
-    await page.locator('select').first().selectOption('team-2v2');
+    await toScoringStep(page, 'teams:2+2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
     await page.getByRole('button', { name: /Next: Set Tees/ }).click();
@@ -341,7 +339,7 @@ test.describe("F-046: a group's formats follow the group", () => {
     await page.getByRole('button', { name: /Craig Hoelzer/ }).click();
     await page.getByRole('button', { name: /Jym Youngberg/ }).click();
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-    await expect(page.getByText('Which game are you playing?')).toBeVisible();
+    await expect(page.getByText('How do you want to compete?')).toBeVisible();
   }
 
   test("F-046: the game step leads with the chosen group's usual games, labeled as the group's", async ({ page }) => {

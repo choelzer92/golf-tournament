@@ -8,7 +8,7 @@
 
 import { test } from '@playwright/test';
 
-import { BASE } from './helpers';
+import { BASE, chooseStructure, chooseSolo } from './helpers';
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -65,17 +65,16 @@ test('walk 1: cold start — home, empty, then the wizard with NO group', async 
 
   // The game step: the F-020 badges are live on the FIRST pass now, no backtracking.
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-  await page.getByText('Which game are you playing?').waitFor();
+  await page.getByText('How do you want to compete?').waitFor();
   await capture(page, '04-wizard-picker-annotated');
   await page.getByPlaceholder('e.g. Saturday Pool').fill('Sunday Skins');
   {
-    // Option labels carry the F-020 fit annotation ("Skins — ✓ 4 players"), so
-    // match by prefix rather than exact label.
-    const sel = page.locator('select').first();
-    const opts = await sel.locator('option').allInnerTexts();
-    console.log('PICKER OPTIONS:', JSON.stringify(opts));
-    const skins = opts.find((o) => /^skins/i.test(o.trim()));
-    if (skins) await sel.selectOption({ label: skins });
+    // §5.bk: the structure first ("Everyone for themselves"), then the game on the scoring step.
+    const structures = await page.locator('input[name="structure"]').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
+    console.log('STRUCTURE OPTIONS:', JSON.stringify(structures));
+    await chooseStructure(page, 'solo');
+    await page.getByRole('button', { name: 'Next: Scoring' }).click();
+    await chooseSolo(page, 'skins');
   }
   await capture(page, '05-wizard-picked-skins');
 
@@ -176,6 +175,7 @@ test('walk 4: classic pool with teams — captains, deal, teams step', async ({ 
   await capture(page, '16-pool-eight-players');
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await page.getByPlaceholder('e.g. Saturday Pool').fill('Saturday Pool');
+  await page.getByRole('button', { name: 'Next: Scoring' }).click();
   await page.getByRole('button', { name: /Next: Select Course/ }).click();
   const sandboxCourse = page.getByRole('button', { name: /Sandbox National/ }).first();
   if (await sandboxCourse.count()) await sandboxCourse.click();

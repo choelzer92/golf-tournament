@@ -13,11 +13,13 @@ import { describe, expect, it } from 'vitest';
 import {
   MONEY_MODEL_LABELS,
   UNEXPRESSIBLE,
+  defaultTeeSheetFacts,
   moneyModelsFor,
   proposeTeeGroups,
   recommendedStructure,
   routeContainer,
   routedFields,
+  structureForDefaults,
   structureLabel,
   structureOf,
   structureOptionsFor,
@@ -117,10 +119,17 @@ describe('structureOptionsFor', () => {
     const opts = structureOptionsFor(8);
     expect(opts.map((o) => o.label)).toEqual([
       'Two teams of 4', 'Four pairs', 'Everyone for themselves',
-      '3 + 3 + 2', '2 + 2 + 2 + 1 + 1', '2 + 2 + 1 + 1 + 1 + 1', '2 + 1 + 1 + 1 + 1 + 1 + 1',
+      'Three teams, 3 + 3 + 2', 'Five teams, 2 + 2 + 2 + 1 + 1', 'Six teams, 2 + 2 + 1 + 1 + 1 + 1', 'Seven teams, 2 + 1 + 1 + 1 + 1 + 1 + 1',
     ]);
     expect(opts.find((o) => o.recommended)?.id).toBe('teams:4+4');
-    expect(opts.filter((o) => !o.even).every((o) => o.label.includes('+'))).toBe(true);
+    expect(opts.filter((o) => o.primary).map((o) => o.id)).toEqual(['teams:4+4', 'teams:2+2+2+2', 'solo']);
+  });
+
+  it('5 players: the recommended 3 + 2 is PRIMARY even though uneven — never behind "Other split…"', () => {
+    const opts = structureOptionsFor(5);
+    expect(opts.filter((o) => o.primary).map((o) => o.label)).toEqual(['Two teams, 3 + 2', 'Everyone for themselves']);
+    expect(opts.find((o) => o.recommended)?.id).toBe('teams:3+2');
+    expect(opts.filter((o) => !o.primary).map((o) => o.id)).toEqual(['teams:2+2+1', 'teams:2+1+1+1']);
   });
 
   it('every option sums to the field and is a real shape', () => {
@@ -153,6 +162,31 @@ describe('structureOptionsFor', () => {
 // 2. Tee sheet (§5.bm Q2)
 // ---------------------------------------------------------------------------
 
+describe('defaultTeeSheetFacts / structureForDefaults', () => {
+  it('knows which shapes walk as their own group before any players exist', () => {
+    expect(defaultTeeSheetFacts([4, 4])).toEqual({ aligned: true, teamsTogether: true });
+    expect(defaultTeeSheetFacts([3, 3, 2])).toEqual({ aligned: true, teamsTogether: true });
+    expect(defaultTeeSheetFacts([3, 2])).toEqual({ aligned: true, teamsTogether: true });
+    expect(defaultTeeSheetFacts([2, 2])).toEqual({ aligned: false, teamsTogether: true });
+    expect(defaultTeeSheetFacts([2, 2, 2, 2])).toEqual({ aligned: false, teamsTogether: true });
+    expect(defaultTeeSheetFacts([1, 1])).toEqual({ aligned: false, teamsTogether: true });
+    expect(defaultTeeSheetFacts([2, 2, 1])).toEqual({ aligned: false, teamsTogether: true });
+  });
+
+  it("derives a saved format's structure for the field at hand (plan §4.3)", () => {
+    expect(structureForDefaults({ gameMode: 'skins' }, 4)).toEqual({ kind: 'solo', teamSizes: [1, 1, 1, 1] });
+    expect(structureForDefaults({ gameMode: 'team-2v2', subTeams: { a: ['x', 'y'], b: ['z', 'w'] } }, 4)?.teamSizes).toEqual([2, 2]);
+    // Sides saved for four, field of six: keep the side COUNT, re-balance the sizes.
+    expect(structureForDefaults({ gameMode: 'team-2v2', subTeams: { a: ['x', 'y'], b: ['z', 'w'] } }, 6)?.teamSizes).toEqual([3, 3]);
+    expect(structureForDefaults({ gameMode: 'team-2v2', sides: [{ id: 'a', playerIds: ['x'] }, { id: 'b', playerIds: ['y'] }] }, 2)?.teamSizes).toEqual([1, 1]);
+    // A classic-pool format: teams that are tee groups at 8+, two teams under that.
+    expect(structureForDefaults({}, 8)?.teamSizes).toEqual([4, 4]);
+    expect(structureForDefaults({}, 12)?.teamSizes).toEqual([4, 4, 4]);
+    expect(structureForDefaults({}, 6)?.teamSizes).toEqual([3, 3]);
+    expect(structureForDefaults({}, 1)).toBeNull();
+  });
+});
+
 describe('proposeTeeGroups / teeSheetFacts', () => {
   it('four pairs → two foursomes, partners together, not aligned', () => {
     const teams = dealTeams([2, 2, 2, 2]);
@@ -169,6 +203,25 @@ describe('proposeTeeGroups / teeSheetFacts', () => {
   it('3 + 3 + 2 → three groups, aligned; three teams of 3 never share a slot', () => {
     expect(proposeTeeGroups(dealTeams([3, 3, 2]))).toEqual([['p1', 'p2', 'p3'], ['p4', 'p5', 'p6'], ['p7', 'p8']]);
     expect(teeSheetFacts(dealTeams([3, 3, 2]), proposeTeeGroups(dealTeams([3, 3, 2]))).aligned).toBe(true);
+  });
+
+  it('2 + 2 + 1 walks as 3 + 2 (the single rides with a pair), never 4 + 1', () => {
+    const teams = dealTeams([2, 2, 1]);
+    const groups = proposeTeeGroups(teams);
+    expect(groups.map((g) => g.length).sort()).toEqual([2, 3]);
+    expect(groups.every((g) => g.length >= 2)).toBe(true);
+    // Both pairs still walk together.
+    for (const pair of teams.filter((t) => t.length === 2)) {
+      expect(groups.some((g) => pair.every((id) => g.includes(id)))).toBe(true);
+    }
+    expect(teeSheetFacts(teams, groups)).toEqual({ aligned: false, teamsTogether: true });
+  });
+
+  it('three pairs walk as 4 + 2 (two pairs together, one pair alone) — never a pair split', () => {
+    const teams = dealTeams([2, 2, 2]);
+    const groups = proposeTeeGroups(teams);
+    expect(groups.map((g) => g.length).sort()).toEqual([2, 4]);
+    for (const pair of teams) expect(groups.some((g) => pair.every((id) => g.includes(id)))).toBe(true);
   });
 
   it('a team of five cannot walk together and is split along the best tee shape', () => {
@@ -353,6 +406,18 @@ describe('routedFields', () => {
     expect(f4.sides?.map((s) => s.id)).toEqual(['a', 'b', 'c', 'd']);
     expect(f4.modeSettings?.junkEnabled).toBe(true);
     expect(sidesOfGame({ sides: f4.sides })).toHaveLength(4);
+  });
+
+  it("keeps the organizer's own sides (ids and names) when given them", () => {
+    const { draft, teams } = teamsDraft([2, 2, 2], 'legs');
+    const mine = [
+      { id: 'a', name: 'The Hogs', playerIds: ['p1', 'p2'] },
+      { id: 'b', playerIds: ['p3', 'p4'] },
+      { id: 'c', playerIds: ['p5', 'p6'] },
+    ];
+    const f = routedFields(draft, routeContainer(draft), teams, {}, { sides: mine });
+    expect(f.sides).toEqual(mine);
+    expect(f.subTeams).toBeUndefined();
   });
 
   it('every modeSettings key the router writes exists in the team-2v2 schema', () => {

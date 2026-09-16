@@ -6,7 +6,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { BASE, PHONE } from './helpers';
+import { BASE, PHONE, addPlayers, EIGHT_PLAYERS } from './helpers';
 
 test.beforeEach(async ({ context, page }) => {
   await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
@@ -43,7 +43,8 @@ async function walkToClassicMoneyStep(page: Page) {
   }
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await page.getByPlaceholder('e.g. Saturday Pool').fill('No Bonus Pool');
-  // Classic pool is the default — no mode selection.
+  // §5.bk: two teams of 4 is the recommendation for eight — no structure tap needed.
+  await page.getByRole('button', { name: 'Next: Scoring' }).click();
   await page.getByRole('button', { name: /Next: Select Course/ }).click();
   await page.getByRole('button', { name: /Sandbox National/ }).first().click();
   await page.getByRole('button', { name: /Next: Set Tees/ }).click();
@@ -174,14 +175,13 @@ test.describe('F-045: a saved format keeps its junk', () => {
     await seedCard(page, 'Past games (for recent-course chips)');
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']] as const) {
-      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
-      await page.getByPlaceholder('HCP').fill(hcp);
-      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
-    }
+    // Eight players: the Warriors' pool is two foursomes. (Two players would derive a 1 v 1 from
+    // this format — §5.bk — and its closest-to-pin bonus has no singles engine to land on.)
+    await addPlayers(page, EIGHT_PLAYERS);
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.locator('select').first().selectOption('format:f-classic-pool');
     await expect(page.getByLabel('Game style name')).toHaveValue('JY Classic Pool');
+    await page.getByRole('button', { name: 'Next: Scoring' }).click();
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
     await page.getByRole('button', { name: /Next: Set Tees/ }).click();

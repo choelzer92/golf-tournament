@@ -57,6 +57,9 @@ export interface StructureOption extends StructureShape {
   even: boolean;
   /** The fit-based pre-selection (§5.bk): 8+ → teams that are tee groups; 4–7 → two teams; 2–3 → solo. */
   recommended: boolean;
+  /** Shown in the main list: every even shape plus the recommendation (which is uneven for 5 or 7).
+   *  The rest sit under "Other split…" — the recommendation must never hide behind a reveal. */
+  primary: boolean;
 }
 
 /** Which machinery a game runs on. Never shown to the user. */
@@ -158,7 +161,7 @@ function labelFor(shape: StructureShape, n: number): { label: string; detail: st
   }
   const count = sizes.length;
   if (!isEven(sizes)) {
-    return { label: groupShapeLabel(sizes), detail: `${word(count)} teams of different sizes` };
+    return { label: `${word(count)} teams, ${groupShapeLabel(sizes)}`, detail: 'Uneven teams — handicaps still apply per player' };
   }
   const size = sizes[0];
   if (size === 1) return { label: '1 v 1', detail: 'Two players head-to-head' };
@@ -185,7 +188,8 @@ export function structureOptionsFor(n: number): StructureOption[] {
     const id = structureOptionId(shape);
     if (out.some((o) => o.id === id)) return;
     const { label, detail } = labelFor(shape, n);
-    out.push({ ...shape, id, label, detail, even: isEven(shape.teamSizes), recommended: id === recId });
+    const even = isEven(shape.teamSizes);
+    out.push({ ...shape, id, label, detail, even, recommended: id === recId, primary: even || id === recId });
   };
   for (const sizes of groupShapesFor(n, SIDE_SHAPE_OPTS)) {
     if (isSolo(sizes)) {
@@ -195,8 +199,52 @@ export function structureOptionsFor(n: number): StructureOption[] {
       push({ kind: 'teams', teamSizes: sizes });
     }
   }
-  // Stable partition: even shapes keep groupShapesFor's fewest-teams-first order; uneven follow.
-  return [...out.filter((o) => o.even), ...out.filter((o) => !o.even)];
+  // Stable partition: primary shapes keep groupShapesFor's fewest-teams-first order; the rest follow.
+  return [...out.filter((o) => o.primary), ...out.filter((o) => !o.primary)];
+}
+
+/** The team sizes as a plain shape: [4, 4] → teams p1..p4, p5..p8 (ids don't matter for the facts). */
+function shapeTeams(sizes: number[]): string[][] {
+  let n = 0;
+  return sizes.map((k) => Array.from({ length: k }, () => `#${++n}`));
+}
+
+/**
+ * What the DEFAULT tee sheet (§5.bm Q2: partners together) implies for a shape, before any
+ * players exist: two teams of 4 are aligned; four pairs share foursomes; 3 + 2 are two groups.
+ * The wizard uses this to pick the teams step and the router's inputs until real groups exist.
+ */
+export function defaultTeeSheetFacts(sizes: number[]): { aligned: boolean; teamsTogether: boolean } {
+  const teams = shapeTeams(sizes);
+  return teeSheetFacts(teams, proposeTeeGroups(teams));
+}
+
+/**
+ * The structure a SAVED format / group default implies for a field of `n` (plan §4.3). Formats
+ * hold no players, so the shape is derived: an individual mode → solo; a sides game → its saved
+ * side count (sizes when they still add up to `n`, else the balanced shape with that many
+ * teams); a classic pool → teams that are tee groups, or the §5.bk default under eight.
+ */
+export function structureForDefaults(
+  d: { gameMode?: string; sides?: GameSide[]; subTeams?: { a: string[]; b: string[] } },
+  n: number,
+): StructureShape | null {
+  if (n < 2) return null;
+  const category = getGameMode(d.gameMode)?.category;
+  if (category === 'individual') return { kind: 'solo', teamSizes: Array.from({ length: n }, () => 1) };
+  if (category === 'team-within-group') {
+    const saved = sidesOfGame({ sides: d.sides, subTeams: d.subTeams }).map((s) => s.playerIds.length);
+    if (saved.length >= 2 && saved.reduce((s, k) => s + k, 0) === n) return { kind: 'teams', teamSizes: saved };
+    const same = groupShapesFor(n, SIDE_SHAPE_OPTS).find((s) => s.length === Math.max(2, saved.length));
+    if (same) return { kind: 'teams', teamSizes: same };
+    return recommendedStructure(n);
+  }
+  if (n >= 8) {
+    const tee = groupShapesFor(n, TEE_GROUP_SHAPE_OPTS)[0];
+    if (tee) return { kind: 'teams', teamSizes: tee };
+  }
+  const two = groupShapesFor(n, SIDE_SHAPE_OPTS).find((s) => s.length === 2);
+  return two ? { kind: 'teams', teamSizes: two } : recommendedStructure(n);
 }
 
 // ---------------------------------------------------------------------------
@@ -216,17 +264,35 @@ export function teeSheetFacts(teams: string[][], groups: string[][]): { aligned:
 }
 
 /**
- * The default tee sheet: whole teams packed into groups of at most `maxGroup`, in team
- * order, first-fit. A team that can't fit a tee slot at all (5+) is split along the best tee
- * shape — nothing else ever separates partners. The groups step lets the organizer drag
- * players afterwards; `teeSheetFacts` then re-derives what the router needs.
+ * The default tee sheet: whole teams packed into a REAL tee shape (`groupShapesFor` with the
+ * tee rules — never a group of one, never a fivesome), best shape first. For 2 + 2 + 1 that is
+ * 3 + 2 with the single riding along with a pair, not 4 + 1. A team that fits no shape whole
+ * (5+) is split along the best tee shape — nothing else ever separates partners. The groups
+ * step lets the organizer drag players afterwards; `teeSheetFacts` re-derives what the router
+ * needs.
  */
 export function proposeTeeGroups(teams: string[][], maxGroup = 4): string[][] {
+  const n = teams.reduce((s, t) => s + t.length, 0);
+  if (n === 0) return [];
+  const opts = { ...TEE_GROUP_SHAPE_OPTS, max: maxGroup };
+  for (const shape of groupShapesFor(n, opts)) {
+    // First-fit in TEAM order, so team 1 and team 2 share the first tee time — the order the
+    // organizer built them is the order they go off.
+    const groups: string[][] = shape.map(() => []);
+    let ok = true;
+    for (const team of teams) {
+      const slot = shape.findIndex((cap, g) => cap - groups[g].length >= team.length);
+      if (slot < 0) { ok = false; break; }
+      groups[slot].push(...team);
+    }
+    if (ok) return groups.filter((g) => g.length > 0);
+  }
+  // No tee shape holds every team whole: pack first-fit and split what must be split.
   const groups: string[][] = [];
   for (const team of teams) {
     const chunks = team.length <= maxGroup
       ? [team]
-      : splitAlong(team, groupShapesFor(team.length, { ...TEE_GROUP_SHAPE_OPTS, max: maxGroup })[0] ?? [team.length]);
+      : splitAlong(team, groupShapesFor(team.length, opts)[0] ?? [team.length]);
     for (const chunk of chunks) {
       const room = groups.find((g) => g.length + chunk.length <= maxGroup);
       if (room) room.push(...chunk);
@@ -417,6 +483,8 @@ export function routedFields(
   route: Route,
   teams: string[][],
   modeSettings: Record<string, string | number | boolean> = {},
+  /** Sides the organizer already built (ids, custom names) — used instead of minting from `teams`. */
+  opts: { sides?: GameSide[] } = {},
 ): Partial<PoolGame> {
   switch (route.container) {
     case 'individual':
@@ -448,7 +516,7 @@ export function routedFields(
           moneyModel: route.moneyModel,
           junkEnabled: draft.bonuses?.junk ?? false,
         },
-        ...persistedSides(sidesFromTeams(teams)),
+        ...persistedSides(opts.sides && opts.sides.length > 0 ? opts.sides : sidesFromTeams(teams)),
       };
     }
     case 'unexpressible':

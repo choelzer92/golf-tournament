@@ -5,7 +5,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed } from './helpers';
+import { BASE, resetBackend, seed, toScoringStep } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -48,8 +48,10 @@ test.describe('group picker on wizard step 1 (§5.au: step 1 is the FIELD)', () 
     // And the game step confirms: settings applied (Warriors default: off-the-low),
     // name inherited without typing.
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-    await expect(page.getByText('Which game are you playing?')).toBeVisible();
+    await expect(page.getByText('How do you want to compete?')).toBeVisible();
     await expect(page.getByPlaceholder('e.g. Saturday Pool')).toHaveValue('Weekend Warriors');
+    // The handicap rule lives on the scoring step (§5.bk).
+    await page.getByRole('button', { name: 'Next: Scoring' }).click();
     await expect(page.getByRole('button', { name: 'Off the low' }))
       .toHaveClass(/bg-green-600/);
     await page.screenshot({ path: 'e2e/screenshots/wizard-group-picker.png', fullPage: true });
@@ -195,6 +197,11 @@ test.describe('money moved to its own step', () => {
       await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+    // §5.bk: the structure step asks how to compete; scoring and handicaps are one step on.
+    const structureBody = await page.locator('body').innerText();
+    expect(structureBody).toContain('How do you want to compete?');
+    expect(structureBody).not.toContain('Buy-in per player');
+    await toScoringStep(page);
     const body = await page.locator('body').innerText();
 
     // Scoring questions stay (they decide who WINS a hole).
@@ -215,6 +222,8 @@ test.describe('money moved to its own step', () => {
 test.describe('F-001: segment progress reads as a count, not a hole number', () => {
   test('a finished back nine says "9 of 9 holes", never "thru 9"', async ({ page }) => {
     await seed(page, 'Skins — 2 players');   // 18 holes, Nassau 3-way, complete
+    // Assert the board rendered before reading it — an early read saw an empty body once.
+    await expect(page.getByText(/thru hole 18/).first()).toBeVisible();
     const body = await page.locator('body').innerText();
 
     // The header still uses "thru" for a HOLE NUMBER — that meaning is unchanged.
@@ -250,6 +259,7 @@ test.describe('JY feedback: GHIN sign-in prompt arrives before the search', () =
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.getByPlaceholder('e.g. Saturday Pool').fill('GHIN Timing Test');
+    await page.getByRole('button', { name: 'Next: Scoring' }).click();
     await page.getByRole('button', { name: /Next: Select Course/i }).click();
     await page.waitForLoadState('networkidle');
 
@@ -284,6 +294,7 @@ test.describe('JY feedback: recent courses', () => {
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Recent Course Test');
+    await page.getByRole('button', { name: 'Next: Scoring' }).click();
     await page.getByRole('button', { name: /Next: Select Course/i }).click();
     await page.waitForLoadState('networkidle');
 

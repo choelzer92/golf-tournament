@@ -5,7 +5,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed, goToGame, fieldToGameStep } from './helpers';
+import { BASE, resetBackend, seed, goToGame, fieldToGameStep, toScoringStep, EIGHT_PLAYERS } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -252,7 +252,8 @@ test.describe('USGA allowance recommendation', () => {
   test('suggests the format allowance and applies it in one tap', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await fieldToGameStep(page);
+    await fieldToGameStep(page, EIGHT_PLAYERS);
+    await toScoringStep(page, 'teams:4+4');
 
     // Default 100% -> a suggestion is offered for four-ball stroke play.
     await expect(page.getByText(/USGA suggests 85%/)).toBeVisible();
@@ -274,14 +275,14 @@ test.describe('USGA allowance recommendation', () => {
   test('the recommendation changes with the format', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await fieldToGameStep(page);
-    // F-042: the toggle asks WHO COMPETES, not how payment works.
-    await expect(page.getByText('Who competes against whom?')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'All teams, for a pot' })).toBeVisible();
-    // Head-to-head is four-ball MATCH play -> 90%, and the note names the toggle answer
-    // that drove the number so the 85↔90 flip doesn't read as a glitch (F-044).
-    await page.getByRole('button', { name: 'Two teams, head-to-head' }).click();
-    await expect(page.getByText(/USGA suggests 90% for four-ball match play \(head-to-head\)/)).toBeVisible();
+    await fieldToGameStep(page, EIGHT_PLAYERS);
+    await toScoringStep(page, 'teams:4+4');
+    // §5.bk: the F-042 "who competes" toggle is gone — "Decide by" carries the question. Hole by
+    // hole is four-ball MATCH play -> 90%, and the note names what drove the number so the
+    // 85↔90 flip doesn't read as a glitch (F-044).
+    await expect(page.getByText('Decide by')).toBeVisible();
+    await page.getByRole('button', { name: 'Hole by hole' }).click();
+    await expect(page.getByText(/USGA suggests 90% for four-ball match play \(hole by hole\)/)).toBeVisible();
   });
 });
 

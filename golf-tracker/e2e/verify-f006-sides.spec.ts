@@ -5,7 +5,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed, goToGame, fieldToGameStep } from './helpers';
+import { BASE, resetBackend, seed, goToGame, fieldToGameStep, toScoringStep, EIGHT_PLAYERS } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -92,7 +92,8 @@ test.describe('F-006: choosing the team format in the wizard', () => {
   test('the picker offers the formats the classic pool could not express', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await fieldToGameStep(page);
+    await fieldToGameStep(page, EIGHT_PLAYERS);
+    await toScoringStep(page, 'teams:4+4');
     // Positive assertion that we're on the game step of the wizard, not some redirect.
     await expect(page.getByText('Which scores count for the team?')).toBeVisible();
 
@@ -112,7 +113,8 @@ test.describe('F-006: choosing the team format in the wizard', () => {
   test('picking a format explains it, and Stableford changes the scoring line', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await fieldToGameStep(page);
+    await fieldToGameStep(page, EIGHT_PLAYERS);
+    await toScoringStep(page, 'teams:4+4');
     const picker = page.locator('select').filter({ hasText: 'Two best net scores' }).first();
 
     // The hint names net or gross, because the FORMAT decides it (not a setting).
@@ -132,7 +134,8 @@ test.describe('F-006: choosing the team format in the wizard', () => {
   test('the USGA allowance recommendation follows the FORMAT', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await fieldToGameStep(page);
+    await fieldToGameStep(page, EIGHT_PLAYERS);
+    await toScoringStep(page, 'teams:4+4');
     const picker = page.locator('select').filter({ hasText: 'Two best net scores' }).first();
 
     // Four-ball stroke play for a two-ball format.
@@ -159,7 +162,8 @@ test.describe('F-006: what the wizard SAVES', () => {
   async function saveDraftAndRead(page: import('@playwright/test').Page, format: string, basis: 'stroke' | 'stableford') {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await fieldToGameStep(page);
+    await fieldToGameStep(page, EIGHT_PLAYERS);
+    await toScoringStep(page, 'teams:4+4');
     await expect(page.getByText('Which scores count for the team?')).toBeVisible();
     await page.locator('select').filter({ hasText: 'Two best net scores' }).first().selectOption(format);
     if (basis === 'stableford') await page.getByRole('button', { name: 'Stableford points' }).click();
@@ -194,7 +198,8 @@ test.describe('F-006: what the wizard SAVES', () => {
   test('the format survives a reload — a phone that slept mid-setup', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await fieldToGameStep(page);
+    await fieldToGameStep(page, EIGHT_PLAYERS);
+    await toScoringStep(page, 'teams:4+4');
     await page.locator('select').filter({ hasText: 'Two best net scores' }).first().selectOption('scramble');
     await page.getByRole('button', { name: 'Stableford points' }).click();
     await expect(page.getByText(/birdie 3, par 2, bogey 1/)).toBeVisible();
@@ -204,7 +209,8 @@ test.describe('F-006: what the wizard SAVES', () => {
     // restored), but the CONFIG survives — walk back to the game step and check.
     await page.reload();
     await page.waitForLoadState('networkidle');
-    await fieldToGameStep(page);
+    await fieldToGameStep(page, EIGHT_PLAYERS);
+    await toScoringStep(page, 'teams:4+4');
     await expect(page.locator('select').filter({ hasText: 'Scramble' }).first()).toHaveValue('scramble');
     await expect(page.getByText(/birdie 3, par 2, bogey 1/)).toBeVisible();
   });

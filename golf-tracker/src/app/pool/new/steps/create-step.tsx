@@ -5,7 +5,6 @@ import type { CourseSelection, Player } from '@/lib/game-state';
 import {
   type PoolTeam,
   type PoolJunkValues,
-  type PoolMoneyMode,
   type PoolMatchConfig,
   type CustomBonus,
   COMMON_BONUSES,
@@ -19,7 +18,16 @@ import {
 import type { GameSide } from '@/lib/game-modes/sides';
 import { getGameMode, fitExplanation, formatSummaryLine, type SettingsBag } from '@/lib/game-modes';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
+import { ModeSettingsEditor } from '@/components/mode-settings-editor';
+import type { Container, MoneyModel, MoneyModelOption } from '@/lib/game-structure';
 import { type PotDollars, foldJunkStrings, legDollarsToStrings, potDollarsTotal } from './shared';
+
+// The sides engine's MONEY settings (plan §3.4). Everything else in its schema — format, hole
+// score, compare-by, side names — was answered on earlier steps or lives on the hub.
+const SIDES_MONEY_KEYS = new Set([
+  'dollarsPerHole', 'dollarsPerPoint', 'sideBuyIn', 'potSplit', 'legFront', 'legBack', 'legOverall',
+  'junkEnabled', 'junkBirdie', 'junkEagle', 'junkAlbatross', 'junkBasis',
+]);
 
 function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
   const num = (key: string, fallback: number) => {
@@ -67,11 +75,12 @@ const JUNK_FIELDS: { key: keyof PoolJunkValues; label: string; hint: string }[] 
 
 export function CreateStep({
   name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited,
-  moneyMode, matchConfig, handicapBasis, nine, holesPlaying, gameMode,
+  container, blockedReason, moneyModel, setMoneyModel, moneyOptions,
+  matchConfig, handicapBasis, nine, holesPlaying, gameMode,
   entryPerPlayerText, setEntryPerPlayer, positionSplitText, setPositionSplitText,
   junkValues, setJunkValues, customBonuses, setCustomBonuses,
   matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
-  sides, modeSettings, strokeMethod, onSaveFormat,
+  sides, modeSettings, setModeSettings, strokeMethod, onSaveFormat,
   onCreate, onBack,
 }: {
   name: string;
@@ -84,7 +93,15 @@ export function CreateStep({
   setPotDollars: (d: PotDollars | null) => void;
   potEdited: boolean;
   setPotEdited: (b: boolean) => void;
-  moneyMode: PoolMoneyMode;
+  /** The routed container (lib/game-structure.ts). The user never sees this word; it decides
+      which money blocks render. 'unexpressible' = no engine carries what was asked. */
+  container: Container | 'unexpressible';
+  /** Why nothing can be created yet, or null. Shown under a disabled Create button. */
+  blockedReason: string | null;
+  moneyModel: MoneyModel;
+  setMoneyModel: (m: MoneyModel) => void;
+  /** The four money models judged by the router for THIS game — greyed with its own reason. */
+  moneyOptions: MoneyModelOption[];
   matchConfig: PoolMatchConfig;
   handicapBasis: 'course' | 'index';
   nine: 'front9' | 'back9' | null;
@@ -108,14 +125,19 @@ export function CreateStep({
   // the thing the game is actually about instead of listing every player in one run.
   sides: GameSide[] | undefined;
   modeSettings: SettingsBag;
+  /** Merges the given keys into the mode settings (the sides engine's stakes live there). */
+  setModeSettings: (v: SettingsBag) => void;
   strokeMethod: 'full' | 'off-the-low';
   onSaveFormat: () => Promise<void>;
   onCreate: () => void; onBack: () => void;
 }) {
-  const mode = getGameMode(gameMode);
-  const isIndividual = mode?.category === 'individual' || mode?.category === 'team-within-group';
-  const isWithinGroupReview = mode?.category === 'team-within-group';
-  const isMatch = moneyMode === 'match';
+  // Rendering follows the ROUTED container, not a picked mode: an aligned pot is the classic pool,
+  // shared-foursome teams (or margin money) are the sides engine, everyone-for-themselves is the
+  // individual mode. Same game shape in the wizard; different machinery underneath.
+  const mode = container === 'individual' ? getGameMode(gameMode) : container === 'sides' ? getGameMode('team-2v2') : undefined;
+  const isIndividual = container === 'individual' || container === 'sides';
+  const isWithinGroupReview = container === 'sides';
+  const isMatch = container === 'classic' && moneyModel === 'legs';
   // "Save this format" (§5.ax part 4) — local button state only; the save itself is the parent's.
   const [savingFormat, setSavingFormat] = useState(false);
   const [savedFormat, setSavedFormat] = useState(false);
@@ -255,6 +277,64 @@ export function CreateStep({
             <p className="text-xs text-gray-500">{isMatch ? 'Type' : 'Total Pot'}</p>
             <p className="text-lg font-bold text-green-700">{isMatch ? 'Match' : `$${pot}`}</p>
           </div>
+        </div>
+        )}
+
+        {/* HOW IS THE MONEY PLAYED (plan §3.4, §5.bm Q1). One vocabulary for every team game;
+            a model the routed machinery can't carry is greyed WITH the router's own reason, so
+            the honest residue of two engines shows as a sentence, never as a missing option. */}
+        {container !== 'individual' && moneyOptions.length > 0 && (
+        <div className="pt-2 border-t">
+          <p className="text-sm font-medium text-gray-800 mb-2">How is the money played?</p>
+          <div className="space-y-2" role="radiogroup" aria-label="How is the money played?">
+            {moneyOptions.map((o) => {
+              const selected = o.model === moneyModel;
+              const why = !o.available && o.route.container === 'unexpressible' ? o.route.reason : null;
+              return (
+                <label
+                  key={o.model}
+                  className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 min-h-[44px] ${
+                    !o.available ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+                      : selected ? 'border-green-600 bg-green-50 cursor-pointer'
+                      : 'border-gray-300 bg-white hover:border-green-400 cursor-pointer'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="money-model"
+                    value={o.model}
+                    checked={selected}
+                    disabled={!o.available}
+                    onChange={() => setMoneyModel(o.model)}
+                    className="mt-1 h-4 w-4 accent-green-700"
+                    aria-label={o.label}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className={`block text-sm font-medium ${o.available ? 'text-gray-900' : 'text-gray-400'}`}>{o.label}</span>
+                    {why && <span className="block text-xs text-amber-700">{why}</span>}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+        )}
+
+        {/* STAKES for teams that share foursomes: the sides engine's own money fields, rendered
+            from its schema (§5.ag per-side ante, §5.ae pairwise margins). Bonuses here are the
+            birdie/eagle differential; closest-to-pin and hand-tracked bonuses need each team in
+            its own foursome, and the note says so rather than hiding the gap. */}
+        {container === 'sides' && mode && (
+        <div className="pt-2 border-t">
+          <p className="text-sm font-semibold text-gray-800 mb-2">Stakes</p>
+          <ModeSettingsEditor
+            schema={mode.settings}
+            values={modeSettings}
+            onChangeAction={(key, value) => setModeSettings({ [key]: value })}
+            hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_MONEY_KEYS.has(k))}
+          />
+          {/* The stakes in words sit under the sides review below, next to who's playing whom. */}
+          <p className="text-xs text-gray-400 mt-2">Closest-to-pin and hand-tracked bonuses need each team in its own foursome.</p>
         </div>
         )}
 
@@ -625,10 +705,30 @@ export function CreateStep({
 
       <button
         onClick={onCreate}
-        className="mt-6 w-full rounded-md bg-green-700 px-4 py-3 text-white font-bold text-lg hover:bg-green-800"
+        disabled={!!blockedReason}
+        className="mt-6 w-full rounded-md bg-green-700 px-4 py-3 text-white font-bold text-lg hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Create Game
       </button>
+      {blockedReason && (
+        <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+          {blockedReason}
+          {/* The one thing that can block a game the engines otherwise carry: bonuses a saved
+              format brought along. Offer the way out here rather than sending anyone hunting. */}
+          {(!junkIsOff(junkValues) || customBonuses.length > 0) && (
+            <>
+              {' '}
+              <button
+                type="button"
+                onClick={() => { setJunkValues({ ...ZERO_JUNK_VALUES }); setCustomBonuses([]); }}
+                className="font-medium text-amber-900 underline hover:text-amber-950"
+              >
+                Drop the bonuses
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed } from './helpers';
+import { BASE, resetBackend, seed, toScoringStep } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -156,9 +156,8 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Review Test');
-    // Select by VALUE, not label: F-020 appends a fit badge to option labels once a field
-    // exists, so a label match is fragile even where it happens to work today.
-    await page.locator('select').first().selectOption('team-2v2');
+    // §5.bk: the STRUCTURE says the sides — two pairs, or three pairs for six.
+    await toScoringStep(page, opts.thirdSide ? 'teams:2+2+2' : 'teams:2+2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
     await page.getByRole('button', { name: /Next: Set Tees/ }).click();
@@ -172,13 +171,9 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
       // Accept the proposed groups untouched — this helper is about the SIDES steps.
       await page.getByRole('button', { name: 'Next: Sides' }).click();
     }
+    // Three pairs arrive seeded as three sides (the structure said so); nothing to add by hand.
     if (opts.thirdSide) {
-      await page.getByRole('button', { name: '+ Add a side' }).click();
-      for (const nm of [opts.players[4][0], opts.players[5][0]]) {
-        // The sides-step row is flex-wrap (F-043: the handicap chain panel wraps under it).
-        const row = page.locator('div.flex.flex-wrap.items-center', { hasText: nm }).first();
-        await row.getByRole('button', { name: 'C', exact: true }).click();
-      }
+      await expect(page.getByRole('heading', { name: /Sides \(2 vs 2 vs 2\)/ })).toBeVisible();
     }
     if (opts.nameC) {
       await page.getByRole('button', { name: /Name the sides/ }).click();

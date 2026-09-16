@@ -10,7 +10,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { BASE, PHONE } from './helpers';
+import { BASE, PHONE, chooseStructure } from './helpers';
 
 test.beforeEach(async ({ context, page }) => {
   await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
@@ -101,16 +101,18 @@ test.describe('the ORDINARY 2v2 — two guys against two guys, best ball, usual 
       await page.getByPlaceholder('e.g. Saturday Pool').fill('Saturday 2v2');
     });
 
-    // Pick the side game. This is the mode that was renamed from "2 vs 2 (within
-    // group)" to "Sides (within group)" to "Sides / Match" (F-019 + 1v1). Select by VALUE so a
-    // future rename can't break this, and because F-020 appends a fit badge to the labels.
-    const gamePicker = page.locator('select').first();
-    console.log(`\nGAME PICKER OPTIONS: ${(await gamePicker.locator('option').allInnerTexts()).join(' | ')}\n`);
-    await tap('choose the side game', async () => {
-      await gamePicker.selectOption('team-2v2');
+    // §5.bk: the STRUCTURE step. Four players' usual is two pairs — the 2v2 — pre-selected.
+    // Select by VALUE so a relabel can't break this.
+    const structures = await page.locator('input[name="structure"]').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
+    console.log(`\nSTRUCTURE OPTIONS: ${structures.join(' | ')}\n`);
+    await tap('choose two pairs', async () => {
+      await chooseStructure(page, 'teams:2+2');
+    });
+    await tap('Next: Scoring', async () => {
+      await page.getByRole('button', { name: 'Next: Scoring' }).click();
     });
 
-    // --- Step 2: Game, AFTER picking the side game ------------------------------
+    // --- Step 3: Scoring for the side game ---------------------------------------
     // This is the F-014 measurement: how many controls does an ordinary 2v2 show?
     const details = await countScreen(page, '04-game-side-game');
 

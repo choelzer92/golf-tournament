@@ -5,7 +5,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed, goToGame } from './helpers';
+import { BASE, resetBackend, seed, goToGame, toScoringStep } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -117,6 +117,8 @@ test.describe('F-019: a side game with two playing groups', () => {
     // The printable scorecards say it too — one card per group, and no "per foursome" caption on
     // the threesome's card.
     await page.goto(`${BASE}/pool/${id}/scorecards`);
+    // Assert the screen rendered before reading it — an early read saw an empty body once.
+    await expect(page.getByText('Group 1').first()).toBeVisible();
     const cards = await page.locator('body').innerText();
     expect(cards).toContain('2 groups');
     expect(cards).toContain('Group 1');
@@ -355,9 +357,9 @@ test.describe('F-019: the wizard builds real playing groups', () => {
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Groups Test');
-    // Select by VALUE, not label: F-020 appends a fit badge to option labels once a field
-    // exists, so a label match is fragile even where it happens to work today.
-    await page.locator('select').first().selectOption('team-2v2');
+    // §5.bk: teams smaller than a foursome — pairs (8 → four, 4 → two) or 2 + 2 + 1 at five — are
+    // the structures that need real tee groups; select by VALUE.
+    await toScoringStep(page, players.length === 8 ? 'teams:2+2+2+2' : players.length === 5 ? 'teams:2+2+1' : 'teams:2+2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
   }

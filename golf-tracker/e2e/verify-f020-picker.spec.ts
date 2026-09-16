@@ -4,7 +4,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed, goToGame } from './helpers';
+import { BASE, resetBackend, seed, goToGame, toScoringStep, chooseStructure } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -31,7 +31,7 @@ test.describe('F-020: the game picker annotates fit', () => {
       await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-    await expect(page.getByText('Which game are you playing?')).toBeVisible();
+    await expect(page.getByText('How do you want to compete?')).toBeVisible();
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Fit Test');
   }
 
@@ -48,38 +48,34 @@ test.describe('F-020: the game picker annotates fit', () => {
     await buildField(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
 
     const body = await page.locator('body').innerText();
-    // Five players: a side game fits (4–8); the 2–4 and 3–4 modes don't.
-    expect(body).toMatch(/Sides \/ Match — ✓ 5 players/);
-    expect(body).toMatch(/Skins — 1 too many/);
-    // Wolf needs EXACTLY four, so it states the requirement rather than a delta — "1 too many"
-    // reads as though dropping a player is the fix, and at three the fix is the opposite.
-    expect(body).toMatch(/Wolf — needs exactly 4/);
+    // Five players (§5.bk): teams fit — 3 + 2 is the usual — and everyone-for-themselves does not,
+    // which the step says HERE rather than letting a dead end wait five steps on.
+    expect(body).toContain('Two teams, 3 + 2');
+    expect(body).toMatch(/Everyone for themselves\s*needs 2–4 players/);
+    await expect(page.getByRole('radio', { name: 'Everyone for themselves', exact: true })).toBeDisabled();
+    // F-041: "Stableford" names a SCORING SYSTEM, not just the 2–4 player individual mode — the
+    // note redirects to teams rather than reading as "this app can't play Stableford with 5".
+    expect(body).toMatch(/5 players can still score Stableford — as teams/);
     await page.screenshot({ path: 'e2e/screenshots/f020-annotated.png', fullPage: true });
   });
 
   test('F-020: picking a game that cannot work explains it HERE, and names one that can', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await startWizard(page);
-    await buildField(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
-
-    // Select by VALUE — labels now carry the fit badge.
-    await page.locator('select').first().selectOption('wolf');
+    await buildField(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8']]);
+    await toScoringStep(page, 'solo');
     const body = await page.locator('body').innerText();
 
-    // The constraint, at the moment of choosing.
-    expect(body).toContain('Wolf needs exactly 4 players — you have 5.');
-    // With an alternative attached, so it's guidance rather than a dead end (§5.ao).
-    expect(body).toMatch(/This one fits 5: Sides \/ Match/);
+    // The constraint, at the moment of choosing: Wolf needs EXACTLY four, so it states the
+    // requirement rather than a delta — "1 too few" reads as though adding anyone is the fix.
+    expect(body).toMatch(/Wolf\s*needs exactly 4/);
+    await expect(page.locator('input[name="solo-mode"][value="wolf"]')).toBeDisabled();
+    // With the games that DO fit badged alongside, so it's guidance rather than a dead end (§5.ao).
+    expect(body).toMatch(/Skins\s*✓ 3 players/);
+    expect(body).toMatch(/Nines \/ Split Sixes\s*✓ 3 players/);
     // And it does NOT send them back a step — that was the old copy's whole problem.
     expect(body).not.toMatch(/go back/i);
     await page.screenshot({ path: 'e2e/screenshots/f020-wolf-misfit.png', fullPage: true });
-
-    // F-041: "Stableford" names a SCORING SYSTEM, not just the 2–4 player individual mode —
-    // and the pool scores any field Stableford. The misfit note must redirect to that, not
-    // read as "this app can't play Stableford with 5".
-    await page.locator('select').first().selectOption('stableford-ind');
-    const body2 = await page.locator('body').innerText();
-    expect(body2).toMatch(/5 players can still score Stableford — as a team Pool/);
   });
 
   // F-019 falsified two strings that claimed a side game is played "within a single group". A side
@@ -88,13 +84,10 @@ test.describe('F-020: the game picker annotates fit', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await startWizard(page);
     await buildField(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
-    await page.locator('select').first().selectOption('team-2v2');
+    await toScoringStep(page, 'teams:2+2+1');
 
     const picker = await page.locator('body').innerText();
     expect(picker).not.toMatch(/single group/i);
-    // 2–8 since a singles match became reachable (2026-08-27) — the sentence states what the game
-    // needs and never how the field walks.
-    expect(picker).toContain('For 2–8 players.');
 
     // And the review step, which said "is played in a single group of 4–4 players".
     await pickCourse(page);
@@ -113,30 +106,31 @@ test.describe('F-020: the game picker annotates fit', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await startWizard(page);
     await buildField(page, [
-      ['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'],
-      ['Sam', '6'], ['Tony', '10'], ['Bill', '14'], ['Walt', '18'],
+      ['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6'], ['Tony', '10'],
     ]);
-    await page.locator('select').first().selectOption('team-2v2');
+    // §5.bk: three pairs from the structure step; the sides step still reshapes.
+    await toScoringStep(page, 'teams:2+2+2');
     await pickCourse(page);
     await page.getByRole('button', { name: 'Next: Groups' }).click();
     await page.getByRole('button', { name: 'Next: Sides' }).click();
 
-    // F-037: the step names the GAME it makes, not just the mechanism — before the reshape
-    // it's a 4 v 4 match, and the sentence tracks the data.
-    await expect(page.getByText(/This makes it a 4 v 4 match/)).toBeVisible();
+    // F-037: the step names the GAME it makes, not just the mechanism, and tracks the data.
+    await expect(page.getByText(/This makes it a 2 v 2 v 2 game — 3 sides/)).toBeVisible();
 
-    // The field starts on the default two sides; jump straight to four.
+    // Reshape DOWN to two sides and back UP to three on one screen — the F-036 path (growing the
+    // side count in one reshape used to mint a letter twice).
     await expect(page.getByText('How do the sides split?')).toBeVisible();
-    await page.getByRole('button', { name: /^2 v 2 v 2 v 2/ }).click();
-    await expect(page.getByRole('heading', { name: /Sides \(2 vs 2 vs 2 vs 2\)/ })).toBeVisible();
-    await expect(page.getByText(/This makes it a 2 v 2 v 2 v 2 game — 4 sides/)).toBeVisible();
+    await page.getByRole('button', { name: /^3 v 3/ }).click();
+    await expect(page.getByRole('heading', { name: /Sides \(3 vs 3\)/ })).toBeVisible();
+    await page.getByRole('button', { name: /^2 v 2 v 2/ }).click();
+    await expect(page.getByRole('heading', { name: /Sides \(2 vs 2 vs 2\)/ })).toBeVisible();
 
-    // Each player's row offers exactly A B C D — no letter twice, no letter missing.
+    // Each player's row offers exactly A B C — no letter twice, no letter missing.
     // Match the single-letter side buttons only: the row also carries the F-043
     // handicap-chain chip, which is a button too.
     const firstRow = page.locator('div.divide-y > div').first();
     const letters = await firstRow.getByRole('button', { name: /^[A-Z]$/ }).allInnerTexts();
-    expect(letters).toEqual(['A', 'B', 'C', 'D']);
+    expect(letters).toEqual(['A', 'B', 'C']);
   });
 });
 
@@ -223,12 +217,13 @@ test.describe('a group offers the formats it plays', () => {
     expect(summary).toContain('off the low');
 
     // And the underlying fields still hold the format's values once revealed — the summary is a
-    // view of the state, not a substitute for it.
+    // view of the state, not a substitute for it. §5.bk: scoring and handicaps live one step on.
+    await toScoringStep(page);
     await page.getByRole('button', { name: 'Change Game' }).click();
-    await expect(page.getByLabel('Money', { exact: true })).toHaveValue('legs');
-    await expect(page.getByLabel('Front 9 ($)')).toHaveValue('10');
-    await expect(page.getByLabel('Back 9 ($)')).toHaveValue('10');
-    await expect(page.getByLabel('Overall 18 ($)')).toHaveValue('20');
+    // Two players make this a 1 v 1, so there's no team-format question (a side of one has one
+    // ball); the format's hole score and compare-by are what show.
+    await expect(page.getByRole('button', { name: 'Strokes' })).toHaveClass(/bg-green-600/);
+    await expect(page.getByRole('button', { name: '18-hole total' })).toHaveClass(/bg-green-600/);
     await page.getByRole('button', { name: 'Change Handicaps' }).click();
     await expect(page.getByRole('button', { name: 'Off the low' }))
       .toHaveClass(/bg-green-700|bg-green-600/);
@@ -251,7 +246,7 @@ test.describe('a group offers the formats it plays', () => {
     await page.getByRole('button', { name: /Craig Hoelzer/ }).click();
     await page.getByRole('button', { name: /Jym Youngberg/ }).click();
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-    await expect(page.getByText('Which game are you playing?')).toBeVisible();
+    await expect(page.getByText('How do you want to compete?')).toBeVisible();
   }
 
   const countScreen = (page: import('@playwright/test').Page) => page.evaluate(() => {
@@ -286,6 +281,8 @@ test.describe('a group offers the formats it plays', () => {
   test('F-021: nothing is hidden — each section reopens on its own', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openSaturdayNassau(page);
+    // §5.bk: the format's game and handicap sections live on the scoring step.
+    await toScoringStep(page);
 
     await expect(page.getByRole('button', { name: 'Change Game' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Change Handicaps' })).toBeVisible();
@@ -294,18 +291,22 @@ test.describe('a group offers the formats it plays', () => {
     await page.getByRole('button', { name: 'Change Handicaps' }).click();
     let body = await page.locator('body').innerText();
     expect(body).toContain('How much handicap counts?');
-    expect(body).not.toContain('Team format');
+    expect(body).not.toContain('How is the hole scored?');
 
     // And the revealed fields really are the same ones, still carrying the format's values.
     await page.getByRole('button', { name: 'Change Game' }).click();
     body = await page.locator('body').innerText();
-    expect(body).toContain('Team format');
-    await expect(page.getByLabel('Front 9 ($)')).toHaveValue('10');
+    expect(body).toContain('How is the hole scored?');
+    // Saturday Nassau scores in strokes and decides by total — the format's values, not defaults.
+    // (Two players → a 1 v 1, which has no team-format question to show.)
+    await expect(page.getByRole('button', { name: 'Strokes' })).toHaveClass(/bg-green-600/);
+    await expect(page.getByRole('button', { name: '18-hole total' })).toHaveClass(/bg-green-600/);
   });
 
   test('F-021: editing a value invites a rename, and never rewrites the original', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openSaturdayNassau(page);
+    await toScoringStep(page);
 
     await page.getByRole('button', { name: 'Change Handicaps' }).click();
     await page.getByRole('button', { name: 'Full handicap' }).click();
@@ -357,9 +358,11 @@ test.describe('a group offers the formats it plays', () => {
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
 
     // Saved styles lead the picker; the raw modes follow under their own heading.
+    // §5.bk: the saved styles are their own select on the structure step; the raw game types are
+    // the structure rows below it (no container is ever named).
     const picker = page.locator('select').first();
     await expect(picker.locator('optgroup[label="Your saved games"] option')).toHaveCount(4);
-    await expect(picker.locator('optgroup[label="Start a new style"] option', { hasText: 'Pool (foursomes' })).toHaveAttribute('value', 'pool');
+    expect(await page.locator('body').innerText()).not.toContain('Pool (foursomes');
 
     // Choosing a format fills everything and lands on the F-021 confirmation, exactly as if
     // it had been applied from the library or the group page.
@@ -371,9 +374,9 @@ test.describe('a group offers the formats it plays', () => {
     expect(body).toContain('off the low');
     await page.screenshot({ path: 'e2e/screenshots/5av-picker-format-applied.png', fullPage: true });
 
-    // Choosing a raw mode afterwards configures FRESH: the summary and the borrowed name go,
+    // Starting fresh afterwards configures FRESH: the summary and the borrowed name go,
     // the ordinary form returns.
-    await picker.selectOption('skins');
+    await picker.selectOption('');
     const after = await page.locator('body').innerText();
     expect(after).not.toContain('Your saved game style');
     expect(after).toContain('What should we call it?');
@@ -401,10 +404,11 @@ test.describe('a group offers the formats it plays', () => {
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     const picker = page.locator('select').first();
-    await picker.selectOption('skins');
+    await chooseStructure(page, 'solo');
     await picker.selectOption('format:f-classic-pool');
     await expect(page.getByLabel('Game style name')).toHaveValue('JY Classic Pool');
-    // The classic pool's own controls are what follows, not the skins options.
+    // The format's structure replaces "everyone for themselves", so no skins options follow.
+    await expect(page.locator('input[name="structure"][value="solo"]')).not.toBeChecked();
     const body = await page.locator('body').innerText();
     expect(body).not.toContain('Skins options');
   });
@@ -433,7 +437,9 @@ test.describe('a group offers the formats it plays', () => {
     const body = await page.locator('body').innerText();
     expect(body).not.toContain('Your saved game style');
     expect(body).toContain('What should we call it?');
-    expect(body).toContain('How much handicap counts?');
+    // And the scoring step asks everything too — nothing collapsed into a summary.
+    await toScoringStep(page);
+    expect(await page.locator('body').innerText()).toContain('How much handicap counts?');
   });
 });
 
@@ -489,18 +495,18 @@ test.describe('a 1 v 1 singles match', () => {
       await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-    await expect(page.getByText('Which game are you playing?')).toBeVisible();
+    await expect(page.getByText('How do you want to compete?')).toBeVisible();
 
-    // The mode must say it FITS two players. This is the assertion that fails on the old
+    // Two players are OFFERED a 1 v 1 (§5.bk) — this is the row that didn't exist on the old
     // playersMin: 4.
     const picker = await page.locator('body').innerText();
-    expect(picker).toMatch(/Sides \/ Match — ✓ 2 players/);
-    // And the mode no longer calls itself "within group" — F-019 falsified that, and at two
-    // players a 1v1 has no group to be within (§5.at).
+    expect(picker).toContain('1 v 1');
+    // And nothing calls it "within group" — F-019 falsified that, and at two players a 1v1 has
+    // no group to be within (§5.at).
     expect(picker).not.toContain('within group');
 
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Craig v Jym');
-    await page.locator('select').first().selectOption('team-2v2');
+    await toScoringStep(page, 'teams:1+1');
 
     // Forward to the sides step: 1 vs 1, seeded one player each, and no split chooser because
     // 1v1 is the only shape two players can take.
@@ -560,7 +566,9 @@ test.describe('F-020: the sides step proposes splits', () => {
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Split Test');
-    await page.locator('select').first().selectOption('team-2v2');
+    // §5.bk: the split is chosen on the structure step; five players take 2 + 2 + 1 here (3 + 2
+    // is two teams that are their own groups, which builds with the foursome builder instead).
+    await toScoringStep(page, players.length === 5 ? 'teams:2+2+1' : 'teams:2+2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
     await page.getByRole('button', { name: /Next: Set Tees/ }).click();
@@ -572,21 +580,28 @@ test.describe('F-020: the sides step proposes splits', () => {
 
   test('F-020: five players are OFFERED the splits, not given one', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await toSidesStep(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
+    // §5.bk moved the question to the structure step: the shapes Craig named for five are all
+    // on screen (§5.ao), the usual pre-selected, none applied silently.
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    await page.goto(`${BASE}/pool/new`);
+    await page.waitForLoadState('networkidle');
+    for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']] as const) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+    await expect(page.getByText('How do you want to compete?')).toBeVisible();
+    await page.getByRole('button', { name: /Other split/ }).click();
 
-    await expect(page.getByText('How do the sides split?')).toBeVisible();
     const body = await page.locator('body').innerText();
-    // The shapes Craig named for five, all on screen (§5.ao).
-    expect(body).toContain('3 v 2');
-    expect(body).toContain('2 v 2 v 1');
-    expect(body).toContain('1 v 1 v 1 v 1 v 1');
-
-    // A PRE-EXISTING BUG THE SCREENSHOT EXPOSED. The heading hard-coded "(2 vs 2)" for any
-    // two-side game — true while two sides meant two pairs, and a lie the moment an uneven split
-    // was reachable. Five players seeded 3–2 read "Sides (2 vs 2)" directly above a highlighted
-    // "3 v 2" button. It now counts the sides from the data.
-    await expect(page.getByRole('heading', { name: /Sides \(3 vs 2\)/ })).toBeVisible();
-    expect(body).not.toContain('Sides (2 vs 2)');
+    expect(body).toContain('Two teams, 3 + 2');
+    expect(body).toContain('Three teams, 2 + 2 + 1');
+    expect(body).toContain('Four teams, 2 + 1 + 1 + 1');
+    // The recommendation is 3 + 2 (§5.bk: 4–7 → two teams) — checked, with the others beside it.
+    await expect(page.locator('input[name="structure"][value="teams:3+2"]')).toBeChecked();
     await page.screenshot({ path: 'e2e/screenshots/f020-side-splits.png', fullPage: true });
   });
 

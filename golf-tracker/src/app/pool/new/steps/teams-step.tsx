@@ -40,7 +40,7 @@ function makeTeam(index: number, playerIds: string[], captainId?: string): PoolT
 // are the sides, and calling both "team" is exactly the conflation F-019 is about (§5.al).
 export function TeamsStep({
   course, players, setPlayers, teams, setTeams, lockedGroups, setLockedGroups, captainIds, setCaptainIds,
-  excludeCaptains, setExcludeCaptains, useCaptains, setUseCaptains, teamBuild, setTeamBuild, handicapAllowance, handicapBasis, nine, onNext, onBack,
+  excludeCaptains, setExcludeCaptains, useCaptains, setUseCaptains, teamBuild, setTeamBuild, teamSizes, handicapAllowance, handicapBasis, nine, onNext, onBack,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
@@ -50,6 +50,8 @@ export function TeamsStep({
   excludeCaptains: boolean; setExcludeCaptains: (v: boolean) => void;
   useCaptains: boolean; setUseCaptains: (v: boolean) => void;
   teamBuild: PoolGame['teamBuild']; setTeamBuild: (b: PoolGame['teamBuild']) => void;
+  /** The structure's team sizes (§5.bk): [4, 4], [3, 3, 2], [3, 2]. Empty = foursomes (legacy). */
+  teamSizes: number[];
   handicapAllowance: number;
   handicapBasis: 'course' | 'index';
   nine: 'front9' | 'back9' | null;
@@ -59,7 +61,11 @@ export function TeamsStep({
     return course ? getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine) : (p.handicapIndex ?? 0);
   }
 
-  const numTeams = Math.max(1, Math.ceil(players.length / 4));
+  // The team count comes from the STRUCTURE (§5.bk) — two teams of 4, three of 3 + 3 + 2 — and the
+  // balancers deal the field evenly into that many, which is exactly the shape groupShapesFor
+  // produced (sizes never differ by more than one). Falls back to foursomes with no structure.
+  const sizes = teamSizes.length > 0 ? teamSizes : Array.from({ length: Math.max(1, Math.ceil(players.length / 4)) }, () => 4);
+  const numTeams = sizes.length;
 
   // Auto-pick captains (lowest course handicaps, honoring locks) whenever the
   // field or team count changes and no captains have been set yet. Prunes any
@@ -109,12 +115,16 @@ export function TeamsStep({
     setTeamBuild({ ...(teamBuild ?? { method: 'manual' }), adjustedAfter: true });
   }
 
-  // Auto-generate: sequential foursomes, each sorted low->high, lowest = captain.
+  // Auto-generate: sequential teams in the structure's sizes, each sorted low->high, lowest = captain.
   function autoGenerate() {
     const groups: string[][] = [];
-    for (let i = 0; i < players.length; i += 4) {
-      groups.push(players.slice(i, i + 4).map((p) => p.id));
+    let at = 0;
+    for (const size of sizes) {
+      groups.push(players.slice(at, at + size).map((p) => p.id));
+      at += size;
     }
+    // Anyone past the shape (the field grew after the split was chosen) still gets a team.
+    if (at < players.length) groups.push(players.slice(at).map((p) => p.id));
     setTeams(groups.map((ids, i) => {
       const sorted = sortPlayerIdsByHcap(ids, players, course, handicapAllowance, handicapBasis);
       return makeTeam(i, sorted, useCaptains ? sorted[0] : undefined);

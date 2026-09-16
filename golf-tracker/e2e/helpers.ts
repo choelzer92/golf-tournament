@@ -97,12 +97,61 @@ export async function goToGame(page: Page, id: string, sub = '') {
 
 // §5.au: the wizard opens on the FIELD. Add a minimal two players and advance to the
 // game step — for tests whose subject is the game step itself, not the walk there.
-export async function fieldToGameStep(page: Page) {
-  for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']] as const) {
+export const TWO_PLAYERS: [string, string][] = [['Craig', '4'], ['Jym', '12']];
+export const FOUR_PLAYERS: [string, string][] = [...TWO_PLAYERS, ['Dave', '8'], ['Rick', '16']];
+export const EIGHT_PLAYERS: [string, string][] = [
+  ...FOUR_PLAYERS, ['Sam', '6'], ['Tony', '14'], ['Will', '10'], ['Gary', '2'],
+];
+
+/** Add players by hand on the field step (name + HCP + Add). */
+export async function addPlayers(page: Page, players: [string, string][]) {
+  for (const [nm, hcp] of players) {
     await page.getByPlaceholder('Name', { exact: true }).fill(nm);
     await page.getByPlaceholder('HCP').fill(hcp);
     await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
   }
+}
+
+/** Field → the structure step ("How do you want to compete?", §5.bk). Two players by default. */
+export async function fieldToGameStep(page: Page, players: [string, string][] = TWO_PLAYERS) {
+  await addPlayers(page, players);
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-  await expect(page.getByText('Which game are you playing?')).toBeVisible();
+  await expect(page.getByText('How do you want to compete?')).toBeVisible();
+}
+
+// ——— §5.bk collapse: the structure + scoring steps replaced the game picker ———
+// Select by VALUE where one exists (structure ids are `teams:4+4`, `teams:2+2`, `solo`; mode ids
+// are the registry ids), so a relabel can't break a spec.
+
+/** Pick a structure on step 2 by its option id ('teams:4+4', 'solo') or its visible label. */
+export async function chooseStructure(page: Page, idOrLabel: string) {
+  const byValue = page.locator(`input[name="structure"][value="${idOrLabel}"]`);
+  const byLabel = page.getByRole('radio', { name: idOrLabel, exact: true });
+  // Uneven shapes sit under "Other split…" (§5.bm Q3) — open it when the row isn't showing.
+  if ((await byValue.count()) === 0 && (await byLabel.count()) === 0) {
+    const other = page.getByRole('button', { name: /Other split/ });
+    if (await other.count()) await other.click();
+  }
+  if (await byValue.count()) await byValue.check();
+  else await byLabel.check();
+}
+
+/** Structure step → scoring step, optionally choosing a structure first. Asserts arrival.
+ *  Names the game when nothing has (the step requires a name, as the old game step did). */
+export async function toScoringStep(page: Page, structure?: string) {
+  if (structure) await chooseStructure(page, structure);
+  const nameBox = page.getByPlaceholder('e.g. Saturday Pool');
+  if ((await nameBox.count()) && (await nameBox.inputValue()).trim() === '') await nameBox.fill('Test Game');
+  await page.getByRole('button', { name: 'Next: Scoring' }).click();
+  await expect(page.getByText('How is it scored?')).toBeVisible();
+}
+
+/** On the scoring step of an everyone-for-themselves game: pick the individual mode by registry id. */
+export async function chooseSolo(page: Page, modeId: string) {
+  await page.locator(`input[name="solo-mode"][value="${modeId}"]`).check();
+}
+
+/** On the money step: pick a money model by id ('pot' | 'legs' | 'per-hole' | 'per-point'). */
+export async function chooseMoney(page: Page, model: string) {
+  await page.locator(`input[name="money-model"][value="${model}"]`).check();
 }
