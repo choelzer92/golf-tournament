@@ -535,23 +535,45 @@ export function CreateStep({
         {isMatch && !isIndividual && (
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-2">Match Payouts ($ / player)</p>
-          {/* On a nine there is only one score leg (see potFields above), so show
-              that leg and junk rather than three legs, two of which never pay. */}
-          <div className={`grid ${nineOnly ? 'grid-cols-2' : 'grid-cols-4'} gap-2 text-center`}>
-            {nineOnly ? (
-              <div>
-                <p className="text-xs text-gray-500">{holesPlaying === 'front9' ? 'Front 9' : 'Back 9'}</p>
-                <p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.overall}</p>
+          {/* F-084: the legs are INPUTS, mirroring the pot's split grid — a saved format used to be
+              the only way to change them. On a nine there is only one score leg (see potFields
+              above), so ask for that leg and junk rather than three legs, two of which never pay. */}
+          <div className={`grid ${nineOnly ? 'grid-cols-2' : 'grid-cols-4'} gap-2`}>
+            {(nineOnly
+              ? [{ key: 'overall' as const, label: holesPlaying === 'front9' ? 'Front 9' : 'Back 9' }]
+              : [
+                  { key: 'front' as const, label: 'Front 9' },
+                  { key: 'back' as const, label: 'Back 9' },
+                  { key: 'overall' as const, label: 'Overall' },
+                ]
+            ).map(({ key, label }) => (
+              <div key={key}>
+                <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  value={matchLegs[key]}
+                  onChange={(e) => setMatchLegs({ ...matchLegs, [key]: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
               </div>
-            ) : (
-              <>
-                <div><p className="text-xs text-gray-500">Front 9</p><p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.front}</p></div>
-                <div><p className="text-xs text-gray-500">Back 9</p><p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.back}</p></div>
-                <div><p className="text-xs text-gray-500">Overall</p><p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.overall}</p></div>
-              </>
-            )}
-            <div><p className="text-xs text-gray-500">Junk / pt</p><p className="text-sm font-bold text-gray-900">${matchConfig.junkPerPoint}</p></div>
+            ))}
+            <div>
+              <label className="block text-xs text-gray-600 font-medium mb-1">Junk / pt</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                value={matchJunkPerPoint}
+                onChange={(e) => setMatchJunkPerPoint(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+              />
+            </div>
           </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Each leg is paid by every player on the losing team to the winners; junk points settle at the per-point rate.
+          </p>
           {teams.length !== 2 && (
             <p className="text-xs text-amber-700 mt-2">
               Head-to-head needs exactly two foursomes — you have {teams.length}. Go back and make two teams, or switch to Pool (pot split).

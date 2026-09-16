@@ -92,6 +92,30 @@ test('routing row: two teams of 4, pot → the classic pool (hub shows its fours
   await expect(page.getByText(/Pool · 2 foursomes/)).toBeVisible();
 });
 
+test('F-084: head-to-head leg amounts are editable on the money step and reach the hub', async ({ page }) => {
+  await startWizard(page, EIGHT_PLAYERS, 'Editable Legs');
+  await toScoringStep(page, 'teams:4+4');
+  await courseAndTees(page);
+  await page.getByRole('button', { name: /Next: Teams/ }).click();
+  await buildTeams(page, 'list');
+  await page.getByRole('button', { name: /Next: Review/ }).click();
+  await expect(page.getByRole('heading', { name: "What's it worth?" })).toBeVisible();
+  await chooseMoney(page, 'legs');
+  await expect(page.getByText('Match Payouts ($ / player)')).toBeVisible();
+  // Inputs, not read-only numbers (a saved format used to be the only way to change them).
+  const leg = (label: string) => page.locator(`xpath=//label[normalize-space()="${label}"]/following-sibling::input`);
+  await expect(leg('Front 9')).toHaveValue('10');
+  await leg('Front 9').fill('15');
+  await leg('Junk / pt').fill('2');
+  await page.screenshot({ path: 'e2e/screenshots/f084-legs-editable.png', fullPage: true });
+  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: 'Head-to-Head Match' })).toBeVisible();
+  const hub = await page.locator('body').innerText();
+  expect(hub).toContain('$15');
+  expect(hub).toContain('$2');
+});
+
 test('routing row: two teams of 4, $ per point → the sides engine even though teams are foursomes', async ({ page }) => {
   await startWizard(page, EIGHT_PLAYERS, 'Aligned Margin');
   await toScoringStep(page, 'teams:4+4');
