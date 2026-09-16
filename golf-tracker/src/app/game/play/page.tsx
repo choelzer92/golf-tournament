@@ -17,6 +17,7 @@ import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
 import { getGameMode } from '@/lib/game-modes';
 import { sideNamesForGame } from '@/lib/game-modes/team-game';
 import { fromLegacySubTeams, sidesOfGame } from '@/lib/game-modes/sides';
+import { mergeScoreCells, scoreCellKey } from '@/lib/score-merge';
 import { wolfForHole } from '@/lib/game-modes/wolf';
 import type { WolfHoleDecision } from '@/lib/pool-game';
 import { CardBoardToggle } from '@/components/card-board-toggle';
@@ -42,6 +43,13 @@ export default function PlayGamePage() {
   const [poolOtherTick, setPoolOtherTick] = useState(0);
   const didAutoJump = useRef(false);
   const remoteScoresRef = useRef<GameScore[]>([]);
+  // F-063 opt A. Cells THIS device changed that the server has not echoed back yet; a
+  // remote row never overrides them (lib/score-merge.ts). Cleared per cell on confirmation.
+  const dirtyCellsRef = useRef<Set<string>>(new Set());
+  // The debounced write that has not fired yet, so leaving the card can flush it instead
+  // of dropping it (the solo round already does this; the pool card did not).
+  const pendingSaveRef = useRef<{ matchupId: string; scores: GameScore[]; ownedPlayerIds?: string[] } | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const data = sessionStorage.getItem('game_setup');
@@ -113,7 +121,13 @@ export default function PlayGamePage() {
       }
       fetchGameScores(parsed.matchupId).then((saved) => {
         if (saved && Array.isArray(saved) && saved.length > 0) {
-          setScores(saved);
+          // Merge, don't replace: a tap made while this fetch was in flight used to be
+          // overwritten by the server copy (F-063).
+          setScores((prev) => {
+            const { merged, changed, confirmed } = mergeScoreCells(prev, saved, dirtyCellsRef.current);
+            confirmed.forEach((k) => dirtyCellsRef.current.delete(k));
+            return changed ? merged : prev;
+          });
         }
       });
     }
@@ -229,11 +243,65 @@ export default function PlayGamePage() {
     const ownedPlayerIds = setup.scoringTeam
       ? setup.players.filter((p) => p.team === setup.scoringTeam).map((p) => p.id)
       : undefined;
-    const timeout = setTimeout(() => {
+    pendingSaveRef.current = { matchupId, scores: merged, ownedPlayerIds };
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null;
+      pendingSaveRef.current = null;
       saveGameScores(matchupId, merged, ownedPlayerIds);
     }, 400);
-    return () => clearTimeout(timeout);
+    // Re-runs only cancel the timer; the newest pending write is kept for the flush below.
+    return () => { if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; } };
   }, [setup?.matchupId, scores]);
+
+  // F-063 opt A (1): flush a pending write when the card is left. Cancelling the timer
+  // without flushing dropped a tap made within 400ms of navigating away, backgrounding the
+  // app, or the OS evicting the tab. `pagehide` is the reliable mobile-Safari signal;
+  // `visibilitychange` covers a call or a text. Mirrors solo/[id]/page.tsx.
+  useEffect(() => {
+    const flush = () => {
+      const pending = pendingSaveRef.current;
+      if (!pending) return;
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+      pendingSaveRef.current = null;
+      saveGameScores(pending.matchupId, pending.scores, pending.ownedPlayerIds);
+    };
+    const onHide = () => { if (document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onHide);
+      flush();
+    };
+  }, []);
+
+  // F-063 opt A (2): a POOL card also listens to its OWN group's row. Two phones on one
+  // foursome used to hold two full arrays and overwrite each other on every save, never
+  // reconverging. Now each remote row is merged per cell — a cell this device changed and
+  // the server hasn't echoed keeps its value; everything else takes the server's — and the
+  // state only updates when something actually differs, so the two phones settle rather
+  // than ping-pong. Mitigation, not the fix: the whole-row write can still drop cells one
+  // phone hasn't received yet (per-cell rows, F-063 opt C, is the fix). The tournament
+  // split-scoring path (`scoringTeam`) keeps its own remote handling below.
+  useEffect(() => {
+    if (!poolCtx || !setup?.matchupId || setup.scoringTeam) return;
+    const matchupId = setup.matchupId;
+    const applyOwnRemote = (remote: unknown) => {
+      if (!Array.isArray(remote)) return;
+      setScores((prev) => {
+        const { merged, changed, confirmed } = mergeScoreCells(prev, remote as GameScore[], dirtyCellsRef.current);
+        confirmed.forEach((k) => dirtyCellsRef.current.delete(k));
+        return changed ? merged : prev;
+      });
+    };
+    const channel = subscribeToScores(matchupId, applyOwnRemote);
+    const refetch = () => { fetchGameScores(matchupId).then((r) => { if (r) applyOwnRemote(r); }); };
+    const poll = setInterval(refetch, 15000);
+    const cleanupVisibility = onVisibilityRefetch([matchupId], refetch);
+    return () => { channel.unsubscribe(); clearInterval(poll); cleanupVisibility(); };
+  }, [poolCtx, setup?.matchupId, setup?.scoringTeam]);
 
   // Realtime subscription for remote team's scores
   // + poll every 15s and on tab resume as fallback for dropped WebSocket
@@ -657,6 +725,7 @@ export default function PlayGamePage() {
   }
 
   function setScore(playerId: string, hole: number, gross: number) {
+    dirtyCellsRef.current.add(scoreCellKey(playerId, hole));
     setScores((prev) => {
       const filtered = prev.filter((s) => !(s.playerId === playerId && s.hole === hole));
       return [...filtered, { playerId, hole, grossScore: gross }];

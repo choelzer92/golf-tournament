@@ -785,8 +785,15 @@ phone "helps".
   (assemble `GameScore[]` at the boundary); `score_audit` is already per-cell.
   **Recommended best case.**
 
-**Status:** open — persistence change, Craig's call (§2). Recommendation: A now, C as
-its own session. Independent of the structure collapse.
+**Status:** **Option A BUILT 2026-09-16** (approved by Craig, §5.bm Q4): `lib/score-merge.ts`
+(pure per-cell reconcile: dirty local cell wins, else remote, never drop a local cell;
+7 unit tests) + `game/play/page.tsx` (pagehide/visibilitychange flush of the pending write;
+pool card subscribes to its OWN group row + 15s poll + resume refetch, merging per cell and
+updating state only on real change so two phones settle, not ping-pong; the mount fetch
+merges instead of replacing). e2e `f063-live-scoring.spec.ts` proves a tap made right before
+leaving the card survives a full reload — verified to FAIL with the fix stashed. The two-phone
+convergence itself can't be driven end-to-end (the sandbox fake is one tab's sessionStorage);
+it's covered by the unit tests. **Still open:** the whole-row race (opt C, own session).
 
 ---
 
