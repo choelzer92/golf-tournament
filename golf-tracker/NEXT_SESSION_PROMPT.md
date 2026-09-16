@@ -1,4 +1,4 @@
-# Next session: Craig's walk findings (F-071…F-074) → Phase 2 vocabulary
+# Next session: Craig's walk findings (F-071…F-076) → Phase 2 vocabulary
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
@@ -35,7 +35,9 @@ classic-only and the money step says so, a classic format applied to 2 players d
 2. **F-072 two-ball formats on the sides engine** — SCORING MATH, approved in conversation but
    pin the goldens first (§5.z), then route `team-game.ts`'s side score through `teamValueOnHole`
    and drop "Two-ball formats" from the router's classic-only list.
-3. **F-073 "match play" wording** and **F-074 free-form split** — small, wizard-only.
+3. **F-073 "match play" wording**, **F-074 free-form split**, **F-075 refusal strings say the
+   true reason** (an engine gap, not a foursome rule), **F-076 "+ Add bonuses" leaves CTP at 0**
+   (opt A) — all small, wizard-only.
 
 **Step 3 — Phase 2 vocabulary (F-061)** as before: `structureLabel` through the label sites,
 "team" everywhere (§5.bm Q5). Grep "Sides / Match", "Foursomes" pins first (§5.at).

@@ -1069,6 +1069,34 @@ team of 2 simply has fewer balls to pick from.
 
 ---
 
+### F-075 — The router's refusal reads as a golf rule ("need each team in its own foursome") when it is a code gap  [P2] [start]
+
+**Where:** money step, shared-foursome teams: "$ per hole / $ per point" greyed with "Closest-to-pin
+… need each team in its own foursome"; the stakes note says the same. Craig: *"why would that need
+to be a foursome? then when i removed it it allowed me."* CTP is a par-3 bonus; nothing in golf
+ties it to foursomes. The sides engine simply has no CTP / manual-bonus settlement written yet
+(only the classic pool engine has). The router is right to refuse; the sentence lies about why.
+
+**Fix (S, strings in `UNEXPRESSIBLE`):** say the true thing — "Closest-to-pin isn't built for
+teams that share foursomes yet" / "…can't ride on $ per hole or $ per point yet" (the "yet" is
+honest: Phase 3 closes it). Never phrase an engine gap as a rule (§5.at spirit).
+
+---
+
+### F-076 — "+ Add bonuses" silently includes closest-to-pin (and then blocks margin money)  [P2] [start]
+
+**Where:** the classic money step's "+ Add bonuses" applies `DEFAULT_JUNK_VALUES` — birdie 1,
+eagle 2, albatross 3, all-par 1, CTP 1 — in one tap (F-045 / §5.bg: the Warriors' set as the
+one-tap usual). Craig, walking a pot game: *"it also auto included closest to the pin."* With
+CTP on, the router then greys $ per hole / $ per point for the reason in F-075; removing CTP
+unblocks them.
+
+**Options:** **A** add bonuses with CTP at 0 (birdie/eagle/albatross/all-par only) and let the
+Warriors' saved format carry its CTP 1, which it does. **B** individual toggles per bonus instead
+of one grid fill. A is one constant; B is the §5.j-shaped answer. Recommend A now, B with Phase 3.
+
+---
+
 ## Settled — full text in FINDINGS_ARCHIVE.md
 
 One line per archived finding; the full entry (observation, options, status, and

@@ -92,6 +92,8 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | **F-072 two-ball formats for the sides engine** — route `team-game.ts` side score through `teamValueOnHole`; goldens pinned first; router's classic-only list loses "Two-ball formats" | S–M | F-072 / F-069 |
 | F-073 "Hole by hole (match play)" / "18-hole total (stroke play)" / "Head-to-head match" labels | S | F-073 |
 | F-074 free-form uneven split ("4, 2, 2") under "Other split…" | S | F-074 |
+| F-075 router refusal strings state the ENGINE gap ("isn't built for teams that share foursomes yet"), never a fake golf rule | S | F-075 |
+| F-076 "+ Add bonuses" adds birdie/eagle/albatross/all-par with CTP at 0 (opt A); per-bonus toggles later (opt B) | S | F-076 |
 | **Collapse Phase 2 — vocabulary (F-061)**: `structureLabel(structureOf(game))` through the 7 label sites (hub subtitle "Sides / Match · N players", leaderboard, share, formats, review "Sides (2 vs 2)"); "team" everywhere (§5.bm Q5), `isSingleGroupGame` renamed to its meaning, `teamBuild` container-neutral. **e2e pins to grep first (§5.at):** "Sides / Match", "Sides (", "Next: Sides", "Foursomes" — dozens of assertions | M | plan §7 Phase 2 / F-061 |
 | F-069: the sides engine scores any unrecognised team format as best ball — make it refuse (or compute two-best) rather than default; Phase 3 rider | S | F-069 |
 | F-070: sandbox fake gains `.in()`/`.order()`/`.limit()` so the audit history renders in e2e (unhandled rejection in every verify log today) | S | F-070 |
