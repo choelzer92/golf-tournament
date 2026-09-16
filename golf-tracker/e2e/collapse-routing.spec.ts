@@ -69,6 +69,8 @@ test('routing row: two teams of 4, pot → the classic pool (hub shows its fours
   await courseAndTees(page);
   await page.getByRole('button', { name: /Next: Teams/ }).click();
   await expect(page.getByRole('heading', { name: 'Set Teams' })).toBeVisible();
+  // F-086 control: locks stay on teams of 4, where they add something (the pairs row hides them).
+  await expect(page.getByText('Keep players together (optional)')).toBeVisible();
   await page.getByRole('button', { name: 'No captains' }).click();
   await page.getByRole('button', { name: /Straight down the list/ }).click();
   await page.getByRole('button', { name: /Next: Review/ }).click();
@@ -154,6 +156,8 @@ test('routing row: four pairs, fixed legs → the sides engine with two tee time
   expect(await page.locator('body').innerText()).not.toContain('How do the sides split?');
   // No tee times on money teams — the tee sheet is the next step's question.
   await expect(page.getByText('Tee time')).toHaveCount(0);
+  // F-086 (opt A): no pairing-locks panel on pairs — a lock there IS a team, which the cards say.
+  expect(await page.locator('body').innerText()).not.toContain('Keep players together');
   await page.screenshot({ path: 'e2e/screenshots/collapse-06a-teams-four-pairs-before.png', fullPage: true });
   await buildTeams(page, 'list');   // Craig+Jym, Dave+Rick, Sam+Tony, Will+Gary — deterministic
   await expect(page.getByLabel('Team 4 name')).toBeVisible();
@@ -164,6 +168,10 @@ test('routing row: four pairs, fixed legs → the sides engine with two tee time
   await expect(page.getByRole('heading', { name: /playing together/ })).toBeVisible();
   const group1 = page.locator('div.bg-white', { hasText: 'Group 1' }).first();
   for (const nm of ['Craig', 'Jym', 'Dave', 'Rick']) await expect(group1.getByText(nm)).toBeVisible();
+  // F-085 (opt A): rows by TEAM, partners adjacent — Craig & Jym then Dave & Rick, not the
+  // handicap interleave (Craig 4, Dave 8, Jym 12, Rick 16) that hid the pairs.
+  const rows = await group1.locator('li button span:first-child').allInnerTexts();
+  expect(rows).toEqual(['Craig', 'Jym', 'Dave', 'Rick']);
   const body = await page.locator('body').innerText();
   expect(body).toContain('Group 2');
   await page.screenshot({ path: 'e2e/screenshots/collapse-06-groups-four-pairs.png', fullPage: true });

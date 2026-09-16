@@ -77,6 +77,19 @@ export function PlayingGroupsStep({
     setTeams(teams.map((t) => (t.id === teamId ? { ...t, teeTime } : t)));
   }
 
+  // F-085 (opt A): a group's rows are shown by TEAM — partners adjacent, in the group's handicap
+  // order within a team, a rule between teams — so the screen that promises "partners walk
+  // together" lets you check it at a glance. Display only; the stored order stays by handicap.
+  function clustersOf(ids: string[]): string[][] {
+    if (!partnerTeams || partnerTeams.length === 0) return [ids];
+    const byTeam = new Map<number, string[]>();
+    for (const id of ids) {
+      const k = partnerTeams.findIndex((t) => t.includes(id));
+      byTeam.set(k, [...(byTeam.get(k) ?? []), id]);
+    }
+    return [...byTeam.entries()].sort((a, b) => a[0] - b[0]).map(([, members]) => members);
+  }
+
   // Nobody may be left out: a player in no group has no scorecard to be on.
   const assigned = new Set(teams.flatMap((t) => t.playerIds));
   const unassigned = players.filter((p) => !assigned.has(p.id));
@@ -149,9 +162,9 @@ export function PlayingGroupsStep({
                 />
               </label>
             </div>
-            <ul className="divide-y divide-gray-100">
-              {team.playerIds.map((pid) => (
-                <li key={pid}>
+            <ul>
+              {clustersOf(team.playerIds).map((cluster, ci) => cluster.map((pid, pi) => (
+                <li key={pid} className={ci > 0 && pi === 0 ? 'border-t-2 border-dashed border-gray-200 mt-1 pt-1' : pi > 0 ? 'border-t border-gray-100' : ''}>
                   <button
                     type="button"
                     onClick={() => setMoving(moving === pid ? null : pid)}
@@ -165,7 +178,7 @@ export function PlayingGroupsStep({
                     </span>
                   </button>
                 </li>
-              ))}
+              )))}
               {team.playerIds.length === 0 && (
                 <li className="px-2 py-2 text-xs text-gray-400">Nobody in this group yet.</li>
               )}
