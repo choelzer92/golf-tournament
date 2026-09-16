@@ -234,6 +234,36 @@ test('routing row: four pairs + closest-to-pin is refused with the reason, not s
   expect(await page.locator('body').innerText()).toContain('$20 buy-in pot');
 });
 
+test('F-074: a typed split (4, 2, 2) is a real structure — three teams, the pairs share a foursome', async ({ page }) => {
+  await startWizard(page, EIGHT_PLAYERS, 'Four Two Two');
+  await page.getByRole('button', { name: /Other split/ }).click();
+  const sizes = page.getByLabel('Team sizes');
+  await sizes.fill('4, 2');
+  await expect(page.getByText('Team sizes must add up to 8')).toBeVisible();
+  await expect(page.locator('input[name="structure"][value="custom"]')).not.toBeChecked();
+  await sizes.fill('4, 2, 2');
+  await expect(page.locator('input[name="structure"][value="custom"]')).toBeChecked();
+  await expect(page.getByText('Three teams, 4 + 2 + 2')).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/f074-typed-split.png', fullPage: true });
+  await toScoringStep(page);
+  expect(await page.locator('body').innerText()).toContain('4 + 2 + 2');
+  await courseAndTees(page);
+  await page.getByRole('button', { name: 'Next: Teams' }).click();
+  await expect(page.getByText(/Three teams, 4 \+ 2 \+ 2\. Partners walk together/)).toBeVisible();
+  await buildTeams(page, 'list');
+  await expect(page.getByLabel('Team 3 name')).toBeVisible();
+  await expect(page.getByLabel('Team 4 name')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Next: Groups' }).click();
+  // The 4 walks as its own group; the two pairs share the other (§5.bm Q2).
+  await expect(page.getByRole('heading', { name: /playing together/ })).toBeVisible();
+  const group1 = page.locator('div.bg-white', { hasText: 'Group 1' }).first();
+  for (const nm of ['Craig', 'Jym', 'Dave', 'Rick']) await expect(group1.getByText(nm)).toBeVisible();
+  await page.getByRole('button', { name: /Next: Review/ }).click();
+  await expect(page.getByText('Sides (4 vs 2 vs 2)')).toBeVisible();
+  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+});
+
 test('routing row: everyone for themselves (4) → skins, the individual mode', async ({ page }) => {
   await startWizard(page, FOUR_PLAYERS, 'Sunday Skins');
   // Four players: two pairs is the usual; singles are one tap away.

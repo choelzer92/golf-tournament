@@ -37,7 +37,7 @@ import {
   structureForDefaults,
   recommendedStructure,
   structureOptionId,
-  structureOptionsFor,
+  structureOptionLabel,
 } from '@/lib/game-structure';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 import {
@@ -886,7 +886,7 @@ export default function NewPoolGamePage() {
             setTeamBuild={setTeamBuild}
             teamSizes={structure.teamSizes}
             subtitle={(() => {
-              const label = structureOptionsFor(players.length).find((o) => o.id === structureOptionId(structure))?.label ?? 'Teams';
+              const label = structureOptionLabel(structure, players.length).label;
               return needsPlayingGroups
                 ? `${label}. Partners walk together — who tees off with whom comes next.`
                 : `${label} — everyone walks as one group.`;

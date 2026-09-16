@@ -173,6 +173,26 @@ function labelFor(shape: StructureShape, n: number): { label: string; detail: st
   return { label, detail };
 }
 
+/** The structure step's label for ANY shape — including a typed one no option row carries (F-074). */
+export function structureOptionLabel(shape: StructureShape, n: number): { label: string; detail: string } {
+  return labelFor(shape, n);
+}
+
+/**
+ * F-074: a free-form split ("4, 2, 2") typed under "Other split…". `groupShapesFor` only offers
+ * shapes whose sizes differ by at most one, and Craig asked for 2 v 2 v 4. Any separator works;
+ * the sizes must be whole numbers of at least one, at least two teams, and add up to the field.
+ * Returned largest-first, the order every other shape uses. `null` when it isn't a split yet.
+ */
+export function parseTeamSizes(text: string, n: number): number[] | null {
+  const parts = text.split(/[^0-9]+/).filter((t) => t.length > 0);
+  if (parts.length < 2) return null;
+  const sizes = parts.map((t) => parseInt(t, 10));
+  if (sizes.some((k) => !Number.isFinite(k) || k < 1)) return null;
+  if (sizes.reduce((s, k) => s + k, 0) !== n) return null;
+  return [...sizes].sort((a, b) => b - a);
+}
+
 /**
  * Every structure a field of `n` can play, even shapes first, uneven after (for "Other
  * split…"), the §5.bk recommendation flagged. Built on the same `groupShapesFor` that powers

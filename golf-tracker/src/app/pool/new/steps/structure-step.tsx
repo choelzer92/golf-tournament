@@ -7,7 +7,9 @@ import { type RosterGroup, hydrateGroups, getGroupById } from '@/lib/roster-grou
 import { getFormats, getGroupFormats } from '@/lib/pool-formats';
 import { GAME_MODES, modeFits } from '@/lib/game-modes';
 import {
+  parseTeamSizes,
   structureOptionId,
+  structureOptionLabel,
   structureOptionsFor,
   type StructureOption,
   type StructureShape,
@@ -80,8 +82,22 @@ export function StructureStep({
   const [pickingAnother, setPickingAnother] = useState(false);
   const showPicker = allPickerFormats.length > 0 && (!appliedFormat || pickingAnother);
   const currentId = structure ? structureOptionId(structure) : null;
+  // A typed split (F-074) is a shape no row carries; it's selected but must still show as chosen.
+  const customChosen = structure !== undefined && structure.kind === 'teams' && !options.some((o) => o.id === currentId);
+  const [customText, setCustomText] = useState(() => (customChosen ? structure!.teamSizes.join(', ') : ''));
+  const customSizes = parseTeamSizes(customText, playerCount);
   // An uneven shape already chosen (from a draft, or the recommendation at 5/7) must be visible.
-  const otherOpen = showOther || other.some((o) => o.id === currentId);
+  const otherOpen = showOther || other.some((o) => o.id === currentId) || customChosen;
+
+  function typeCustom(text: string) {
+    setCustomText(text);
+    const sizes = parseTeamSizes(text, playerCount);
+    if (!sizes) return;
+    const shape: StructureShape = { kind: 'teams', teamSizes: sizes };
+    if (structureOptionId(shape) === currentId) return;
+    if (appliedFormat) onFormatEdited();
+    setStructure(shape);
+  }
 
   // "Everyone for themselves" needs an individual mode that fits the field — those top out at
   // four. §4.8 of the plan: say so, don't hide it.
@@ -224,6 +240,46 @@ export function StructureStep({
           <div className="space-y-2" role="radiogroup" aria-label="How do you want to compete?">
             {primary.map(row)}
             {otherOpen && other.map(row)}
+            {/* F-074: any split at all — the balanced list above can't offer 4 + 2 + 2. Typed
+                sizes route like every other shape (a 4 is its own group, the 2s share one). */}
+            {otherOpen && (
+              <label
+                className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 min-h-[44px] ${
+                  customChosen ? 'border-green-600 bg-green-50' : 'border-gray-300 bg-white hover:border-green-400'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="structure"
+                  value="custom"
+                  checked={customChosen}
+                  onChange={() => { if (customSizes) typeCustom(customText); }}
+                  className="mt-1 h-4 w-4 accent-green-700"
+                  aria-label="Any other split"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-gray-900">
+                    {customChosen ? structureOptionLabel(structure!, playerCount).label : 'Any other split'}
+                  </span>
+                  <span className="mt-1 flex items-center gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={customText}
+                      onChange={(e) => typeCustom(e.target.value)}
+                      placeholder={playerCount >= 8 ? 'e.g. 4, 2, 2' : 'e.g. 3, 1'}
+                      aria-label="Team sizes"
+                      className="w-32 rounded-md border border-gray-300 px-2 py-1 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                    />
+                    <span className={`text-xs ${customText.trim() && !customSizes ? 'text-amber-700' : 'text-gray-500'}`}>
+                      {customText.trim() && !customSizes
+                        ? `Team sizes must add up to ${playerCount}`
+                        : `Type the team sizes — they add up to ${playerCount}`}
+                    </span>
+                  </span>
+                </span>
+              </label>
+            )}
           </div>
           {other.length > 0 && !otherOpen && (
             <button

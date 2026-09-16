@@ -29,6 +29,8 @@ import {
   type NeutralScoring,
   type Route,
   type StructureDraft,
+  parseTeamSizes,
+  structureOptionLabel,
 } from '@/lib/game-structure';
 import { computeGameResult } from '@/lib/game-modes/result';
 import { defaultSettings, getGameMode } from '@/lib/game-modes';
@@ -114,6 +116,28 @@ function moneySum(result: ReturnType<typeof computeGameResult>): number {
 // ---------------------------------------------------------------------------
 // 1. Structure step
 // ---------------------------------------------------------------------------
+
+describe('F-074 parseTeamSizes — a typed split under "Other split…"', () => {
+  it('accepts any separator, sorts largest-first, and must add up to the field', () => {
+    expect(parseTeamSizes('4, 2, 2', 8)).toEqual([4, 2, 2]);
+    expect(parseTeamSizes('2 v 2 v 4', 8)).toEqual([4, 2, 2]);
+    expect(parseTeamSizes('2+2+4', 8)).toEqual([4, 2, 2]);
+    expect(parseTeamSizes('3 1', 4)).toEqual([3, 1]);
+  });
+  it('rejects a single team, a zero, a wrong total, or nothing typed yet', () => {
+    expect(parseTeamSizes('8', 8)).toBeNull();
+    expect(parseTeamSizes('4, 0, 4', 8)).toBeNull();
+    expect(parseTeamSizes('4, 2', 8)).toBeNull();
+    expect(parseTeamSizes('4, 2, 2, 1', 8)).toBeNull();
+    expect(parseTeamSizes('', 8)).toBeNull();
+    expect(parseTeamSizes('4,', 8)).toBeNull();
+  });
+  it('a typed 4 + 2 + 2 labels and routes like any other uneven shape (the 2s share a foursome)', () => {
+    const shape = { kind: 'teams' as const, teamSizes: parseTeamSizes('4 2 2', 8)! };
+    expect(structureOptionLabel(shape, 8).label).toBe('Three teams, 4 + 2 + 2');
+    expect(defaultTeeSheetFacts(shape.teamSizes)).toEqual({ aligned: false, teamsTogether: true });
+  });
+});
 
 describe('structureOptionsFor', () => {
   it('8 players: the plan §6 mock, even shapes first, the classic pool recommended', () => {
