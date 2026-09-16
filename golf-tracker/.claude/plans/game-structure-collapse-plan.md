@@ -1,7 +1,12 @@
 # Game-structure collapse — the deep plan (§5.bk / §5.bl)
 
-**Status: WALKED 2026-09-16 (§5.bm) — Phase 1 slice 1 BUILT (`src/lib/game-structure.ts` + table
-tests). Amendments from the walk, which override the text below where they differ:**
+**Status: WALKED 2026-09-16 (§5.bm) — Phase 1 BUILT on `ui-simplification-2026-09-15`: slice 1
+(dc88832, `src/lib/game-structure.ts` + 71 table tests) and slices 2–4 (c6c45f2: structure +
+scoring steps, routed money step, draft v2, format-derived structure, 13 specs re-pointed,
+`collapse-routing.spec.ts` one-per-row). Verify green. Left for the next session: the slice-3
+remainder (method-list teams step for shared-foursome teams; partner-aware reshape on the
+groups step) and Phase 2 vocabulary. Amendments from the walk, which override the text below
+where they differ:**
 
 - **Q1 → route by CAPABILITY, not preference.** §3.3's "prefer classic" is now a consequence,
   not a rule: the router picks whichever engine can carry EVERYTHING configured (CTP / manual

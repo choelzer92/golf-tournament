@@ -1,68 +1,77 @@
-# Next session: Craig walks the collapse plan → build Phase 1 slice 1 on approval
+# Next session: Craig walks the COLLAPSED wizard → Phase 2 vocabulary + slice-3 remainder
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 ---
 
-Read `AGENTS.md` first, then `.claude/plans/game-structure-collapse-plan.md` WHOLE (it is
-the plan; ~300 lines). `GAME_STRUCTURE_DESIGN.md` is the brief behind it; the sweep
-evidence with file:line references is `.claude/plans/collapse-sweeps-2026-09-15.md` —
-grep it, don't read it whole (~850 lines).
+Read `AGENTS.md` first, then the HEADER of `.claude/plans/game-structure-collapse-plan.md` (the
+status block carries the §5.bm amendments; the body is the original plan — grep it by §, don't
+re-read it whole). `DECISIONS_ARCHIVE.md` §5.bm is the record of Craig's five answers.
 
-**State (2026-09-16):** branch `ui-simplification-2026-09-15`, working tree CLEAN. Its two
-newest commits are the F-068 money fix (code + tests + seed) and the collapse plan +
-findings F-063…F-068 (docs). Not merged to main; don't merge/push unbidden (§5.ab) —
-Craig decides when nobody is mid-round. Course-data audit stays PARKED. Start here:
-**Step 1 below** (walk the plan with Craig).
+**State (2026-09-16 end of session):** branch `ui-simplification-2026-09-15`, working tree CLEAN,
+verify green (tsc · build · 1602 unit · 189 e2e). Five new commits since the plan:
+dc88832 slice 1 (pure router + tests) · cc826da §5.bm docs · bd2db4d F-063 opt A · c6c45f2
+slices 2–4 (the wizard) · the docs groom. **Not merged to main; don't merge/push unbidden (§5.ab)**
+— the collapse changes every setup flow and Craig hasn't seen it on a phone yet. Course-data
+audit stays PARKED.
 
 ## The promoted work
 
-**Step 1 — Craig walks the plan.** Present §8's five questions one at a time (his stated
-preference). The ones that change Phase 1: Q1 (overlap row → classic or sides), Q2
-(offer "Mixed foursomes" when teams could walk together), Q5 (vocabulary: "team"
-everywhere). Q4 is the F-063 live-scoring call (interim fixes now? per-cell session?).
-Record answers as §5.bm in DECISIONS_ARCHIVE.md + index line, in-session.
+**Step 1 — Craig walks the new wizard.** `NEXT_PUBLIC_SANDBOX=1 npx next dev --port 3200`, seed
+"Past games (for recent-course chips)" on /sandbox, then /pool/new. Walk at least: 8 players →
+Two teams of 4 → pot (the Warriors' game; must feel unchanged after step 2), 8 → Four pairs →
+legs, 4 → Everyone for themselves → skins, 2 → 1 v 1. The screenshots are
+`e2e/screenshots/collapse-*.png` if he'd rather read. His review questions are bug reports
+(§5.y) — log findings in FINDINGS.md with options, don't fix on sight. Known residue to point
+at honestly: the sides flow still says "Sides" (Phase 2), captains/CTP/manual bonuses are
+classic-only and the money step says so, a classic format applied to 2 players derives a 1 v 1.
 
-**Step 2 — on approval, Phase 1 slice 1 (zero UI):** `src/lib/game-structure.ts`, pure:
-`structureOptionsFor(n)` (reuse `groupShapesFor(n, {min:1, minGroups:2})`),
-`structureOf(game)`, `routeContainer(draft)`, `moneyModelsFor(container, N)`. Table tests:
-every row of plan §3.3 routes as specified, and every routed game's `computeGameResult`
-is zero-sum under both money families. Prove a test can fail (§5.z). Then `npm run
-verify`, one commit.
+**Step 2 — Phase 2 vocabulary (F-061), on his go.** `structureLabel(structureOf(game))` through
+the label sites (hub subtitle, leaderboard header, share text, formats list, review/sides
+headings); "team" everywhere (§5.bm Q5); `isSingleGroupGame` renamed to what it means. **Grep the
+e2e pins first (§5.at):** "Sides / Match", "Sides (", "Next: Sides", "Foursomes" — dozens of
+assertions across verify-core, f015, f019, f020, nsides-audit, collapse-routing. Re-point them
+without weakening what they assert. No engine/storage change.
 
-**Step 3 — slices 2–5** (structure + scoring steps and draft v2 → teams (N,K) + tee-sheet
-question → routed money step, F-042 toggle removed → e2e re-point + one spec per routing
-row). One commit each. The 12 specs that `selectOption` a mode id are the blast radius;
-extend `e2e/helpers.ts` with `chooseStructure`/`chooseScoring`, don't re-inline.
+**Step 3 — slice-3 remainder.** The §5k method list (TeamsStep) as the teams step for
+shared-foursome teams too (they get the Sides editor today), then sides → groups with the groups
+step's shape buttons keeping partners together (`proposeTeeGroups`), F-060 ✓ parity on the sides
+hub. `teeSheetFacts` already re-derives aligned/teamsTogether from whatever the organizer drags.
 
-**Stop-and-ask lines:** no engine, storage or hub change in Phase 1 (the plan's promise —
-if a slice seems to need one, stop). F-063 fixes are persistence → separate approval.
-F-062 A/B/C still waits.
+**Stop-and-ask lines:** F-063 opt C (per-cell rows) is persistence → its own session, ask first.
+F-069 (sides engine defaults unknown formats to best ball) touches scoring → ask. F-062 A/B/C
+still waits.
 
 ## Waiting on Craig
 
-BACKLOG.md table: F-022 on-course stroke check; §7 q4; F-033 answer to the friend;
-F-062 A/B/C; F-063 A now / C session; optional extra course payloads.
+BACKLOG.md table: the phone walk above; F-022 on-course stroke check; §7 q4; F-033 answer to the
+friend; F-062 A/B/C.
 
 ## Traps that keep biting
 
-- **Do NOT edit app code while `npm run verify` runs.** (Markdown edits are safe.)
-- **Kill any hand-started dev server AND `rm -rf .next` before `npm run verify`**;
-  confirm 3200 free (TIME_WAIT fine). 3000 = Craig's.
-- Check verify's own exit code; if backgrounded, capture `$?` INSIDE the command.
-- Editor diagnostics lag one edit behind — trust `npx tsc --noEmit`.
-- Playwright strict mode: `exact: true` when a label prefixes another.
-- Game-mode ids ≠ display names (`stableford-ind`, not `stableford`) — select by VALUE.
-- Sandbox owner is ALWAYS GHIN 1234567 (since 2026-09-15), regardless of .env.local.
-- e2e specs share `e2e/helpers.ts` — extend it, don't re-inline copies.
-- The "CHcp" spelling is e2e-pinned (F-043 chips) — renaming it is an F-061/F-062
-  decision, not a typo fix.
-- **Write plans into the repo's `.claude/plans/`**, never `~/.claude/plans/` — two earlier
-  plan files referenced from BACKLOG were lost that way.
-- **Delegated sweeps report doc status, not code status** — both sweeps called F-060 opt B
-  open when the commit was on the branch. Verify a "still open" claim against `git log`.
-- If a session dies mid-work, its subagent reports survive in
-  `~/.claude/projects/<project>/<session-id>/subagents/*.jsonl` — recover, don't rerun.
+- **Do NOT edit app code while `npm run verify` runs** (it hot-reloads the e2e server). Markdown is safe.
+- **Kill any hand-started dev server AND `rm -rf .next` before `npm run verify`**; confirm 3200
+  free. 3000 = Craig's. Kill on Windows: `netstat -ano | grep ":3200 .*LISTENING"` → `taskkill //PID <pid> //F //T`.
+- Check verify's own exit code; when backgrounded, `echo "VERIFY_EXIT=$?" >> log` inside the command.
+- Verify takes ~15 min now (189 e2e). Iterate on a spec subset against a hand-started server first.
+- **Python heredocs in Git Bash break on `$` and long bodies** — write the script to a file
+  (`.claude/tmp_*.py`), run it, delete it. `/tmp` in Python is NOT Git Bash's /tmp.
+- Editor diagnostics lag one edit behind — trust `npx tsc --noEmit`. The "Props must be
+  serializable" warnings on every step component are the Next.js plugin, not tsc.
+- Playwright strict mode: `exact: true` when a label prefixes another; `.first()` when a reason
+  string renders under two greyed options.
+- **New wizard helpers** (`e2e/helpers.ts`): `addPlayers`, `fieldToGameStep(page, players?)`,
+  `chooseStructure(page, 'teams:4+4' | label)` (expands "Other split…" itself),
+  `toScoringStep(page, structure?)` (names the game if empty — the step requires a name),
+  `chooseSolo(page, 'skins')`, `chooseMoney(page, 'per-point')`. Extend, don't re-inline.
+- Structure ids: `teams:4+4`, `teams:2+2+2+2`, `teams:2+2+1`, `teams:1+1`, `solo`. Even shapes
+  and the recommendation are primary; the rest sit under "Other split…".
+- Two players + a classic format → `structureForDefaults` derives 1 v 1 (there's no 2-player pool).
+  Use 8 players when a test means the Warriors' game.
+- Sandbox owner is ALWAYS GHIN 1234567. e2e failure screenshots land in `test-results/*/test-failed-1.png`.
+- The "CHcp" spelling is e2e-pinned (F-043) — renaming it is an F-061/F-062 decision.
+- **Write plans into the repo's `.claude/plans/`**, never `~/.claude/plans/`.
+- Delegated sweeps report doc status, not code status — verify "still open" against `git log`.
 
 ## End the session by grooming BACKLOG.md
 

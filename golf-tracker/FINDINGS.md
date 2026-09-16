@@ -969,6 +969,35 @@ appears in Stats retroactively. Verify: see session note.
 
 ---
 
+### F-069 — The sides engine scores any unknown team format as best ball  [P3] [track]
+
+**Where (found building the §5.bk router, 2026-09-16):** `game-modes/team-game.ts` forms a
+side's hole score as `combined` → sum of nets, `scramble`/`alternate-shot` → one ball, and
+EVERYTHING ELSE → the lowest net (best ball). Its settings schema offers only those four, so
+no UI ever wrote `two-best-net` / `two-best-gross` / `net-and-gross` into a sides game — but
+a game that did would silently settle as best ball with no error.
+
+**Mitigation shipped:** the router treats two-ball formats as a classic-only capability
+(`UNEXPRESSIBLE.needAligned('Two-ball formats')`), so the wizard greys them for teams that
+share foursomes and says why. **Still open:** the engine itself should refuse (or compute)
+an unrecognised format rather than default it — a Phase 3 convergence item, alongside the
+sides engine gaining the two-best formats.
+
+---
+
+### F-070 — The sandbox fake backend has no `.in()`, so the leaderboard's audit viewer throws in e2e  [P3] [track]
+
+**Where:** `fetchScoreAudit` (`tournament-state.ts` ~l.319) queries `score_audit … .in('matchup_id', …)`;
+`src/test/fake-supabase.ts` implements no `in`, so opening the score history in the sandbox
+logs an unhandled rejection (`.in is not a function`) during `npm run verify`. Pre-existing
+since the audit viewer landed (6d07b8d); tests still pass because the viewer swallows the
+empty result. Cosmetic in the logs, but it means the audit history is never SEEN in e2e.
+
+**Fix (S):** add `in()` (and `order`/`limit` pass-throughs) to the fake's query builder, then a
+screenshot of the history panel joins the sandbox scenarios.
+
+---
+
 ## Settled — full text in FINDINGS_ARCHIVE.md
 
 One line per archived finding; the full entry (observation, options, status, and
