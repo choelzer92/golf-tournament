@@ -1,4 +1,23 @@
-# Next session: small wizard batch (F-073…F-086) → Phase 2 vocabulary
+# Next session: Phase 2 vocabulary (F-061 + F-081) → Phase 3 needs Craig's worked examples
+
+**UPDATE 2026-09-16 (fourth session): the SMALL WIZARD BATCH is BUILT** — ten commits after a89c980,
+one per finding (6728a25 F-073+F-075+F-082 · f55c550 F-076 A · b4b6461 F-080 · 2b7f5c8 F-084 ·
+9f606cc F-086 A · c7ae51d F-085 A · ec47f98 F-074 · f427809 F-083). Step 2 is DONE; start at
+**Step 3 (Phase 2 vocabulary)**. What changed, briefly: scoring buttons say "(stroke play)" /
+"(match play)"; the money row says "Head-to-head match"; `UNEXPRESSIBLE` engine-gap reasons read
+"Not built yet: …" (the singles branch that said "need teams of two or more" for CTP is gone — that
+line is kept for two-ball formats only); the money step shows each refusal reason once, grey;
+"+ Add bonuses" sets CTP 0 and also reveals the five hand-tracked buttons (now under the junk grid);
+head-to-head legs + junk/pt are inputs; an applied saved style hides the select behind "Start fresh ·
+Pick another style"; "Other split…" has a typed row (`parseTeamSizes`, radio value `custom`, aria
+"Team sizes"); the groups step clusters rows by team with a dashed rule; the locks panel hides when no
+team is bigger than 2. New helpers/exports: `parseTeamSizes`, `structureOptionLabel` (the teams-step
+subtitle uses it, so a typed shape is labelled too). **Three items were built on MY recommended
+option and need Craig's nod: F-076 A, F-085 A, F-086 A** (FINDINGS statuses say so). New finding
+F-087 (bonus sections sit between the money question and its amounts, P3, opt A = reorder). Verify
+log: `.claude/verify-2026-09-16-batch.log` (check `VERIFY_EXIT=`). Screenshots read: walk-A money,
+walk-B teams/groups, walk-G format, `f074-typed-split.png` — all clean.
+
 
 **UPDATE 2026-09-16 (third session): F-072 is BUILT (§5.bn)** — one commit on the branch after
 2b7f480. Step 2 items 1 and 2 below are done; start at item 3 (the small wizard batch). What
@@ -35,8 +54,9 @@ Read `AGENTS.md` first, then the HEADER of `.claude/plans/game-structure-collaps
 status block carries the §5.bm amendments; the body is the original plan — grep it by §, don't
 re-read it whole). `DECISIONS_ARCHIVE.md` §5.bm is the record of Craig's five answers.
 
-**State (2026-09-16 end of session):** branch `ui-simplification-2026-09-15`, working tree CLEAN,
-verify green (tsc · build · 1784 unit · 198 e2e after F-072). Five new commits since the plan:
+**State (2026-09-16 end of the fourth session):** branch `ui-simplification-2026-09-15`, working
+tree CLEAN after the docs commit, verify run logged in `.claude/verify-2026-09-16-batch.log`
+(1787 unit · 200 e2e expected after the batch). Five new commits since the plan:
 dc88832 slice 1 (pure router + tests) · cc826da §5.bm docs · bd2db4d F-063 opt A · c6c45f2
 slices 2–4 (the wizard) · the docs groom. **Not merged to main; don't merge/push unbidden (§5.ab)**
 — the collapse changes every setup flow and Craig hasn't seen it on a phone yet. Course-data
@@ -60,11 +80,7 @@ classic-only and the money step says so, a classic format applied to 2 players d
    retires. Grep the e2e pins first: "Sides (", "Next: Sides", A/B/C button flows in f015, f019,
    f020, nsides-audit, collapse-routing.
 2. ~~**F-072 two-ball formats on the sides engine**~~ DONE 2026-09-16 (§5.bn) — see the update above.
-3. **Small wizard-only batch:** F-073 "match play" wording · F-074 free-form split · F-075
-   refusal strings say the true reason · F-076 "+ Add bonuses" leaves CTP at 0 · F-078 hide the
-   sides shape chooser once a structure exists · F-079 skip the sides step for 1 v 1 · F-082 one
-   grey line for both greyed margin options · F-080 format shown once · F-083 fold manual bonuses
-   · F-084 editable head-to-head legs. Each an e2e assertion; several can share one commit.
+3. ~~**Small wizard-only batch**~~ DONE 2026-09-16 (ten commits) — see the update above.
 4. **F-081** rides with Phase 2: the sides hub shows the teams, not just tee groups.
 
 **Craig agreed this order 2026-09-16** ("yes, i agree"): items 1–2, then the small batch, then

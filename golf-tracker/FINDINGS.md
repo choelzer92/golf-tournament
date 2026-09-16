@@ -1091,6 +1091,8 @@ use.
 **Fix (S, labels only):** "Hole by hole (match play)" / "18-hole total (stroke play)"; money row
 "Head-to-head match — fixed $ per front / back / overall". Helper text can say "a Nassau".
 
+**Status:** FIXED 2026-09-16 (6728a25) — '18-hole total (stroke play)' / 'Hole by hole (match play)', the hint names a Nassau, money row 'Head-to-head match — fixed $ per front / back / overall'. Pinned in `collapse-routing` (4+4 row).
+
 ---
 
 ### F-074 — Uneven splits are only the balanced ones; 4 v 2 v 2 can't be chosen  [P2] [start]
@@ -1103,6 +1105,8 @@ shapes whose sizes differ by at most one (3 + 3 + 2 yes, 4 + 2 + 2 no). Craig as
 validated to sum to the field; routes like any other shape (`defaultTeeSheetFacts` handles it: a
 4 is its own group, the 2s share one → shared-foursome flow). Also the money settles fine — a
 team of 2 simply has fewer balls to pick from.
+
+**Status:** FIXED 2026-09-16 (ec47f98) — a free-form row under 'Other split…' takes the sizes (any separator), validated to add up to the field and to 2+ teams; `parseTeamSizes` + `structureOptionLabel` unit-tested; routes like any shape (4 + 2 + 2 → the 4 walks alone, the pairs share). Pinned in `collapse-routing` F-074 row to 'Sides (4 vs 2 vs 2)'.
 
 ---
 
@@ -1118,6 +1122,8 @@ ties it to foursomes. The sides engine simply has no CTP / manual-bonus settleme
 teams that share foursomes yet" / "…can't ride on $ per hole or $ per point yet" (the "yet" is
 honest: Phase 3 closes it). Never phrase an engine gap as a rule (§5.at spirit).
 
+**Status:** FIXED 2026-09-16 (6728a25) — `UNEXPRESSIBLE` engine-gap strings read 'Not built yet: <needs> for teams that share a foursome / on head-to-head with more than two teams / on $ per hole or $ per point'; singles with a classic-only need get the shared-foursome reason (the 'teams of two or more' line is kept for two-ball formats only, where it IS the golf). Sides stakes note reworded the same way. Pinned in `collapse-routing` (refused row) and `f045`.
+
 ---
 
 ### F-076 — "+ Add bonuses" silently includes closest-to-pin (and then blocks margin money)  [P2] [start]
@@ -1131,6 +1137,8 @@ unblocks them.
 **Options:** **A** add bonuses with CTP at 0 (birdie/eagle/albatross/all-par only) and let the
 Warriors' saved format carry its CTP 1, which it does. **B** individual toggles per bonus instead
 of one grid fill. A is one constant; B is the §5.j-shaped answer. Recommend A now, B with Phase 3.
+
+**Status:** FIXED 2026-09-16 (f55c550) on **option A (my recommendation — Craig to confirm)**: the tap sets birdie 1 / eagle 2 / albatross 3 / all-par 1 / CTP 0; the seeded Warriors' format still restores CTP 1. Pinned in `f045` (Closest = 0, margin money open until CTP typed). Option B (per-bonus toggles) stays for Phase 3.
 
 ---
 
@@ -1185,6 +1193,8 @@ under it, the select "Or play a saved game style" reading "Saturday Nassau". **F
 format is applied, the select collapses to a "Start fresh / pick another style" link under the
 card; the card is the confirmation.
 
+**Status:** FIXED 2026-09-16 (b4b6461) — with a style applied the select hides; the card gains 'Everything is already set — change anything below to fork it. Start fresh · Pick another style'. Pinned in `verify-f020-picker` (no select + Start fresh after applying; §5.aw row re-pointed).
+
 ---
 
 ### F-081 — The sides hub shows tee groups under "Players" but never the TEAMS  [P2] [start]
@@ -1206,6 +1216,8 @@ identical amber/red line. Twice the words, and red reads as an error. **Fix (S):
 the pair ("$ per hole / $ per point aren't built for … yet"), grey not red; goes with F-075's
 wording change.
 
+**Status:** FIXED 2026-09-16 (6728a25) — each distinct refusal reason renders ONCE under the money list, grey (`text-gray-500`). Pinned in `f045` (count 1, grey class, after typing CTP on a 4+4 pot).
+
 ---
 
 ### F-083 — Five hand-tracked bonus buttons are always on screen, even for a group that never plays them  [P3] [track]
@@ -1215,6 +1227,8 @@ wording change.
 reveal for exactly this reason (§5.bg) and left the manual ones exposed. **Fix (S):** fold them
 under the same "+ Add bonuses" reveal; a saved format with manual bonuses restores them open.
 
+**Status:** FIXED 2026-09-16 (f427809) — the five hand-tracked buttons render under the junk grid only once bonuses are added (or a saved format restores manual bonuses). Pinned in `f045`. 'Remove bonuses' leaves chosen manual bonuses in place (non-destructive) — say if it should clear them too.
+
 ---
 
 ### F-084 — Head-to-head leg amounts are read-only in the wizard  [P2] [start]
@@ -1223,6 +1237,8 @@ under the same "+ Add bonuses" reveal; a saved format with manual bonuses restor
 Junk / pt $5" with no inputs; the only way to change them is a saved format. Pre-existing (the
 wizard's `matchLegs` state has never had an editor since the money step moved), surfaced by the
 walk. **Fix (S):** inputs for the three legs and junk-per-point, mirroring the pot's split grid.
+
+**Status:** FIXED 2026-09-16 (2b7f5c8) — Front / Back / Overall + Junk / pt are inputs (a nine shows its one leg), bound to the wizard's existing `matchLegs` state. Pinned in `collapse-routing` (15 / 2 typed → hub shows $15 / $2).
 
 ---
 
@@ -1238,7 +1254,7 @@ thin divider or the team's name as a sub-heading between pairs. **B** a small te
 ("Gary & Rick"). A is one sort key and reads as the claim it makes; B adds text to every row.
 Recommend A. Composes with F-081 (the hub's team panel should show the same pairing + tee group).
 
-**Status:** open.
+**Status:** FIXED 2026-09-16 (c7ae51d) on **option A (my recommendation — Craig to confirm)**: rows clustered by team, handicap order within, a dashed rule between teams; display only. Pinned in `collapse-routing` (group 1 reads Craig, Jym, Dave, Rick).
 
 ---
 
@@ -1254,6 +1270,23 @@ card below already does.
 **Options:** **A** hide the locks panel when every team size is 2 or less (a lock can only ever be
 one whole team). **B** reword it for pairs ("Fix a pair before balancing the rest"). A is the
 minimum-exposed-complexity answer and keeps locks for triples, where they do add something.
+
+**Status:** FIXED 2026-09-16 (9f606cc) on **option A (my recommendation — Craig to confirm)**: the panel renders only when some team is larger than 2. Pinned in `collapse-routing` (gone on four pairs, present on two teams of 4). Note: `lockedGroups` state is shared across structures, so a lock set on a 4+4 before switching to pairs would still steer the balancer invisibly — edge case, not seen in practice.
+
+---
+
+### F-087 — On the money step the bonus sections sit between the money question and its amounts  [P3] [start]
+
+**Where (my read of `walk-A-pool-11-money-legs.png` and `-10-money-bonuses.png`, 2026-09-16, after
+F-083/F-084):** head-to-head: "How is the money played?" → Bonus points grid → Extra bonuses (five
+buttons) → **Match Payouts** (the legs). Pot: Buy-in → Who gets paid → bonuses → **Pot Split**. The
+amounts a game is actually about come last, below two optional sections, and on a phone that is a
+full screen of scrolling. Pre-existing order; F-083 made the bonus block taller when opened.
+
+**Options:** **A** move both bonus sections BELOW the money amounts (legs / pot split), so the money
+reads top-to-bottom: model → amounts → optional extras. **B** collapse the two bonus sections into one
+"Bonuses" block with the junk grid and the manual buttons side by side. A is a reorder only; B is a
+redesign. Recommend A.
 
 **Status:** open.
 

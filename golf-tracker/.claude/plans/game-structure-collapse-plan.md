@@ -9,7 +9,8 @@ F-071 A:** one `TeamsStep` for every split (`mode: 'money-teams'`), sides derive
 (`packTeamsIntoShape`), `SubTeamsStep` deleted; F-078/F-079 closed with it. **F-072 BUILT
 2026-09-16:** the sides engine scores every `TeamFormat` through `teamValueOnHole` (164 oracle
 cases pinned first, §5.z), "Two-ball formats" left the classic-only list, a team of one refuses
-them. Left: the small wizard batch, then Phase 2 vocabulary. Amendments from the walk, which override the text below
+them. **Small wizard batch BUILT 2026-09-16** (F-073/074/075/076/080/082/083/084/085/086, ten
+commits). Left: Phase 2 vocabulary (F-061 + F-081), then Phase 3 convergence (money math, examples first). Amendments from the walk, which override the text below
 where they differ:**
 
 - **Q1 → route by CAPABILITY, not preference.** §3.3's "prefer classic" is now a consequence,

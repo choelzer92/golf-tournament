@@ -19,7 +19,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
-| **Game-structure COLLAPSE — Phase 1 BUILT on `ui-simplification-2026-09-15` (dc88832 slice 1 · c6c45f2 slices 2–4), verify green (1602 unit / 189 e2e). Slice-3 remainder DONE 2026-09-16 as F-071 A (one teams step for every split, partner-aware groups reshape). F-072 DONE 2026-09-16 (two-ball formats on the sides engine via `teamValueOnHole`, 164 oracle cases, 3 mutations caught). NEXT, in Craig's agreed order: small wizard batch (F-073/074/075/076/080/082/083/084, + F-085/086 from this session's screenshot read) → Phase 2 vocabulary (F-061 via `structureLabel`, "team" everywhere per §5.bm Q5, F-081 rides along). Craig's phone walk of the new wizard still wanted (§5.y).** Screenshots: `e2e/screenshots/collapse-*.png`, `walk-*.png`. Plan header carries the §5.bm amendments. | L | §5.bk/§5.bm |
+| **Game-structure COLLAPSE — Phase 1 BUILT on `ui-simplification-2026-09-15`; F-071 A, F-072 and the SMALL WIZARD BATCH (F-073/074/075/076/080/082/083/084/085/086, ten commits 6728a25…f427809) all DONE 2026-09-16. NEXT, in Craig's agreed order: Phase 2 vocabulary (F-061 via `structureLabel`, "team" everywhere per §5.bm Q5, F-081 rides along) → Phase 3 engine convergence (money math — worked examples from Craig first). Craig's phone walk of the new wizard still wanted (§5.y); three batch items were built on MY recommended option and need his nod (F-076 A, F-085 A, F-086 A).** Screenshots: `e2e/screenshots/collapse-*.png`, `walk-*.png`, `f074-*.png`, `f082-*.png`, `f084-*.png`. Plan header carries the §5.bm amendments. | L | §5.bk/§5.bm |
 | **Course-data correctness audit — PARKED by Craig 2026-09-15 ("wait on the course data")**. Meadows payload banked + CLEAN (F-023); prime suspects now gender-name tee collisions and stale stored games. Resume on his word. | M | Craig 2026-09-10/14 + F-023 |
 | Merge-audit polish batch (all four S items below) — fallback slack work | S×4 | merge audit / §5.ak |
 
@@ -27,6 +27,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | When |
 |---|---|
+| **Small wizard batch BUILT (ten commits, one per finding)**: F-073 match/stroke-play words · F-074 typed split ("4, 2, 2") · F-075 refusals say "Not built yet: …" never a fake rule · F-076 A Add bonuses leaves CTP 0 · F-080 applied style shown once · F-082 one grey reason line · F-083 manual bonuses behind the reveal · F-084 editable legs · F-085 A partners adjacent in groups · F-086 A no locks on pairs. Each e2e-pinned; verify green (see log). Found F-087 (bonus sections sit between the money question and its amounts) | 2026-09-16 |
 | **F-072 BUILT — two-ball formats on the sides engine** (goldens first, §5.z): `team-game.ts` scores a side through the pool's `teamValueOnHole`; `f072-two-ball-sides.test.ts` = 164 hand-arithmetic cases that ALL failed on the old engine (every cell a $0 dead heat), three mutations caught after; two-side/N-side/one-group goldens unmoved; router drops "Two-ball formats" from classic-only and refuses them for a team of one; mode schema, hub summary, e2e row + flipped pins | 2026-09-16 |
 | **Self-walk of the collapsed wizard (63 screenshots, `e2e/collapse-walk.spec.ts`)** → F-077 (wrong money in the summary line — FIXED + pinned), F-078…F-084 logged with options; Craig's own walk → F-071…F-076. Lesson saved to memory: walk every step yourself before handing a UI over | 2026-09-16 |
 | **Collapse Phase 1 slices 2–4 BUILT (c6c45f2)**: structure step ("How do you want to compete?") + scoring step replace the game picker and the F-042 toggle; money step lists the four models judged by the router, greyed with WHY; sides engine stakes from its schema; Create blocked with reason (+ "Drop the bonuses"); teams step takes the structure's sizes; draft v2; saved formats derive their structure; 13 e2e specs re-pointed via `chooseStructure`/`toScoringStep`/`chooseSolo`/`chooseMoney`, `collapse-routing.spec.ts` = one spec per routing row landing on its container. Found F-069/F-070 | 2026-09-16 |
@@ -91,18 +92,19 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | ~~F-060 follow-through~~ DONE 2026-09-15 (877c9ea) — opt B + hub parity both built; the collapse plan keeps the method list as the teams step for any N × K | — | F-060 |
 | **F-063 opt C: per-cell score rows** — `(matchup_id, player_id, hole)` table, idempotent upserts, localStorage outbox, dual-read transition, sandbox fake gains the table first; retires the merge RPC. Makes `matchupId` a fetch key, not a correctness boundary — de-risks the whole sides family. Own session; persistence → Craig | M | F-063 / plan §5.3 |
 | ~~F-071 ONE teams step for every split (opt A)~~ DONE 2026-09-16 — `TeamsStep` money-teams mode, sides derived on leaving, partner-aware groups reshape (`packTeamsIntoShape`), `SubTeamsStep` deleted; F-078 + F-079 fell out; two judgement calls for Craig in FINDINGS F-071 status (empty-until-tapped, captains off for pairs) | — | F-071 |
-| F-085 groups step orders a group's rows by TEAM so the pairs are visible (opt A) — composes with F-081 | S | F-085 |
-| F-086 hide the pairing-locks panel when every team is 2 or fewer (opt A) | S | F-086 |
-| F-073 "Hole by hole (match play)" / "18-hole total (stroke play)" / "Head-to-head match" labels | S | F-073 |
-| F-074 free-form uneven split ("4, 2, 2") under "Other split…" | S | F-074 |
-| F-075 router refusal strings state the ENGINE gap ("isn't built for teams that share foursomes yet"), never a fake golf rule | S | F-075 |
-| F-076 "+ Add bonuses" adds birdie/eagle/albatross/all-par with CTP at 0 (opt A); per-bonus toggles later (opt B) | S | F-076 |
+| ~~F-085 partners adjacent in the groups step~~ DONE 2026-09-16 (opt A, c7ae51d) — Craig to confirm the option | — | F-085 |
+| ~~F-086 no locks panel on pairs~~ DONE 2026-09-16 (opt A, 9f606cc) — Craig to confirm the option | — | F-086 |
+| ~~F-073 match-play / stroke-play words~~ DONE 2026-09-16 (6728a25) | — | F-073 |
+| ~~F-074 typed split under "Other split…"~~ DONE 2026-09-16 (ec47f98) | — | F-074 |
+| ~~F-075 refusals name the engine gap~~ DONE 2026-09-16 (6728a25) | — | F-075 |
+| ~~F-076 Add bonuses leaves CTP 0~~ DONE 2026-09-16 (opt A, f55c550) — Craig to confirm; opt B (per-bonus toggles) rides with Phase 3 | — | F-076 |
 | ~~F-078 hide the sides step's shape chooser~~ DONE 2026-09-16 with F-071 A (the step is gone) | — | F-078 |
 | ~~F-079 skip the teams step for a 1 v 1~~ DONE 2026-09-16 with F-071 A (tees → Money) | — | F-079 |
-| F-084 editable head-to-head legs + junk/pt on the money step | S | F-084 |
-| F-082 one grey line under both greyed margin-money options, not two red ones | S | F-082 / F-075 |
-| F-080 applied format shown once on the structure step (card, not card + select) | S | F-080 |
-| F-083 fold the hand-tracked bonus buttons under "+ Add bonuses" | S | F-083 |
+| ~~F-084 editable head-to-head legs~~ DONE 2026-09-16 (2b7f5c8) | — | F-084 |
+| ~~F-082 one grey reason line~~ DONE 2026-09-16 (6728a25) | — | F-082 |
+| ~~F-080 applied style shown once~~ DONE 2026-09-16 (b4b6461) | — | F-080 |
+| ~~F-083 manual bonuses behind the reveal~~ DONE 2026-09-16 (f427809) | — | F-083 |
+| F-087 money step: bonus sections sit between the money question and its amounts — reorder (opt A) | S | F-087 |
 | F-081 sides hub shows the TEAMS (pairs + their tee group), not just tee groups — Phase 2 rider | M | F-081 / F-061 |
 | **Collapse Phase 2 — vocabulary (F-061)**: `structureLabel(structureOf(game))` through the 7 label sites (hub subtitle "Sides / Match · N players", leaderboard, share, formats, review "Sides (2 vs 2)"); "team" everywhere (§5.bm Q5), `isSingleGroupGame` renamed to its meaning, `teamBuild` container-neutral. **e2e pins to grep first (§5.at):** "Sides / Match", "Sides (", "Next: Sides", "Foursomes" — dozens of assertions | M | plan §7 Phase 2 / F-061 |
 | F-069: a NON-`TeamFormat` string in a sides game still scores as best ball (`teamNetOnHole` default arm, now the one place for both containers after F-072) — refuse vs default is Craig's call; Phase 3 rider | S | F-069 |
