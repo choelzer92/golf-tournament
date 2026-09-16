@@ -60,6 +60,9 @@ test('routing row: two teams of 4, pot → the classic pool (hub shows its fours
   await expect(page.getByLabel('Which scores count for the team?')).toHaveValue('net-and-gross');
   await expect(page.getByRole('button', { name: 'Strokes' })).toHaveClass(/bg-green-600/);
   await expect(page.getByRole('button', { name: '18-hole total' })).toHaveClass(/bg-green-600/);
+  // F-073: the words golfers use are on the buttons.
+  await expect(page.getByRole('button', { name: '18-hole total (stroke play)' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Hole by hole (match play)' })).toBeVisible();
   await expect(page.getByText(/USGA suggests 85% for four-ball stroke play/)).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/collapse-03-scoring-teams.png', fullPage: true });
 
@@ -74,6 +77,8 @@ test('routing row: two teams of 4, pot → the classic pool (hub shows its fours
   await expect(page.getByRole('heading', { name: "What's it worth?" })).toBeVisible();
   await expect(page.locator('input[name="money-model"][value="pot"]')).toBeChecked();
   await expect(page.locator('input[name="money-model"][value="legs"]')).toBeEnabled();
+  // F-073: the head-to-head row says "match".
+  await expect(page.getByLabel(/Head-to-head match — fixed \$ per front \/ back \/ overall/)).toBeVisible();
   // F-072: best net + best gross is a two-ball format BOTH engines compute now, so margin money
   // stays open here too (the sides engine would carry it); pot, the default, routes classic.
   await expect(page.locator('input[name="money-model"][value="per-point"]')).toBeEnabled();
@@ -185,9 +190,11 @@ test('routing row: four pairs + closest-to-pin is refused with the reason, not s
   await buildTeams(page, 'even');
   await page.getByRole('button', { name: 'Next: Groups' }).click();
   await page.getByRole('button', { name: /Next: Review/ }).click();
-  // Shared-foursome teams never see the classic bonus grid — the note says why.
+  // Shared-foursome teams never see the classic bonus grid — the note says why, as an engine gap
+  // (F-075), never as a rule about foursomes.
   await expect(page.getByRole('button', { name: /\+ Add bonuses/ })).toHaveCount(0);
-  await expect(page.getByText(/Closest-to-pin and hand-tracked bonuses need each team in its own foursome/)).toBeVisible();
+  await expect(page.getByText(/Not built yet: closest-to-pin and hand-tracked bonuses for teams that share a foursome/)).toBeVisible();
+  expect(await page.locator('body').innerText()).not.toContain('need each team in its own foursome');
   // F-077: a per-side pot's summary quotes the per-side buy-in the stakes field shows ($20 default),
   // never the classic per-player buy-in.
   await chooseMoney(page, 'pot');

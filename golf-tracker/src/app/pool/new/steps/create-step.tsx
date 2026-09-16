@@ -289,7 +289,6 @@ export function CreateStep({
           <div className="space-y-2" role="radiogroup" aria-label="How is the money played?">
             {moneyOptions.map((o) => {
               const selected = o.model === moneyModel;
-              const why = !o.available && o.route.container === 'unexpressible' ? o.route.reason : null;
               return (
                 <label
                   key={o.model}
@@ -311,19 +310,25 @@ export function CreateStep({
                   />
                   <span className="min-w-0 flex-1">
                     <span className={`block text-sm font-medium ${o.available ? 'text-gray-900' : 'text-gray-400'}`}>{o.label}</span>
-                    {why && <span className="block text-xs text-amber-700">{why}</span>}
                   </span>
                 </label>
               );
             })}
           </div>
+          {/* F-082: the router's reason ONCE per reason, grey, under the list — two greyed options
+              usually share a sentence, and repeating it in amber read as an error twice over. */}
+          {Array.from(new Set(moneyOptions
+            .flatMap((o) => (o.route.container === 'unexpressible' ? [o.route.reason] : []))))
+            .map((reason) => (
+              <p key={reason} className="mt-2 text-xs text-gray-500">{reason}</p>
+            ))}
         </div>
         )}
 
         {/* STAKES for teams that share foursomes: the sides engine's own money fields, rendered
             from its schema (§5.ag per-side ante, §5.ae pairwise margins). Bonuses here are the
-            birdie/eagle differential; closest-to-pin and hand-tracked bonuses need each team in
-            its own foursome, and the note says so rather than hiding the gap. */}
+            birdie/eagle differential; closest-to-pin and hand-tracked bonuses aren't built for this
+            engine yet, and the note says so (F-075: as a gap, not a rule) rather than hiding it. */}
         {container === 'sides' && mode && (
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-2">Stakes</p>
@@ -334,7 +339,7 @@ export function CreateStep({
             hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_MONEY_KEYS.has(k))}
           />
           {/* The stakes in words sit under the sides review below, next to who's playing whom. */}
-          <p className="text-xs text-gray-400 mt-2">Closest-to-pin and hand-tracked bonuses need each team in its own foursome.</p>
+          <p className="text-xs text-gray-400 mt-2">Not built yet: closest-to-pin and hand-tracked bonuses for teams that share a foursome.</p>
         </div>
         )}
 

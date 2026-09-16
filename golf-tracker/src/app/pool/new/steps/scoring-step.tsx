@@ -253,8 +253,8 @@ export function ScoringStep({
             <label className="block text-sm font-medium text-gray-800 mt-3 mb-1">Decide by</label>
             <div className="flex gap-2">
               {([
-                { v: 'total' as CompareBy, label: '18-hole total' },
-                { v: 'match' as CompareBy, label: 'Hole by hole' },
+                { v: 'total' as CompareBy, label: '18-hole total (stroke play)' },
+                { v: 'match' as CompareBy, label: 'Hole by hole (match play)' },
               ]).map(({ v, label }) => (
                 <button key={v} type="button" onClick={() => { onFormatEdited(); setCompareBy(v); }} className={toggle(compareBy === v)}>
                   {label}
@@ -263,7 +263,7 @@ export function ScoringStep({
             </div>
             <p className="text-xs text-gray-500 mt-1">
               {compareBy === 'match'
-                ? 'Win each hole; the front, back and overall each go to whoever won more holes.'
+                ? 'Win each hole; the front, back and overall each go to whoever won more holes — a Nassau.'
                 : 'Compare the totals over the holes played. Front, back and overall are shown either way.'}
             </p>
           </div>

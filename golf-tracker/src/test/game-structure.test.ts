@@ -328,8 +328,8 @@ const TABLE: Row[] = [
     expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.oneBallApart } },
   { name: 'six pairs (12 players), legs — beyond the sides engine\'s field', sizes: [2, 2, 2, 2, 2, 2], money: 'legs',
     expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.sidesFieldCap(8) } },
-  { name: '1 v 1 with CTP', sizes: [1, 1], money: 'legs', extra: { bonuses: { ctp: true } },
-    expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needTeams('Closest-to-pin') } },
+  { name: '1 v 1 with CTP (F-075: an engine gap, said as one — singles share a foursome)', sizes: [1, 1], money: 'legs', extra: { bonuses: { ctp: true } },
+    expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needAligned('Closest-to-pin') } },
   { name: 'two needs joined in one sentence', sizes: [2, 2, 2], money: 'pot', extra: { captains: true, hideHolesUntilAllFinish: true },
     expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needAligned('Captains and hiding holes until every group finishes') } },
 ];

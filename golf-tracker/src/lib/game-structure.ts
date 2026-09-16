@@ -82,7 +82,7 @@ export type MoneyModel = 'pot' | 'legs' | 'per-hole' | 'per-point';
 
 export const MONEY_MODEL_LABELS: Record<MoneyModel, string> = {
   pot: 'Pot — everyone buys in, best team(s) paid',
-  legs: 'Head-to-head — fixed $ per front / back / overall',
+  legs: 'Head-to-head match — fixed $ per front / back / overall',
   'per-hole': '$ per hole won',
   'per-point': '$ per point of margin',
 };
@@ -366,17 +366,26 @@ export function structureLabel(s: StructureShape): string {
 // routeContainer — plan §3.3 under §5.bm Q1 (capability routing)
 // ---------------------------------------------------------------------------
 
-/** Plain-words reason for a greyed money option. Exported so the money step and the tests share one string source. */
+/**
+ * Plain-words reason for a greyed money option. Exported so the money step and the tests share one
+ * string source. F-075: an ENGINE GAP must read as one ("not built yet"), never as a rule of golf —
+ * "need each team in its own foursome" made Craig ask what foursomes have to do with closest-to-pin.
+ * Only `oneBallApart` and `needTeams` describe the golf itself.
+ */
 export const UNEXPRESSIBLE = {
   noSoloMode: 'Pick a game for everyone-for-themselves.',
   noScoring: 'Pick how the teams are scored.',
   oneBallApart: 'Scramble and alternate shot play one ball per team, so partners must walk together.',
   sidesFieldCap: (max: number) => `Teams that share foursomes top out at ${max} players for now.`,
-  needAligned: (needs: string) => `${needs} need each team in its own foursome.`,
-  needTwoTeams: (needs: string) => `${needs} can't ride on head-to-head legs with more than two teams yet.`,
-  needPotOrLegs: (needs: string) => `${needs} can't ride on $ per hole or $ per point yet.`,
+  needAligned: (needs: string) => `Not built yet: ${lower(needs)} for teams that share a foursome.`,
+  needTwoTeams: (needs: string) => `Not built yet: ${lower(needs)} on head-to-head with more than two teams.`,
+  needPotOrLegs: (needs: string) => `Not built yet: ${lower(needs)} on $ per hole or $ per point.`,
   needTeams: (needs: string) => `${needs} need teams of two or more.`,
 } as const;
+
+function lower(s: string): string {
+  return s.charAt(0).toLowerCase() + s.slice(1);
+}
 
 const SIDES_MAX_PLAYERS = 8;   // team-2v2's playersMax; read here so the reason string is honest
 
@@ -440,7 +449,6 @@ export function routeContainer(draft: StructureDraft): Route {
 
   if (needs.length > 0 && !classicCan) {
     const what = joinNeeds(needs);
-    if (singles) return { container: 'unexpressible', reason: UNEXPRESSIBLE.needTeams(what) };
     if (!draft.aligned) return { container: 'unexpressible', reason: UNEXPRESSIBLE.needAligned(what) };
     if (draft.moneyModel === 'legs') return { container: 'unexpressible', reason: UNEXPRESSIBLE.needTwoTeams(what) };
     return { container: 'unexpressible', reason: UNEXPRESSIBLE.needPotOrLegs(what) };
