@@ -42,6 +42,13 @@ classic-only and the money step says so, a classic format applied to 2 players d
    · F-084 editable head-to-head legs. Each an e2e assertion; several can share one commit.
 4. **F-081** rides with Phase 2: the sides hub shows the teams, not just tee groups.
 
+**Craig agreed this order 2026-09-16** ("yes, i agree"): items 1–2, then the small batch, then
+Phase 2 vocabulary. **Phase 3 — engine convergence** (closest-to-pin, hand-tracked bonuses and
+EVERY money option for every split, so nothing is ever greyed for an engine reason) comes next
+and is MONEY MATH: ask Craig for worked examples (who pays whom, one game per shape) before any
+code, pin them as tests, then build. His framing to hold onto: *"IT should be relatively easy to
+configure any type of game that users want, and not confusing. thats the point of the app."*
+
 **Before handing anything to Craig:** re-run `npx playwright test e2e/collapse-walk.spec.ts`
 against a hand-started sandbox and READ every `walk-*.png` as a first-time golfer (memory:
 walk-the-ui-before-handoff). He found six findings in ten minutes that the screenshots already
