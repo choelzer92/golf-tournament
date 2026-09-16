@@ -27,6 +27,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | When |
 |---|---|
+| **Self-walk of the collapsed wizard (63 screenshots, `e2e/collapse-walk.spec.ts`)** → F-077 (wrong money in the summary line — FIXED + pinned), F-078…F-084 logged with options; Craig's own walk → F-071…F-076. Lesson saved to memory: walk every step yourself before handing a UI over | 2026-09-16 |
 | **Collapse Phase 1 slices 2–4 BUILT (c6c45f2)**: structure step ("How do you want to compete?") + scoring step replace the game picker and the F-042 toggle; money step lists the four models judged by the router, greyed with WHY; sides engine stakes from its schema; Create blocked with reason (+ "Drop the bonuses"); teams step takes the structure's sizes; draft v2; saved formats derive their structure; 13 e2e specs re-pointed via `chooseStructure`/`toScoringStep`/`chooseSolo`/`chooseMoney`, `collapse-routing.spec.ts` = one spec per routing row landing on its container. Found F-069/F-070 | 2026-09-16 |
 | **F-063 opt A BUILT (bd2db4d)** — pool card flushes its pending write on pagehide/visibilitychange/unmount and subscribes to its OWN group row with per-cell client merge (`lib/score-merge.ts`, 7 tests); e2e proves a tap right before leaving survives a reload (failed with the fix stashed). Opt C stays its own session | 2026-09-16 |
 | **Collapse plan WALKED with Craig → §5.bm** (route by CAPABILITY, never a user-facing container; partners walk together, no tee-sheet question; uneven splits under "Other split…"; F-063 A approved; "team" everywhere) and **slice 1 BUILT (dc88832)**: `lib/game-structure.ts` + 71 table tests, §5.z-proven (two mutations caught) | 2026-09-16 |
@@ -94,6 +95,13 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | F-074 free-form uneven split ("4, 2, 2") under "Other split…" | S | F-074 |
 | F-075 router refusal strings state the ENGINE gap ("isn't built for teams that share foursomes yet"), never a fake golf rule | S | F-075 |
 | F-076 "+ Add bonuses" adds birdie/eagle/albatross/all-par with CTP at 0 (opt A); per-bonus toggles later (opt B) | S | F-076 |
+| F-078 hide the sides step's shape chooser when a structure exists (interim until F-071 A) | S | F-078 |
+| F-079 skip the teams/sides step when the structure decides membership (1 v 1) | S | F-079 |
+| F-084 editable head-to-head legs + junk/pt on the money step | S | F-084 |
+| F-082 one grey line under both greyed margin-money options, not two red ones | S | F-082 / F-075 |
+| F-080 applied format shown once on the structure step (card, not card + select) | S | F-080 |
+| F-083 fold the hand-tracked bonus buttons under "+ Add bonuses" | S | F-083 |
+| F-081 sides hub shows the TEAMS (pairs + their tee group), not just tee groups — Phase 2 rider | M | F-081 / F-061 |
 | **Collapse Phase 2 — vocabulary (F-061)**: `structureLabel(structureOf(game))` through the 7 label sites (hub subtitle "Sides / Match · N players", leaderboard, share, formats, review "Sides (2 vs 2)"); "team" everywhere (§5.bm Q5), `isSingleGroupGame` renamed to its meaning, `teamBuild` container-neutral. **e2e pins to grep first (§5.at):** "Sides / Match", "Sides (", "Next: Sides", "Foursomes" — dozens of assertions | M | plan §7 Phase 2 / F-061 |
 | F-069: the sides engine scores any unrecognised team format as best ball — make it refuse (or compute two-best) rather than default; Phase 3 rider | S | F-069 |
 | F-070: sandbox fake gains `.in()`/`.order()`/`.limit()` so the audit history renders in e2e (unhandled rejection in every verify log today) | S | F-070 |

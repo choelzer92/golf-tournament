@@ -82,7 +82,7 @@ test('routing row: two teams of 4, pot → the classic pool (hub shows its fours
   await page.screenshot({ path: 'e2e/screenshots/collapse-04-money-classic.png', fullPage: true });
 
   await page.getByRole('button', { name: 'Create Game' }).click();
-  await page.waitForURL(/\/pool\/[^/]+$/, { timeout: 15_000 });
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   // Only the classic pool's hub says this.
   await expect(page.getByText(/Pool · 2 foursomes/)).toBeVisible();
 });
@@ -103,7 +103,7 @@ test('routing row: two teams of 4, $ per point → the sides engine even though 
   await expect(page.getByText('Buy-in per player ($)')).toHaveCount(0);
   await page.screenshot({ path: 'e2e/screenshots/collapse-05-money-aligned-per-point.png', fullPage: true });
   await page.getByRole('button', { name: 'Create Game' }).click();
-  await page.waitForURL(/\/pool\/[^/]+$/, { timeout: 15_000 });
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await expect(page.getByText(/Sides \/ Match · 8 players/)).toBeVisible();
 });
 
@@ -128,7 +128,7 @@ test('routing row: four pairs, fixed legs → the sides engine with two tee time
   await expect(page.getByText(/Front 9 \(\$\)/)).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/collapse-07-money-sides.png', fullPage: true });
   await page.getByRole('button', { name: 'Create Game' }).click();
-  await page.waitForURL(/\/pool\/[^/]+$/, { timeout: 15_000 });
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await expect(page.getByText(/Sides \/ Match · 8 players · 2 groups/)).toBeVisible();
 });
 
@@ -142,6 +142,11 @@ test('routing row: four pairs + closest-to-pin is refused with the reason, not s
   // Shared-foursome teams never see the classic bonus grid — the note says why.
   await expect(page.getByRole('button', { name: /\+ Add bonuses/ })).toHaveCount(0);
   await expect(page.getByText(/Closest-to-pin and hand-tracked bonuses need each team in its own foursome/)).toBeVisible();
+  // F-077: a per-side pot's summary quotes the per-side buy-in the stakes field shows ($20 default),
+  // never the classic per-player buy-in.
+  await chooseMoney(page, 'pot');
+  await expect(page.getByLabel('Buy-in ($ / side)')).toHaveValue('20');
+  expect(await page.locator('body').innerText()).toContain('$20 buy-in pot');
 });
 
 test('routing row: everyone for themselves (4) → skins, the individual mode', async ({ page }) => {
@@ -161,7 +166,7 @@ test('routing row: everyone for themselves (4) → skins, the individual mode', 
   await expect(page.getByRole('heading', { name: /Review & create/ })).toBeVisible();
   await expect(page.locator('input[name="money-model"]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Create Game' }).click();
-  await page.waitForURL(/\/pool\/[^/]+$/, { timeout: 15_000 });
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await expect(page.getByText(/Skins · 4 players/)).toBeVisible();
 });
 
@@ -176,8 +181,13 @@ test('routing row: 1 v 1 → a singles match on the sides engine, 100% allowance
   await page.getByRole('button', { name: 'Next: Sides' }).click();
   await expect(page.getByRole('heading', { name: /Sides \(1 vs 1\)/ })).toBeVisible();
   await page.getByRole('button', { name: /Next: Review/ }).click();
+  // F-077: the summary must quote THIS game's money — the legs — not a skin value left over from
+  // the everyone-for-themselves pick two players default to.
+  const review = await page.locator('body').innerText();
+  expect(review).toContain('$10 / $10 / $10 front·back·overall');
+  expect(review).not.toMatch(/a skin/);
   await page.getByRole('button', { name: 'Create Game' }).click();
-  await page.waitForURL(/\/pool\/[^/]+$/, { timeout: 15_000 });
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await expect(page.getByText(/Sides \/ Match · 2 players/)).toBeVisible();
 });
 

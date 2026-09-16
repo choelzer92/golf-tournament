@@ -1097,6 +1097,91 @@ of one grid fill. A is one constant; B is the §5.j-shaped answer. Recommend A n
 
 ---
 
+### F-077 — The F-021 summary line quoted the WRONG money for shared-foursome games (skin value in a 1 v 1; player buy-in for a per-side pot)  [P1 money] [FIXED same session]
+
+**Where (my own walk, 2026-09-16, `e2e/collapse-walk.spec.ts` flows B and D):** a 1 v 1 on fixed
+legs summarised as "Sides · best ball · **$5 a skin**"; four pairs on a per-side pot summarised as
+"**$25 buy-in pot**" while the stakes field below read $20 per side. Two causes, both in the new
+wizard: (1) switching structure kept the previous pick's `modeSettings` (two players default to
+everyone-for-themselves → skins → `skinValue 5`, which `stakesSummary` reads first); (2) the
+sides bag was passed to the summary WITHOUT the engine's defaults, so a missing `sideBuyIn` fell
+back to the classic per-player buy-in.
+
+**Fix (shipped, wizard only):** a structure pick resets `modeSettings` to the sides engine's
+defaults; the summary/settings bag is `{...defaults, ...modeSettings, format, scoring, result,
+moneyModel}`. Pinned in `collapse-routing.spec.ts` (1 v 1 review says legs and never "a skin";
+pairs pot review says "$20 buy-in pot" and the field shows 20). Money text that disagrees with the
+field beside it reads as a bug even when the math is right (UI_CRITIQUE_PROCESS) — this WAS a bug.
+
+---
+
+### F-078 — The sides step re-asks "How do the sides split?" after the structure step already answered it  [P1] [start]
+
+**Where (walk flows B, F):** four pairs chosen on step 2; the Sides step offers 4 v 4 · 3 v 3 v 2 ·
+2 v 2 v 2 v 2 · … · 1 v 1 × 8 — seven shapes — with "2 v 2 v 2 v 2" highlighted. Picking another
+one silently diverges from the structure the router routed on. Same question asked twice, the
+second time with more noise. **Fix:** part of F-071 option A (the sides step retires); until then,
+hide the shape chooser whenever a structure exists (S).
+
+---
+
+### F-079 — A 1 v 1 gets a "Sides" step with nothing to decide  [P2] [start]
+
+**Where (walk flow D):** two players → "Sides (1 vs 1) — Assign each player to a side", two rows,
+A/B buttons, "+ Add a side" greyed. Every answer is forced. **Fix:** skip the teams/sides step when
+the structure fully determines membership (every team of one); go tees → money. S, wizard only.
+Also covered by F-071 A (the unified step can skip itself the same way).
+
+---
+
+### F-080 — With a saved format applied, the structure step shows the format TWICE  [P3] [start]
+
+**Where (walk flow G):** the F-021 card "Your saved game style — Saturday Nassau" and, directly
+under it, the select "Or play a saved game style" reading "Saturday Nassau". **Fix (S):** when a
+format is applied, the select collapses to a "Start fresh / pick another style" link under the
+card; the card is the confirmation.
+
+---
+
+### F-081 — The sides hub shows tee groups under "Players" but never the TEAMS  [P2] [start]
+
+**Where (walk flows B, D hubs):** "Four Pairs — Sides / Match · 8 players · 2 groups"; then a
+"Sides / Match" panel of settings (with the mode's developer paragraph "Pick sides and play them
+off against each other — 1v1 up to four-a-side…"), then "Players: Group 1 / Group 2". Who is
+paired with whom — the one thing the organizer wants confirmed — appears nowhere on the hub; the
+classic hub shows its teams. **Fix:** Phase 2 (F-061): the hub's team panel keyed on
+`structureOf(game)`, showing the pairs (with their tee group beside each), and the developer
+paragraph replaced by `structureLabel`. M, hub only, no engine change.
+
+---
+
+### F-082 — The money step's greyed options repeat the same red sentence under each  [P3] [start]
+
+**Where (walk flow A money):** "$ per hole won" and "$ per point of margin" each carry the
+identical amber/red line. Twice the words, and red reads as an error. **Fix (S):** one line under
+the pair ("$ per hole / $ per point aren't built for … yet"), grey not red; goes with F-075's
+wording change.
+
+---
+
+### F-083 — Five hand-tracked bonus buttons are always on screen, even for a group that never plays them  [P3] [track]
+
+**Where (walk flow A money):** Sandie / Greenie / Barkie / Chip-in / Long drive render above the
+"+ Add bonuses" button on every classic money step. F-045 put the automatic bonuses behind a
+reveal for exactly this reason (§5.bg) and left the manual ones exposed. **Fix (S):** fold them
+under the same "+ Add bonuses" reveal; a saved format with manual bonuses restores them open.
+
+---
+
+### F-084 — Head-to-head leg amounts are read-only in the wizard  [P2] [start]
+
+**Where (walk flow A, money → Head-to-head):** "Match Payouts ($ / player): $10 / $10 / $10 ·
+Junk / pt $5" with no inputs; the only way to change them is a saved format. Pre-existing (the
+wizard's `matchLegs` state has never had an editor since the money step moved), surfaced by the
+walk. **Fix (S):** inputs for the three legs and junk-per-point, mirroring the pot's split grid.
+
+---
+
 ## Settled — full text in FINDINGS_ARCHIVE.md
 
 One line per archived finding; the full entry (observation, options, status, and

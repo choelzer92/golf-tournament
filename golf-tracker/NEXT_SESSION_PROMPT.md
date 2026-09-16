@@ -1,4 +1,4 @@
-# Next session: Craig's walk findings (F-071…F-076) → Phase 2 vocabulary
+# Next session: the walk findings (F-071…F-084) → Phase 2 vocabulary
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
@@ -35,9 +35,17 @@ classic-only and the money step says so, a classic format applied to 2 players d
 2. **F-072 two-ball formats on the sides engine** — SCORING MATH, approved in conversation but
    pin the goldens first (§5.z), then route `team-game.ts`'s side score through `teamValueOnHole`
    and drop "Two-ball formats" from the router's classic-only list.
-3. **F-073 "match play" wording**, **F-074 free-form split**, **F-075 refusal strings say the
-   true reason** (an engine gap, not a foursome rule), **F-076 "+ Add bonuses" leaves CTP at 0**
-   (opt A) — all small, wizard-only.
+3. **Small wizard-only batch:** F-073 "match play" wording · F-074 free-form split · F-075
+   refusal strings say the true reason · F-076 "+ Add bonuses" leaves CTP at 0 · F-078 hide the
+   sides shape chooser once a structure exists · F-079 skip the sides step for 1 v 1 · F-082 one
+   grey line for both greyed margin options · F-080 format shown once · F-083 fold manual bonuses
+   · F-084 editable head-to-head legs. Each an e2e assertion; several can share one commit.
+4. **F-081** rides with Phase 2: the sides hub shows the teams, not just tee groups.
+
+**Before handing anything to Craig:** re-run `npx playwright test e2e/collapse-walk.spec.ts`
+against a hand-started sandbox and READ every `walk-*.png` as a first-time golfer (memory:
+walk-the-ui-before-handoff). He found six findings in ten minutes that the screenshots already
+showed.
 
 **Step 3 — Phase 2 vocabulary (F-061)** as before: `structureLabel` through the label sites,
 "team" everywhere (§5.bm Q5). Grep "Sides / Match", "Foursomes" pins first (§5.at).

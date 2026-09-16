@@ -279,7 +279,13 @@ export default function NewPoolGamePage() {
     return first && first.container === 'unexpressible' ? first.reason : 'Not available for this split.';
   }
   // What a saved format / group default records for this game: the ROUTED mode and settings.
-  const sidesSettings: SettingsBag = { ...modeSettings, format: teamFormat, scoring: teamScoreBasis, result: compareBy, moneyModel };
+  // Defaults first, so the summary and the engine read the same numbers the stakes editor shows
+  // (a bag missing `sideBuyIn` used to make the summary fall back to the per-player buy-in).
+  const sidesSettings: SettingsBag = {
+    ...defaultSettings(getGameMode('team-2v2')?.settings ?? []),
+    ...modeSettings,
+    format: teamFormat, scoring: teamScoreBasis, result: compareBy, moneyModel,
+  };
   const savedGameMode = container === 'individual' ? gameMode : container === 'sides' ? 'team-2v2' : undefined;
   const savedModeSettings = container === 'individual' ? modeSettings : container === 'sides' ? sidesSettings : undefined;
   // The F-021 one-line summary of what's configured (game · stakes · handicaps).
@@ -311,8 +317,11 @@ export default function NewPoolGamePage() {
       return;
     }
     setGameMode(undefined);
-    if (source === 'auto' && scoringSetRef.current) return;
     if (source === 'user' && appliedFormat) { setFormatDirty(true); return; }
+    // A team game starts from the sides engine's own defaults — never the individual mode's bag
+    // left behind by an earlier pick (a skins $5 skin value once leaked into a 1 v 1's summary).
+    if (source === 'user' || !scoringSetRef.current) setModeSettings(defaultSettings(getGameMode('team-2v2')?.settings ?? []));
+    if (source === 'auto' && scoringSetRef.current) return;
     const singles = shape.teamSizes.every((k) => k === 1);
     if (defaultTeeSheetFacts(shape.teamSizes).aligned) {
       setTeamFormat('net-and-gross'); setTeamScoreBasis('stroke'); setCompareBy('total'); setMoneyModel('pot');
