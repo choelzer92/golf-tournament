@@ -218,9 +218,10 @@ test.describe('a group offers the formats it plays', () => {
     // With a format applied the name is the summary panel's editable TITLE (F-021), not the
     // "What should we call it?" field — that one only exists for a from-scratch game.
     await expect(page.getByLabel('Game style name')).toHaveValue('Saturday Nassau');
-    // §5.av: the game picker now NAMES the applied format — it IS the answer to
-    // "which game are you playing?" — rather than showing the underlying mode.
-    await expect(page.locator('select').first()).toHaveValue('format:f-saturday-nassau');
+    // §5.av / F-080: the F-021 card IS the answer to "which game are you playing?" — the saved-style
+    // select hides behind "Pick another style" so the format is named once, not twice.
+    await expect(page.getByLabel('Saved game style')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Start fresh' })).toBeVisible();
     // The stakes and the handicap rule now live in F-021's summary line rather than in 15 fields,
     // so read them there — that IS the confirmation the user sees.
     const summary = await page.locator('body').innerText();
@@ -383,11 +384,14 @@ test.describe('a group offers the formats it plays', () => {
     expect(body).toContain('Your saved game style');
     expect(body).toContain('$10 / $10 / $20');
     expect(body).toContain('off the low');
+    // F-080: the card is the confirmation — the select is gone, so the style's name shows once.
+    await expect(page.getByLabel('Saved game style')).toHaveCount(0);
+    expect(body).not.toContain('Or play a saved game style');
     await page.screenshot({ path: 'e2e/screenshots/5av-picker-format-applied.png', fullPage: true });
 
     // Starting fresh afterwards configures FRESH: the summary and the borrowed name go,
     // the ordinary form returns.
-    await picker.selectOption('');
+    await page.getByRole('button', { name: 'Start fresh' }).click();
     const after = await page.locator('body').innerText();
     expect(after).not.toContain('Your saved game style');
     expect(after).toContain('What should we call it?');

@@ -75,6 +75,10 @@ export function StructureStep({
   const primary = options.filter((o) => o.primary);
   const other = options.filter((o) => !o.primary);
   const [showOther, setShowOther] = useState(false);
+  // F-080: with a style applied, the card IS the confirmation — the select hides behind a link
+  // until someone wants another style, so the format's name is on screen once, not twice.
+  const [pickingAnother, setPickingAnother] = useState(false);
+  const showPicker = allPickerFormats.length > 0 && (!appliedFormat || pickingAnother);
   const currentId = structure ? structureOptionId(structure) : null;
   // An uneven shape already chosen (from a draft, or the recommendation at 5/7) must be visible.
   const otherOpen = showOther || other.some((o) => o.id === currentId);
@@ -170,17 +174,27 @@ export function StructureStep({
                 Changed from your saved {appliedFormat} — rename it above to keep both.
               </p>
             )}
+            <p className="mt-2 text-xs text-gray-600">
+              Everything is already set — change anything below to fork it.{' '}
+              <button type="button" onClick={() => { setPickingAnother(false); onFormatCleared(); }} className="font-medium text-green-700 hover:underline">Start fresh</button>
+              {allPickerFormats.length > 1 && !pickingAnother && (
+                <>
+                  {' · '}
+                  <button type="button" onClick={() => setPickingAnother(true)} className="font-medium text-green-700 hover:underline">Pick another style</button>
+                </>
+              )}
+            </p>
           </div>
         )}
 
         {/* §5.av / F-046: saved styles, the group's first. A native select: one control, works on
             every phone. Empty when nothing is saved — a first-time user sees only the question. */}
-        {allPickerFormats.length > 0 && (
+        {showPicker && (
           <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1">Or play a saved game style</label>
+            <label className="block text-sm font-medium text-gray-800 mb-1">{appliedFormat ? 'Pick another saved game style' : 'Or play a saved game style'}</label>
             <select
               value={appliedFormatEntry ? `format:${appliedFormatEntry.id}` : ''}
-              onChange={(e) => pickFormat(e.target.value)}
+              onChange={(e) => { setPickingAnother(false); pickFormat(e.target.value); }}
               aria-label="Saved game style"
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
             >
@@ -200,9 +214,6 @@ export function StructureStep({
                 </optgroup>
               )}
             </select>
-            {appliedFormatEntry && (
-              <p className="text-xs text-gray-500 mt-1">Your saved style — everything is already set. Change anything below to fork it.</p>
-            )}
           </div>
         )}
 
