@@ -1,8 +1,17 @@
 # Game-structure simplification — design proposal (v1, 2026-09-15)
 
-**Status: DIRECTION SETTLED (§5.bk, 2026-09-15) — Craig answered the four questions.
-Next: a DEEP PLANNING session (branch-site inventory, data-model map, routing rules,
-risk list, screen mocks) BEFORE any code.**
+**Status: DEEP PLAN WRITTEN 2026-09-15 — `.claude/plans/game-structure-collapse-plan.md`
+(seam inventory, data-model map, routing table, risk list, live-scoring design-space
+comparison, ASCII mocks, phase plan, 5 questions). Craig walks it before any code.
+Sweep evidence: `.claude/plans/collapse-sweeps-2026-09-15.md`.**
+
+**The plan's core:** the collapse is a ROUTING LAYER at game creation. `teams[]` is always
+the tee sheet; whether the money teams coincide with it (derived, never asked) plus the
+money model choose the container. Storage, both engines, both leaderboards, share links
+and live scoring are untouched in Phase 1. Live scoring is evaluated separately (§5.bl):
+today two phones on one foursome silently overwrite each other; the recommended best case
+is per-cell score rows, with two small interim fixes first — all persistence changes,
+Craig's call.
 
 ## Craig's answers (2026-09-15)
 

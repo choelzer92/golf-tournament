@@ -1,66 +1,48 @@
-# Next session: DEEP PLAN the game-structure collapse (§5.bk) — document-first, no code
+# Next session: Craig walks the collapse plan → build Phase 1 slice 1 on approval
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 ---
 
-Read `AGENTS.md` first, then `GAME_STRUCTURE_DESIGN.md` WHOLE (it's short and it is the
-brief). Grep DECISIONS_ARCHIVE.md §5.bk for the full decision. Delegate broad code
-sweeps to subagents.
+Read `AGENTS.md` first, then `.claude/plans/game-structure-collapse-plan.md` WHOLE (it is
+the plan; ~300 lines). `GAME_STRUCTURE_DESIGN.md` is the brief behind it; the sweep
+evidence with file:line references is `.claude/plans/collapse-sweeps-2026-09-15.md` —
+grep it, don't read it whole (~850 lines).
 
-**State (2026-09-15):** §5.bj review session merged to main (aa4cd48). A second branch
-`ui-simplification-2026-09-15` carries F-060 opt B (one build trigger + hub ✓ parity),
-the F-015 status correction, new findings F-061/F-062, GAME_STRUCTURE_DESIGN.md, and
-§5.bk — check whether Craig merged it; don't merge/push unbidden (§5.ab). The
-course-data audit is PARKED by Craig's call ("wait on the course data") — the Meadows
-payload is banked in `course-payloads/` and F-023 records that it's CLEAN (bad numbers
-= our side; gender-name collisions are the prime suspect).
+**State (2026-09-16):** branch `ui-simplification-2026-09-15`, working tree CLEAN. Its two
+newest commits are the F-068 money fix (code + tests + seed) and the collapse plan +
+findings F-063…F-068 (docs). Not merged to main; don't merge/push unbidden (§5.ab) —
+Craig decides when nobody is mid-round. Course-data audit stays PARKED. Start here:
+**Step 1 below** (walk the plan with Craig).
 
-## The promoted work: the collapse PLAN (§5.bk — Craig: "deeply plan how this works")
+## The promoted work
 
-Craig settled the design's four questions (§5.bk): step 2 asks **"How do you want to
-compete?"**, fit-based pre-selection, and **pool vs sides collapse into "N teams of K"**
-— the money model (pot vs head-to-head) and the teams-align-with-foursomes question
-route to the right machinery invisibly. He also named the risk: *"make sure there
-aren't any other issues that come out of it."* This session produces the PLAN, not code:
+**Step 1 — Craig walks the plan.** Present §8's five questions one at a time (his stated
+preference). The ones that change Phase 1: Q1 (overlap row → classic or sides), Q2
+(offer "Mixed foursomes" when teams could walk together), Q5 (vocabulary: "team"
+everywhere). Q4 is the F-063 live-scoring call (interim fixes now? per-cell session?).
+Record answers as §5.bm in DECISIONS_ARCHIVE.md + index line, in-session.
 
-1. **Seam inventory.** Every branch site on the container axis — run UI_MODE_AUDIT.md's
-   grep probes (`isSingleGroupGame|isIndividualGame|team-within-group|category ===`)
-   plus `matchupId`, `moneyMode`, `potSplit`, `sides`. Table: file, what branches, what
-   the collapsed routing must decide there.
-2. **Data-model map.** PoolGame classic vs sides games field by field: teams[],
-   matchupId, sides[], playing groups (F-019), potSplit vs matchConfig, ballSelection
-   vs teamFormat/teamScoreBasis. Which fields become derived, which stay, what a
-   "routed" game stores.
-3. **Routing rules.** (structure choice × money model × foursome-alignment) → container
-   machinery. Must reproduce every game creatable today (e2e list = the spec). Money
-   engines DO NOT CHANGE — they get routed to (§5.ad/§5.ae/§5l stay load-bearing).
-4. **Risk list.** Live-scoring partitioning (§5l), zero-sum invariants, share links,
-   saved formats made under the old picker, the wizard draft schema, leaderboard axes.
-   **§5.bl applies (Craig, same day): "best possible way, not just the easiest way" —
-   live scoring named first.** Craig's framing: pool live scoring "works pretty well",
-   merge RPC was tried before (tournament path) and abandoned — "we should be diligent
-   and understand what the real best case is for multiple scorers for multiple
-   foursomes." So the plan runs a genuine design-space comparison, not a defense of
-   the incumbent: per-matchup row (today — check the TWO-scorers-one-foursome case),
-   per-hole/per-cell rows, server-merge RPC, last-write-wins vs merge semantics —
-   judged on concurrent edits, latency, offline/cart-path wifi, and recovery.
-5. **Screen mocks** of the collapsed flow (structure → scoring → course → tees →
-   teams/groups → money) — sandbox screenshots of today's screens annotated, or ASCII.
-   Craig walks them before anything is built.
-6. **Phase plan** with a first shippable slice. End by writing the plan to
-   `.claude/plans/` + updating GAME_STRUCTURE_DESIGN.md, and promoting the first slice.
+**Step 2 — on approval, Phase 1 slice 1 (zero UI):** `src/lib/game-structure.ts`, pure:
+`structureOptionsFor(n)` (reuse `groupShapesFor(n, {min:1, minGroups:2})`),
+`structureOf(game)`, `routeContainer(draft)`, `moneyModelsFor(container, N)`. Table tests:
+every row of plan §3.3 routes as specified, and every routed game's `computeGameResult`
+is zero-sum under both money families. Prove a test can fail (§5.z). Then `npm run
+verify`, one commit.
 
-**Stop-and-ask lines:** anything that would change money/handicap math or stored-game
-compatibility (§2). F-061 (canonical game-kind names) is decided BY this design — don't
-unify labels first. F-062 opt A/B (course-handicap display/math unification) is a
-separate Craig decision — B changes displayed numbers on legacy surfaces.
+**Step 3 — slices 2–5** (structure + scoring steps and draft v2 → teams (N,K) + tee-sheet
+question → routed money step, F-042 toggle removed → e2e re-point + one spec per routing
+row). One commit each. The 12 specs that `selectOption` a mode id are the blast radius;
+extend `e2e/helpers.ts` with `chooseStructure`/`chooseScoring`, don't re-inline.
+
+**Stop-and-ask lines:** no engine, storage or hub change in Phase 1 (the plan's promise —
+if a slice seems to need one, stop). F-063 fixes are persistence → separate approval.
+F-062 A/B/C still waits.
 
 ## Waiting on Craig
 
-BACKLOG.md table: F-022 on-course stroke check; §7 q4; sending the friend the F-033
-answer (drafted in the 2026-09-15 wrap-up); F-062 A/B/C pick; optional extra course
-payloads (fetch-course-payload.mjs) before the parked course-data audit resumes.
+BACKLOG.md table: F-022 on-course stroke check; §7 q4; F-033 answer to the friend;
+F-062 A/B/C; F-063 A now / C session; optional extra course payloads.
 
 ## Traps that keep biting
 
@@ -75,6 +57,12 @@ payloads (fetch-course-payload.mjs) before the parked course-data audit resumes.
 - e2e specs share `e2e/helpers.ts` — extend it, don't re-inline copies.
 - The "CHcp" spelling is e2e-pinned (F-043 chips) — renaming it is an F-061/F-062
   decision, not a typo fix.
+- **Write plans into the repo's `.claude/plans/`**, never `~/.claude/plans/` — two earlier
+  plan files referenced from BACKLOG were lost that way.
+- **Delegated sweeps report doc status, not code status** — both sweeps called F-060 opt B
+  open when the commit was on the branch. Verify a "still open" claim against `git log`.
+- If a session dies mid-work, its subagent reports survive in
+  `~/.claude/projects/<project>/<session-id>/subagents/*.jsonl` — recover, don't rerun.
 
 ## End the session by grooming BACKLOG.md
 

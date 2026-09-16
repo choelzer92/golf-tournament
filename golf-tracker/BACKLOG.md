@@ -19,7 +19,8 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
-| **Game-structure COLLAPSE — deep planning session (§5.bk/§5.bl), PROMOTED to NEXT_SESSION_PROMPT**: seam inventory, data-model map, routing rules, risk list, screen mocks, live-scoring design-space comparison (multiple scorers × multiple foursomes; merge-RPC history). Direction settled in GAME_STRUCTURE_DESIGN.md — "How do you want to compete?", fit-based defaults, pool+sides collapse to "N teams of K". NO CODE until Craig walks the plan. Absorbs F-037, F-061 naming, F-060 opt B remainder, F-005 confirmations. | L (plan M first) | Craig 2026-09-14/15 + §5.bk |
+| **Game-structure COLLAPSE — Craig WALKS THE PLAN, then Phase 1 slice 1 (PROMOTED to NEXT_SESSION_PROMPT)**. Plan written 2026-09-15: `.claude/plans/game-structure-collapse-plan.md` (routing table §3.3 is the spec; 5 questions in §8). First code slice on approval: `src/lib/game-structure.ts` (pure: `structureOptionsFor`, `structureOf`, `routeContainer`, `moneyModelsFor`) + table tests proving every routed game is zero-sum — zero UI. Then structure/scoring steps, teams (N,K) + tee-sheet question, routed money step, e2e re-point (12 specs select by `<select>` value). Absorbs F-037, F-061 naming, F-005 confirmations. | L | §5.bk plan 2026-09-15 |
+| **F-063 live-scoring interim fixes (opt A)** — `pagehide` flush + own-group subscribe with per-cell client merge. Small, removes a real "continuing" bug, independent of the collapse. **Persistence → Craig approves first.** Opt C (per-cell rows) is its own session below. | S | F-063 / §5.bl |
 | **Course-data correctness audit — PARKED by Craig 2026-09-15 ("wait on the course data")**. Meadows payload banked + CLEAN (F-023); prime suspects now gender-name tee collisions and stale stored games. Resume on his word. | M | Craig 2026-09-10/14 + F-023 |
 | Merge-audit polish batch (all four S items below) — fallback slack work | S×4 | merge audit / §5.ak |
 
@@ -27,6 +28,9 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | When |
 |---|---|
+| **F-068 [P1 money] FIXED same day it was found** (Craig's 1v1 round → "should we just do it now?"): Stats & money ran the CLASSIC engine on every game, so every sides/individual game netted $0 and vanished; hub recap keyed by side id. One `perPlayerNets` reducer now feeds ledger + recap; `sidesForCompute` exported so the split uses the engine's own sides; 4 tests pinned first (failed on 'A'/'B', pass after); season seed gains a 2v2 + skins game (7 games). Retroactive, derived-only, no backfill | 2026-09-16 |
+| **1v1 round feedback intaked as F-064…F-067** (singles allowance rec 100%, card repeats names + unlabelled gross/net, close-out navigation, other-nine subtotal column) — batched for LATER by Craig's call | 2026-09-16 |
+| **Collapse DEEP PLAN written (§5.bk/§5.bl)** — four read-only code sweeps (a first attempt lost its session to a connection drop; the sweep reports were recovered from its subagent transcripts into `.claude/plans/collapse-sweeps-2026-09-15.md`), then `.claude/plans/game-structure-collapse-plan.md`: seam inventory by decision, data-model map (discriminator stays `gameMode` absent/present — zero migration), routing table, risk list, live-scoring design-space comparison (→ F-063), ASCII mocks, 5-phase plan. F-060 opt B confirmed BUILT (FINDINGS status was stale; corrected). No app code touched | 2026-09-15 |
 | **UI-simplification session (2026-09-15 PM, branch `ui-simplification-2026-09-15`)**: F-060 opt B BUILT (one build trigger, hub ✓ parity); F-015 found ALREADY BUILT (log corrected); F-061 (four names for one game kind) + F-062 (7 CH display styles; 3 legacy surfaces with their OWN math, P1) logged with options; F-062 safe slice fixed; §5.bk (collapse) + §5.bl (best-possible bar, live-scoring research) recorded; GAME_STRUCTURE_DESIGN.md settled; verify green (180 e2e) | 2026-09-15 |
 | **`review-session-2026-09-15` MERGED to main + pushed (aa4cd48)** on Craig's call — F-034, F-060, sandbox-owner fix, harness round 2, and the F-023 payload finding all ship on the next deploy | 2026-09-15 |
 | **Review session (§5.bj)**: recommendations adopted in order — F-034 opt A BUILT (c4398a2); F-031 opt B deferred; sharing arc reshaped to Accounts/§5c hardening; next build = course-data audit, game-structure design-first in parallel; STATUS.md idea rejected | 2026-09-15 |
@@ -79,9 +83,11 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | Merge-audit polish: three different renderings of course handicap | S | merge audit |
 | Leaderboard shows front/back columns for a 9-hole game (redundant, not wrong) | S | roadmap #13 note |
 | F-030 opt C: standings strip ON the scorecard (mini-leaderboard above the grid) — the deeper "captain glancing between shots" fix; composes with the built toggle; slot into the live-scoring session | S | F-030, §6b |
-| F-060 follow-through: hub edit-teams parity for the build-method feedback (opt B — merging the rival triggers — lives with the structure design) | S | F-060 |
-| Live scoring experience pass | M | §6 item 3 — Craig's named focus, never had its session |
+| ~~F-060 follow-through~~ DONE 2026-09-15 (877c9ea) — opt B + hub parity both built; the collapse plan keeps the method list as the teams step for any N × K | — | F-060 |
+| **F-063 opt C: per-cell score rows** — `(matchup_id, player_id, hole)` table, idempotent upserts, localStorage outbox, dual-read transition, sandbox fake gains the table first; retires the merge RPC. Makes `matchupId` a fetch key, not a correctness boundary — de-risks the whole sides family. Own session; persistence → Craig | M | F-063 / plan §5.3 |
+| Live scoring experience pass (taps, refresh latency, cart-path wifi — measure before/after per §5.bl) | M | §6 item 3 — Craig's named focus, never had its session |
 | Offline / PWA resilience (`sw.js` exists, caches nothing — cart-path wifi) | M | §6 item 4; core to "continuing" |
+| **1v1 feedback batch (Craig's real round 2026-09-15) — LATER, explicitly not the next session:** F-064 singles allowance rec (100%; sides get no rec today, prefills read as advice) · F-065 1v1 card repeats names + unlabelled gross/net rows · F-066 post-close-out navigation lands oddly (repro walk first; `/dashboard` bounce suspect) · F-067 card's other-nine subtotal column labelled In/Out reads as the wrong total (show Out + In + Tot like a paper card). F-064 opt A is a natural rider on the collapse's scoring step | S×4 | F-064/065/066/067 |
 | **Backups / JSON export** — the OTHER §5c item Craig kept in scope (per-game tokens, the first, are done); still not built. One "download everything as JSON" per table is the floor; matters more as friends' real money history accumulates | S–M | DECISIONS §3 / §5c |
 
 ## Bigger arcs (approved plans, each wants its own fresh session)
@@ -90,7 +96,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 |---|---|---|
 | **Accounts / §5c hardening** (reshaped 2026-09-15, §5.bj — the audit + F-047…F-059 delivered the sharing/login polish; this row is what remains): revoke/rotate per-game tokens, real RLS under the settled §5.bi ownership model, and the F-049 remainder (tappable "Viewing as…"). Crossing into real accounts/auth is the §5c/F-002 trigger — pause for Craig there. | M–L | Craig 2026-09-10 + §5.bi/§5.bj |
 | **Home screen & Event model** — P1 flag-gated read-only /home → stats/ledger → shared Event → flights | L | approved plan `.claude/plans/adaptive-squishing-locket.md` |
-| **Team Competition engine** — N teams of size K within foursomes (4 pairs combined Stableford etc.) | L | approved 2026-08-03, plan `.claude/plans/tingly-petting-reddy.md` + memory `project_pool-team-competition-plan` |
+| **Team Competition engine** — N teams of size K within foursomes (4 pairs combined Stableford etc.). Now = Phase 3 (convergence) of the collapse plan. NOTE: the plan file `tingly-petting-reddy.md` is NOT on disk (plans written outside the repo were lost); memory `project_pool-team-competition-plan` is the durable copy. Plans now live in the repo's `.claude/plans/` | L | approved 2026-08-03 + collapse plan §7 |
 | **Flight mode** — handicap flights/divisions competing separately | L | folded in as Phase 4 of the Home/Event plan |
 
 ## Known-incomplete corners (fix when the format is actually played)

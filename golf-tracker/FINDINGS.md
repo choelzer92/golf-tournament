@@ -668,10 +668,12 @@ nobody at all" line describes an interaction that doesn't exist** (assignment is
 scroll to the built teams; the used card shows "✓ Built these teams" (demotes to
 "(hand-adjusted since)" after a manual move); touch pressed-state on the cards; copy now
 says "Or build nothing — put each player on a team by hand with the 'Move to' menus
-below." e2e `F-060` at phone width. STILL OPEN: opt B (merge the rival green
-"Build balanced teams around captains" trigger into the method list) — feeds the
-game-structure design; and hub edit-teams parity (its buttons sit next to their result,
-so the confusion is milder there).
+below." e2e `F-060` at phone width. **Opt B BUILT 2026-09-15** (877c9ea): the captains
+panel only picks captains ("then build the teams with a method below"); the rival green
+trigger is gone; the hub's Build & adjust buttons wear the same ✓-built state. (This
+status line was stale until the collapse-planning session verified the code, 2026-09-15.)
+Remaining: nothing — the method list is the one place teams get built; the collapse plan
+keeps it as the teams step for any N × K.
 
 ---
 
@@ -742,6 +744,221 @@ to "Course HCP".
 the numbers that would change.
 
 **Status:** open — safe slice done; A/B/C needs Craig.
+
+---
+
+### F-063 — Two phones scoring ONE foursome silently overwrite each other; the last tap before leaving the card is dropped  [P1] [continue]
+
+**Where (code trace 2026-09-15, delegated sweep for the §5.bk plan, verified against
+`tournament-state.ts:273-302` and `game/play/page.tsx:108-236`):** a pool game's scores
+are one `game_scores` row per tee group (`matchupId`), and every save is a whole-row
+upsert with no version check and no error handler. The scorer's own group is loaded once
+at mount and never re-read (no subscribe or poll for the own matchup — only for the other
+groups and the leaderboard). So when two phones open the same team from the share link:
+each holds its own full array, each 400ms-debounced upsert replaces the whole row, holes
+the other phone entered vanish, and the two never reconverge — the leaderboard flips
+between the two versions on every write. Separately, the debounce timer is cleared on
+unmount without flushing, so a tap within 400ms of leaving the card is lost (the solo
+round page flushes on `pagehide`; the pool card does not). There is no offline queue:
+a failed write is swallowed and a reload loses anything unpersisted.
+
+**Violates:** north star "continuing" (state surviving a sleeping phone / a partner
+picking up the scoring); §5.bl (live scoring in the best possible shape, not the easiest).
+§5l's "partitioned by matchup, safe by design" is true only for ONE scorer per group;
+nothing enforces that.
+
+**Not a regression** — this is how it was built. It has not been reported from the
+course, which fits: one phone per foursome is the habit. It bites exactly when a second
+phone "helps".
+
+**Options** (full comparison in `.claude/plans/game-structure-collapse-plan.md` §5):
+- **A. Interim, no schema (S):** flush the pending write on `pagehide`; subscribe to the
+  own group's row and merge per cell (a local pending cell wins, otherwise take remote).
+  Fixes the dropped tap; turns divergence into eventual convergence most of the time.
+  Does NOT fix the race where one phone's whole-row write drops cells it hasn't received.
+- **B. Owner-merge RPC (exists — the tournament path):** correct only if each phone
+  declares which players it scores. That setup step is the trouble Craig remembers; not
+  recommended.
+- **C. Per-cell score rows (M, new table + dual-read):** `(matchup_id, player_id, hole)`
+  rows, idempotent upserts, an outbox in localStorage for cart-path wifi, refetch on
+  reconnect. Correct for any number of scorers with no setup; compute layer untouched
+  (assemble `GameScore[]` at the boundary); `score_audit` is already per-cell.
+  **Recommended best case.**
+
+**Status:** open — persistence change, Craig's call (§2). Recommendation: A now, C as
+its own session. Independent of the structure collapse.
+
+---
+
+### F-064 — A 1v1 match showed 90% handicap with no recommendation; singles match play is 100%  [P2] [start]
+
+**Source:** Craig, real 1v1 Sides / Match round 2026-09-15: *"wouldn't it be 100%? it
+recommended 90%."*
+
+**Where:** `details-step.tsx:157-182` `usgaRec` — for any `team-within-group` mode it
+returns `null` ("stay silent rather than guess"), so a Sides / Match game gets NO
+recommendation line. The 90 on screen was therefore a **prefill** (group default / saved
+format / the classic pool's four-ball-match 90 surviving a mode switch in the draft —
+`page.tsx:212,309` restore it verbatim), rendered in the same box a recommendation would
+be. Craig read it as advice. The USGA table (Rules of Handicapping Appendix C): singles
+match play **100%**, four-ball match play 90%, four-ball stroke play 85%, individual
+stroke play 95%. `formats.ts:65,73` carries 90 for the four-ball entries only.
+
+**Violates:** §4 (labels must state what changes for the players); §5.ba spirit — the
+app knows a rule and spent it on silence.
+
+**Options:**
+- **A (recommended, S):** give `team-within-group` a real recommendation keyed on the
+  structure: all sides of one → 100% (singles); 2-a-side best ball + match → 90%; 2-a-side
+  best ball + total → 85%; combined/scramble/alt-shot → the format's own figure or
+  silent. Same "✓ USGA suggests … / Use N%" UI as the classic. The collapse plan's
+  scoring step already keys allowance on (format, compare-by), so this is the same rule.
+- **B:** when a prefilled allowance differs from the recommendation, say where it came
+  from ("90% — from JY Classic Pool") so a carried-over number never reads as advice.
+- **C:** A + B.
+
+**Status:** open — later session (Craig: "handle this later"). Do NOT change stored
+games' allowances; wizard-only.
+
+---
+
+### F-065 — 1v1 scorecard repeats each name (side header = player) and gross/net rows aren't labelled  [P3] [track]
+
+**Source:** Craig, same round: *"the scorecard showed each person's name twice (maybe
+because I didn't name teams) … the layout was a little weird. Gross on top, net on
+bottom — could be more obvious."*
+
+**Where:** `sideNameFrom` (`team-game.ts:101`) names an unnamed side after its players'
+first names — correct for "Craig & Jym", but in a 1v1 the side is one player, so the
+side header on the card says "Craig" directly above the player row "Craig". `applySideNames`
+(`play/page.tsx:80`) feeds those into the card's two team slots. The gross/net stacking
+on each cell has no row label; regulars know, a guest doesn't.
+
+**Options:**
+- **A (S):** when every side is solo (`allSidesAreSolo`), drop the side header on the
+  card (the player row IS the side) and keep the vs line ("Craig vs Jym") once at the top.
+- **B (S):** a one-time legend on the card ("gross / net") or a tiny G/N gutter label on
+  the first column; ties into F-031's card-superscript question.
+- **C:** A + B.
+
+**Status:** open — later session.
+
+---
+
+### F-066 — After closing out, the app sometimes lands on an unexpected page  [P3] [continue]
+
+**Source:** Craig: *"after closing out games, it takes me back to the original home page,
+or sends me around to different pages which just feel a little odd."* Not reproduced
+yet.
+
+**What the code does:** Finish on the card → `router.push('/pool/{id}')` (the hub,
+`play/page.tsx:2106`). The hub bounces to `/dashboard` (the ORIGINAL home) if the game
+fetch returns null and there's no cache (`pool/[id]/page.tsx:56`) — a transient fetch
+miss right after a write would do exactly what Craig describes. The close-out panel on
+the hub itself doesn't navigate. Also `/home` vs `/dashboard` are two "homes" (F-003
+history), so any bounce to `/dashboard` feels like the wrong place.
+
+**Options (after reproducing):**
+- **A:** hub never redirects on a transient miss — retry once, then show "couldn't load"
+  in place. Finish always lands on the hub's recap (Who pays whom, F-032).
+- **B:** retire the `/dashboard` fallback in favour of `/home`.
+- **C:** walk the close-out path in the sandbox at phone width and record every
+  navigation (`e2e` capture) before choosing.
+
+**Status:** open — needs a repro walk (C first); later session.
+
+---
+
+### F-067 — On a finished card, the Out view's last column shows the BACK-nine total (and vice versa)  [P3] [track]
+
+**Source:** Craig, same round: *"if I click Out (1–9) it shows in the last column the In
+column of the back nine, and vice versa."*
+
+**Where:** `play/page.tsx:1328-1336, 1578, 1613-1760`. The card renders ONE nine at a
+time (`visibleHoles`), and to keep "Tot" honest it adds a single column for the OTHER
+nine's subtotal (`otherHoles`), labelled `In` when viewing the front and `Out` when
+viewing the back. So next to holes 1–9 the reader sees "In 41 · Tot 82": correct
+arithmetic, but a column named "In" beside the front nine reads as the wrong number. A
+paper card shows Out after hole 9, In after 18, then Tot — both subtotals, in order.
+
+**Not a data bug** — Tot is right, the subtotal is right; it's the column's name and
+position.
+
+**Options:**
+- **A (S, recommended):** show BOTH subtotals every time — the visible nine's subtotal
+  first (Out when viewing the front, In when viewing the back), then the other nine's,
+  then Tot. Two narrow columns instead of one; matches the paper card and F-030's
+  "captain glancing" habit.
+- **B (S):** keep one column but name it by what it is: "Back 9" / "Front 9" instead of
+  In/Out, so it can't be read as this nine's total.
+- **C:** during the round, hide the other-nine column until that nine has any score
+  (today it shows "–"); on a finished card show A.
+
+**Status:** open — later session (batch with F-064/065/066).
+
+---
+
+### F-068 — Sides and individual games settle to $0 in Stats & money; the hub recap attributes a whole side's money to one first name  [P1] [continue]
+
+**Source:** Craig, completed 1v1 Sides / Match round 2026-09-15: *"I completed the game,
+but it doesn't properly show the money owed."*
+
+**Verified by probe (vitest, throwaway, removed):** a completed 1v1 legs game with
+p2 one stroke worse per hole → engine standings `A: +$40, B: −$40`, zero-sum, correct.
+Then:
+
+1. **Season ledger uses the WRONG ENGINE for every non-classic game.**
+   `stats-ledger.ts:88` `poolGameLedger` calls `computePoolResult` (the classic pool
+   engine) unconditionally — it never looks at `gameMode`. A sides or individual game
+   has one `teams[]` entry ("Group") holding everyone, so the classic engine hands the
+   pot to that single team: every player nets 0, `hasMoney: false`, and the game
+   **drops out of Stats & money entirely** — 1v1, 2v2, 3 sides, skins, Stableford,
+   quota, Nines, Wolf, all of them. The right function is one import away
+   (`computeGameResult`, already imported at `:23` and used by `gameRollups` at `:329`).
+   The sandbox `ledger-season` seed (`fixtures-domain.ts` `completedPool`) is classic-only,
+   so F-007's "ledger balances" e2e never exercised this.
+
+2. **Hub "Who pays whom" is keyed by SIDE, not player.** `gameRollups` (`:329-333`) maps
+   `IndividualResult.standings` straight to player rollups, but the sides engine's
+   standings rows are per SIDE: `playerId = 'A'|'B'…`, `playerName` = side name
+   (`team-game.ts:275-277`). Probe output for a 2v2: `{"playerId":"A","playerName":
+   "Player1 & Player2","net":40}` → the recap renders `fromName.split(' ')[0]` =
+   **"Player3 pays Player1 $40"** — one name, the whole side's money, unsplit. In a 1v1
+   it reads correctly only by coincidence (side name = the player's first name). For
+   genuinely individual modes (skins etc.) standings ARE per player, so those recaps are
+   right; the ledger (item 1) still zeroes them.
+
+**Violates:** north star "continuing" (the season-long money ledger is the named
+example); §5.h (money is group-scoped — but only if it's recorded); F-007's invariant.
+
+**Options:**
+- **A (recommended, S, money-adjacent → Craig approves):** `poolGameLedger` → use
+  `computeGameResult`; for `kind:'individual'` results, split each SIDE's `moneyNet`
+  evenly across `sidesOfGame(game)` members (per-person convention, same as the
+  classic per-team split); per-player standings (skins…) map 1:1. Make `gameRollups`
+  share that one reducer so hub recap and ledger cannot drift. Tests: 1v1, 2v2, 3 sides
+  uneven (2/2/1 — the solo side's member takes the whole side net), skins; each
+  zero-sum; prove failable (§5.z) by re-introducing the classic call.
+- **B:** move the per-side → per-player split INTO the sides engine (emit per-player
+  `moneyNet` rows alongside side rows). Touches engine output shape that the
+  leaderboard reads → bigger blast radius; not recommended.
+- Either way: add a `team-2v2` and a `skins` completed game to the `ledger-season` seed
+  so F-007 covers all three engines.
+
+**Stored data is fine** — scores and games are intact; only the derived ledger is
+wrong, so the fix is retroactive with no backfill.
+
+**Status: opt A BUILT 2026-09-16** (Craig: "if that is an easy fix, should we just do it
+now?" → yes). `perPlayerNets(game, scoresByMatchup)` in `stats-ledger.ts` is THE per-player
+reducer: classic → team net ÷ members; sides engine → side net ÷ members via the engine's
+own side rule (`sidesForCompute`, newly exported from `game-modes/context.ts` so the ledger
+resolves exactly the sides the engine settled on); individual → 1:1. `poolGameLedger` and
+`gameRollups` both call it, so Stats and the hub recap cannot drift. Tests (4, pinned
+FIRST and watched fail on ids 'A'/'B' — §5.z): 1v1 ±$40 on player ids; 2v2 $20 a head;
+uneven 2/2/1 solo carries the side; skins untouched. Season seed gained a Warriors 2v2
+(`lg-6`) and a Tuesday skins game (`lg-7`) so F-007's e2e balances across all three
+engines. Derived-only: no stored data changed; every past sides/individual game now
+appears in Stats retroactively. Verify: see session note.
 
 ---
 
