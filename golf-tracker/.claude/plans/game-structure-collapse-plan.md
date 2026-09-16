@@ -1,6 +1,27 @@
 # Game-structure collapse — the deep plan (§5.bk / §5.bl)
 
-**Status: PLAN FOR CRAIG TO WALK. No code. 2026-09-15.**
+**Status: WALKED 2026-09-16 (§5.bm) — Phase 1 slice 1 BUILT (`src/lib/game-structure.ts` + table
+tests). Amendments from the walk, which override the text below where they differ:**
+
+- **Q1 → route by CAPABILITY, not preference.** §3.3's "prefer classic" is now a consequence,
+  not a rule: the router picks whichever engine can carry EVERYTHING configured (CTP / manual
+  bonuses / captains / hideHoles / two-ball formats / front-back-overall pot splits are
+  classic-only; N>2 head-to-head, $/hole, $/point, non-aligned teams are sides-only; both → classic).
+  Nothing is expressible in neither → the money step greys the option with the router's own
+  reason (`UNEXPRESSIBLE.*`). §3.4's `moneyModelsFor(container, N)` became `moneyModelsFor(draft)`
+  so availability has one source (the router), not a second table.
+- **Q2 → no tee-sheet question.** `proposeTeeGroups` packs whole teams into foursomes; the
+  groups step still lets anyone drag. `teeSheetFacts` re-derives `aligned` / `teamsTogether`.
+- **Q3 → "Other split…" on the structure step** (uneven shapes, from `groupShapesFor`).
+- **Q4 → F-063 opt A approved** (separate small commit); opt C its own session.
+- **Q5 → "team" everywhere**; `structureLabel` is the one label source for Phase 2.
+- Found while building: the sides engine computes best-ball / combined / one-ball only — any
+  other `format` silently scores as best-ball — so two-ball formats are a classic-only
+  capability, caught by the router. And a classic pool whose scoring is best-ball (not
+  net-and-gross) carries `teamFormat`, leaving the golden-snapshot legacy path; slice 2's
+  default for "N teams of 4" should therefore be **best net + best gross**, today's pool.
+
+Original plan text follows.
 Inputs: `GAME_STRUCTURE_DESIGN.md` (the brief), four read-only code sweeps recovered in
 `.claude/plans/collapse-sweeps-2026-09-15.md` (seam inventory, data-model map, live-scoring
 facts, wizard/e2e inventory), DECISIONS_ARCHIVE §5.bk/§5.bl/§5l/§5.ad/§5.ae/§5g.

@@ -1672,6 +1672,48 @@ foursomes tracking scores."*
 
 ---
 
+## 5.bm The collapse plan walked: capability routing, partners together, "team" everywhere (2026-09-16)
+
+Craig walked `.claude/plans/game-structure-collapse-plan.md` §8, one question at a time.
+
+1. **Overlap row → route by CAPABILITY, not preference.** Asked whether the aligned
+   2-team fixed-legs game should go to the classic pool or the sides engine, Craig
+   rejected the premise: *"I wonder that both of these are supposed to be configurable.
+   what if they dont use nassau? what if they have different bonuses? can this extend to
+   4 foursomes? … I thought the point was to make this collapsible?"* The user never
+   sees a container. The router picks whichever engine can express EVERYTHING the user
+   configured: only classic can (junk/CTP/manual bonuses, captains, hideHoles) → classic;
+   only sides can (N>2 head-to-head, $/hole, $/point) → sides; both can → classic;
+   neither can → the money step greys the option and says why, and Phase 3 closes the
+   gap. Named gap: 4 foursomes + fixed legs + bonuses is not expressible until Phase 3.
+2. **Tee sheet: partners walk together, no question.** When teams are smaller than a
+   foursome the tee sheet auto-builds with whole teams in one group; the existing groups
+   step still lets anyone drag players to mix. Craig's framing to preserve: *"typically
+   one player is entering scores per playing group … we dont need multiple people
+   entering scores for the same tee group."* One scorer per tee group stays the rule and
+   nothing in the collapse changes it.
+3. **Uneven teams live on the structure step under "Other split…"** (they change N).
+   Craig: *"lets make uneven teams work for now, and in the future we can figure out
+   other game recommendations for people with uneven teams"* — a fairness adjustment
+   (strokes/allowance for uneven sides) is an Idea, probably unnecessary.
+4. **Live scoring (F-063): option A now, C scheduled.** Craig asked *"doesnt pool
+   scoring work?"* — verified in code (§5.y): it works in the normal case; the debounced
+   write is cleared on unmount with no flush (`game/play/page.tsx` ~l.232), the upsert is
+   whole-row last-write-wins, no offline queue. Approved: pagehide flush + own-group
+   subscribe with client cell-merge, as its own small commit after slice 1. Per-cell rows
+   (opt C) get their own session, sandbox fake first. Bar: *"keeping the standard of live
+   scoring actually working with minimal bugs."*
+5. **Vocabulary: "team" everywhere.** "Side" retires; §5.al's split was a symptom of two
+   containers. Tee groups stay "foursome"/"group". F-061 has one answer; Phase 2 threads
+   it.
+
+**How to apply.** `routeContainer(draft)` takes the configured capabilities (bonuses on?
+captains? hideHoles? N, money model) and returns the engine that can carry them all, or
+`unexpressible` with the reason string the money step shows. Slice 1 is approved: the
+pure `game-structure.ts` + table tests, then slices 2–5 per plan §7.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch

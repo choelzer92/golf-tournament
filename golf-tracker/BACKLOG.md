@@ -19,8 +19,8 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
-| **Game-structure COLLAPSE — Craig WALKS THE PLAN, then Phase 1 slice 1 (PROMOTED to NEXT_SESSION_PROMPT)**. Plan written 2026-09-15: `.claude/plans/game-structure-collapse-plan.md` (routing table §3.3 is the spec; 5 questions in §8). First code slice on approval: `src/lib/game-structure.ts` (pure: `structureOptionsFor`, `structureOf`, `routeContainer`, `moneyModelsFor`) + table tests proving every routed game is zero-sum — zero UI. Then structure/scoring steps, teams (N,K) + tee-sheet question, routed money step, e2e re-point (12 specs select by `<select>` value). Absorbs F-037, F-061 naming, F-005 confirmations. | L | §5.bk plan 2026-09-15 |
-| **F-063 live-scoring interim fixes (opt A)** — `pagehide` flush + own-group subscribe with per-cell client merge. Small, removes a real "continuing" bug, independent of the collapse. **Persistence → Craig approves first.** Opt C (per-cell rows) is its own session below. | S | F-063 / §5.bl |
+| **Game-structure COLLAPSE — Phase 1.** Plan WALKED 2026-09-16 (§5.bm: capability routing, partners together, "Other split…", "team" everywhere). **Slice 1 DONE (dc88832)**: `src/lib/game-structure.ts` + 65 table tests, §5.z-proven, verify green. **NEXT: slices 2–5** — structure + scoring steps replace the picker (draft v2; default for "N teams of 4" = best net + best gross so the classic stays on the golden path) → teams (N,K) + `proposeTeeGroups` → money step from `moneyModelsFor(draft)`, F-042 toggle gone → e2e re-point via `chooseStructure`/`chooseScoring` helpers + one spec per routing row. Plan: `.claude/plans/game-structure-collapse-plan.md` (header carries the amendments). | L | §5.bk/§5.bm |
+| **F-063 live-scoring interim fixes (opt A) — APPROVED by Craig 2026-09-16 (§5.bm Q4)**: `pagehide` flush + own-group subscribe with per-cell client merge. Separate small commit. Opt C (per-cell rows) is its own session below. | S | F-063 / §5.bm |
 | **Course-data correctness audit — PARKED by Craig 2026-09-15 ("wait on the course data")**. Meadows payload banked + CLEAN (F-023); prime suspects now gender-name tee collisions and stale stored games. Resume on his word. | M | Craig 2026-09-10/14 + F-023 |
 | Merge-audit polish batch (all four S items below) — fallback slack work | S×4 | merge audit / §5.ak |
 
@@ -133,5 +133,8 @@ it's real. Never build from this section directly.
   he likely means golf stats (scoring avg, per-hole). Unshaped.
 - Export scores to GHIN (friend, 2026-09-10) — score POSTING to GHIN; needs API research
   (is it even open to third parties?) before shaping.
+- Uneven-team fairness (Craig, 2026-09-16, §5.bm Q3): when teams are 3+3+2 or 4+2+2, could
+  strokes/allowance be adjusted so the short team isn't disadvantaged, or should the app
+  RECOMMEND formats that suit uneven sides? "Probably not necessary" — uneven teams just work first.
 - Per-group pot-split defaults (from F-044): `POOL_SPLIT_TABLE` is Craig's own history as a
   global table — a group could save its own usual splits instead; feeds the format library.
