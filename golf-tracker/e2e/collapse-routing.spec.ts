@@ -7,7 +7,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
   BASE, PHONE, EIGHT_PLAYERS, FOUR_PLAYERS, TWO_PLAYERS, resetBackend,
-  addPlayers, toScoringStep, chooseSolo, chooseMoney,
+  addPlayers, toScoringStep, chooseSolo, chooseMoney, buildTeams,
 } from './helpers';
 
 test.beforeEach(async ({ context, page }) => {
@@ -115,15 +115,29 @@ test('routing row: four pairs, fixed legs → the sides engine with two tee time
   await expect(page.getByRole('button', { name: 'Hole by hole' })).toHaveClass(/bg-green-600/);
   await expect(page.locator('option[value="two-best-net"]')).toBeDisabled();
   await courseAndTees(page);
+  // F-071: the SAME teams step as the pool — the method list, not letter buttons — and the
+  // structure step's answer is not asked again (F-078: no shape chooser here).
+  await page.getByRole('button', { name: 'Next: Teams' }).click();
+  await expect(page.getByRole('heading', { name: 'Set Teams' })).toBeVisible();
+  await expect(page.getByText('Four pairs. Partners walk together — who tees off with whom comes next.')).toBeVisible();
+  expect(await page.locator('body').innerText()).not.toContain('How do the sides split?');
+  // No tee times on money teams — the tee sheet is the next step's question.
+  await expect(page.getByText('Tee time')).toHaveCount(0);
+  await page.screenshot({ path: 'e2e/screenshots/collapse-06a-teams-four-pairs-before.png', fullPage: true });
+  await buildTeams(page, 'list');   // Craig+Jym, Dave+Rick, Sam+Tony, Will+Gary — deterministic
+  await expect(page.getByLabel('Team 4 name')).toBeVisible();
+  await expect(page.getByLabel('Team 5 name')).toHaveCount(0);
+  await page.screenshot({ path: 'e2e/screenshots/collapse-06b-teams-four-pairs-built.png', fullPage: true });
   await page.getByRole('button', { name: 'Next: Groups' }).click();
-  // Partners walk together (§5.bm Q2): the first pair shares group 1.
+  // Partners walk together (§5.bm Q2): the first two pairs share group 1, whole.
+  await expect(page.getByRole('heading', { name: /playing together/ })).toBeVisible();
+  const group1 = page.locator('div.bg-white', { hasText: 'Group 1' }).first();
+  for (const nm of ['Craig', 'Jym', 'Dave', 'Rick']) await expect(group1.getByText(nm)).toBeVisible();
   const body = await page.locator('body').innerText();
-  expect(body).toContain('Group 1');
   expect(body).toContain('Group 2');
   await page.screenshot({ path: 'e2e/screenshots/collapse-06-groups-four-pairs.png', fullPage: true });
-  await page.getByRole('button', { name: 'Next: Sides' }).click();
-  await expect(page.getByRole('heading', { name: /Sides \(2 vs 2 vs 2 vs 2\)/ })).toBeVisible();
   await page.getByRole('button', { name: /Next: Review/ }).click();
+  await expect(page.getByText('Sides (2 vs 2 vs 2 vs 2)')).toBeVisible();
   await expect(page.locator('input[name="money-model"][value="legs"]')).toBeChecked();
   await expect(page.getByText(/Front 9 \(\$\)/)).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/collapse-07-money-sides.png', fullPage: true });
@@ -136,8 +150,9 @@ test('routing row: four pairs + closest-to-pin is refused with the reason, not s
   await startWizard(page, EIGHT_PLAYERS, 'Refused');
   await toScoringStep(page, 'teams:2+2+2+2');
   await courseAndTees(page);
+  await page.getByRole('button', { name: 'Next: Teams' }).click();
+  await buildTeams(page, 'even');
   await page.getByRole('button', { name: 'Next: Groups' }).click();
-  await page.getByRole('button', { name: 'Next: Sides' }).click();
   await page.getByRole('button', { name: /Next: Review/ }).click();
   // Shared-foursome teams never see the classic bonus grid — the note says why.
   await expect(page.getByRole('button', { name: /\+ Add bonuses/ })).toHaveCount(0);
@@ -178,12 +193,15 @@ test('routing row: 1 v 1 → a singles match on the sides engine, 100% allowance
   await expect(page.getByText(/USGA suggests 100% for singles match play/)).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/collapse-10-scoring-1v1.png', fullPage: true });
   await courseAndTees(page);
-  await page.getByRole('button', { name: 'Next: Sides' }).click();
-  await expect(page.getByRole('heading', { name: /Sides \(1 vs 1\)/ })).toBeVisible();
-  await page.getByRole('button', { name: /Next: Review/ }).click();
+  // F-079: a 1 v 1 has nothing to build — the structure decided membership — so tees go
+  // straight to money, and the review still shows the two sides.
+  await expect(page.getByRole('button', { name: 'Next: Teams' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Next: Money' }).click();
+  await expect(page.getByRole('heading', { name: /Review & create/ })).toBeVisible();
   // F-077: the summary must quote THIS game's money — the legs — not a skin value left over from
   // the everyone-for-themselves pick two players default to.
   const review = await page.locator('body').innerText();
+  expect(review).toContain('Sides (1 vs 1)');
   expect(review).toContain('$10 / $10 / $10 front·back·overall');
   expect(review).not.toMatch(/a skin/);
   await page.getByRole('button', { name: 'Create Game' }).click();

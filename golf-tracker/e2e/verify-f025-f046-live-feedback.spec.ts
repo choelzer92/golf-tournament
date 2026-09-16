@@ -5,7 +5,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed, goToGame, fieldToGameStep, toScoringStep, chooseSolo, addPlayers } from './helpers';
+import { BASE, resetBackend, seed, goToGame, fieldToGameStep, toScoringStep, chooseSolo, addPlayers, buildTeams } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -290,14 +290,18 @@ test.describe('F-043: the handicap chip shows its work', () => {
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
     await page.getByRole('button', { name: /Next: Set Tees/ }).click();
-    await page.getByRole('button', { name: 'Next: Sides' }).click();
+    // F-071: the 2v2 builds on the pool's teams step; its chips show the bare playing handicap
+    // (the "CHcp" spelling lived on the retired sides editor — F-043's pin moves to the chain).
+    await page.getByRole('button', { name: 'Next: Teams' }).click();
     // Assert the right screen before touching anything on it.
-    await expect(page.getByRole('heading', { name: /Sides \(/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Set Teams' })).toBeVisible();
+    await buildTeams(page, 'even');
 
     // The chain is hidden until asked for.
     await expect(page.getByText('Handicap index')).toHaveCount(0);
 
-    await page.getByRole('button', { name: 'CHcp 4', exact: true }).click();
+    const craigRow = page.locator('li', { hasText: 'Craig' }).first();
+    await craigRow.getByRole('button', { name: '4', exact: true }).click();
     await expect(page.getByText('Handicap index')).toBeVisible();
     // Sandbox National is slope 113 with rating == par, so CH == index — and the
     // chain names the numbers it used rather than asking to be trusted.
@@ -306,7 +310,7 @@ test.describe('F-043: the handicap chip shows its work', () => {
     await page.screenshot({ path: 'e2e/screenshots/f043-handicap-chain.png', fullPage: true });
 
     // Tap again to close.
-    await page.getByRole('button', { name: 'CHcp 4', exact: true }).click();
+    await craigRow.getByRole('button', { name: '4', exact: true }).click();
     await expect(page.getByText('Handicap index')).toHaveCount(0);
   });
 });

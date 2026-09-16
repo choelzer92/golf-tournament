@@ -151,6 +151,14 @@ export async function chooseSolo(page: Page, modeId: string) {
   await page.locator(`input[name="solo-mode"][value="${modeId}"]`).check();
 }
 
+/** F-071: ONE teams step for every split. On it, build the teams with one of the three methods
+ *  (the step opens empty — like the pool always has — until a method is tapped). */
+export async function buildTeams(page: Page, method: 'even' | 'deal' | 'list' = 'even') {
+  await expect(page.getByText('How should teams be built?')).toBeVisible();
+  const label = method === 'even' ? /Even them out/ : method === 'deal' ? /Captains’ deal/ : /Straight down the list/;
+  await page.getByRole('button', { name: label }).click();
+}
+
 /** On the money step: pick a money model by id ('pot' | 'legs' | 'per-hole' | 'per-point'). */
 export async function chooseMoney(page: Page, model: string) {
   await page.locator(`input[name="money-model"][value="${model}"]`).check();

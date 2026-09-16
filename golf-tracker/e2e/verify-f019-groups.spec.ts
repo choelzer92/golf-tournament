@@ -5,7 +5,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed, goToGame, toScoringStep } from './helpers';
+import { BASE, resetBackend, seed, goToGame, toScoringStep, buildTeams } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -373,8 +373,11 @@ test.describe('F-019: the wizard builds real playing groups', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await startSideGame(page, EIGHT);
 
-    // The tees step promises GROUPS for an 8-player side game, not Sides.
+    // F-071: teams first (one teams step for every split), then the tee sheet — the teams step
+    // promises GROUPS for an 8-player side game because the field can't walk as one.
     await page.getByRole('button', { name: 'Next: Set Tees' }).click();
+    await page.getByRole('button', { name: 'Next: Teams' }).click();
+    await buildTeams(page, 'list');
     await page.getByRole('button', { name: 'Next: Groups' }).click();
 
     // The Groups step: it says why it is asking, and offers the shapes that fit eight.
@@ -397,8 +400,7 @@ test.describe('F-019: the wizard builds real playing groups', () => {
 
     await page.screenshot({ path: 'e2e/screenshots/f019-wizard-groups.png', fullPage: true });
 
-    // On to the sides, then create — and the saved game must hold TWO teams with those tee times.
-    await page.getByRole('button', { name: 'Next: Sides' }).click();
+    // On to money, then create — and the saved game must hold TWO teams with those tee times.
     await expect(page.getByRole('button', { name: /Next: Review/ })).toBeVisible();
     await page.getByRole('button', { name: /Next: Review/ }).click();
     await page.getByRole('button', { name: /Create Game/i }).click();
@@ -421,12 +423,60 @@ test.describe('F-019: the wizard builds real playing groups', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await startSideGame(page, EIGHT);
     await page.getByRole('button', { name: 'Next: Set Tees' }).click();
+    await page.getByRole('button', { name: 'Next: Teams' }).click();
+    await buildTeams(page, 'list');
     await page.getByRole('button', { name: 'Next: Groups' }).click();
 
     await page.getByRole('button', { name: /3 \+ 3 \+ 2/ }).click();
     const body = await page.locator('body').innerText();
     expect(body).toContain('Group 3');
     await expect(page.locator('input[type="time"]')).toHaveCount(3);
+  });
+
+  // F-071: a shape button re-packs WHOLE teams (§5.bm Q2). Four pairs of eight are offered 4 + 4
+  // or 3 + 3 + 2: 4 + 4 keeps every pair together; 3 + 3 + 2 can't (it falls back to a balanced
+  // deal), and choosing 4 + 4 again makes the pairs whole again.
+  test('F-071: reshaping the tee sheet keeps partners together when the shape allows', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    // The recent-course chips (Sandbox National) come from this seed.
+    const card = page.locator('div.bg-white', { hasText: 'Past games (for recent-course' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+    await card.getByRole('button', { name: 'Open →' }).click();
+    await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
+    for (const [nm, hcp] of EIGHT) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Four Pairs');
+    await toScoringStep(page, 'teams:2+2+2+2');
+    await page.getByRole('button', { name: /Next: Select Course/ }).click();
+    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+    await page.getByRole('button', { name: 'Next: Set Tees' }).click();
+    await page.getByRole('button', { name: 'Next: Teams' }).click();
+    await buildTeams(page, 'list');   // Craig+Jym, Dave+Rick, Sam+Tony, Will+Gary
+    await page.getByRole('button', { name: 'Next: Groups' }).click();
+    await expect(page.getByRole('heading', { name: /playing together/ })).toBeVisible();
+    // The proposal: 4 + 4, pairs whole (first-fit in team order).
+    const group1 = page.locator('div.bg-white', { hasText: 'Group 1' }).first();
+    const group2 = page.locator('div.bg-white', { hasText: 'Group 2' }).first();
+    const pairsWhole = async () => {
+      for (const nm of ['Craig', 'Jym', 'Dave', 'Rick']) await expect(group1.getByText(nm)).toBeVisible();
+      for (const nm of ['Sam', 'Tony', 'Will', 'Gary']) await expect(group2.getByText(nm)).toBeVisible();
+    };
+    await pairsWhole();
+    // Reshape to 3 + 3 + 2 (no packing keeps four pairs whole — three groups appear) and back to
+    // 4 + 4: the pairs are whole again.
+    await page.getByRole('button', { name: /^3 \+ 3 \+ 2/ }).click();
+    await expect(page.locator('input[type="time"]')).toHaveCount(3);
+    await page.getByRole('button', { name: /^4 \+ 4/ }).click();
+    await expect(page.locator('input[type="time"]')).toHaveCount(2);
+    await pairsWhole();
   });
 
   // THE REGRESSION GUARD THAT MATTERS. An ordinary 2v2 must not gain a step: four players walk
@@ -437,21 +487,25 @@ test.describe('F-019: the wizard builds real playing groups', () => {
     await startSideGame(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']]);
     await page.getByRole('button', { name: 'Next: Set Tees' }).click();
 
-    // Still says Sides, as it always did (§5.al).
-    await expect(page.getByRole('button', { name: 'Next: Sides' })).toBeVisible();
-    await page.getByRole('button', { name: 'Next: Sides' }).click();
+    // F-071 (§5.bm Q5): says Teams, like every split.
+    await expect(page.getByRole('button', { name: 'Next: Teams' })).toBeVisible();
+    await page.getByRole('button', { name: 'Next: Teams' }).click();
 
-    // Lands straight on the Sides step — no Groups step, no tee-time inputs.
+    // Lands on the Teams step — no Groups step, no tee-time inputs — and it leads straight to money.
     const body = await page.locator('body').innerText();
     expect(body).not.toMatch(/playing together/i);
     expect(body).not.toContain('Group 1');
+    await expect(page.getByText('Tee time')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Next: Review/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Next: Groups' })).toHaveCount(0);
   });
 
   test('F-019: five players get 3 + 2 without being asked (only one shape fits)', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await startSideGame(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
     await page.getByRole('button', { name: 'Next: Set Tees' }).click();
+    await page.getByRole('button', { name: 'Next: Teams' }).click();
+    await buildTeams(page, 'even');
     await page.getByRole('button', { name: 'Next: Groups' }).click();
 
     await expect(page.getByRole('heading', { name: /playing together/ })).toBeVisible();

@@ -19,10 +19,7 @@ import {
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
   type CustomBonus,
-  dealBalancedIntoShape,
   sortPlayerIdsByHcap,
-  groupShapesFor,
-  SIDE_SHAPE_OPTS,
 } from '@/lib/pool-game';
 // The §5.bk collapse: the wizard asks STRUCTURE, SCORING and MONEY in plain words; the router
 // picks the container (classic pool / sides engine / individual mode) by capability (§5.bm Q1).
@@ -40,7 +37,9 @@ import {
   structureForDefaults,
   recommendedStructure,
   structureOptionId,
+  structureOptionsFor,
 } from '@/lib/game-structure';
+import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 import {
   getRosterPlayerByGhin,
   getRosterPlayerById,
@@ -75,7 +74,6 @@ import { FieldStep } from './steps/field-step';
 import { TeesStep } from './steps/tees-step';
 import { PlayingGroupsStep } from './steps/playing-groups-step';
 import { TeamsStep } from './steps/teams-step';
-import { SubTeamsStep } from './steps/sub-teams-step';
 import { CreateStep } from './steps/create-step';
 
 const WIZARD_KEY = 'pool_wizard_draft';
@@ -86,9 +84,10 @@ const FORMAT_SEED_KEY = 'pool_format_seed';
 // Information order follows dependency: the structure step can annotate fit (F-020) and money
 // can show real dollars only once the count is known, so nothing is asked before what it
 // depends on. 'structure' asks "How do you want to compete?" (§5.bk); 'scoring' how it's
-// scored; 'groups' is the PLAYING-GROUP step, shown only when teams smaller than a foursome
-// need real tee groups (F-019); 'teams' holds the SIDES editor for those and the foursome
-// builder when every team is its own tee group — two axes, two questions (§5.an).
+// scored; 'teams' builds the money teams for EVERY split on one step (F-071 — pairs and the
+// 2v2 included; a 1 v 1 skips it, F-079); 'groups' is the PLAYING-GROUP step that follows,
+// shown only when teams smaller than a foursome need real tee groups (F-019) — two axes, two
+// questions (§5.an).
 type Step = 'field' | 'structure' | 'scoring' | 'course' | 'tees' | 'groups' | 'teams' | 'create';
 // Draft v2 (plan §4.4): a v1 draft (no version) is discarded, never migrated — a wrong
 // migration would create an impossible game (§5.ac), and players/teams/step never restored anyway.
@@ -223,6 +222,18 @@ export default function NewPoolGamePage() {
   // How the current teams were built (method + settings snapshot), recorded onto
   // the game so the read-only hub can show "how these teams were built".
   const [teamBuild, setTeamBuild] = useState<PoolGame['teamBuild']>(undefined);
+  // F-071: teams that SHARE foursomes (pairs, the 2v2, 2 + 2 + 1) are built on the same TeamsStep
+  // as the pool's, held here in the step's own shape; leaving the step derives `sides` from them
+  // and lays the tee sheet (`proposeTeeGroups`, partners together). Never persisted — like
+  // `teams`, the day's build is a fresh per-game answer.
+  const [sideTeams, setSideTeams] = useState<PoolTeam[]>([]);
+  // Captains for shared-foursome teams: a role the sides engine never records, so it's off by
+  // default for pairs and on for triples (F-071 A: "when K ≥ 3 or on request"); the toggle on the
+  // step is the request. Separate from the pool's `useCaptains` so a saved format's choice for
+  // the classic pool is never clobbered by a pairs game.
+  const [sideCaptains, setSideCaptainsState] = useState(false);
+  const sideCaptainsTouched = useRef(false);
+  const setSideCaptains = (v: boolean) => { sideCaptainsTouched.current = true; setSideCaptainsState(v); };
 
   // ---- The routing layer (lib/game-structure.ts) reads the wizard's answers -------------------
   const isSolo = structure?.kind === 'solo';
@@ -306,6 +317,7 @@ export default function NewPoolGamePage() {
     if (!changed) return;
     setSides(undefined);
     setTeams([]);
+    setSideTeams([]);
     setTeamBuild(undefined);
     if (shape.kind === 'solo') {
       const mode = getGameMode(gameMode);
@@ -691,7 +703,7 @@ export default function NewPoolGamePage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6">
-        <StepIndicator current={step} course={course} solo={isSolo} withinGroup={isWithinGroup} playingGroups={needsPlayingGroups} />
+        <StepIndicator current={step} course={course} solo={isSolo || (isWithinGroup && !!structure && structure.teamSizes.every((k) => k === 1))} playingGroups={needsPlayingGroups} />
 
         {step === 'structure' && (
           <StructureStep
@@ -804,7 +816,9 @@ export default function NewPoolGamePage() {
             nine={wizardNine}
             // An INDIVIDUAL game skips team-building entirely and goes straight to money, so the
             // button has to say that rather than promise a step that never comes.
-            nextLabel={isSolo ? 'Money' : needsPlayingGroups ? 'Groups' : isWithinGroup ? 'Sides' : 'Teams'}
+            // F-071/F-079: every split builds on one Teams step; a 1 v 1 has nothing to build and
+            // goes straight to money like an individual game.
+            nextLabel={isSolo || (isWithinGroup && structure!.teamSizes.every((k) => k === 1)) ? 'Money' : 'Teams'}
             onBack={() => setStep('course')}
             onNext={() => {
               const singleGroup = () => [{
@@ -825,67 +839,117 @@ export default function NewPoolGamePage() {
                 setStep('teams');
                 return;
               }
-              // Teams that share foursomes: seed the sides to the chosen shape, balanced by
-              // handicap (the sides editor lets the organizer move anyone), then the tee sheet —
-              // partners together (§5.bm Q2), asked about only when the field can't walk as one.
-              const n = players.length;
-              const sum = structure!.teamSizes.reduce((s, k) => s + k, 0);
-              const shape = sum === n
-                ? structure!.teamSizes
-                : (groupShapesFor(n, SIDE_SHAPE_OPTS).find((s) => s.length === structure!.teamSizes.length) ?? groupShapesFor(n, SIDE_SHAPE_OPTS)[0] ?? [n]);
-              const keep = sides && sides.length > 0 && sides.reduce((s, x) => s + x.playerIds.length, 0) === n
-                && sides.every((s) => s.playerIds.every((id) => players.some((p) => p.id === id)));
-              const ids = sortPlayerIdsByHcap(players.map((p) => p.id), players, course, parseFloat(handicapAllowance) || 100, handicapBasis);
-              const seeded: GameSide[] = keep
-                ? sides!
-                : dealBalancedIntoShape(ids, shape).map((playerIds, i) => ({ id: String.fromCharCode(97 + i), playerIds }));
-              setSides(seeded);
-              setTeams(needsPlayingGroups
-                ? proposeTeeGroups(seeded.map((s) => s.playerIds)).map((playerIds, i) => ({
-                  id: crypto.randomUUID(),
-                  name: `Group ${i + 1}`,
-                  playerIds: sortPlayerIdsByHcap(playerIds, players, course, parseFloat(handicapAllowance) || 100, handicapBasis),
-                  matchupId: crypto.randomUUID(),
-                  teeTime: '',
-                }))
-                : singleGroup());
-              setStep(needsPlayingGroups ? 'groups' : 'teams');
+              // Teams that share foursomes (F-071): the SAME teams step builds them. A structure
+              // that already decides membership — every team is one player, the 1 v 1 — has nothing
+              // to ask (F-079): the sides are the players and the field walks as one group.
+              const present = new Set(players.map((p) => p.id));
+              if (structure!.teamSizes.every((k) => k === 1)) {
+                setSides(players.map((p, i) => ({ id: String.fromCharCode(97 + i), playerIds: [p.id] })));
+                setSideTeams([]);
+                setTeams(singleGroup());
+                setStep('create');
+                return;
+              }
+              // Someone left the field since the teams were built: drop them, keep the rest.
+              const pruned = sideTeams.map((t) => ({ ...t, playerIds: t.playerIds.filter((id) => present.has(id)) }));
+              if (pruned.some((t, i) => t.playerIds.length !== sideTeams[i].playerIds.length)) setSideTeams(pruned);
+              // Sides from a saved format hold another day's players; the router must not read them.
+              if (sides && !sides.every((s) => s.playerIds.every((id) => present.has(id)))) setSides(undefined);
+              if (!sideCaptainsTouched.current) setSideCaptainsState(Math.max(...structure!.teamSizes) >= 3);
+              setStep('teams');
             }}
           />
         )}
 
-        {/* F-019: WHO WALKS WITH WHOM — a side game's tee sheet, asked separately from its sides.
+        {/* F-071: teams that share foursomes — the pool's TeamsStep in money-teams mode (no tee
+            times or send-out order here; those belong to the tee sheet). Leaving it derives the
+            sides (ids a, b, c… by position, names kept when typed) and lays the tee sheet with
+            partners together (§5.bm Q2); the groups step follows only when the field can't walk
+            as one. */}
+        {step === 'teams' && isWithinGroup && structure && (
+          <TeamsStep
+            mode="money-teams"
+            course={course}
+            players={players}
+            setPlayers={setPlayers}
+            teams={sideTeams}
+            setTeams={setSideTeams}
+            lockedGroups={lockedGroups}
+            setLockedGroups={setLockedGroups}
+            captainIds={captainIds}
+            setCaptainIds={setCaptainIds}
+            excludeCaptains={balanceExcludeCaptains}
+            setExcludeCaptains={setBalanceExcludeCaptains}
+            useCaptains={sideCaptains}
+            setUseCaptains={setSideCaptains}
+            teamBuild={teamBuild}
+            setTeamBuild={setTeamBuild}
+            teamSizes={structure.teamSizes}
+            subtitle={(() => {
+              const label = structureOptionsFor(players.length).find((o) => o.id === structureOptionId(structure))?.label ?? 'Teams';
+              return needsPlayingGroups
+                ? `${label}. Partners walk together — who tees off with whom comes next.`
+                : `${label} — everyone walks as one group.`;
+            })()}
+            // The board's name for an unnamed team ("Craig & Jym"), so leaving the box blank
+            // promises what will actually show (same resolver as the review and the leaderboard).
+            namePlaceholder={(team, i) => sideNameFrom(
+              players, team.playerIds, String.fromCharCode(97 + i), undefined,
+              allSidesAreSolo(sideTeams.map((t, j) => ({ id: String.fromCharCode(97 + j), playerIds: t.playerIds }))),
+            )}
+            nextLabel={needsPlayingGroups ? 'Next: Groups' : 'Next: Review & Create'}
+            handicapAllowance={parseFloat(handicapAllowance) || 100}
+            handicapBasis={handicapBasis}
+            nine={wizardNine}
+            onBack={() => setStep('tees')}
+            onNext={() => {
+              const built = sideTeams.filter((t) => t.playerIds.length > 0);
+              const nextSides: GameSide[] = built.map((t, i) => ({
+                id: String.fromCharCode(97 + i),
+                ...(t.name.trim() ? { name: t.name.trim() } : {}),
+                playerIds: t.playerIds,
+              }));
+              const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((id) => b.includes(id));
+              // Coming back through with the same teams keeps the tee sheet the organizer may have
+              // dragged; different teams get a fresh partners-together proposal.
+              const sameSides = !!sides && sides.length === nextSides.length
+                && sides.every((s, i) => sameSet(s.playerIds, nextSides[i].playerIds));
+              const teamsCoverField = teams.length > 0 && sameSet(teams.flatMap((t) => t.playerIds), players.map((p) => p.id));
+              setSides(nextSides);
+              if (!(sameSides && teamsCoverField)) {
+                setTeams(needsPlayingGroups
+                  ? proposeTeeGroups(built.map((t) => t.playerIds)).map((playerIds, i) => ({
+                    id: crypto.randomUUID(),
+                    name: `Group ${i + 1}`,
+                    playerIds: sortPlayerIdsByHcap(playerIds, players, course, parseFloat(handicapAllowance) || 100, handicapBasis),
+                    matchupId: crypto.randomUUID(),
+                    teeTime: '',
+                  }))
+                  : [{ id: crypto.randomUUID(), name: 'Group', playerIds: players.map((p) => p.id), matchupId: crypto.randomUUID() }]);
+              }
+              setStep(needsPlayingGroups ? 'groups' : 'create');
+            }}
+          />
+        )}
+
+        {/* F-019: WHO WALKS WITH WHOM — a side game's tee sheet, asked separately from its teams.
             Reuses the classic pool's TeamsStep verbatim (it already does exactly this: balanced
             proposal, drag between groups, tee time per group, reorder, add/remove) rather than
             growing a second editor for the same question. Captains are off: a side game's money
-            has no captain role, and the panel would be noise. */}
+            has no captain role, and the panel would be noise. After F-071 it comes AFTER the
+            teams, so its shape buttons re-pack whole teams (partners together). */}
         {step === 'groups' && needsPlayingGroups && (
           <PlayingGroupsStep
             course={course}
             players={players}
             teams={teams}
             setTeams={setTeams}
+            partnerTeams={(sides ?? []).map((s) => s.playerIds)}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
             handicapBasis={handicapBasis}
             nine={wizardNine}
-            onNext={() => setStep('teams')}
-            onBack={() => setStep('tees')}
-          />
-        )}
-
-        {step === 'teams' && isWithinGroup && (
-          <SubTeamsStep
-            players={players}
-            course={course}
-            handicapAllowance={parseFloat(handicapAllowance) || 100}
-            handicapBasis={handicapBasis}
-            nine={wizardNine}
-            sides={sides}
-            setSides={setSides}
             onNext={() => setStep('create')}
-            // Back goes to the groups step when there is one, so the wizard's back button
-            // retraces the way in rather than skipping a step the organizer just filled in.
-            onBack={() => setStep(needsPlayingGroups ? 'groups' : 'tees')}
+            onBack={() => setStep('teams')}
           />
         )}
 
@@ -966,7 +1030,7 @@ export default function NewPoolGamePage() {
   );
 }
 
-function StepIndicator({ current, course, solo, withinGroup, playingGroups }: { current: Step; course: CourseSelection | null; solo?: boolean; withinGroup?: boolean; playingGroups?: boolean }) {
+function StepIndicator({ current, course, solo, playingGroups }: { current: Step; course: CourseSelection | null; solo?: boolean; playingGroups?: boolean }) {
   // §5.au: the FIELD leads. Structure and scoring follow (§5.bk), then course (a nine vs 18
   // depends on what's being played), and tees close the loop once both course and players exist.
   const steps = [
@@ -975,13 +1039,13 @@ function StepIndicator({ current, course, solo, withinGroup, playingGroups }: { 
     { key: 'scoring', label: 'Scoring' },
     { key: 'course', label: course?.courseName || 'Course' },
     { key: 'tees', label: 'Tees' },
-    // Teams that share foursomes and can't all walk together pick their tee groups, then their
-    // sides — two steps because they're two independent questions (F-019, §5.an). Absent for
-    // every other flow, so nothing else gains a step.
+    // F-071: every split builds its teams on ONE step. Everyone-for-themselves (and a 1 v 1,
+    // whose membership the structure already decided) skips it.
+    ...(solo ? [] : [{ key: 'teams', label: 'Teams' }]),
+    // Teams that share foursomes and can't all walk together then pick their tee groups — a
+    // second step because it's an independent question (F-019, §5.an). Absent for every other
+    // flow, so nothing else gains a step.
     ...(playingGroups ? [{ key: 'groups', label: 'Groups' }] : []),
-    // Everyone-for-themselves skips team-building entirely; shared-foursome teams get the
-    // "Sides" editor; teams that are their own tee groups get "Teams".
-    ...(solo ? [] : [{ key: 'teams', label: withinGroup ? 'Sides' : 'Teams' }]),
     { key: 'create', label: 'Money' },
   ];
   const currentIdx = steps.findIndex((s) => s.key === current);

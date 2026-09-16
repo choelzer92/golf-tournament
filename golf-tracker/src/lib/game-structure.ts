@@ -276,16 +276,8 @@ export function proposeTeeGroups(teams: string[][], maxGroup = 4): string[][] {
   if (n === 0) return [];
   const opts = { ...TEE_GROUP_SHAPE_OPTS, max: maxGroup };
   for (const shape of groupShapesFor(n, opts)) {
-    // First-fit in TEAM order, so team 1 and team 2 share the first tee time — the order the
-    // organizer built them is the order they go off.
-    const groups: string[][] = shape.map(() => []);
-    let ok = true;
-    for (const team of teams) {
-      const slot = shape.findIndex((cap, g) => cap - groups[g].length >= team.length);
-      if (slot < 0) { ok = false; break; }
-      groups[slot].push(...team);
-    }
-    if (ok) return groups.filter((g) => g.length > 0);
+    const packed = packTeamsIntoShape(teams, shape);
+    if (packed) return packed;
   }
   // No tee shape holds every team whole: pack first-fit and split what must be split.
   const groups: string[][] = [];
@@ -300,6 +292,23 @@ export function proposeTeeGroups(teams: string[][], maxGroup = 4): string[][] {
     }
   }
   return groups;
+}
+
+/**
+ * Whole teams packed into ONE given tee shape (F-071: the groups step's shape buttons keep
+ * partners together). First-fit in TEAM order, so team 1 and team 2 share the first tee time —
+ * the order the organizer built them is the order they go off. Null when some team fits no
+ * slot whole; the caller decides what to do then (proposeTeeGroups tries the next shape, the
+ * groups step falls back to a balanced deal).
+ */
+export function packTeamsIntoShape(teams: string[][], shape: number[]): string[][] | null {
+  const groups: string[][] = shape.map(() => []);
+  for (const team of teams) {
+    const slot = shape.findIndex((cap, g) => cap - groups[g].length >= team.length);
+    if (slot < 0) return null;
+    groups[slot].push(...team);
+  }
+  return groups.filter((g) => g.length > 0);
 }
 
 function splitAlong(ids: string[], shape: number[]): string[][] {

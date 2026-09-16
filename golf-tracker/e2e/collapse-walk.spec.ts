@@ -6,7 +6,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
   BASE, PHONE, EIGHT_PLAYERS, FOUR_PLAYERS, TWO_PLAYERS, resetBackend,
-  addPlayers, toScoringStep, chooseSolo, chooseMoney,
+  addPlayers, toScoringStep, chooseSolo, chooseMoney, buildTeams,
 } from './helpers';
 
 let shot = 0;
@@ -82,12 +82,13 @@ test('walk B: 8 players → four pairs → legs', async ({ page }) => {
   await cap(page, f, 'scoring');
   await page.getByLabel('Which scores count for the team?').focus();
   await courseTees(page, f);
+  // F-071: one teams step for every split — pairs build with the same method list as the pool.
+  await page.getByRole('button', { name: 'Next: Teams' }).click();
+  await cap(page, f, 'teams-before');
+  await buildTeams(page, 'even');
+  await cap(page, f, 'teams-built');
   await page.getByRole('button', { name: 'Next: Groups' }).click();
   await cap(page, f, 'groups');
-  await page.getByRole('button', { name: 'Next: Sides' }).click();
-  await cap(page, f, 'sides');
-  await page.getByRole('button', { name: /Name the sides/ }).click().catch(() => {});
-  await cap(page, f, 'sides-names');
   await page.getByRole('button', { name: /Next: Review/ }).click();
   await cap(page, f, 'money');
   await chooseMoney(page, 'per-point');
@@ -119,9 +120,8 @@ test('walk D: 2 players → 1 v 1', async ({ page }) => {
   await toScoringStep(page, 'teams:1+1');
   await cap(page, f, 'scoring');
   await courseTees(page, f);
-  await page.getByRole('button', { name: 'Next: Sides' }).click();
-  await cap(page, f, 'sides');
-  await page.getByRole('button', { name: /Next: Review/ }).click();
+  // F-079: nothing to build in a 1 v 1 — tees go straight to money.
+  await page.getByRole('button', { name: 'Next: Money' }).click();
   await cap(page, f, 'money');
   await createAndHub(page, f);
 });
@@ -147,8 +147,10 @@ test('walk F: 4 players → two pairs (the 2v2 in one foursome)', async ({ page 
   await toScoringStep(page, 'teams:2+2');
   await cap(page, f, 'scoring');
   await courseTees(page, f);
-  await page.getByRole('button', { name: 'Next: Sides' }).click();
-  await cap(page, f, 'sides');
+  await page.getByRole('button', { name: 'Next: Teams' }).click();
+  await cap(page, f, 'teams-before');
+  await buildTeams(page, 'even');
+  await cap(page, f, 'teams-built');
   await page.getByRole('button', { name: /Next: Review/ }).click();
   await cap(page, f, 'money');
   await createAndHub(page, f);

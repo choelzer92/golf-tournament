@@ -3,9 +3,11 @@
 **Status: WALKED 2026-09-16 (§5.bm) — Phase 1 BUILT on `ui-simplification-2026-09-15`: slice 1
 (dc88832, `src/lib/game-structure.ts` + 71 table tests) and slices 2–4 (c6c45f2: structure +
 scoring steps, routed money step, draft v2, format-derived structure, 13 specs re-pointed,
-`collapse-routing.spec.ts` one-per-row). Verify green. Left for the next session: the slice-3
-remainder (method-list teams step for shared-foursome teams; partner-aware reshape on the
-groups step) and Phase 2 vocabulary. Amendments from the walk, which override the text below
+`collapse-routing.spec.ts` one-per-row). Verify green. **Slice-3 remainder BUILT 2026-09-16 as
+F-071 A:** one `TeamsStep` for every split (`mode: 'money-teams'`), sides derived on leaving,
+`proposeTeeGroups` lays the tee sheet, the groups step's shape buttons re-pack whole teams
+(`packTeamsIntoShape`), `SubTeamsStep` deleted; F-078/F-079 closed with it. Left: F-072
+(scoring math, goldens first), the small wizard batch, then Phase 2 vocabulary. Amendments from the walk, which override the text below
 where they differ:**
 
 - **Q1 → route by CAPABILITY, not preference.** §3.3's "prefer classic" is now a consequence,

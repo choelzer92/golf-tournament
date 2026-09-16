@@ -1022,7 +1022,22 @@ remainder and it should not have been.
 - **B:** keep both screens but give the sides editor the method list too. Two screens, one
   vocabulary — half the fix.
 
-**Status:** open — promoted to the next session (Craig's call from the walk).
+**Status:** FIXED 2026-09-16 (option A). `TeamsStep` gained `mode: 'money-teams'` (no tee times /
+send-out order, every team must have someone, blank names with the board's name as placeholder);
+the wizard routes EVERY split through it — tees → Teams → [Groups when 2+ tee groups] → Money.
+Leaving the step derives `sides` (ids a, b, c… by position; typed names kept) and lays the tee sheet
+with `proposeTeeGroups` (partners together); the groups step's shape buttons re-pack whole teams
+(`packTeamsIntoShape`, falling back to a balanced deal when no packing fits — four pairs into
+3 + 3 + 2). `SubTeamsStep` deleted. Two judgement calls, Craig's to reverse: (1) the step opens
+EMPTY until a method is tapped, exactly like the pool — one tap more than the old pre-dealt sides for
+the usual 2v2, in exchange for one screen; (2) captains default OFF for pairs, ON for triples, toggle
+on the step (`sideCaptains`, separate from the pool's `useCaptains` so a saved format's choice is
+never clobbered). F-078 and F-079 fell out of it. Pinned: `collapse-routing` (four pairs: method
+list, no shape chooser, no tee times, partners share Group 1, review "Sides (2 vs 2 vs 2 vs 2)"),
+`verify-f019-groups` (F-071 reshape keeps partners whole), `verify-f020-picker` (F-036 rewritten
+for the new flow; F-020 "asked ONCE"), `nsides-audit`, `verify-f015-f018-review`, `verify-f025-f046`.
+Retired pins: "Next: Sides", "How do the sides split?", "Name the sides" (wizard), "CHcp N" (wizard —
+the chip on the shared step shows the bare number; the hub editor keeps the disclosure and spelling).
 
 ---
 
@@ -1123,6 +1138,9 @@ one silently diverges from the structure the router routed on. Same question ask
 second time with more noise. **Fix:** part of F-071 option A (the sides step retires); until then,
 hide the shape chooser whenever a structure exists (S).
 
+**Status:** FIXED 2026-09-16 with F-071 A — the sides step is gone; the structure step is the only
+place the split is asked. Pinned in `collapse-routing` and `verify-f020-picker` ("asked ONCE").
+
 ---
 
 ### F-079 — A 1 v 1 gets a "Sides" step with nothing to decide  [P2] [start]
@@ -1131,6 +1149,10 @@ hide the shape chooser whenever a structure exists (S).
 A/B buttons, "+ Add a side" greyed. Every answer is forced. **Fix:** skip the teams/sides step when
 the structure fully determines membership (every team of one); go tees → money. S, wizard only.
 Also covered by F-071 A (the unified step can skip itself the same way).
+
+**Status:** FIXED 2026-09-16 with F-071 A — every-team-of-one structures set the sides from the
+players on leaving tees and the button says "Next: Money"; the step indicator drops "Teams". Pinned
+in `collapse-routing` (1 v 1 row) and `verify-f020-picker` (1v1 test).
 
 ---
 
@@ -1179,6 +1201,39 @@ under the same "+ Add bonuses" reveal; a saved format with manual bonuses restor
 Junk / pt $5" with no inputs; the only way to change them is a saved format. Pre-existing (the
 wizard's `matchLegs` state has never had an editor since the money step moved), surfaced by the
 walk. **Fix (S):** inputs for the three legs and junk-per-point, mirroring the pot's split grid.
+
+---
+
+### F-085 — The groups step lists a group's players by handicap, so you can't see the pairs in it  [P3] [start]
+
+**Where (my read of `walk-B-pairs-07-groups.png`, 2026-09-16, after F-071):** four pairs, Group 1
+reads "Gary 2 · Craig 4 · Tony 14 · Rick 16" — the pairs are Gary & Rick and Craig & Tony, and the
+screen that promises "partners walk together" gives no way to check it. Each group is sorted by
+handicap (`sortPlayerIdsByHcap`), which interleaves the pairs.
+
+**Options:** **A** order a group's rows by TEAM (partners adjacent), handicap within the team; a
+thin divider or the team's name as a sub-heading between pairs. **B** a small team tag on each row
+("Gary & Rick"). A is one sort key and reads as the claim it makes; B adds text to every row.
+Recommend A. Composes with F-081 (the hub's team panel should show the same pairing + tee group).
+
+**Status:** open.
+
+---
+
+### F-086 — "Keep players together" appears on a pairs game, where a lock IS a team  [P3] [start]
+
+**Where (same read, `walk-B-pairs-05-teams-before.png`):** the teams step for four pairs shows the
+pool's pairing-locks panel ("Pick two players who should be on the same team… then tap the green
+button to build balanced teams that keep them together"). For teams of two the lock and the team
+are the same thing, so the panel is a second way to say "these two are partners", above a method
+list that says it a third way. Correct, not wrong — but a control whose whole effect is what the
+card below already does.
+
+**Options:** **A** hide the locks panel when every team size is 2 or less (a lock can only ever be
+one whole team). **B** reword it for pairs ("Fix a pair before balancing the rest"). A is the
+minimum-exposed-complexity answer and keeps locks for triples, where they do add something.
+
+**Status:** open.
 
 ---
 

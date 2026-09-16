@@ -16,6 +16,7 @@ import {
   defaultTeeSheetFacts,
   moneyModelsFor,
   proposeTeeGroups,
+  packTeamsIntoShape,
   recommendedStructure,
   routeContainer,
   routedFields,
@@ -233,6 +234,25 @@ describe('proposeTeeGroups / teeSheetFacts', () => {
   it('partners dragged apart is detected', () => {
     const teams = dealTeams([2, 2, 2, 2]);
     expect(teeSheetFacts(teams, mixedGroups(teams))).toEqual({ aligned: false, teamsTogether: false });
+  });
+
+  // F-071: the groups step's shape buttons re-pack whole teams into the chosen shape.
+  it('packTeamsIntoShape: four pairs into 3 + 3 + 2 cannot keep every pair whole → null', () => {
+    expect(packTeamsIntoShape(dealTeams([2, 2, 2, 2]), [3, 3, 2])).toBeNull();
+  });
+
+  it('packTeamsIntoShape: three pairs into 4 + 2 keeps every pair together, first-fit in team order', () => {
+    const teams = dealTeams([2, 2, 2]);
+    const packed = packTeamsIntoShape(teams, [4, 2]);
+    expect(packed).toEqual([['p1', 'p2', 'p3', 'p4'], ['p5', 'p6']]);
+    expect(teeSheetFacts(teams, packed!)).toEqual({ aligned: false, teamsTogether: true });
+  });
+
+  it('packTeamsIntoShape: 2 + 2 + 1 into 3 + 2 rides the single with a pair; the same into 4 + 1 is refused by the shape rules upstream', () => {
+    const teams = dealTeams([2, 2, 1]);
+    const packed = packTeamsIntoShape(teams, [3, 2]);
+    expect(packed).toEqual([['p1', 'p2', 'p5'], ['p3', 'p4']]);
+    expect(teeSheetFacts(teams, packed!)).toEqual({ aligned: false, teamsTogether: true });
   });
 });
 

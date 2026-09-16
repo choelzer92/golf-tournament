@@ -20,10 +20,12 @@ import { CaptainsPanel } from '@/components/captains-panel';
 import { TeeTimePicker } from '@/components/tee-time-picker';
 import { HandicapChip } from '@/components/handicap-chain';
 
-function makeTeam(index: number, playerIds: string[], captainId?: string): PoolTeam {
+function makeTeam(index: number, playerIds: string[], captainId?: string, blankName = false): PoolTeam {
   return {
     id: crypto.randomUUID(),
-    name: `Team ${index + 1}`,
+    // Money teams that share foursomes (F-071) start unnamed: the board names them after their
+    // players ("Craig & Jym") unless the organizer types a name, exactly as the sides always did.
+    name: blankName ? '' : `Team ${index + 1}`,
     playerIds,
     matchupId: crypto.randomUUID(),
     teeTime: '',
@@ -38,9 +40,15 @@ function makeTeam(index: number, playerIds: string[], captainId?: string): PoolT
 //
 // Named "Group N" rather than "Team N" because on this axis they are not teams — the money teams
 // are the sides, and calling both "team" is exactly the conflation F-019 is about (§5.al).
+//
+// F-071 (one teams step for every split): the SAME step now builds teams that share foursomes —
+// pairs, triples, the 2v2 in one group. `mode: 'money-teams'` drops what belongs to the tee
+// sheet (tee times, send-out order — the groups step owns those) and requires every team to have
+// someone on it; the caller derives the sides and lays the tee sheet on leaving.
 export function TeamsStep({
   course, players, setPlayers, teams, setTeams, lockedGroups, setLockedGroups, captainIds, setCaptainIds,
   excludeCaptains, setExcludeCaptains, useCaptains, setUseCaptains, teamBuild, setTeamBuild, teamSizes, handicapAllowance, handicapBasis, nine, onNext, onBack,
+  mode = 'tee-groups', subtitle, nextLabel = 'Next: Review & Create', namePlaceholder,
 }: {
   course: CourseSelection | null;
   players: Player[]; setPlayers: (p: Player[]) => void;
@@ -56,7 +64,18 @@ export function TeamsStep({
   handicapBasis: 'course' | 'index';
   nine: 'front9' | 'back9' | null;
   onNext: () => void; onBack: () => void;
+  /** 'tee-groups' (default): each team is its own tee group — tee times and send-out order live here.
+   *  'money-teams': teams share foursomes; the tee sheet is the next step's question. */
+  mode?: 'tee-groups' | 'money-teams';
+  /** One line under the heading: the structure in words ("Four pairs — partners share a foursome"). */
+  subtitle?: string;
+  nextLabel?: string;
+  /** What the board will call an unnamed team — shown as the name input's placeholder. */
+  namePlaceholder?: (team: PoolTeam, index: number) => string;
 }) {
+  const moneyTeams = mode === 'money-teams';
+  const mk = (index: number, playerIds: string[], captainId?: string) => makeTeam(index, playerIds, captainId, moneyTeams);
+
   function hcapOf(p: Player): number {
     return course ? getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine) : (p.handicapIndex ?? 0);
   }
@@ -127,7 +146,7 @@ export function TeamsStep({
     if (at < players.length) groups.push(players.slice(at).map((p) => p.id));
     setTeams(groups.map((ids, i) => {
       const sorted = sortPlayerIdsByHcap(ids, players, course, handicapAllowance, handicapBasis);
-      return makeTeam(i, sorted, useCaptains ? sorted[0] : undefined);
+      return mk(i, sorted, useCaptains ? sorted[0] : undefined);
     }));
     setTeamBuild({ method: 'sequential', adjustedAfter: false });
   }
@@ -152,7 +171,7 @@ export function TeamsStep({
       const ordered = capId
         ? orderPlayerIdsWithCaptain(ids, capId, players, course, handicapAllowance, handicapBasis)
         : sortPlayerIdsByHcap(ids, players, course, handicapAllowance, handicapBasis);
-      return makeTeam(i, ordered, capId);
+      return mk(i, ordered, capId);
     }));
     setTeamBuild({
       method: 'serpentine',
@@ -168,7 +187,7 @@ export function TeamsStep({
       const groups = balanceTeamsWithLocks(players, numTeams, hcapOf, lockedGroups);
       setTeams(groups.map((ids, i) => {
         const ordered = sortPlayerIdsByHcap(ids, players, course, handicapAllowance, handicapBasis);
-        return makeTeam(i, ordered); // no captainId
+        return mk(i, ordered); // no captainId
       }));
       setTeamBuild({
         method: 'balanced',
@@ -184,7 +203,7 @@ export function TeamsStep({
     setTeams(groups.map((ids, i) => {
       const captainId = captainByTeam[i] && ids.includes(captainByTeam[i]!) ? captainByTeam[i] : lowestHcapId(ids);
       const ordered = orderPlayerIdsWithCaptain(ids, captainId, players, course, handicapAllowance, handicapBasis);
-      return makeTeam(i, ordered, captainId);
+      return mk(i, ordered, captainId);
     }));
     // Snapshot the settings used, so the read-only summary reflects the actual
     // build rather than the live toggle later.
@@ -264,7 +283,7 @@ export function TeamsStep({
   }
 
   function addTeam() {
-    setTeams([...teams, makeTeam(teams.length, [])]);
+    setTeams([...teams, mk(teams.length, [])]);
   }
 
   function removeTeam(teamId: string) {
@@ -300,12 +319,17 @@ export function TeamsStep({
     }, 0);
   }
 
-  const canProceed = teams.length > 0 && teams.some((t) => t.playerIds.length > 0) && unassigned.length === 0;
+  // A money team with nobody on it would be a side the engine can't settle (the old sides editor
+  // refused the same way); an empty tee group is merely an unused slot.
+  const emptyTeams = teams.filter((t) => t.playerIds.length === 0);
+  const canProceed = teams.length > 0 && teams.some((t) => t.playerIds.length > 0) && unassigned.length === 0
+    && (!moneyTeams || emptyTeams.length === 0);
 
   return (
     <div>
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Set Teams</h2>
+      <h2 className={`text-lg font-semibold text-gray-900 ${subtitle ? 'mb-1' : 'mb-4'}`}>Set Teams</h2>
+      {subtitle && <p className="text-sm text-gray-500 mb-4">{subtitle}</p>}
 
       {/* Team-building style: captains (default) vs plain balance by handicap. */}
       <div className="bg-white rounded-lg shadow p-4 mb-4">
@@ -393,7 +417,7 @@ export function TeamsStep({
             {
               key: 'sequential',
               label: 'Straight down the list',
-              detail: 'Foursomes in the order players were added. No balancing at all — for when the groups are already decided.',
+              detail: `${moneyTeams ? 'Teams' : 'Foursomes'} in the order players were added. No balancing at all — for when the ${moneyTeams ? 'teams' : 'groups'} are already decided.`,
               run: autoGenerate,
             },
           ] as const).map(({ key, label, detail, run }) => (
@@ -429,7 +453,7 @@ export function TeamsStep({
         >
           + Add team
         </button>
-        {teams.length > 1 && (
+        {teams.length > 1 && !moneyTeams && (
           <button
             onClick={sortTeamsByTeeTime}
             className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 font-medium hover:bg-gray-100"
@@ -456,14 +480,16 @@ export function TeamsStep({
 
       {teams.length === 0 ? (
         <div ref={builtTeamsRef} className="rounded-lg border-2 border-dashed border-gray-300 p-6 text-center text-gray-500 mb-4">
-          <p className="text-sm">No teams yet. Use a button above to build foursomes.</p>
+          <p className="text-sm">No teams yet. Use a button above to build {moneyTeams ? 'them' : 'foursomes'}.</p>
         </div>
       ) : (
         <div ref={builtTeamsRef} className="grid gap-3 mb-4 sm:grid-cols-2">
           {teams.map((team, teamIdx) => (
             <div key={team.id} className="bg-white rounded-lg shadow p-3">
               <div className="flex items-center gap-2 mb-2">
-                {/* Reorder controls — the order teams are sent out in */}
+                {/* Reorder controls — the order teams are sent out in. Money teams have no
+                    send-out order of their own; the groups step orders the tee sheet. */}
+                {!moneyTeams && (
                 <div className="flex flex-col leading-none">
                   <button
                     onClick={() => moveTeam(teamIdx, -1)}
@@ -478,9 +504,12 @@ export function TeamsStep({
                     title="Move team down"
                   >▼</button>
                 </div>
+                )}
                 <input
                   type="text"
                   value={team.name}
+                  aria-label={`Team ${teamIdx + 1} name`}
+                  placeholder={namePlaceholder?.(team, teamIdx)}
                   onChange={(e) => renameTeam(team.id, e.target.value)}
                   className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm font-semibold shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
                 />
@@ -493,10 +522,12 @@ export function TeamsStep({
                 </button>
               </div>
 
+              {!moneyTeams && (
               <div className="mb-2">
                 <label className="block text-xs text-gray-500 mb-1">Tee time</label>
                 <TeeTimePicker value={team.teeTime || ''} onChangeAction={(v) => setTeeTime(team.id, v)} />
               </div>
+              )}
 
               <p className="text-xs text-gray-500 mb-2">
                 {team.playerIds.length} player{team.playerIds.length === 1 ? '' : 's'}
@@ -549,8 +580,9 @@ export function TeamsStep({
                               className="text-sm rounded-md border border-gray-300 px-2 py-1 shadow-sm focus:border-green-500 focus:outline-none bg-white"
                               title="Move this player to another team"
                             >
-                              {teams.map((t) => (
-                                <option key={t.id} value={t.id}>{t.name}</option>
+                              {teams.map((t, ti) => (
+                                // An unnamed money team reads as the board will name it, never blank.
+                                <option key={t.id} value={t.id}>{t.name || namePlaceholder?.(t, ti) || `Team ${ti + 1}`}</option>
                               ))}
                             </select>
                           </label>
@@ -583,17 +615,19 @@ export function TeamsStep({
         </div>
       )}
 
+      {moneyTeams && emptyTeams.length > 0 && unassigned.length === 0 && (
+        <p className="text-xs text-amber-700 mb-2">
+          Every team needs someone on it — move a player in or remove the empty team.
+        </p>
+      )}
+
       <button
         onClick={onNext}
         disabled={!canProceed}
         className="w-full rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Next: Review &amp; Create
+        {nextLabel}
       </button>
     </div>
   );
 }
-
-// Within-group SIDES: assign the group's players to a side. Seeded from a balanced default
-// (low+high vs the two middle) at two sides, which is the norm — three or more is available for
-// the groups that want it (DECISIONS.md 5.g) without making the usual 2v2 any harder to set up.

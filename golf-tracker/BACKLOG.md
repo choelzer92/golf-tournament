@@ -19,7 +19,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
-| **Game-structure COLLAPSE — Phase 1 BUILT on `ui-simplification-2026-09-15` (dc88832 slice 1 · c6c45f2 slices 2–4), verify green (1602 unit / 189 e2e). NEXT: Craig walks the NEW wizard on his phone (every setup flow changed — his review is load-bearing, §5.y); then Phase 2 vocabulary (F-061 via `structureLabel`, "team" everywhere per §5.bm Q5) and the slice-3 remainder (method-list teams step for shared-foursome teams; partner-aware reshape on the groups step).** Screenshots: `e2e/screenshots/collapse-*.png`. Plan header carries the §5.bm amendments. | L | §5.bk/§5.bm |
+| **Game-structure COLLAPSE — Phase 1 BUILT on `ui-simplification-2026-09-15` (dc88832 slice 1 · c6c45f2 slices 2–4), verify green (1602 unit / 189 e2e). Slice-3 remainder DONE 2026-09-16 as F-071 A (one teams step for every split, partner-aware groups reshape). NEXT, in Craig's agreed order: F-072 two-ball formats on the sides engine (SCORING MATH — pin goldens first, §5.z) → small wizard batch (F-073/074/075/076/080/082/083/084, + F-085/086 from this session's screenshot read) → Phase 2 vocabulary (F-061 via `structureLabel`, "team" everywhere per §5.bm Q5, F-081 rides along). Craig's phone walk of the new wizard still wanted (§5.y).** Screenshots: `e2e/screenshots/collapse-*.png`, `walk-*.png`. Plan header carries the §5.bm amendments. | L | §5.bk/§5.bm |
 | **Course-data correctness audit — PARKED by Craig 2026-09-15 ("wait on the course data")**. Meadows payload banked + CLEAN (F-023); prime suspects now gender-name tee collisions and stale stored games. Resume on his word. | M | Craig 2026-09-10/14 + F-023 |
 | Merge-audit polish batch (all four S items below) — fallback slack work | S×4 | merge audit / §5.ak |
 
@@ -89,14 +89,16 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | F-030 opt C: standings strip ON the scorecard (mini-leaderboard above the grid) — the deeper "captain glancing between shots" fix; composes with the built toggle; slot into the live-scoring session | S | F-030, §6b |
 | ~~F-060 follow-through~~ DONE 2026-09-15 (877c9ea) — opt B + hub parity both built; the collapse plan keeps the method list as the teams step for any N × K | — | F-060 |
 | **F-063 opt C: per-cell score rows** — `(matchup_id, player_id, hole)` table, idempotent upserts, localStorage outbox, dual-read transition, sandbox fake gains the table first; retires the merge RPC. Makes `matchupId` a fetch key, not a correctness boundary — de-risks the whole sides family. Own session; persistence → Craig | M | F-063 / plan §5.3 |
-| **F-071 ONE teams step for every split (opt A)** — Craig's walk 2026-09-16: shared-foursome teams get the letter-button sides editor, pools get the method list; unify on the method list, sides derived on leaving, `SubTeamsStep` retires | M | F-071 (absorbs the slice-3 remainder) |
+| ~~F-071 ONE teams step for every split (opt A)~~ DONE 2026-09-16 — `TeamsStep` money-teams mode, sides derived on leaving, partner-aware groups reshape (`packTeamsIntoShape`), `SubTeamsStep` deleted; F-078 + F-079 fell out; two judgement calls for Craig in FINDINGS F-071 status (empty-until-tapped, captains off for pairs) | — | F-071 |
+| F-085 groups step orders a group's rows by TEAM so the pairs are visible (opt A) — composes with F-081 | S | F-085 |
+| F-086 hide the pairing-locks panel when every team is 2 or fewer (opt A) | S | F-086 |
 | **F-072 two-ball formats for the sides engine** — route `team-game.ts` side score through `teamValueOnHole`; goldens pinned first; router's classic-only list loses "Two-ball formats" | S–M | F-072 / F-069 |
 | F-073 "Hole by hole (match play)" / "18-hole total (stroke play)" / "Head-to-head match" labels | S | F-073 |
 | F-074 free-form uneven split ("4, 2, 2") under "Other split…" | S | F-074 |
 | F-075 router refusal strings state the ENGINE gap ("isn't built for teams that share foursomes yet"), never a fake golf rule | S | F-075 |
 | F-076 "+ Add bonuses" adds birdie/eagle/albatross/all-par with CTP at 0 (opt A); per-bonus toggles later (opt B) | S | F-076 |
-| F-078 hide the sides step's shape chooser when a structure exists (interim until F-071 A) | S | F-078 |
-| F-079 skip the teams/sides step when the structure decides membership (1 v 1) | S | F-079 |
+| ~~F-078 hide the sides step's shape chooser~~ DONE 2026-09-16 with F-071 A (the step is gone) | — | F-078 |
+| ~~F-079 skip the teams step for a 1 v 1~~ DONE 2026-09-16 with F-071 A (tees → Money) | — | F-079 |
 | F-084 editable head-to-head legs + junk/pt on the money step | S | F-084 |
 | F-082 one grey line under both greyed margin-money options, not two red ones | S | F-082 / F-075 |
 | F-080 applied format shown once on the structure step (card, not card + select) | S | F-080 |

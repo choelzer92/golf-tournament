@@ -4,7 +4,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed, goToGame, toScoringStep, chooseStructure } from './helpers';
+import { BASE, resetBackend, seed, goToGame, toScoringStep, chooseStructure, buildTeams } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -91,46 +91,57 @@ test.describe('F-020: the game picker annotates fit', () => {
 
     // And the review step, which said "is played in a single group of 4–4 players".
     await pickCourse(page);
+    await page.getByRole('button', { name: 'Next: Teams' }).click();
+    await buildTeams(page, 'even');
     await page.getByRole('button', { name: 'Next: Groups' }).click();
-    await page.getByRole('button', { name: 'Next: Sides' }).click();
     await page.getByRole('button', { name: /Next: Review/ }).click();
     const review = await page.locator('body').innerText();
     expect(review).not.toMatch(/single group/i);
     expect(review).not.toMatch(/go back to field/i);
   });
 
-  // F-036: growing the side count in ONE reshape must mint distinct ids. The builder used to
-  // derive each new id from a slice of the OLD sides array, so 2 sides reshaped to 4 produced
-  // A, B, C, C — and a player tapped onto "C" joined two money sides at once.
-  test('F-036: reshaping 8 players to 2v2v2v2 yields four DISTINCT sides', async ({ page }) => {
+  // F-036: growing the side count in ONE reshape must mint distinct ids. The old sides editor
+  // derived each new id from a slice of the OLD sides array, so 2 sides reshaped to 4 produced
+  // A, B, C, C — and a player tapped onto "C" joined two money sides at once. F-071 retired that
+  // editor: sides are minted by POSITION when the teams step is left, so the claim to pin is
+  // that a reshape (Back to the structure step, another split) still yields distinct sides that
+  // each hold their players once.
+  test('F-036: reshaping 6 players from three pairs to 2 + 2 + 1 + 1 yields DISTINCT sides', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await startWizard(page);
     await buildField(page, [
       ['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6'], ['Tony', '10'],
     ]);
-    // §5.bk: three pairs from the structure step; the sides step still reshapes.
     await toScoringStep(page, 'teams:2+2+2');
     await pickCourse(page);
+    await page.getByRole('button', { name: 'Next: Teams' }).click();
+    await buildTeams(page, 'list');
+    await expect(page.getByLabel('Team 3 name')).toBeVisible();
+
+    // Reshape: back to the structure step, UP to four teams (2 + 2 + 1 + 1, the F-036 direction —
+    // growing the count is what minted a letter twice), forward again — the teams step rebuilds
+    // for the new count and the old three-pair build is gone (a mis-shaped build would be the
+    // F-036 class of bug: players on a team the structure no longer has).
+    // teams → tees → course → scoring → structure: four Backs.
+    for (let i = 0; i < 4; i++) await page.getByRole('button', { name: /^← Back$/ }).click();
+    await expect(page.getByText('How do you want to compete?')).toBeVisible();
+    await toScoringStep(page, 'teams:2+2+1+1');
+    await page.getByRole('button', { name: /Next: Select Course/ }).click();
+    await page.getByRole('button', { name: /Next: Set Tees/ }).click();
+    await page.getByRole('button', { name: 'Next: Teams' }).click();
+    await expect(page.getByLabel('Team 1 name')).toHaveCount(0);   // nothing carried over
+    await buildTeams(page, 'list');
+    await expect(page.getByLabel('Team 4 name')).toBeVisible();
+    await expect(page.getByLabel('Team 5 name')).toHaveCount(0);
     await page.getByRole('button', { name: 'Next: Groups' }).click();
-    await page.getByRole('button', { name: 'Next: Sides' }).click();
-
-    // F-037: the step names the GAME it makes, not just the mechanism, and tracks the data.
-    await expect(page.getByText(/This makes it a 2 v 2 v 2 game — 3 sides/)).toBeVisible();
-
-    // Reshape DOWN to two sides and back UP to three on one screen — the F-036 path (growing the
-    // side count in one reshape used to mint a letter twice).
-    await expect(page.getByText('How do the sides split?')).toBeVisible();
-    await page.getByRole('button', { name: /^3 v 3/ }).click();
-    await expect(page.getByRole('heading', { name: /Sides \(3 vs 3\)/ })).toBeVisible();
-    await page.getByRole('button', { name: /^2 v 2 v 2/ }).click();
-    await expect(page.getByRole('heading', { name: /Sides \(2 vs 2 vs 2\)/ })).toBeVisible();
-
-    // Each player's row offers exactly A B C — no letter twice, no letter missing.
-    // Match the single-letter side buttons only: the row also carries the F-043
-    // handicap-chain chip, which is a button too.
-    const firstRow = page.locator('div.divide-y > div').first();
-    const letters = await firstRow.getByRole('button', { name: /^[A-Z]$/ }).allInnerTexts();
-    expect(letters).toEqual(['A', 'B', 'C']);
+    await page.getByRole('button', { name: /Next: Review/ }).click();
+    // Four DISTINCT sides, each named after its own players ("Straight down the list" is
+    // deterministic: Craig+Jym, Dave+Rick, Sam, Tony) — no player on two money sides.
+    const review = await page.locator('body').innerText();
+    expect(review).toContain('Sides (2 vs 2 vs 1 vs 1)');
+    for (const label of ['Craig & Jym', 'Dave & Rick', 'Sam (solo)', 'Tony (solo)']) expect(review).toContain(label);
+    expect(review).not.toContain('Craig & Dave');
+    expect(review).not.toContain('Jym (solo)');
   });
 });
 
@@ -508,19 +519,17 @@ test.describe('a 1 v 1 singles match', () => {
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Craig v Jym');
     await toScoringStep(page, 'teams:1+1');
 
-    // Forward to the sides step: 1 vs 1, seeded one player each, and no split chooser because
-    // 1v1 is the only shape two players can take.
+    // F-079: a 1 v 1 has no teams to build — the structure decided membership — so tees go
+    // straight to money with the two sides already made.
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
     await page.getByRole('button', { name: /Next: Set Tees/ }).click();
-    await page.getByRole('button', { name: 'Next: Sides' }).click();
-    await expect(page.getByRole('heading', { name: /Sides \(1 vs 1\)/ })).toBeVisible();
-    expect(await page.locator('body').innerText()).not.toContain('How do the sides split?');
-    await page.screenshot({ path: 'e2e/screenshots/oneone-sides.png', fullPage: true });
+    await expect(page.getByRole('button', { name: 'Next: Teams' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Next: Money' }).click();
 
     // The review step shows each player once — the heading used to repeat the name above its own
     // member list ("Craig" with "Craig" under it), which only showed up on screen.
-    await page.getByRole('button', { name: /Next: Review/ }).click();
+    await expect(page.getByRole('heading', { name: /Review & create/ })).toBeVisible();
     const review = await page.locator('body').innerText();
     expect(review).toContain('Sides (1 vs 1)');
     expect(review).toMatch(/\$10 front/);
@@ -539,14 +548,16 @@ test.describe('a 1 v 1 singles match', () => {
 });
 
 // ---------------------------------------------------------------------------
-// F-020 option C — the sides step PROPOSES splits instead of picking one
+// F-020 option C — the wizard PROPOSES splits instead of picking one
 // ---------------------------------------------------------------------------
 //
 // `defaultSubTeams` special-cases exactly four players and otherwise alternates low/high, so five
 // silently became 3 v 2 with nothing on screen admitting a choice had been made — when 3v2,
 // 2v2-plus-a-solo and five singles are all legitimate and only the group knows which (§5.ao).
-test.describe('F-020: the sides step proposes splits', () => {
-  async function toSidesStep(page: import('@playwright/test').Page, players: [string, string][]) {
+// §5.bk moved the question to the structure step; F-071 retired the sides step's second copy of
+// it (F-078). The claims below are the same, asked where the wizard now asks them.
+test.describe('F-020: the wizard proposes splits', () => {
+  async function toTeamsStep(page: import('@playwright/test').Page, players: [string, string][]) {
     await page.goto(`${BASE}/sandbox`);
     await page.evaluate(() => sessionStorage.clear());
     await page.reload();
@@ -572,10 +583,9 @@ test.describe('F-020: the sides step proposes splits', () => {
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
     await page.getByRole('button', { name: /Next: Set Tees/ }).click();
-    // Five players need tee groups (F-019), so the path runs through the Groups step.
-    const viaGroups = players.length > 4;
-    await page.getByRole('button', { name: viaGroups ? 'Next: Groups' : 'Next: Sides' }).click();
-    if (viaGroups) await page.getByRole('button', { name: 'Next: Sides' }).click();
+    // F-071: one teams step for every split; five players then need tee groups (F-019).
+    await page.getByRole('button', { name: 'Next: Teams' }).click();
+    await expect(page.getByRole('heading', { name: 'Set Teams' })).toBeVisible();
   }
 
   test('F-020: five players are OFFERED the splits, not given one', async ({ page }) => {
@@ -607,48 +617,75 @@ test.describe('F-020: the sides step proposes splits', () => {
 
   test('F-020: choosing 2 v 2 v 1 really makes three sides', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await toSidesStep(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
+    await toTeamsStep(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
 
-    await page.getByRole('button', { name: /2 v 2 v 1/ }).click();
-    // The heading counts the sides, so it must now read 2 vs 2 vs 1.
-    await expect(page.getByRole('heading', { name: /Sides \(2 vs 2 vs 1\)/ })).toBeVisible();
-    // Three assignment buttons per player: A, B, C.
-    // The sides-step row is flex-wrap (F-043: the handicap chain panel wraps under it).
-    const firstRow = page.locator('div.flex.flex-wrap.items-center', { hasText: 'Craig' }).first();
-    await expect(firstRow.getByRole('button', { name: 'C', exact: true })).toBeVisible();
+    // F-078: the structure step's answer is NOT asked again here.
+    expect(await page.locator('body').innerText()).not.toContain('How do the sides split?');
+    // The build follows the structure's sizes: three cards, the third a single.
+    await buildTeams(page, 'list');
+    await expect(page.getByLabel('Team 3 name')).toBeVisible();
+    await expect(page.getByLabel('Team 4 name')).toHaveCount(0);
+    const team3 = page.locator('div.bg-white', { has: page.getByLabel('Team 3 name') });
+    await expect(team3.getByText('1 player', { exact: false })).toBeVisible();
 
     // And it carries through to the review step — the split is real, not just a label.
+    await page.getByRole('button', { name: 'Next: Groups' }).click();
     await page.getByRole('button', { name: /Next: Review/ }).click();
     const review = await page.locator('body').innerText();
     expect(review).toContain('Sides (2 vs 2 vs 1)');
   });
 
-  // An ordinary 2v2 must not gain a control: with four players the honest options are 2v2, 2+1+1
-  // and four singles — so the chooser DOES appear. Four is the case where §5.ao's "only the group
-  // knows" still applies, unlike tee groups where four can only walk one way. This test pins the
-  // distinction so nobody "simplifies" it away by copying the Groups step's rule.
-  test('F-020: four players still get the choice (2v2 is not the only answer)', async ({ page }) => {
+  // An ordinary 2v2 must not gain a control, but four players DO have a choice: 2v2, 2+1+1 and
+  // four singles are all honest answers (§5.ao's "only the group knows"), unlike tee groups where
+  // four can only walk one way. The choice lives on the structure step (§5.bk) and nowhere else
+  // (F-078) — this pins both halves.
+  test('F-020: four players still get the choice (2v2 is not the only answer), asked ONCE', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await toSidesStep(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']]);
-    await expect(page.getByText('How do the sides split?')).toBeVisible();
-    const body = await page.locator('body').innerText();
-    expect(body).toContain('2 v 2');
-    expect(body).toContain('1 v 1 v 1 v 1');
-    // 2v2 is the seeded default, so it is the one highlighted.
-    await expect(page.getByRole('heading', { name: /Sides \(2 vs 2\)/ })).toBeVisible();
+    await page.goto(`${BASE}/sandbox`);
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    // The recent-course chips (Sandbox National) come from this seed.
+    const card = page.locator('div.bg-white', { hasText: 'Past games (for recent-course' });
+    await card.getByRole('button', { name: 'Seed' }).click();
+    await expect(card.getByText('Seeded ✓')).toBeVisible();
+    await card.getByRole('button', { name: 'Open →' }).click();
+    await page.waitForURL(/\/pool\/new/, { timeout: 15_000 });
+    for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']] as const) {
+      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
+      await page.getByPlaceholder('HCP').fill(hcp);
+      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    }
+    await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+    await expect(page.getByText('How do you want to compete?')).toBeVisible();
+    // 2v2 is the recommendation, so it is the one checked; singles sit beside it, 2 + 1 + 1 under
+    // "Other split…".
+    await expect(page.locator('input[name="structure"][value="teams:2+2"]')).toBeChecked();
+    await expect(page.getByText('Everyone for themselves')).toBeVisible();
+    await page.getByRole('button', { name: /Other split/ }).click();
+    expect(await page.locator('body').innerText()).toContain('Three teams, 2 + 1 + 1');
+    // Forward: the teams step does not ask the same question a second time.
+    await page.getByPlaceholder('e.g. Saturday Pool').fill('Split Test');
+    await toScoringStep(page);
+    await page.getByRole('button', { name: /Next: Select Course/ }).click();
+    await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+    await page.getByRole('button', { name: /Next: Set Tees/ }).click();
+    await page.getByRole('button', { name: 'Next: Teams' }).click();
+    await expect(page.getByRole('heading', { name: 'Set Teams' })).toBeVisible();
+    expect(await page.locator('body').innerText()).not.toContain('How do the sides split?');
   });
 
-  // A custom side name is identity, and the ids are identity too (game-modes/sides.ts) — reshaping
-  // must not silently relabel a money row.
-  test('F-020: a named side keeps its name across a reshape', async ({ page }) => {
+  // A custom team name is identity (game-modes/sides.ts) and reaches the review — F-014's payoff,
+  // now typed on the team card itself (F-071). The old "survives a reshape on the sides step"
+  // claim retired with that step: a reshape is a structure change, which rebuilds the teams.
+  test('F-020: a team named on the teams step is named on the review', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await toSidesStep(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
+    await toTeamsStep(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
+    await buildTeams(page, 'even');
+    // The placeholder promises what the board will say if the box stays blank.
+    await expect(page.getByLabel('Team 1 name')).toHaveAttribute('placeholder', /&/);
+    await page.getByLabel('Team 1 name').fill('The Hogs');
 
-    await page.getByRole('button', { name: /Name the sides/ }).click();
-    await page.getByLabel('Side A').fill('The Hogs');
-    // Reshape AFTER naming.
-    await page.getByRole('button', { name: /2 v 2 v 1/ }).click();
-
+    await page.getByRole('button', { name: 'Next: Groups' }).click();
     await page.getByRole('button', { name: /Next: Review/ }).click();
     const review = await page.locator('body').innerText();
     expect(review).toContain('The Hogs');

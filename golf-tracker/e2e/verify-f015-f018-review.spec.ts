@@ -4,7 +4,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed, toScoringStep } from './helpers';
+import { BASE, resetBackend, seed, toScoringStep, buildTeams } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -161,23 +161,22 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
     await page.getByRole('button', { name: /Next: Set Tees/ }).click();
-    // F-019: a side game with MORE THAN FOUR players picks its playing groups first (they
-    // can't all walk together), so the path to the Sides step runs through the Groups step.
-    // At four or fewer it goes straight there. §5.al: a side game says "Sides"/"Groups" on
-    // the way, never "Teams".
-    const viaGroups = opts.players.length > 4;
-    await page.getByRole('button', { name: viaGroups ? 'Next: Groups' : 'Next: Sides' }).click();
-    if (viaGroups) {
-      // Accept the proposed groups untouched — this helper is about the SIDES steps.
-      await page.getByRole('button', { name: 'Next: Sides' }).click();
-    }
-    // Three pairs arrive seeded as three sides (the structure said so); nothing to add by hand.
+    // F-071: every split builds on ONE teams step (the pool's method list). A side game with
+    // MORE THAN FOUR players then picks its playing groups (they can't all walk together,
+    // F-019); at four or fewer it goes straight to money.
+    await page.getByRole('button', { name: 'Next: Teams' }).click();
+    await buildTeams(page, 'even');
+    // Three pairs build as three teams (the structure said so); nothing to add by hand.
     if (opts.thirdSide) {
-      await expect(page.getByRole('heading', { name: /Sides \(2 vs 2 vs 2\)/ })).toBeVisible();
+      await expect(page.getByLabel('Team 3 name')).toBeVisible();
+      await expect(page.getByLabel('Team 4 name')).toHaveCount(0);
     }
-    if (opts.nameC) {
-      await page.getByRole('button', { name: /Name the sides/ }).click();
-      await page.getByLabel('Side C').fill(opts.nameC);
+    // F-014's payoff, now on the team card itself: the third team can be named in the wizard.
+    if (opts.nameC) await page.getByLabel('Team 3 name').fill(opts.nameC);
+    const viaGroups = opts.players.length > 4;
+    if (viaGroups) {
+      await page.getByRole('button', { name: 'Next: Groups' }).click();
+      // Accept the proposed groups untouched — this helper is about the review.
     }
     await page.getByRole('button', { name: /Next: Review/ }).click();
   }

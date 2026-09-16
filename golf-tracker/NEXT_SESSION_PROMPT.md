@@ -1,4 +1,18 @@
-# Next session: the walk findings (F-071…F-084) → Phase 2 vocabulary
+# Next session: F-072 (scoring math, goldens first) → small wizard batch → Phase 2 vocabulary
+
+**UPDATE 2026-09-16 (later session): F-071 A is BUILT, with F-078 and F-079** — one commit on the
+branch after 078a20c. Step 2 item 1 below is done; start at item 2 (F-072). The new flow for
+shared-foursome teams is tees → Teams (the pool's method list, `mode="money-teams"`) → Groups (only
+when 2+ tee groups; shape buttons re-pack whole teams via `packTeamsIntoShape`) → Money; a 1 v 1
+goes tees → Money. `SubTeamsStep` is deleted. New e2e helper `buildTeams(page, 'even'|'deal'|'list')`
+— 'list' is deterministic (Craig+Jym, Dave+Rick, …) so use it when a test names who's paired.
+Retired pins: "Next: Sides", "How do the sides split?", "Name the sides" (wizard), "CHcp N" (wizard).
+Two judgement calls to surface to Craig (FINDINGS F-071 status): the teams step opens EMPTY until a
+method is tapped (like the pool), and captains default OFF for pairs. Two new P3 findings from my
+screenshot read, F-085 (groups rows don't show the pairs) and F-086 (locks panel on a pairs game),
+join the small batch. Everything else below still holds.
+
+---
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
