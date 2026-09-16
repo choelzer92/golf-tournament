@@ -1,4 +1,4 @@
-# Next session: Craig walks the COLLAPSED wizard → Phase 2 vocabulary + slice-3 remainder
+# Next session: Craig's walk findings (F-071…F-074) → Phase 2 vocabulary
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
@@ -26,17 +26,19 @@ legs, 4 → Everyone for themselves → skins, 2 → 1 v 1. The screenshots are
 at honestly: the sides flow still says "Sides" (Phase 2), captains/CTP/manual bonuses are
 classic-only and the money step says so, a classic format applied to 2 players derives a 1 v 1.
 
-**Step 2 — Phase 2 vocabulary (F-061), on his go.** `structureLabel(structureOf(game))` through
-the label sites (hub subtitle, leaderboard header, share text, formats list, review/sides
-headings); "team" everywhere (§5.bm Q5); `isSingleGroupGame` renamed to what it means. **Grep the
-e2e pins first (§5.at):** "Sides / Match", "Sides (", "Next: Sides", "Foursomes" — dozens of
-assertions across verify-core, f015, f019, f020, nsides-audit, collapse-routing. Re-point them
-without weakening what they assert. No engine/storage change.
+**Step 2 — Craig's walk findings, in this order (he asked for them 2026-09-16, see FINDINGS):**
+1. **F-071 one teams step for every split** (option A): `TeamsStep` builds pairs/triples with the
+   method list; shared-foursome teams become the sides on leaving it; `proposeTeeGroups` lays the
+   tee sheet; groups step only when 2+ groups; side names on the team cards; `SubTeamsStep`
+   retires. Grep the e2e pins first: "Sides (", "Next: Sides", A/B/C button flows in f015, f019,
+   f020, nsides-audit, collapse-routing.
+2. **F-072 two-ball formats on the sides engine** — SCORING MATH, approved in conversation but
+   pin the goldens first (§5.z), then route `team-game.ts`'s side score through `teamValueOnHole`
+   and drop "Two-ball formats" from the router's classic-only list.
+3. **F-073 "match play" wording** and **F-074 free-form split** — small, wizard-only.
 
-**Step 3 — slice-3 remainder.** The §5k method list (TeamsStep) as the teams step for
-shared-foursome teams too (they get the Sides editor today), then sides → groups with the groups
-step's shape buttons keeping partners together (`proposeTeeGroups`), F-060 ✓ parity on the sides
-hub. `teeSheetFacts` already re-derives aligned/teamsTogether from whatever the organizer drags.
+**Step 3 — Phase 2 vocabulary (F-061)** as before: `structureLabel` through the label sites,
+"team" everywhere (§5.bm Q5). Grep "Sides / Match", "Foursomes" pins first (§5.at).
 
 **Stop-and-ask lines:** F-063 opt C (per-cell rows) is persistence → its own session, ask first.
 F-069 (sides engine defaults unknown formats to best ball) touches scoring → ask. F-062 A/B/C

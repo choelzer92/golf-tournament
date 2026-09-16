@@ -998,6 +998,77 @@ screenshot of the history panel joins the sandbox scenarios.
 
 ---
 
+### F-071 — Teams that share foursomes get a DIFFERENT teams screen (letter buttons) than teams that are their own foursomes (method list)  [P1] [start]
+
+**Where (Craig walking the collapsed wizard, 2026-09-16):** after tees, a split whose teams are
+their own tee groups (2 × 4, 3 + 3 + 2) gets the pool's `TeamsStep` — "How should teams be
+built?" with even-them-out / captains' deal / down the list, captains and locks. A split whose
+teams share foursomes (four pairs, 2v2 in one group, 1 v 1) gets the old `SubTeamsStep`: sides
+dealt silently (balanced by handicap), a row of A/B/C/D buttons per player, a shape chooser and
+side names. Craig: *"how are the sides determined? i think this is rather confusing not being
+the same as pools."*
+
+**Violates:** §5.bk (one structure, one flow); §5.aq (reuse the logic); the collapse plan's own
+mock (§6: "Set teams (N × K)" with the method list for any split). Deferred as the slice-3
+remainder and it should not have been.
+
+**Options:**
+- **A (recommended):** ONE teams step. `TeamsStep` takes the structure's sizes (already does)
+  and builds pairs/triples with the same three methods; captains panel appears when K ≥ 3 or on
+  request. On leaving it, shared-foursome teams become the sides, and `proposeTeeGroups` lays
+  the tee sheet (partners together, §5.bm Q2); the F-019 groups step then only asks about tee
+  times / drags when there are 2+ groups. `SubTeamsStep` retires. Side names move to the teams
+  step (a name per team card). M, no engine change.
+- **B:** keep both screens but give the sides editor the method list too. Two screens, one
+  vocabulary — half the fix.
+
+**Status:** open — promoted to the next session (Craig's call from the walk).
+
+---
+
+### F-072 — The format list says "best ball" only for shared-foursome teams; best net + best gross is golf, not a limit  [P1] [start]
+
+**Where:** the scoring step disables two best net / two best gross / best net + best gross with
+"not with this split" for pairs and 2v2, because the sides engine (`team-game.ts`) scores a side
+as combined → sum, one-ball → one score, anything else → lowest net (F-069). Craig: *"why would
+best net and best gross not be possible with twosomes? technically it would, right?"* — yes: a
+pair has two balls.
+
+**Fix (S–M, SCORING MATH → Craig approved in conversation 2026-09-16, tests pinned first §5.z):**
+route the sides engine's per-hole side score through the shared `teamValueOnHole`
+(`team-scoring.ts`), which already computes every `TeamFormat` for the pool; add the two-ball
+formats to the mode's `format` options; remove "Two-ball formats" from the router's
+classic-only list. Guard: the two-side and N-side golden snapshots must not move for best ball /
+combined / scramble / alt-shot; new zero-sum cases for the two-ball formats at 2-, 3- and
+4-player sides.
+
+---
+
+### F-073 — The word "match" appears nowhere in the wizard  [P2] [start]
+
+**Where:** match play is "Decide by: Hole by hole" on the scoring step and "Head-to-head — fixed
+$ per front / back / overall" on the money step. Craig: *"where is the match play option?"* The
+F-042 toggle was removed for saying too little; its replacement says it without the word golfers
+use.
+
+**Fix (S, labels only):** "Hole by hole (match play)" / "18-hole total (stroke play)"; money row
+"Head-to-head match — fixed $ per front / back / overall". Helper text can say "a Nassau".
+
+---
+
+### F-074 — Uneven splits are only the balanced ones; 4 v 2 v 2 can't be chosen  [P2] [start]
+
+**Where:** the structure step's "Other split…" comes from `groupShapesFor`, which only produces
+shapes whose sizes differ by at most one (3 + 3 + 2 yes, 4 + 2 + 2 no). Craig asked for
+2 v 2 v 4. §5.bm Q3 said "make uneven teams work"; this half does.
+
+**Fix (S, wizard only):** a free-form row under "Other split…" — type the sizes ("4, 2, 2"),
+validated to sum to the field; routes like any other shape (`defaultTeeSheetFacts` handles it: a
+4 is its own group, the 2s share one → shared-foursome flow). Also the money settles fine — a
+team of 2 simply has fewer balls to pick from.
+
+---
+
 ## Settled — full text in FINDINGS_ARCHIVE.md
 
 One line per archived finding; the full entry (observation, options, status, and
