@@ -5,6 +5,22 @@ import { getMoneyStrokesOnHole } from '../money-games';
 import type { GameModeContext, SettingsBag } from './types';
 import { fromLegacySubTeams, sidesOfGame } from './sides';
 
+/**
+ * The sides a game is COMPUTED on: the stored ones, else the balanced default the engine has
+ * always fallen back to. Exported so every consumer that maps a side back to its members
+ * (the stats ledger's per-player split, F-068) resolves the exact same sides the engine
+ * settled money on — a second copy of this rule would be the money drift AGENTS.md warns about.
+ * `players` defaults to the whole field, which is what the engine uses when no matchupId scopes it.
+ */
+export function sidesForCompute(game: PoolGame, players: PoolGame['players'] = game.players) {
+  const stored = sidesOfGame(game);
+  return stored.length > 0
+    ? stored
+    : fromLegacySubTeams(
+        defaultSubTeams(players.map((p) => p.id), players, game.course, game.handicapAllowance, game.handicapBasis),
+      );
+}
+
 // Build the compute context for an INDIVIDUAL game from its players' scores.
 // Reuses the exact pool handicap/stroke machinery (buildHcapMap + per-own-tee
 // stroke index + getMoneyStrokesOnHole) so a mode's nets and strokes match the
@@ -87,12 +103,7 @@ export function buildGameModeContext(
 
   // Team-within-group: the sides. Normalized ONCE here, at the read boundary, so no mode has
   // to know which of the two storage shapes a game used (see game-modes/sides.ts).
-  const stored = sidesOfGame(game);
-  const sides = stored.length > 0
-    ? stored
-    : fromLegacySubTeams(
-        defaultSubTeams(players.map((p) => p.id), players, game.course, game.handicapAllowance, game.handicapBasis),
-      );
+  const sides = sidesForCompute(game, players);
   // The legacy two-side view, kept populated for consumers not yet migrated. For a 3+ side
   // game it holds only the first two sides and is therefore incomplete — `sides` is complete.
   const subTeams = { a: sides[0]?.playerIds ?? [], b: sides[1]?.playerIds ?? [] };

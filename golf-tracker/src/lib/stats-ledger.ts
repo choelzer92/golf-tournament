@@ -19,8 +19,9 @@ import { fetchGameScores } from './tournament-state';
 import type { Tournament } from './tournament-state';
 import { computeMoneyLedger } from './money-games';
 import type { PoolGame } from './pool-game';
-import { computePoolResult } from './pool-game';
 import { computeGameResult } from './game-modes/result';
+import { sidesForCompute } from './game-modes/context';
+import { sideMembers } from './game-modes/sides';
 import type { RosterGroup } from './roster-groups';
 
 // One player's money + activity in ONE finished game.
@@ -85,28 +86,19 @@ async function poolGameLedger(game: PoolGame): Promise<GameLedger> {
     }),
   );
 
-  const result = computePoolResult(game, scoresByMatchup);
-  const nameOf = (pid: string) => game.players.find((p) => p.id === pid)?.name ?? '?';
-
-  const playerNets: GamePlayerNet[] = [];
-  for (const team of game.teams) {
-    const payout = result.payouts.find((p) => p.teamId === team.id);
-    const count = team.playerIds.length;
-    // Split the team's net evenly across its members (pool's perPersonNet). If a
-    // payout row is missing (unscored), everyone on the team is flat 0.
-    const perPerson = payout && count > 0 ? payout.net / count : 0;
-    for (const pid of team.playerIds) {
-      playerNets.push({
-        gameId: game.id,
-        gameName: game.name,
-        gameKind: 'pool',
-        playedAt: game.createdAt ?? null,
-        playerId: pid,
-        playerName: nameOf(pid),
-        net: perPerson,
-      });
-    }
-  }
+  // F-068: ONE reducer for every engine (perPlayerNets, below). This used to call
+  // computePoolResult — the CLASSIC engine — on every game regardless of gameMode, so a
+  // sides or individual game (one "Group" team holding everyone) paid its pot to itself,
+  // netted 0 for all, and dropped out of Stats & money entirely.
+  const playerNets: GamePlayerNet[] = perPlayerNets(game, scoresByMatchup).map((n) => ({
+    gameId: game.id,
+    gameName: game.name,
+    gameKind: 'pool',
+    playedAt: game.createdAt ?? null,
+    playerId: n.playerId,
+    playerName: n.playerName,
+    net: n.net,
+  }));
 
   return {
     gameId: game.id,
@@ -325,23 +317,57 @@ export function myGameHistory(ledgers: GameLedger[], playerId: string): GamePlay
 // engine already reports per-PLAYER moneyNet; the classic pool reports per-TEAM net,
 // split evenly across the team (mirroring pool's own perPersonNet and the ledger
 // above). Pure — the caller supplies the scores it already has.
-export function gameRollups(game: PoolGame, scoresByMatchup: Map<string, GameScore[]>): PlayerRollup[] {
+/**
+ * THE per-player money reduction for one game — the atomic unit every money surface
+ * (season ledger, hub "Who pays whom", settle-up) is built from. Routes by the result kind
+ * the engine actually produced, never by guessing from the game shape:
+ *
+ *   - classic pool (`kind: 'team'`)  → each TEAM's net split evenly across its players
+ *     (pool's own perPersonNet convention).
+ *   - sides engine (team-2v2)         → standings are per SIDE (`playerId` is the side id,
+ *     'A'/'B'/…, `playerName` the side's name), so each SIDE's net is split evenly across
+ *     its members — resolved with the engine's own rule (`sidesForCompute`).
+ *   - individual modes (skins, Stableford, …) → standings already ARE players; 1:1.
+ *
+ * F-068: before this, `gameRollups` passed side rows straight through — the hub read
+ * "Jym pays Craig $40" for a 2v2 (one first name, the whole side's money) — and the
+ * ledger used the classic engine for everything. Both now come through here.
+ */
+export function perPlayerNets(
+  game: PoolGame,
+  scoresByMatchup: Map<string, GameScore[]>,
+): { playerId: string; playerName: string; net: number }[] {
   const result = computeGameResult(game, scoresByMatchup);
-  if (result.kind === 'individual') {
-    return result.standings.map((s) => ({
-      playerId: s.playerId, playerName: s.playerName, gamesPlayed: 1, net: s.moneyNet,
-    }));
-  }
   const nameOf = (pid: string) => game.players.find((p) => p.id === pid)?.name ?? '?';
-  const rollups: PlayerRollup[] = [];
+  const out: { playerId: string; playerName: string; net: number }[] = [];
+
+  if (result.kind === 'individual') {
+    const playerIds = new Set(game.players.map((p) => p.id));
+    const sides = sidesForCompute(game);
+    for (const s of result.standings) {
+      if (playerIds.has(s.playerId)) {
+        out.push({ playerId: s.playerId, playerName: s.playerName, net: s.moneyNet });
+        continue;
+      }
+      // A side row. Side ids are stored lower-case ('a') and reported upper-case ('A').
+      const members = sideMembers(sides, s.playerId.toLowerCase());
+      const perPerson = members.length > 0 ? s.moneyNet / members.length : 0;
+      for (const pid of members) out.push({ playerId: pid, playerName: nameOf(pid), net: perPerson });
+    }
+    return out;
+  }
+
   for (const team of game.teams) {
     const payout = result.payouts.find((p) => p.teamId === team.id);
+    // If a payout row is missing (unscored), everyone on the team is flat 0.
     const perPerson = payout && team.playerIds.length > 0 ? payout.net / team.playerIds.length : 0;
-    for (const pid of team.playerIds) {
-      rollups.push({ playerId: pid, playerName: nameOf(pid), gamesPlayed: 1, net: perPerson });
-    }
+    for (const pid of team.playerIds) out.push({ playerId: pid, playerName: nameOf(pid), net: perPerson });
   }
-  return rollups;
+  return out;
+}
+
+export function gameRollups(game: PoolGame, scoresByMatchup: Map<string, GameScore[]>): PlayerRollup[] {
+  return perPlayerNets(game, scoresByMatchup).map((n) => ({ ...n, gamesPlayed: 1 }));
 }
 
 export function settleUp(rollups: PlayerRollup[]): SettlementTransfer[] {

@@ -279,11 +279,82 @@ function completedPool(
 }
 
 /**
+ * One COMPLETED single-group game on a registry mode — a SIDES game (`team-2v2`, sides
+ * given) or an individual one (skins etc., no sides). F-068: the season seed was classic
+ * pools only, so the ledger's "wrong engine for every non-classic game" bug had nothing
+ * to trip over. `offsets` is per-player strokes over par (index-aligned to `roster`).
+ */
+function completedModeGame(
+  opts: {
+    id: string; name: string; playedAt: string; roster: RosterPlayer[];
+    gameMode: string; modeSettings: Record<string, string | number | boolean>;
+    sides?: { id: string; playerIds: string[] }[];
+    offsets: number[]; sourceGroupId?: string;
+  },
+): SeededGame {
+  const used = opts.roster.slice(0, opts.offsets.length);
+  const players = asPlayers(used);
+  const team: PoolTeam = {
+    id: `${opts.id}-g1`, name: 'Group', playerIds: used.map((p) => p.id), matchupId: `${opts.id}-m1`,
+  };
+  const game: PoolGame = {
+    id: opts.id,
+    name: opts.name,
+    createdAt: opts.playedAt,
+    course: course(),
+    players,
+    teams: [team],
+    ballSelection: '1-net-1-gross',
+    moneyMode: 'pot',
+    entryPerPlayer: 0,
+    handicapAllowance: 100,
+    handicapBasis: 'course',
+    strokeMethod: 'full',
+    potSplit: { front: 0.25, back: 0.25, overall: 0.25, junk: 0.25 },
+    positionSplit: [100],
+    junkValues: { birdie: 0, eagle: 0, albatross: 0, groupHug: 0, ctp: 0 },
+    ctpWinners: {},
+    status: 'completed',
+    sourceGroupId: opts.sourceGroupId,
+    createdByGhin: SANDBOX_GHIN,
+    gameMode: opts.gameMode,
+    modeSettings: opts.modeSettings,
+    sides: opts.sides,
+  };
+  const scoresByMatchup: [string, GameScore[]][] = [[
+    team.matchupId,
+    used.flatMap((p, pi) => ALL18.map((h) => ({
+      playerId: p.id, hole: h, grossScore: PARS[h - 1] + opts.offsets[pi],
+    }))),
+  ]];
+  return { game, scoresByMatchup };
+}
+
+/**
  * A season of finished games across several weeks, all tagged to a group so the
  * by-group lens and the settle-up math have something real to roll up.
  */
 export function ledgerSeason(roster: RosterPlayer[]): SeededGame[] {
   return [
+    // F-068: a Warriors 2v2 SIDES game. Side A (players 1+2) plays par, side B one over —
+    // A wins every leg: +$40 a side, +$20 a head. Before the fix this game netted $0 for
+    // everyone and vanished from Stats & money.
+    completedModeGame({
+      id: 'lg-6', name: 'Warriors — Saturday 2v2', playedAt: '2026-07-25T15:00:00.000Z',
+      roster, gameMode: 'team-2v2',
+      sides: [{ id: 'a', playerIds: [roster[0].id, roster[1].id] }, { id: 'b', playerIds: [roster[2].id, roster[3].id] }],
+      modeSettings: { format: 'best-ball', scoring: 'stroke', result: 'total', moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20 },
+      offsets: [0, 0, 1, 1],
+      sourceGroupId: 'g-weekend-warriors',
+    }),
+    // F-068: a Tuesday individual game (skins) — the per-player standings path.
+    completedModeGame({
+      id: 'lg-7', name: 'Tuesday Crew — Real Skins', playedAt: '2026-07-28T15:00:00.000Z',
+      roster, gameMode: 'skins',
+      modeSettings: { moneyModel: 'per-skin', skinValue: 2, carryover: true },
+      offsets: [0, 1, 1, 2],
+      sourceGroupId: 'g-tuesday-crew',
+    }),
     completedPool({
       id: 'lg-1', name: 'Warriors — Week 1', playedAt: '2026-06-06T15:00:00.000Z',
       roster, teamCount: 3, entryPerPlayer: 25, offsets: [0, 1, 2],

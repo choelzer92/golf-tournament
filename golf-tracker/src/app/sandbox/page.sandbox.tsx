@@ -598,7 +598,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'ledger-season',
-    label: 'Season ledger — 5 completed games, 61-player roster',
+    label: 'Season ledger — 7 completed games (pools, a 2v2, skins), 61-player roster',
     detail: 'The "continuing" payoff surface. /home/stats was structurally dead until the completion fix, so its settle-up math and four lenses have never been seen with real data.',
     buildDomain: () => {
       signInAsOrganizer();
