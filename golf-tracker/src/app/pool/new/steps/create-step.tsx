@@ -380,10 +380,57 @@ export function CreateStep({
           </p>
         </div>
         )}
+        {/* F-045 (§5.bg): bonuses are an ADDED choice, not a default — a fresh pool
+            shows one button; the grid (and the junk pot leg) appear only when the
+            game plays them. A saved format with junk restores with the grid open. */}
+        {!isIndividual && !junkShown && (
+        <div className="pt-2 border-t">
+          <button
+            type="button"
+            onClick={addBonuses}
+            className="min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-green-400"
+          >
+            + Add bonuses
+            <span className="ml-1 text-xs text-gray-400">birdies, eagles, sandies…</span>
+          </button>
+        </div>
+        )}
+        {!isIndividual && junkShown && (
+        <div className="pt-2 border-t">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-semibold text-gray-800">Bonus points for good holes</p>
+            <button
+              type="button"
+              onClick={removeBonuses}
+              className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+            >
+              Remove bonuses
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mb-2">These add to a team&apos;s bonus total. Set any to 0 to skip it.</p>
+          <div className="grid grid-cols-5 gap-2">
+            {JUNK_FIELDS.map(({ key, label, hint }) => (
+              <div key={key}>
+                <label className="block text-xs text-gray-600 font-medium">{label}</label>
+                <span className="block text-[10px] text-gray-400 mb-1">{hint}</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={junkValues[key]}
+                  onChange={(e) => setJunkValues({ ...junkValues, [key]: Number(e.target.value) })}
+                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+        )}
         {/* MANUAL bonuses — the ones no scorecard can reveal, so a scorer taps them per
             hole while playing. Off unless chosen: a group that doesn't play barkies gets
-            no extra taps and no extra chrome on the scoring screen. */}
-        {!isIndividual && (
+            no extra taps and no extra chrome on the scoring screen. F-083: they live behind
+            the same "+ Add bonuses" reveal as the automatic ones (F-045 hid those for exactly
+            this reason); a saved format with manual bonuses restores them open. */}
+        {!isIndividual && (junkShown || customBonuses.length > 0) && (
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-1">Extra bonuses to track by hand</p>
           <p className="text-xs text-gray-500 mb-2">
@@ -437,51 +484,6 @@ export function CreateStep({
         </div>
         )}
 
-        {/* F-045 (§5.bg): bonuses are an ADDED choice, not a default — a fresh pool
-            shows one button; the grid (and the junk pot leg) appear only when the
-            game plays them. A saved format with junk restores with the grid open. */}
-        {!isIndividual && !junkShown && (
-        <div className="pt-2 border-t">
-          <button
-            type="button"
-            onClick={addBonuses}
-            className="min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-green-400"
-          >
-            + Add bonuses
-            <span className="ml-1 text-xs text-gray-400">birdies, eagles, all-par…</span>
-          </button>
-        </div>
-        )}
-        {!isIndividual && junkShown && (
-        <div className="pt-2 border-t">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-semibold text-gray-800">Bonus points for good holes</p>
-            <button
-              type="button"
-              onClick={removeBonuses}
-              className="text-xs text-gray-500 hover:text-gray-700 font-medium"
-            >
-              Remove bonuses
-            </button>
-          </div>
-          <p className="text-xs text-gray-500 mb-2">These add to a team&apos;s bonus total. Set any to 0 to skip it.</p>
-          <div className="grid grid-cols-5 gap-2">
-            {JUNK_FIELDS.map(({ key, label, hint }) => (
-              <div key={key}>
-                <label className="block text-xs text-gray-600 font-medium">{label}</label>
-                <span className="block text-[10px] text-gray-400 mb-1">{hint}</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={junkValues[key]}
-                  onChange={(e) => setJunkValues({ ...junkValues, [key]: Number(e.target.value) })}
-                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-        )}
         {!isMatch && !isIndividual && (
         <div className="pt-2 border-t">
           <div className="flex items-center justify-between mb-2">

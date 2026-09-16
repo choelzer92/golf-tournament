@@ -70,6 +70,8 @@ test.describe('F-045: bonuses are OFF on a fresh classic pool', () => {
     await expect(page.getByRole('button', { name: /\+ Add bonuses/ })).toBeVisible();
     let body = await page.locator('body').innerText();
     expect(body).not.toContain('Bonus points for good holes');
+    // F-083: the hand-tracked bonuses sit behind the same reveal.
+    expect(body).not.toContain('Extra bonuses to track by hand');
 
     // 2 foursomes: the standard table is 70/70/40/20 — junk's $20 folds into
     // Overall, front/back keep their weights, and the total still matches the pot.
@@ -83,6 +85,8 @@ test.describe('F-045: bonuses are OFF on a fresh classic pool', () => {
     // Adding bonuses reveals the grid with the classic values and unfolds the split.
     await page.getByRole('button', { name: /\+ Add bonuses/ }).click();
     await expect(page.getByText('Bonus points for good holes')).toBeVisible();
+    await expect(page.getByText('Extra bonuses to track by hand')).toBeVisible();
+    await expect(page.getByRole('button', { name: /Sandie/ })).toBeVisible();
     await expect(fieldInput(page, 'Birdie')).toHaveValue('1');
     await expect(fieldInput(page, 'Eagle')).toHaveValue('2');
     await expect(fieldInput(page, 'Overall')).toHaveValue('40');
