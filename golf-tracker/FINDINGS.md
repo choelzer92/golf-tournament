@@ -983,6 +983,13 @@ share foursomes and says why. **Still open:** the engine itself should refuse (o
 an unrecognised format rather than default it — a Phase 3 convergence item, alongside the
 sides engine gaining the two-best formats.
 
+**Update 2026-09-16 (F-072):** the sides engine now computes EVERY `TeamFormat` through the
+shared `teamValueOnHole`, so the three two-ball formats are no longer "unknown" and the router
+no longer greys them. What remains is narrower: a string that is not a `TeamFormat` at all (a
+hand-edited settings bag) still falls to `teamNetOnHole`'s `default` arm = best ball — now in
+ONE place for both containers instead of two. Refuse-vs-default is still Craig's call
+(stop-and-ask, NEXT_SESSION_PROMPT).
+
 ---
 
 ### F-070 — The sandbox fake backend has no `.in()`, so the leaderboard's audit viewer throws in e2e  [P3] [track]
@@ -1041,7 +1048,7 @@ the chip on the shared step shows the bare number; the hub editor keeps the disc
 
 ---
 
-### F-072 — The format list says "best ball" only for shared-foursome teams; best net + best gross is golf, not a limit  [P1] [start]
+### F-072 — The format list says "best ball" only for shared-foursome teams; best net + best gross is golf, not a limit  [P1] [FIXED 2026-09-16]
 
 **Where:** the scoring step disables two best net / two best gross / best net + best gross with
 "not with this split" for pairs and 2v2, because the sides engine (`team-game.ts`) scores a side
@@ -1056,6 +1063,21 @@ formats to the mode's `format` options; remove "Two-ball formats" from the route
 classic-only list. Guard: the two-side and N-side golden snapshots must not move for best ball /
 combined / scramble / alt-shot; new zero-sum cases for the two-ball formats at 2-, 3- and
 4-player sides.
+
+**Status:** FIXED 2026-09-16, goldens first (§5.z). `src/test/f072-two-ball-sides.test.ts` — 164
+independent-oracle cases (hand values per hole from raw gross + TEST_PARS; 2-, 3- and 4-a-side;
+three two-ball formats × strokes/Stableford × total/match × four money models; a partial-hole
+null case; three pairs on legs) — written against the OLD engine: all 164 failed (every cell a
+$0 dead heat, because everything scored as best ball). Then `team-game.ts` dropped its own
+`sideNet`/`sidePts` and calls the pool's `teamValueOnHole`; the two-side, N-side and one-group
+goldens did not move. Mutations after: best-ball fed to the engine → 164 fail; two-best-gross
+sorting nets → 27; net-and-gross letting one player supply both halves → 27. Router:
+"Two-ball formats" left `classicOnlyNeeds`; a NEW guard refuses a two-ball format for any team of
+one (`UNEXPRESSIBLE.needTeams('Two-ball formats')`), because a saved Warriors format applied to 2
+players derives a 1 v 1. Mode schema + hub summary gained the three formats; description shortened
+to "any team format". e2e: `collapse-routing.spec.ts` F-072 row (four pairs → best net + best
+gross → every money model open → hub) + two pins flipped from disabled to enabled. Read the
+screenshots (`f072-*.png`) as a first-timer: clean.
 
 ---
 

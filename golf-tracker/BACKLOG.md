@@ -19,7 +19,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
-| **Game-structure COLLAPSE — Phase 1 BUILT on `ui-simplification-2026-09-15` (dc88832 slice 1 · c6c45f2 slices 2–4), verify green (1602 unit / 189 e2e). Slice-3 remainder DONE 2026-09-16 as F-071 A (one teams step for every split, partner-aware groups reshape). NEXT, in Craig's agreed order: F-072 two-ball formats on the sides engine (SCORING MATH — pin goldens first, §5.z) → small wizard batch (F-073/074/075/076/080/082/083/084, + F-085/086 from this session's screenshot read) → Phase 2 vocabulary (F-061 via `structureLabel`, "team" everywhere per §5.bm Q5, F-081 rides along). Craig's phone walk of the new wizard still wanted (§5.y).** Screenshots: `e2e/screenshots/collapse-*.png`, `walk-*.png`. Plan header carries the §5.bm amendments. | L | §5.bk/§5.bm |
+| **Game-structure COLLAPSE — Phase 1 BUILT on `ui-simplification-2026-09-15` (dc88832 slice 1 · c6c45f2 slices 2–4), verify green (1602 unit / 189 e2e). Slice-3 remainder DONE 2026-09-16 as F-071 A (one teams step for every split, partner-aware groups reshape). F-072 DONE 2026-09-16 (two-ball formats on the sides engine via `teamValueOnHole`, 164 oracle cases, 3 mutations caught). NEXT, in Craig's agreed order: small wizard batch (F-073/074/075/076/080/082/083/084, + F-085/086 from this session's screenshot read) → Phase 2 vocabulary (F-061 via `structureLabel`, "team" everywhere per §5.bm Q5, F-081 rides along). Craig's phone walk of the new wizard still wanted (§5.y).** Screenshots: `e2e/screenshots/collapse-*.png`, `walk-*.png`. Plan header carries the §5.bm amendments. | L | §5.bk/§5.bm |
 | **Course-data correctness audit — PARKED by Craig 2026-09-15 ("wait on the course data")**. Meadows payload banked + CLEAN (F-023); prime suspects now gender-name tee collisions and stale stored games. Resume on his word. | M | Craig 2026-09-10/14 + F-023 |
 | Merge-audit polish batch (all four S items below) — fallback slack work | S×4 | merge audit / §5.ak |
 
@@ -27,6 +27,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | When |
 |---|---|
+| **F-072 BUILT — two-ball formats on the sides engine** (goldens first, §5.z): `team-game.ts` scores a side through the pool's `teamValueOnHole`; `f072-two-ball-sides.test.ts` = 164 hand-arithmetic cases that ALL failed on the old engine (every cell a $0 dead heat), three mutations caught after; two-side/N-side/one-group goldens unmoved; router drops "Two-ball formats" from classic-only and refuses them for a team of one; mode schema, hub summary, e2e row + flipped pins | 2026-09-16 |
 | **Self-walk of the collapsed wizard (63 screenshots, `e2e/collapse-walk.spec.ts`)** → F-077 (wrong money in the summary line — FIXED + pinned), F-078…F-084 logged with options; Craig's own walk → F-071…F-076. Lesson saved to memory: walk every step yourself before handing a UI over | 2026-09-16 |
 | **Collapse Phase 1 slices 2–4 BUILT (c6c45f2)**: structure step ("How do you want to compete?") + scoring step replace the game picker and the F-042 toggle; money step lists the four models judged by the router, greyed with WHY; sides engine stakes from its schema; Create blocked with reason (+ "Drop the bonuses"); teams step takes the structure's sizes; draft v2; saved formats derive their structure; 13 e2e specs re-pointed via `chooseStructure`/`toScoringStep`/`chooseSolo`/`chooseMoney`, `collapse-routing.spec.ts` = one spec per routing row landing on its container. Found F-069/F-070 | 2026-09-16 |
 | **F-063 opt A BUILT (bd2db4d)** — pool card flushes its pending write on pagehide/visibilitychange/unmount and subscribes to its OWN group row with per-cell client merge (`lib/score-merge.ts`, 7 tests); e2e proves a tap right before leaving survives a reload (failed with the fix stashed). Opt C stays its own session | 2026-09-16 |
@@ -92,7 +93,6 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | ~~F-071 ONE teams step for every split (opt A)~~ DONE 2026-09-16 — `TeamsStep` money-teams mode, sides derived on leaving, partner-aware groups reshape (`packTeamsIntoShape`), `SubTeamsStep` deleted; F-078 + F-079 fell out; two judgement calls for Craig in FINDINGS F-071 status (empty-until-tapped, captains off for pairs) | — | F-071 |
 | F-085 groups step orders a group's rows by TEAM so the pairs are visible (opt A) — composes with F-081 | S | F-085 |
 | F-086 hide the pairing-locks panel when every team is 2 or fewer (opt A) | S | F-086 |
-| **F-072 two-ball formats for the sides engine** — route `team-game.ts` side score through `teamValueOnHole`; goldens pinned first; router's classic-only list loses "Two-ball formats" | S–M | F-072 / F-069 |
 | F-073 "Hole by hole (match play)" / "18-hole total (stroke play)" / "Head-to-head match" labels | S | F-073 |
 | F-074 free-form uneven split ("4, 2, 2") under "Other split…" | S | F-074 |
 | F-075 router refusal strings state the ENGINE gap ("isn't built for teams that share foursomes yet"), never a fake golf rule | S | F-075 |
@@ -105,7 +105,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | F-083 fold the hand-tracked bonus buttons under "+ Add bonuses" | S | F-083 |
 | F-081 sides hub shows the TEAMS (pairs + their tee group), not just tee groups — Phase 2 rider | M | F-081 / F-061 |
 | **Collapse Phase 2 — vocabulary (F-061)**: `structureLabel(structureOf(game))` through the 7 label sites (hub subtitle "Sides / Match · N players", leaderboard, share, formats, review "Sides (2 vs 2)"); "team" everywhere (§5.bm Q5), `isSingleGroupGame` renamed to its meaning, `teamBuild` container-neutral. **e2e pins to grep first (§5.at):** "Sides / Match", "Sides (", "Next: Sides", "Foursomes" — dozens of assertions | M | plan §7 Phase 2 / F-061 |
-| F-069: the sides engine scores any unrecognised team format as best ball — make it refuse (or compute two-best) rather than default; Phase 3 rider | S | F-069 |
+| F-069: a NON-`TeamFormat` string in a sides game still scores as best ball (`teamNetOnHole` default arm, now the one place for both containers after F-072) — refuse vs default is Craig's call; Phase 3 rider | S | F-069 |
 | F-070: sandbox fake gains `.in()`/`.order()`/`.limit()` so the audit history renders in e2e (unhandled rejection in every verify log today) | S | F-070 |
 | Live scoring experience pass (taps, refresh latency, cart-path wifi — measure before/after per §5.bl) | M | §6 item 3 — Craig's named focus, never had its session |
 | Offline / PWA resilience (`sw.js` exists, caches nothing — cart-path wifi) | M | §6 item 4; core to "continuing" |

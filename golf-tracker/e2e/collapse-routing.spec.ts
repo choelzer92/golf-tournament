@@ -74,10 +74,10 @@ test('routing row: two teams of 4, pot → the classic pool (hub shows its fours
   await expect(page.getByRole('heading', { name: "What's it worth?" })).toBeVisible();
   await expect(page.locator('input[name="money-model"][value="pot"]')).toBeChecked();
   await expect(page.locator('input[name="money-model"][value="legs"]')).toBeEnabled();
-  // Best net + best gross is a two-ball format only the classic pool computes, so margin money
-  // is refused HERE, with the reason — capability routing (§5.bm Q1) made visible.
-  await expect(page.locator('input[name="money-model"][value="per-point"]')).toBeDisabled();
-  await expect(page.getByText(/Two-ball formats can't ride on \$ per hole or \$ per point yet/).first()).toBeVisible();
+  // F-072: best net + best gross is a two-ball format BOTH engines compute now, so margin money
+  // stays open here too (the sides engine would carry it); pot, the default, routes classic.
+  await expect(page.locator('input[name="money-model"][value="per-point"]')).toBeEnabled();
+  expect(await page.locator('body').innerText()).not.toContain('Two-ball formats');
   await expect(page.getByText('Buy-in per player ($)')).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/collapse-04-money-classic.png', fullPage: true });
 
@@ -110,10 +110,12 @@ test('routing row: two teams of 4, $ per point → the sides engine even though 
 test('routing row: four pairs, fixed legs → the sides engine with two tee times, partners together', async ({ page }) => {
   await startWizard(page, EIGHT_PLAYERS, 'Four Pairs');
   await toScoringStep(page, 'teams:2+2+2+2');
-  // Shared-foursome defaults: best ball, Stableford, hole by hole; two-ball formats say why not.
+  // Shared-foursome defaults: best ball, Stableford, hole by hole. F-072: a pair has two balls,
+  // so the two-ball formats are open here too.
   await expect(page.getByLabel('Which scores count for the team?')).toHaveValue('best-ball');
   await expect(page.getByRole('button', { name: 'Hole by hole' })).toHaveClass(/bg-green-600/);
-  await expect(page.locator('option[value="two-best-net"]')).toBeDisabled();
+  await expect(page.locator('option[value="two-best-net"]')).toBeEnabled();
+  expect(await page.locator('body').innerText()).not.toContain('not with this split');
   await courseAndTees(page);
   // F-071: the SAME teams step as the pool — the method list, not letter buttons — and the
   // structure step's answer is not asked again (F-078: no shape chooser here).
@@ -144,6 +146,35 @@ test('routing row: four pairs, fixed legs → the sides engine with two tee time
   await page.getByRole('button', { name: 'Create Game' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await expect(page.getByText(/Sides \/ Match · 8 players · 2 groups/)).toBeVisible();
+});
+
+test('F-072: four pairs, best net + best gross → the sides engine scores two balls a side', async ({ page }) => {
+  await startWizard(page, EIGHT_PLAYERS, 'Pairs Net Gross');
+  await toScoringStep(page, 'teams:2+2+2+2');
+  // Craig: "why would best net and best gross not be possible with twosomes?" It is.
+  await page.getByLabel('Which scores count for the team?').selectOption('net-and-gross');
+  await expect(page.getByLabel('Which scores count for the team?')).toHaveValue('net-and-gross');
+  expect(await page.locator('body').innerText()).not.toContain('not with this split');
+  await expect(page.getByText(/USGA suggests 90% for four-ball match play/)).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/f072-scoring-pairs-net-gross.png', fullPage: true });
+  await courseAndTees(page);
+  await page.getByRole('button', { name: 'Next: Teams' }).click();
+  await buildTeams(page, 'list');
+  await page.getByRole('button', { name: 'Next: Groups' }).click();
+  await page.getByRole('button', { name: /Next: Review/ }).click();
+  await expect(page.getByText('How is the money played?')).toBeVisible();
+  // The summary line names the format the sides engine will score.
+  await expect(page.getByText(/Sides · best net \+ best gross/)).toBeVisible();
+  // Every sides money model is open — nothing greyed for an engine reason.
+  for (const m of ['legs', 'per-hole', 'per-point', 'pot']) {
+    await expect(page.locator(`input[name="money-model"][value="${m}"]`)).toBeEnabled();
+  }
+  await chooseMoney(page, 'per-point');
+  await page.screenshot({ path: 'e2e/screenshots/f072-money-pairs-net-gross.png', fullPage: true });
+  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await expect(page.getByText(/Sides \/ Match · 8 players · 2 groups/)).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/f072-hub-pairs-net-gross.png', fullPage: true });
 });
 
 test('routing row: four pairs + closest-to-pin is refused with the reason, not silently dropped', async ({ page }) => {

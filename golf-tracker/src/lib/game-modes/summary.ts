@@ -55,6 +55,9 @@ export function gameSummary(mode: GameModeDescriptor | undefined, settings: Sett
   const fmt = str(settings, 'format', 'best-ball');
   const label: Record<string, string> = {
     'best-ball': 'best ball',
+    'net-and-gross': 'best net + best gross',
+    'two-best-net': 'two best net',
+    'two-best-gross': 'two best gross',
     combined: 'combined',
     scramble: 'scramble',
     'alternate-shot': 'alternate shot',

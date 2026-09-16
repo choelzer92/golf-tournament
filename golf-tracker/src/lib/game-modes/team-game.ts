@@ -2,43 +2,43 @@ import type { FormatSetting } from '../formats';
 import type { HoleData, PoolGame } from '../pool-game';
 import { distributePot, teamHandicapForFormat } from '../pool-game';
 import type { Player } from '../game-state';
-import { getMoneyStrokesOnHole } from '../money-games';
 import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding, TeamLegLine } from './types';
 import { numberSetting, parseVector, stringSetting, JUNK_SETTINGS, settleJunkForSides } from './settings';
 import {
   defaultSideLabel, fromLegacySubTeams, settleRoundRobin, type GameSide,
 } from './sides';
-import { ballsPerHole, evenValueOnHole, type TeamFormat } from './team-scoring';
+import {
+  ballsPerHole, evenValueOnHole, isOneBall, teamValueOnHole, type ScoreBasis, type TeamFormat,
+} from './team-scoring';
 
 // 2-vs-2 within one foursome. The group's players are split into two SIDES
 // (ctx.subTeams). Each hole yields one team score per side by the chosen FORMAT;
 // the RESULT toggle decides hole-by-hole (match) vs 18-hole total; the leaderboard
 // also breaks the contest into Front 9 / Back 9 / Overall legs; MONEY settles
-// head-to-head. best-ball/combined use per-player gross entry; scramble/alt-shot
+// head-to-head. Every multi-ball format uses per-player gross entry; scramble/alt-shot
 // use one team ball per hole (same gross written to both members on the scorecard)
 // plus a team handicap.
-const SCALE = { albatrossOrBetter: 5, eagle: 4, birdie: 3, par: 2, bogey: 1, doubleOrWorse: 0 };
-function sfPts(net: number, par: number): number {
-  const diff = net - par;
-  if (diff <= -3) return SCALE.albatrossOrBetter;
-  if (diff === -2) return SCALE.eagle;
-  if (diff === -1) return SCALE.birdie;
-  if (diff === 0) return SCALE.par;
-  if (diff === 1) return SCALE.bogey;
-  return SCALE.doubleOrWorse;
-}
+//
+// HOLE SCORING IS NOT DONE HERE. Since F-072 a side's hole value comes from the shared
+// `teamValueOnHole` (team-scoring.ts), the same function the classic pool ranks and pays on.
+// This file used to carry its own best-ball / combined / one-ball arithmetic and silently
+// scored any OTHER format as best ball (F-069) — which is why the wizard had to grey
+// "Best net + best gross" for pairs. One engine, every format, both containers.
 
 const SETTINGS: FormatSetting[] = [
   {
     key: 'format', label: 'Team format', type: 'select',
     options: [
       { value: 'best-ball', label: 'Best ball (low net counts)' },
-      { value: 'combined', label: 'Combined (both scores added)' },
+      { value: 'net-and-gross', label: 'Best net + best gross (two balls, two players)' },
+      { value: 'two-best-net', label: 'Two best net scores added' },
+      { value: 'two-best-gross', label: 'Two best gross scores added' },
+      { value: 'combined', label: 'Combined (every score added)' },
       { value: 'scramble', label: 'Scramble (one ball, team handicap)' },
       { value: 'alternate-shot', label: 'Alternate shot (one ball)' },
     ],
     defaultValue: 'best-ball',
-    hint: 'How each side’s hole score is formed. Scramble/alt-shot enter one team score per hole.',
+    hint: 'How each side’s hole score is formed. Two-ball formats need two scores on the hole; scramble/alt-shot enter one team score per hole.',
   },
   {
     key: 'scoring', label: 'Hole score', type: 'select',
@@ -208,62 +208,37 @@ function compute(ctx: GameModeContext): IndividualResult {
   const nameFor = (idx: number): string =>
     sideNameFrom(ctx.players, sideIds(idx), sides[idx]?.id ?? '?', sides[idx]?.name, soloSides);
 
-  // Team handicap for the single-ball formats (0 for best-ball/combined), per side.
-  const isSingleBall = format === 'scramble' || format === 'alternate-shot';
+  // The format as the shared engine spells it. An unknown string (a hand-edited settings bag)
+  // scores as best ball, exactly as `teamNetOnHole`'s default arm does — the F-069 fallback,
+  // now in one place instead of two.
+  const teamFormat = format as TeamFormat;
+  const basis: ScoreBasis = scoring === 'stableford' ? 'stableford' : 'stroke';
+
+  // Team handicap for the single-ball formats (0 for every multi-ball format), per side.
   const teamHcap: number[] = sides.map((_, idx) => {
-    if (!isSingleBall) return 0;
+    if (!isOneBall(teamFormat)) return 0;
     const raws = sideIds(idx).map((id) => ctx.rawCourseHcap(id));
     return teamHandicapForFormat(
       raws,
-      format as 'scramble' | 'alternate-shot',
-      format === 'scramble' ? undefined : altShotAllowance,
+      teamFormat as 'scramble' | 'alternate-shot',
+      teamFormat === 'scramble' ? undefined : altShotAllowance,
     );
   });
 
-  // One side's team NET on a hole (lower better). null if not scored.
-  function sideNet(side: number, hole: HoleData): number | null {
-    const ids = sideIds(side);
-    if (isSingleBall) {
-      // ONE BALL MEANS ONE SCORE (DECISIONS.md §5.ac). The members share an identical gross —
-      // the scorecard writes the same value to every member of the side.
-      //
-      // This used to read the FIRST member with a score, which made the side's score, and the
-      // payout, depend on the ORDER of subTeams[side]: the same round settled $0 or -$54 after
-      // swapping two ids. The pool half of F-006 fixed exactly this in team-scoring.ts and
-      // missed this file, which has its own one-ball read. Taking the minimum is
-      // order-independent, and in the correct case (all members share the ball) min of equal
-      // values IS that value, so nothing changes for a well-formed game.
-      //
-      // Divergence is PREVENTED upstream — the scorecard enters one shared score, and the hub
-      // refuses to switch a scored game to a one-ball format. This is the backstop.
-      let gross: number | null = null;
-      for (const id of ids) {
-        const g = ctx.grossOnHole(id, hole);
-        if (g !== null && (gross === null || g < gross)) gross = g;
-      }
-      if (gross === null) return null;
-      return gross - getMoneyStrokesOnHole(teamHcap[side], hole.handicap, numHoles);
-    }
-    const nets: number[] = [];
-    for (const id of ids) { const n = ctx.netOnHole(id, hole); if (n !== null) nets.push(n); }
-    if (nets.length === 0) return null;
-    return format === 'combined' ? nets.reduce((s, n) => s + n, 0) : Math.min(...nets);
-  }
-
-  // One side's Stableford points on a hole. Combined = sum of members' points;
-  // everything else = points of the team net.
-  function sidePts(side: number, hole: HoleData): number | null {
-    if (format === 'combined') {
-      let total = 0, any = false;
-      for (const id of sideIds(side)) { const n = ctx.netOnHole(id, hole); if (n === null) continue; any = true; total += sfPts(n, hole.par); }
-      return any ? total : null;
-    }
-    const net = sideNet(side, hole);
-    return net === null ? null : sfPts(net, hole.par);
-  }
-
+  // One side's hole value — net strokes (lower better) or Stableford points (higher better),
+  // null until the format has the scores it needs (a two-ball format waits for two cards; a
+  // one-ball format reads the side's shared ball, order-independently — §5.ac's backstop lives
+  // in `teamNetOnHole`). SAME function as the classic pool, so the two containers can't drift.
   const metric = (side: number, hole: HoleData): number | null =>
-    scoring === 'stableford' ? sidePts(side, hole) : sideNet(side, hole);
+    teamValueOnHole({
+      playerIds: sideIds(side),
+      hole,
+      format: teamFormat,
+      grossOnHole: (id) => ctx.grossOnHole(id, hole),
+      netOnHole: (id) => ctx.netOnHole(id, hole),
+      teamHandicap: teamHcap[side],
+      numHoles,
+    }, basis);
 
   // Higher-is-better under Stableford, lower-is-better under strokes. ONE definition, so no
   // consumer re-derives the comparison — four places deriving it separately is how the
@@ -337,8 +312,8 @@ function compute(ctx: GameModeContext): IndividualResult {
     // uneven (a 3-player side playing combined contributes three balls).
     const holeToPar = ms.map((m, idx) => {
       if (m === null) return null;
-      const sideBalls = ballsPerHole(format as TeamFormat, sideIds(idx).length);
-      return m - evenValueOnHole(hole, scoring === 'stableford' ? 'stableford' : 'stroke', sideBalls);
+      const sideBalls = ballsPerHole(teamFormat, sideIds(idx).length);
+      return m - evenValueOnHole(hole, basis, sideBalls);
     });
 
     ms.forEach((m, idx) => {
@@ -694,7 +669,7 @@ export const teamGame: GameModeDescriptor = {
   // several tee times and "within group" described a limit that no longer exists (§5.at). At two
   // players it read worse still: a 1v1 has no "group" to be within.
   name: 'Sides / Match',
-  description: 'Pick sides and play them off against each other — 1v1 up to four-a-side, best ball, combined, scramble, or alternate shot. Front, back and overall settle separately.',
+  description: 'Pick sides and play them off against each other — 1v1 up to four-a-side, any team format. Front, back and overall settle separately.',
   category: 'team-within-group',
   inputType: 'gross',
   // TWO, so a singles match is reachable (Craig, 2026-08-27). The engine always handled it — one

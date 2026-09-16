@@ -1,7 +1,20 @@
-# Next session: F-072 (scoring math, goldens first) → small wizard batch → Phase 2 vocabulary
+# Next session: small wizard batch (F-073…F-086) → Phase 2 vocabulary
+
+**UPDATE 2026-09-16 (third session): F-072 is BUILT (§5.bn)** — one commit on the branch after
+2b7f480. Step 2 items 1 and 2 below are done; start at item 3 (the small wizard batch). What
+changed: `team-game.ts` no longer scores a side itself — it calls the pool's `teamValueOnHole`
+for every `TeamFormat`; the mode schema and hub summary list the three two-ball formats; the
+router's `classicOnlyNeeds` lost "Two-ball formats" and gained a guard refusing them for a team of
+ONE (`UNEXPRESSIBLE.needTeams('Two-ball formats')`). Goldens: `src/test/f072-two-ball-sides.test.ts`
+(164 hand-arithmetic cases, failed 164/164 on the old engine, three mutations caught 164/27/27);
+two-side / N-side / one-group goldens unmoved. e2e: `collapse-routing.spec.ts` F-072 row + two pins
+flipped from disabled to enabled (`option[value="two-best-net"]`, per-point on a 4+4 net-and-gross
+pot). Verify green: 1784 unit · 198 e2e. Screenshots `e2e/screenshots/f072-*.png` read clean.
+One thing noticed, not fixed: the hub header wraps a three-word game name to three lines beside
+five actions — pre-existing, worth a P3 finding if Craig sees it.
 
 **UPDATE 2026-09-16 (later session): F-071 A is BUILT, with F-078 and F-079** — one commit on the
-branch after 078a20c. Step 2 item 1 below is done; start at item 2 (F-072). The new flow for
+branch after 078a20c. Step 2 item 1 below is done. The new flow for
 shared-foursome teams is tees → Teams (the pool's method list, `mode="money-teams"`) → Groups (only
 when 2+ tee groups; shape buttons re-pack whole teams via `packTeamsIntoShape`) → Money; a 1 v 1
 goes tees → Money. `SubTeamsStep` is deleted. New e2e helper `buildTeams(page, 'even'|'deal'|'list')`
@@ -23,7 +36,7 @@ status block carries the §5.bm amendments; the body is the original plan — gr
 re-read it whole). `DECISIONS_ARCHIVE.md` §5.bm is the record of Craig's five answers.
 
 **State (2026-09-16 end of session):** branch `ui-simplification-2026-09-15`, working tree CLEAN,
-verify green (tsc · build · 1602 unit · 189 e2e). Five new commits since the plan:
+verify green (tsc · build · 1784 unit · 198 e2e after F-072). Five new commits since the plan:
 dc88832 slice 1 (pure router + tests) · cc826da §5.bm docs · bd2db4d F-063 opt A · c6c45f2
 slices 2–4 (the wizard) · the docs groom. **Not merged to main; don't merge/push unbidden (§5.ab)**
 — the collapse changes every setup flow and Craig hasn't seen it on a phone yet. Course-data
@@ -46,9 +59,7 @@ classic-only and the money step says so, a classic format applied to 2 players d
    tee sheet; groups step only when 2+ groups; side names on the team cards; `SubTeamsStep`
    retires. Grep the e2e pins first: "Sides (", "Next: Sides", A/B/C button flows in f015, f019,
    f020, nsides-audit, collapse-routing.
-2. **F-072 two-ball formats on the sides engine** — SCORING MATH, approved in conversation but
-   pin the goldens first (§5.z), then route `team-game.ts`'s side score through `teamValueOnHole`
-   and drop "Two-ball formats" from the router's classic-only list.
+2. ~~**F-072 two-ball formats on the sides engine**~~ DONE 2026-09-16 (§5.bn) — see the update above.
 3. **Small wizard-only batch:** F-073 "match play" wording · F-074 free-form split · F-075
    refusal strings say the true reason · F-076 "+ Add bonuses" leaves CTP at 0 · F-078 hide the
    sides shape chooser once a structure exists · F-079 skip the sides step for 1 v 1 · F-082 one
@@ -72,7 +83,8 @@ showed.
 "team" everywhere (§5.bm Q5). Grep "Sides / Match", "Foursomes" pins first (§5.at).
 
 **Stop-and-ask lines:** F-063 opt C (per-cell rows) is persistence → its own session, ask first.
-F-069 (sides engine defaults unknown formats to best ball) touches scoring → ask. F-062 A/B/C
+F-069 residue (a non-`TeamFormat` string still defaults to best ball in `teamNetOnHole`, now the
+one place for both engines) touches scoring → refuse vs default is Craig's call, ask. F-062 A/B/C
 still waits.
 
 ## Waiting on Craig
@@ -86,7 +98,7 @@ friend; F-062 A/B/C.
 - **Kill any hand-started dev server AND `rm -rf .next` before `npm run verify`**; confirm 3200
   free. 3000 = Craig's. Kill on Windows: `netstat -ano | grep ":3200 .*LISTENING"` → `taskkill //PID <pid> //F //T`.
 - Check verify's own exit code; when backgrounded, `echo "VERIFY_EXIT=$?" >> log` inside the command.
-- Verify takes ~15 min now (189 e2e). Iterate on a spec subset against a hand-started server first.
+- Verify takes ~17 min now (198 e2e). Iterate on a spec subset against a hand-started server first.
 - **Python heredocs in Git Bash break on `$` and long bodies** — write the script to a file
   (`.claude/tmp_*.py`), run it, delete it. `/tmp` in Python is NOT Git Bash's /tmp.
 - Editor diagnostics lag one edit behind — trust `npx tsc --noEmit`. The "Props must be

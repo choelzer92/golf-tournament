@@ -6,8 +6,10 @@ scoring steps, routed money step, draft v2, format-derived structure, 13 specs r
 `collapse-routing.spec.ts` one-per-row). Verify green. **Slice-3 remainder BUILT 2026-09-16 as
 F-071 A:** one `TeamsStep` for every split (`mode: 'money-teams'`), sides derived on leaving,
 `proposeTeeGroups` lays the tee sheet, the groups step's shape buttons re-pack whole teams
-(`packTeamsIntoShape`), `SubTeamsStep` deleted; F-078/F-079 closed with it. Left: F-072
-(scoring math, goldens first), the small wizard batch, then Phase 2 vocabulary. Amendments from the walk, which override the text below
+(`packTeamsIntoShape`), `SubTeamsStep` deleted; F-078/F-079 closed with it. **F-072 BUILT
+2026-09-16:** the sides engine scores every `TeamFormat` through `teamValueOnHole` (164 oracle
+cases pinned first, §5.z), "Two-ball formats" left the classic-only list, a team of one refuses
+them. Left: the small wizard batch, then Phase 2 vocabulary. Amendments from the walk, which override the text below
 where they differ:**
 
 - **Q1 → route by CAPABILITY, not preference.** §3.3's "prefer classic" is now a consequence,
@@ -22,9 +24,10 @@ where they differ:**
 - **Q3 → "Other split…" on the structure step** (uneven shapes, from `groupShapesFor`).
 - **Q4 → F-063 opt A approved** (separate small commit); opt C its own session.
 - **Q5 → "team" everywhere**; `structureLabel` is the one label source for Phase 2.
-- Found while building: the sides engine computes best-ball / combined / one-ball only — any
-  other `format` silently scores as best-ball — so two-ball formats are a classic-only
-  capability, caught by the router. And a classic pool whose scoring is best-ball (not
+- Found while building: the sides engine computed best-ball / combined / one-ball only — any
+  other `format` silently scored as best-ball — so two-ball formats were a classic-only
+  capability, caught by the router. **Superseded by F-072 (2026-09-16): every format, both
+  engines, one function.** And a classic pool whose scoring is best-ball (not
   net-and-gross) carries `teamFormat`, leaving the golden-snapshot legacy path; slice 2's
   default for "N teams of 4" should therefore be **best net + best gross**, today's pool.
 

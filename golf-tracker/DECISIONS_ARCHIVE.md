@@ -1727,6 +1727,33 @@ never sees `.env.local` credentials.
 
 ---
 
+## 5.bn Every team format on every split; the sides engine scores through the pool's engine (F-072, 2026-09-16)
+
+**Decision.** Craig, on the scoring step greying "Best net + best gross" for pairs: *"why would
+best net and best gross not be possible with twosomes? technically it would, right?"* Yes — a pair
+has two balls. So the sides engine (`team-game.ts`) no longer forms a side's hole score itself; it
+calls `teamValueOnHole` (team-scoring.ts), the SAME function the classic pool ranks and pays on,
+for every `TeamFormat` under both bases. "Two-ball formats" left the router's classic-only list.
+The only refusal left is golf, not code: a two-ball format on a team of ONE
+(`UNEXPRESSIBLE.needTeams('Two-ball formats')`) — reachable because a saved Warriors format
+applied to two players derives a 1 v 1.
+
+**Why it was approved in conversation and built without a worked-example round:** the arithmetic
+already existed and was already pinned for the pool (F-006); this moved it, not invented it. What
+§5.z demanded instead was proof: `src/test/f072-two-ball-sides.test.ts` — 164 independent-oracle
+cases whose expected numbers are hand arithmetic from raw gross + par, on a fixture where the
+three formats DISAGREE about the winner — was written first and failed 164/164 on the old engine
+(every cell a $0 dead heat, because everything scored as best ball). After the reroute the
+two-side, N-side and one-group goldens did not move; three one-line mutations (best-ball forced;
+two-best-gross sorting nets; net-and-gross allowing one player both halves) failed 164 / 27 / 27.
+
+**What it is NOT:** Phase 3 convergence. Closest-to-pin, hand-tracked bonuses, captains and
+front/back/overall pot splits are still classic-only and still grey with the router's reason;
+those are MONEY MATH and wait for Craig's worked examples. F-069's residue (a string that is not a
+`TeamFormat` at all still defaults to best ball, now in one place) is his call: refuse or default.
+
+---
+
 ## 6. Focus areas Craig has named
 
 Requested, in his stated order of interest:

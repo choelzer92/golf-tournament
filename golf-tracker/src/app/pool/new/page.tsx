@@ -363,8 +363,8 @@ export default function NewPoolGamePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [players.length]);
 
-  // A format the current split can't play (two-ball with shared foursomes) falls back to best
-  // ball, which every split can.
+  // A format the current split can't play (a two-ball format on a team of one — F-072 gave the
+  // sides engine every other format) falls back to best ball, which every split can.
   useEffect(() => {
     if (structure?.kind === 'teams' && formatUnavailable(teamFormat) !== null && teamFormat !== 'best-ball') setTeamFormat('best-ball');
     // eslint-disable-next-line react-hooks/exhaustive-deps

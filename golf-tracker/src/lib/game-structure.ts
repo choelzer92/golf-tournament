@@ -386,7 +386,6 @@ function classicOnlyNeeds(draft: StructureDraft): string[] {
   if (draft.bonuses?.custom) needs.push('Manual bonuses');
   if (draft.captains) needs.push('Captains');
   if (draft.hideHolesUntilAllFinish) needs.push('Hiding holes until every group finishes');
-  if (draft.scoring && needsTwoScores(draft.scoring.format)) needs.push('Two-ball formats');
   if (draft.moneyModel === 'pot' && draft.potLegs) needs.push('Front / back / overall pot splits');
   return needs;
 }
@@ -406,9 +405,13 @@ function joinNeeds(needs: string[]): string {
  *   something only sides has              → unexpressible, with the reason the money step shows
  *
  * Classic can serve: every team is its own tee group, and the money is a pot or a
- * two-team head-to-head. Sides can serve: at most 8 players, formats it computes (best ball,
- * combined, one-ball), no CTP / manual bonuses / captains / hidden holes. When both can
- * (aligned two teams on fixed legs, or an aligned pot), classic wins — it carries more.
+ * two-team head-to-head. Sides can serve: at most 8 players, EVERY team format (F-072 routed
+ * its hole scoring through the pool's `teamValueOnHole`), no CTP / manual bonuses / captains /
+ * hidden holes. When both can (aligned two teams on fixed legs, or an aligned pot), classic
+ * wins — it carries more.
+ *
+ * A two-ball format needs two cards on every team, so a team of one refuses it in BOTH
+ * containers — the guard is here, not in `classicOnlyNeeds`, because it's about the golf.
  */
 export function routeContainer(draft: StructureDraft): Route {
   const { structure } = draft;
@@ -426,6 +429,9 @@ export function routeContainer(draft: StructureDraft): Route {
 
   if (isOneBall(draft.scoring.format) && !draft.teamsTogether) {
     return { container: 'unexpressible', reason: UNEXPRESSIBLE.oneBallApart };
+  }
+  if (needsTwoScores(draft.scoring.format) && sizes.some((k) => k < 2)) {
+    return { container: 'unexpressible', reason: UNEXPRESSIBLE.needTeams('Two-ball formats') };
   }
 
   const needs = classicOnlyNeeds(draft);

@@ -40,6 +40,10 @@ describe('gameSummary', () => {
     expect(gameSummary(sides, { format: 'scramble' })).toBe('Sides · scramble');
     expect(gameSummary(sides, { format: 'alternate-shot' })).toBe('Sides · alternate shot');
     expect(gameSummary(sides, { format: 'combined' })).toBe('Sides · combined');
+    // F-072: the two-ball formats score on the sides engine too.
+    expect(gameSummary(sides, { format: 'net-and-gross' })).toBe('Sides · best net + best gross');
+    expect(gameSummary(sides, { format: 'two-best-net' })).toBe('Sides · two best net');
+    expect(gameSummary(sides, { format: 'two-best-gross' })).toBe('Sides · two best gross');
   });
 
   it('calls out Stableford, because it changes what a hole score IS', () => {
