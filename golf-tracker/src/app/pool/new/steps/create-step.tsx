@@ -165,8 +165,11 @@ export function CreateStep({
   const splitTotal = potDollarsTotal(effective);
   const balanced = Math.abs(splitTotal - pot) < 0.01;
 
+  // F-076 (opt A): the one-tap set is the score-derived bonuses only — closest-to-pin stays 0
+  // until typed. It was silently included, and on a pot game it then greyed $ per hole / $ per
+  // point for a reason nobody had asked for. A saved format still restores whatever CTP it saved.
   function addBonuses() {
-    setJunkValues({ ...DEFAULT_JUNK_VALUES });
+    setJunkValues({ ...DEFAULT_JUNK_VALUES, ctp: 0 });
     setBonusesOpened(true);
   }
   function removeBonuses() {
@@ -445,7 +448,7 @@ export function CreateStep({
             className="min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-green-400"
           >
             + Add bonuses
-            <span className="ml-1 text-xs text-gray-400">birdies, eagles, closest to the pin…</span>
+            <span className="ml-1 text-xs text-gray-400">birdies, eagles, all-par…</span>
           </button>
         </div>
         )}
