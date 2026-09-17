@@ -27,6 +27,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | When |
 |---|---|
+| **Hub batch F-088 A / F-089 A / F-090 A BUILT** (asked outright first, §5.bp): mode panel headed "How it's played"; phone header stacks actions under the title; `CtpEditor` classic-only (Phase 3 lifts it). Pinned in `e2e/f088-f090-hub.spec.ts`, 4/6 fail on old code. New finding F-091 (settings grid crams on a phone). Verify log `.claude/verify-2026-09-16-hub.log` | 2026-09-16 |
 | **Collapse Phase 2 — vocabulary (F-061 + F-081) BUILT** on `ui-simplification-2026-09-15`: `gameKindLabel(game)` is the one game-kind label (list cards via `gameListSubtitle`, hub header, leaderboard header, save-format modal, wizard review); "side" gone from every user-visible string; hub gets a Teams section (pairings + tee group) for shared-foursome games; `structureOf` reads tee groups as the teams when no sides are stored. 3 new findings from the screenshot read (F-088/F-089/F-090). Verify log `.claude/verify-2026-09-16-phase2.log` | 2026-09-16 |
 | **Small wizard batch BUILT (ten commits, one per finding)**: F-073 match/stroke-play words · F-074 typed split ("4, 2, 2") · F-075 refusals say "Not built yet: …" never a fake rule · F-076 A Add bonuses leaves CTP 0 · F-080 applied style shown once · F-082 one grey reason line · F-083 manual bonuses behind the reveal · F-084 editable legs · F-085 A partners adjacent in groups · F-086 A no locks on pairs. Each e2e-pinned; verify green (see log). Found F-087 (bonus sections sit between the money question and its amounts) | 2026-09-16 |
 | **F-072 BUILT — two-ball formats on the sides engine** (goldens first, §5.z): `team-game.ts` scores a side through the pool's `teamValueOnHole`; `f072-two-ball-sides.test.ts` = 164 hand-arithmetic cases that ALL failed on the old engine (every cell a $0 dead heat), three mutations caught after; two-side/N-side/one-group goldens unmoved; router drops "Two-ball formats" from classic-only and refuses them for a team of one; mode schema, hub summary, e2e row + flipped pins | 2026-09-16 |
@@ -106,9 +107,10 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | ~~F-080 applied style shown once~~ DONE 2026-09-16 (b4b6461) | — | F-080 |
 | ~~F-083 manual bonuses behind the reveal~~ DONE 2026-09-16 (f427809) | — | F-083 |
 | F-087 money step: bonus sections sit between the money question and its amounts — reorder (opt A) | S | F-087 |
-| F-088 team-game hub says "Teams" twice (money panel header = mode name, plus the F-081 section) — opt A "How it's played" header; Craig's pick | S | F-088 |
-| F-089 hub header wraps a three-word game name to three lines beside five actions on a phone — opt A actions drop to a second row | S | F-089 |
-| F-090 `CtpEditor` renders on a team game whose legacy `junkValues.ctp > 0`, and the team engine never pays CTP — opt A gate on the classic container (one line); Phase 3 makes it truthful | S | F-090 |
+| ~~F-088 hub says "Teams" twice~~ DONE 2026-09-16 (opt A, 340cd60, §5.bp) | — | F-088 |
+| ~~F-089 phone header wraps the title~~ DONE 2026-09-16 (opt A, c60ae11, §5.bp) | — | F-089 |
+| ~~F-090 CTP editor on a team game~~ DONE 2026-09-16 (opt A, 3965d25, §5.bp); Phase 3 lifts the gate | — | F-090 |
+| F-091 hub "How it's played" grid crams label+value on a phone ("CompareMatch (hole by hole)") — opt A single-column rows below `sm`; Craig's pick | S | F-091 |
 | Phase 2 residue: `isSingleGroupGame` still named for what it used to mean (AGENTS.md's one rule cites it — rename both together); `teamBuild` provenance still classic-only; sandbox seed labels still say "sides" (dev-only, e2e `seed()` looks them up); the `team-2v2` mode `name` "Teams" is a placeholder Craig may rename (F-088 C) | S | plan §7 Phase 2 |
 | F-069: a NON-`TeamFormat` string in a sides game still scores as best ball (`teamNetOnHole` default arm, now the one place for both containers after F-072) — refuse vs default is Craig's call; Phase 3 rider | S | F-069 |
 | F-070: sandbox fake gains `.in()`/`.order()`/`.limit()` so the audit history renders in e2e (unhandled rejection in every verify log today) | S | F-070 |

@@ -1227,6 +1227,22 @@ line. Screenshot: `e2e/screenshots/f072-hub-pairs-net-gross.png`. Left in its wa
 
 ---
 
+### F-091 — The "How it's played" grid crams label and value together on a phone  [P3] [track]
+
+**Where (`f089-hub-header-phone.png`, 390px, 2026-09-16):** the mode-settings panel is a two-column
+key/value grid. At phone width the label column is too narrow, so "Compare by" and "Match (hole by
+hole)" render as "CompareMatch (hole by hole)" with no gap, and "Team format" / "Birdie / eagle
+bonuses" wrap onto two lines each. Readable on a desktop; a squint on the course. Pre-existing —
+the F-089 fix only moved the header above it.
+
+**Options:** **A** below `sm` each setting is one row, label above value (single column). **B** give
+the label column a fixed minimum width and let the value wrap. **C** show fewer rows on a phone
+(hide settings still at their default). Recommend A — same information, no hidden rows.
+
+**Status:** open — Craig's pick (§5.bo).
+
+---
+
 ### F-088 — The team-game hub now says "Teams" twice: the money panel's header AND the new section  [P3] [start]
 
 **Where (`f072-hub-pairs-net-gross.png`, `hub-2v2.png`, 2026-09-16):** the money summary panel's
@@ -1238,7 +1254,10 @@ also headed "Teams". Two identical headings, two different things (settings vs p
 line (`gameSummary`: "Teams · best ball · Stableford"). **C** rename the mode itself (e.g.
 "Team match") — but that word also fronts the settings editor, so pick it once. Recommend A.
 
-**Status:** open — Craig's pick (§5.bo).
+**Status:** FIXED 2026-09-16 (340cd60) — opt A, Craig's pick (§5.bp). The mode panel's header is
+"How it's played" for every mode. The classic "Pot" / "Head-to-Head Match" headers are
+unchanged — they name the money model, not the mode, and nothing repeats there. Pinned in
+`e2e/f088-f090-hub.spec.ts` (2v2: one "Teams" heading; skins: same fixed header).
 
 ---
 

@@ -1783,6 +1783,28 @@ from him. Small mechanical items with one defensible answer still don't need the
 
 ---
 
+## 5.bp Hub batch after Phase 2: F-088 A / F-089 A / F-090 A (2026-09-16)
+
+**Asked outright (§5.bo) at the start of the sixth 2026-09-16 session**, before any code. Craig
+picked the recommendation on all three:
+
+- **F-088 A** — the mode-settings panel on the hub is headed **"How it's played"** for every mode,
+  never the mode's `name` (which Phase 2 made "Teams", so a team game read "Teams" twice — the
+  panel, then the F-081 pairings list). Options B (format line as header) and C (rename the mode)
+  not taken; the `team-2v2` mode `name` "Teams" stays a placeholder.
+- **F-089 A** — on a phone the hub header's five actions (Feedback · Share · Save format · Edit ·
+  Dashboard) drop to their own row under the title. Nothing collapses into a menu, no label
+  shortens. Desktop layout unchanged.
+- **F-090 A** — `CtpEditor` renders only on the classic pool container. The team engine
+  (`team-game.ts`) never reads `ctpWinners`, so a legacy/seeded team game carrying `junkValues.ctp
+  > 0` was showing a control that changed nothing. **Phase 3** (CTP paying on every engine) lifts
+  the gate — it is a stopgap, not the shape.
+
+Each pinned in `e2e/f088-f090-hub.spec.ts`; the pins were run against the pre-fix code first and
+four of six failed (the two "still there" controls passed, as they should).
+
+---
+
 ## 7. Open questions
 
 Awaiting Craig's call. Inferred answers are marked as guesses.

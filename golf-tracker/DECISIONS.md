@@ -175,6 +175,8 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.bl | Best possible, not merely easiest (live scoring named first): plans must argue whether a subsystem's shape is the BEST one, not just that it works; §2 stop-and-ask still governs changes |
 | 5.bm | Collapse plan walked 2026-09-16: router picks the engine by CAPABILITY (never a user-facing choice; unexpressible combos greyed with reason until Phase 3); partners walk together, no tee-sheet question; uneven teams under "Other split…"; F-063 opt A approved now, opt C its own session; "team" everywhere |
 | 5.bn | F-072 (2026-09-16): every team format on every split — the sides engine scores through the pool's `teamValueOnHole`; a two-ball format is refused only where a team has one ball (a team of one); scoring-math change landed goldens-first (§5.z), 164 oracle cases, three mutations caught |
+| 5.bo | F-076 A / F-085 A / F-086 A (2026-09-16): recommended options stand as built; going forward, when an option is Craig's to pick, ASK the question outright before building |
+| 5.bp | F-088 A / F-089 A / F-090 A (2026-09-16): hub mode panel headed "How it's played"; phone header stacks actions under the title; CTP editor classic-only until Phase 3 pays CTP everywhere |
 
 ---
 

@@ -1,5 +1,20 @@
 # Next session: Phase 3 engine convergence — BLOCKED on Craig's worked examples; small findings meanwhile
 
+**UPDATE 2026-09-16 (sixth session): the HUB BATCH is BUILT — F-088 A / F-089 A / F-090 A** (§5.bp;
+asked outright first per §5.bo, Craig picked A on all three). Three commits after 9a5dc6f: 340cd60 F-088 ·
+c60ae11 F-089 · 3965d25 F-090 (+ `e2e/f088-f090-hub.spec.ts`, run against the pre-fix code first: 4/6
+failed). What changed: the hub's mode-settings panel is headed **"How it's played"** for every mode
+(classic "Pot" / "Head-to-Head Match" headers untouched); below `sm` the hub header stacks the five
+actions under the title; `CtpEditor` renders only when `getGameMode(game.gameMode)` is undefined —
+Phase 3 lifts that gate. New finding **F-091** (the settings grid crams "CompareMatch (hole by hole)"
+at 390px; opt A single-column rows on a phone) — Craig's pick, ASK. Verify log
+`.claude/verify-2026-09-16-hub.log` (check `VERIFY_EXIT=`).
+
+**Nothing actionable is left that doesn't need Craig:** Phase 3 needs his worked examples (asked in
+the sixth session's closing message — one game per shape: 4 foursomes + fixed legs + bonuses; pairs
++ CTP; 3 teams + pot with junk), F-091 and F-087 need his option, F-062 A/B/C still waits. If he
+answers with examples: pin each as a failing test first (§5.z), then build.
+
 **UPDATE 2026-09-16 (fifth session): PHASE 2 VOCABULARY IS BUILT (F-061 + F-081)** — commit b8f9c79 on the
 branch after 6db4c9c. Step 3 is DONE. What changed: `gameKindLabel(game)` / `gameKindLabelFrom(facts)`
 in `lib/game-structure.ts` is the ONE game-kind label — "2 teams of 4 · pot", "4 pairs · $/point ·
