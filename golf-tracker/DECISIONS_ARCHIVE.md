@@ -1805,6 +1805,55 @@ four of six failed (the two "still there" controls passed, as they should).
 
 ---
 
+## 5.bq Phase 3 money rules: bonuses are junk; multi-team settlement is a chosen setting (2026-09-17)
+
+**Asked** (sixth session, after the hub batch) as five rule questions, because Phase 3 makes the
+combinations the router refuses today pay money, and nothing in code or seeds says what they should
+pay. Craig's answers, verbatim where it matters:
+
+1. **CTP and hand-tracked bonuses on a team game:** *"yes, exactly the same, if junk is included,
+   bonuses can count as junk points, and payment can vary based on the money settings."* → CTP and
+   the five hand-tracked bonuses add to the team's junk total exactly like a birdie; the game's
+   money settings then settle junk as they already do.
+2. **Pot legs with three or more teams:** *"this all depends on the pot split, if winner take all,
+   then winner takes the whole pot. if not, then either a split, or could be every team pays every
+   team they lost to. Should be a choosable setting."*
+3. **$/hole and $/point with three or more teams:** *"this also should be a setting that is chosen.
+   could be either."* (winner takes from everyone vs every team pays every team it lost to.)
+4. **A classic multi-foursome game on $/hole or $/point:** *"same answer … could be a winner take all
+   situation, or could be you pay based on which holes you lost to how many teams for example. It is
+   confusing in thought but not in practice in my opinion."*
+5. **Captains for pairs:** *"agreed … captains for pairs makes sense, but also the goal in my opinion
+   should be that each pair has a similar combined handicap (which this calculation would likely
+   feed into our flight model which should be a long term goal in the backlog)."*
+
+**Addendum (same day), junk payout:** *"For the warriors … you accumulate junk points per round, and
+then whichever foursome has the most junk points receives the junk pot. For another group I play
+with … each junk point is worth 5 dollars, where birdie is 1 point, eagle would be 2, etc."* → junk is
+counted in POINTS everywhere; how the points pay is its own choice — a junk POT (most points wins,
+ties split) or $ PER POINT (differential / round robin). Both already exist in classic, welded to
+the money mode; Phase 3 makes the choice explicit and available on every engine.
+
+**Confirmed outright 2026-09-17 (AskUserQuestion):** Q-A junk in points, paid as junk pot OR $/pt,
+default from the money model — yes. Q-B `multiTeamPayout` defaults to "pay each team you lost to" —
+yes. Q-C winner-takes-from-everyone with a tie at the top: the loser pays ONCE and the tied winners
+split it (A +5, B +5, C −10) — yes. Q-D pots keep "places paid" as their only split control — yes.
+Q-F winner-takes $/hole pays only the outright low team — *"yes, and this is similar to a skins
+situation, so I believe there should be an option to rollover for these types of games"* → the skins
+mode's "Carry ties to next hole" toggle (default on) applies to WTA $/hole.
+Q-E pot by legs on pairs = one buy-in per pair cut into slices (A +40, B −10, C −10, D −20) — yes.
+Q-G a carry unclaimed after the last hole is dead — yes. Spec: `.claude/plans/phase3-money-convergence.md`.
+
+**Decision:** for every money model on a game with 3+ teams there is ONE new setting — how the
+losers pay — with two values: **winner takes all** (the leg/hole/point winner collects from every
+other team; ties split) and **pay everyone you lost to** (round robin: each team settles against each
+other team). It has a sane default and is hidden (`showIf`) with two teams, where both values
+coincide. Bonuses are junk on every engine. Pair-building balances combined handicap; that balance
+routine is the seed of the flight model (BACKLOG, long term). Worked numeric examples are drafted by
+me from these rules and CONFIRMED by Craig before they become the Phase 3 goldens (§5.z).
+
+---
+
 ## 7. Open questions
 
 Awaiting Craig's call. Inferred answers are marked as guesses.

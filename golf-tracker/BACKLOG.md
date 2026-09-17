@@ -126,7 +126,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | **Accounts / §5c hardening** (reshaped 2026-09-15, §5.bj — the audit + F-047…F-059 delivered the sharing/login polish; this row is what remains): revoke/rotate per-game tokens, real RLS under the settled §5.bi ownership model, and the F-049 remainder (tappable "Viewing as…"). Crossing into real accounts/auth is the §5c/F-002 trigger — pause for Craig there. | M–L | Craig 2026-09-10 + §5.bi/§5.bj |
 | **Home screen & Event model** — P1 flag-gated read-only /home → stats/ledger → shared Event → flights | L | approved plan `.claude/plans/adaptive-squishing-locket.md` |
 | **Team Competition engine** — N teams of size K within foursomes (4 pairs combined Stableford etc.). Now = Phase 3 (convergence) of the collapse plan. NOTE: the plan file `tingly-petting-reddy.md` is NOT on disk (plans written outside the repo were lost); memory `project_pool-team-competition-plan` is the durable copy. Plans now live in the repo's `.claude/plans/` | L | approved 2026-08-03 + collapse plan §7 |
-| **Flight mode** — handicap flights/divisions competing separately | L | folded in as Phase 4 of the Home/Event plan |
+| **Flight mode** — handicap flights/divisions competing separately | L | folded in as Phase 4 of the Home/Event plan; §5.bq: the Phase 3 pair-balancing (similar combined handicap per pair) is its seed — build that routine so flights can reuse it |
 
 ## Known-incomplete corners (fix when the format is actually played)
 

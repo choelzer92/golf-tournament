@@ -1,0 +1,169 @@
+# Phase 3 — money convergence: every money option on every split (APPROVED 2026-09-17)
+
+**Status 2026-09-17:** APPROVED — Craig answered Q-A…Q-G outright (§5.bq). Every numbered example below is a golden to pin BEFORE building. Rules come from §5.bq (his answers);
+the numbers below are MINE, derived from those rules plus what each engine does today. Nothing is
+built. When he confirms (or corrects) a numbered example, it becomes a golden in
+`src/test/phase3-*.test.ts` that FAILS on today's code (§5.z) before any engine change.
+
+Goal (Craig): *"IT should be relatively easy to configure any type of game that users want, and
+not confusing."* Concretely: the money step never greys an option for an engine reason.
+
+## 0. Where the two engines stand (facts, from the 2026-09-17 code map)
+
+| | classic pool (`pool-game.ts`) | team engine (`team-game.ts`) |
+|---|---|---|
+| teams | = tee groups, N teams | `sides[]`, any teams ≤ 8 players |
+| pot | N teams · front/back/overall/junk slices · places paid · ties split the summed places | ONE prize by finishing order · per-side buy-in · ties split · no legs, no junk slice |
+| fixed legs | 2 teams ONLY (`computeMatchPayouts` returns $0 otherwise) · $ per player · push = $0 | N sides · each leader collects `$ × teams behind`, non-leaders pay `$ × leaders` · voided leg = $0 |
+| $/hole, $/point | — | N sides · round robin (pairwise margins) |
+| junk units | POINTS per item (`junkValues`) × either a pot slice or `junkPerPoint` $ | **$ per item** (`junkBirdie` = dollars), per player, settled round robin |
+| CTP | `ctpWinners` → team's junk points | not read |
+| group hug | every member par-or-better → junk point | not read |
+| hand-tracked bonuses | `customBonuses` + `bonusMarks` → junk points | not read |
+| captains | `captainId`, balance-excluding-captains | `GameSide` has no captain; wizard balances pairs by combined hcap already |
+| hide holes until all finish | ✓ | — |
+
+The router (`game-structure.ts` `classicOnlyNeeds`) refuses CTP, manual bonuses, captains,
+hide-holes and pot-by-legs whenever the shape needs the team engine, and refuses $/hole, $/point and
+3+-team legs whenever the shape needs classic. Phase 3 = teach the TEAM engine the five classic
+capabilities. Then no shape ever needs classic, and the refusals go. Classic stays untouched for the
+Warriors' saved games (no migration, §5.bm: routing layer, not storage).
+
+## 1. Bonuses are junk on every engine (§5.bq Q1 — Craig: "exactly the same")
+
+**Rule:** CTP, group hug and hand-tracked bonuses add to a team's junk total exactly like a birdie.
+The money settings then settle junk however the game already settles it.
+
+**One junk vocabulary.** Today classic counts POINTS and the team engine counts DOLLARS. Proposal:
+points everywhere, with a `$ per junk point` next to them. Every existing team game has
+`junkBirdie: 1, junkEagle: 2, junkAlbatross: 5` dollars — read as points at `$1/pt` and its payouts
+do not move (that is the golden). New team-engine settings: `junkCtp` (default 1 pt), `junkGroupHug`
+(default 1), `junkPerPoint` ($, default 1), plus the hand-tracked bonus list the classic wizard has.
+
+**Two ways to pay junk points (Craig, 2026-09-17):** *"the Warriors … whichever foursome has the
+most junk points receives the junk pot. Another group … each junk point is worth 5 dollars."* Both
+exist in classic today, but welded to the money mode (pot → junk slice; match → `junkPerPoint`).
+Proposal: a `junkPayout` setting of its own, on every engine —
+- **Junk pot** — a fixed junk amount (a pot slice, or a stated $) goes to the team with the most
+  points; ties split it; all-zero = split.
+- **$ per point** — every point is worth $X; teams settle the differential (2 teams) / round robin
+  (3+ teams, as the team engine does today).
+Default follows the money model (pot → junk pot; legs / $/hole / $/point → $ per point) and can be
+overridden. Group-hug, CTP and hand-tracked bonuses are just more points either way.
+
+**Example 1 (team engine, 4 pairs, junk on, $ per point at $1, round robin as today):**
+Pair A: 2 birdies + CTP on 7 = 3 pts · B: 1 birdie = 1 · C: 0 · D: eagle = 2 → total 6.
+Each pair: `earned × 3 − (6 − earned)` → **A +6, B −2, C −6, D +2** (sums to 0).
+Today's engine gives A +3 (ignores the CTP) — the test fails first, as it should.
+
+**Example 2 (classic-shaped 2 teams of 4 that the wizard now routes to the team engine):** hand-tracked
+"Sandy" worth 2 pts, marked for a Team A player on hole 4; nothing else. Junk total A=2, B=0 →
+**A +$2, B −$2** at $1/pt. Same as classic would pay with `junkPerPoint: 1`.
+
+**Example 1b (same 4 pairs as Example 1, junk pot $20):** A has the most points (3) → **A +20, the
+other three pay nothing extra** (the $20 came out of the buy-in, as the Warriors play it). If A and
+D had tied on 3, each gets $10.
+
+## 2. Three or more teams: ONE chosen setting for how losers pay (§5.bq Q2–Q4)
+
+**Setting:** `multiTeamPayout` — **"Winner takes from everyone"** | **"Pay each team you lost to"**.
+Shown only when the game has 3+ teams (with 2 the two coincide). Applies to fixed legs, $/hole and
+$/point. **Default: "Pay each team you lost to"** — it is what $/hole and $/point already do, so no
+existing game moves. (Craig: "should be a choosable setting … could be either.")
+
+**Pot is NOT given this setting.** A pot already has *places paid* (`potSplit`/`positionSplit`):
+`100` = winner takes all, `60/40` = split. "Pay everyone you lost to" is not a pot — it is fixed legs.
+So for the pot the choice Craig described already exists; the gap is §3 (legs and junk slices).
+
+### Fixed legs — front $10, 3 teams (A beat B beat C on the front)
+
+| mode | A | B | C |
+|---|---|---|---|
+| Pay each you lost to (round robin, each pair settles $10) | **+20** | **0** | **−20** |
+| Winner takes from everyone | **+20** | **−10** | **−10** |
+
+Today's team engine pays +20 / 0 / −20 ("leaders collect from everyone behind" collapses to
+round robin when places are distinct) — so the default is a golden that passes; WTA fails first.
+
+**Tie at the top** (A = B, C third, front $10):
+- Round robin: A–B push; each beats C → **A +10, B +10, C −20**. (Today's engine does this.)
+- Winner takes from everyone: C owes the winning place once, the tied winners split it →
+  **A +5, B +5, C −10**. *(Alternative: C pays each tied winner, −20. I propose the split because
+  "winner takes all" names ONE prize; tell me if the Warriors would say otherwise.)*
+
+**Tie at the bottom** (A first, B = C): round robin → A +20, B −10, C −10. WTA → the same.
+All tied → nobody pays (both modes; today's rule).
+
+### $/hole — $2 per hole, 3 teams, one hole where A has the outright best score
+
+- Pay each you lost to: A +2 vs B, A +2 vs C → **A +4, B −2, C −2**; B–C tied on the hole → 0.
+  (Exactly today's round robin over holes won.)
+- Winner takes from everyone: **identical on this hole** — the difference appears when B beats C
+  outright on another hole: round robin pays B +2 / C −2 for it; WTA pays nothing unless a team has
+  the OUTRIGHT best score of all. Over a round: WTA = "only the low team on each hole is paid."
+- **Carry ties (Craig, 2026-09-17: "similar to a skins situation … there should be an option to
+  rollover"):** in WTA mode the setting `carryover` ("Carry ties to next hole", default ON — the
+  skins mode's toggle and rule, `skins.ts`) rolls a tied hole's $ onto the next hole; a carry still
+  unclaimed after the last hole is dead (nobody pays), as skins does today. Example, $2/hole,
+  3 teams: hole 1 tied, hole 2 A outright low → A collects $4 from each of B and C → **A +8, B −4,
+  C −4**. Carry OFF: hole 1 dead, hole 2 → A +4, B −2, C −2. Round-robin mode has no carry (every
+  pairwise win already pays).
+
+### $/point — $1 per point, match-point totals A 10, B 6, C 2
+
+- Pay each you lost to: A−B 4, A−C 8, B−C 4 → **A +12, B 0, C −12**. (Today.)
+- Winner takes from everyone: leader collects its margin from each team → **A +12, B −4, C −8**.
+
+### Classic multi-foursome game on $/hole or $/point (Q4)
+
+Same code: the wizard already routes an aligned 2-teams-of-4 with margin money to the team engine
+(`sides = tee groups` is legal). Once §1 and §4 land there is nothing classic-only left to force
+the classic engine, so the router stops refusing. Numbers as in the tables above.
+
+## 3. Pot by legs for 3+ teams that don't share foursomes (the one `not expressible` row)
+
+**Rule:** the team engine's pot gains the classic's slices — front / back / overall / junk fractions
+(`potSplit` today on classic) and places paid per slice — by calling the classic's `buildLeg` /
+`distributePot` over sides instead of tee groups. Ties split the summed places (classic's rule, no
+carry, no push). Junk slice ranks junk points (§1).
+
+**Example 3 — 4 pairs, $20 per pair buy-in (pot $80), 25% each slice, winner takes each slice ($20):**
+front A wins · back B and C tie · overall A wins · junk A 3 / B 1 / C 0 / D 2 →
+A: front 20 + overall 20 + junk 20 − 20 = **+40** · B: back 10 − 20 = **−10** · C: 10 − 20 =
+**−10** · D: 0 − 20 = **−20**. Sums to 0. Today the team engine's pot pays only finishing order.
+
+## 4. Captains, hide-holes, one-ball scoring — capability, not money
+
+- **Captains for pairs (Q5, agreed):** `GameSide` gains `captainId`; the teams step's captain
+  toggle is offered for every split; `balanceExcludeCaptains` honored. The pair balancer already
+  minimizes the spread of COMBINED handicap across pairs — Craig's stated goal — and is the routine
+  the flight model will reuse (BACKLOG). No money change.
+- **Hide holes until all finish:** team-engine leaderboard honors the flag (presentation).
+- **Scramble / alternate shot with a team smaller than its foursome** stays refused — one score per
+  GROUP is a scoring-entry constraint (§5.aa), not an engine gap. The reason text stays honest.
+
+## 5. Build order (each step = goldens first, one commit, verify green)
+
+1. §1 junk vocabulary on the team engine (points + $/pt), read-compatible with every saved game.
+   Goldens: Examples 1–2 + "every existing team-engine golden unmoved".
+2. §1 CTP / group hug / hand-tracked bonuses into `tallyJunk`; wizard stops treating them as
+   classic-only; `CtpEditor` gate (F-090) lifted; hub bonus marks on team games.
+3. §2 `multiTeamPayout` setting for legs, $/hole, $/point. Goldens: the six tables above.
+4. §3 pot slices on the team engine. Golden: Example 3.
+5. §4 captains on sides; hide-holes on the team leaderboard.
+6. Router: `classicOnlyNeeds` empties; classic remains for games already stored with
+   `gameMode` absent (Warriors). Money step never greys for an engine reason — e2e pins it on every
+   shape in `collapse-routing.spec.ts`.
+
+## 6. Questions for Craig (yes/no each; numbers editable)
+
+- ~~**Q-A**~~ CONFIRMED 2026-09-17 (yes). Junk in POINTS everywhere, paid either as a JUNK POT (most points wins, ties split) or as
+  $ PER POINT — a `junkPayout` setting defaulting from the money model (Examples 1, 1b, 2)?
+- ~~**Q-B**~~ CONFIRMED 2026-09-17 (yes). `multiTeamPayout` default = "Pay each team you lost to" (nothing saved moves)?
+- ~~**Q-C**~~ CONFIRMED 2026-09-17: winners SPLIT (A +5, B +5, C −10). Winner-takes-from-everyone tie at the top: tied winners SPLIT the loser's payment
+  (A +5, B +5, C −10), or the loser pays each (A +10, B +10, C −20)?
+- ~~**Q-D**~~ CONFIRMED 2026-09-17 (yes). Pot keeps "places paid" as its only split control (100 = winner takes all) — no
+  `multiTeamPayout` on pots?
+- ~~**Q-E**~~ CONFIRMED 2026-09-17: one buy-in per pair split into slices; A +40, B −10, C −10, D −20.
+- ~~**Q-F**~~ CONFIRMED 2026-09-17: outright low team only; plus a carry-ties toggle (skins rule).
+- ~~**Q-G**~~ CONFIRMED 2026-09-17: a carry left after the last hole is dead.
