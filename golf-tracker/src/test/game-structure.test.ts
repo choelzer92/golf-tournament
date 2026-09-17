@@ -23,6 +23,8 @@ import {
   structureForDefaults,
   structureLabel,
   structureOf,
+  gameKindLabel,
+  gameKindLabelFrom,
   structureOptionsFor,
   teeSheetFacts,
   type MoneyModel,
@@ -33,7 +35,7 @@ import {
   structureOptionLabel,
 } from '@/lib/game-structure';
 import { computeGameResult } from '@/lib/game-modes/result';
-import { defaultSettings, getGameMode } from '@/lib/game-modes';
+import { GAME_MODES, defaultSettings, getGameMode } from '@/lib/game-modes';
 import { sidesOfGame } from '@/lib/game-modes/sides';
 import type { GameScore } from '@/lib/game-state';
 import { allEighteen, makeGame, makePlayers, makeTeam, scoresFor, TEST_PARS } from './fixtures';
@@ -533,5 +535,58 @@ describe('structureOf / structureLabel on existing game shapes', () => {
     const s = structureOf(makeGame({ gameMode: 'skins', modeSettings: defaultSettings(getGameMode('skins')!.settings) }));
     expect(s).toMatchObject({ kind: 'solo', teamCount: 4, container: 'individual' });
     expect(structureLabel(s)).toBe('4 players');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// gameKindLabel — F-061: the ONE game-kind label. Four surfaces used to improvise it.
+// ---------------------------------------------------------------------------
+
+describe('gameKindLabel (F-061)', () => {
+  it('classic pool: structure · money word, never "Pool" / "foursomes" / "side"', () => {
+    const pot = makeGame({ teamCount: 2, indexes: Array.from({ length: 8 }, (_, i) => i) });
+    expect(gameKindLabel(pot)).toBe('2 teams of 4 · pot');
+    expect(gameKindLabel({ ...pot, moneyMode: 'match' })).toBe('2 teams of 4 · head-to-head');
+    const uneven = makeGame({ indexes: Array.from({ length: 7 }, (_, i) => i), teamCount: 2 });
+    expect(gameKindLabel(uneven)).toBe('4 + 3 · pot');
+  });
+
+  it('team game: money teams by size, its money model, and 2+ tee times', () => {
+    const pairs = makeGame({
+      indexes: Array.from({ length: 8 }, (_, i) => i), teamCount: 2, gameMode: 'team-2v2',
+      modeSettings: { moneyModel: 'per-point' },
+      sides: [['p1', 'p2'], ['p3', 'p4'], ['p5', 'p6'], ['p7', 'p8']].map((ids, i) => ({ id: 'abcd'[i], playerIds: ids })),
+    });
+    expect(gameKindLabel(pairs)).toBe('4 pairs · $/point · 2 groups');
+    const oneFoursome = makeGame({ gameMode: 'team-2v2', subTeams: { a: ['p1', 'p3'], b: ['p2', 'p4'] } });
+    expect(gameKindLabel(oneFoursome)).toBe('2 pairs · head-to-head');
+    expect(gameKindLabel({ ...oneFoursome, modeSettings: { moneyModel: 'pot' } })).toBe('2 pairs · pot');
+    expect(gameKindLabel({ ...oneFoursome, modeSettings: { moneyModel: 'per-hole' } })).toBe('2 pairs · $/hole');
+    const singles = makeGame({ indexes: [0, 9], gameMode: 'team-2v2', subTeams: { a: ['p1'], b: ['p2'] } });
+    expect(gameKindLabel(singles)).toBe('1 v 1 · head-to-head');
+  });
+
+  it('solo game: the format and the field size', () => {
+    expect(gameKindLabel(makeGame({ gameMode: 'skins' }))).toBe('Skins · 4 players');
+  });
+
+  it('every mode, every label: no "side", no "foursome", and the list-item flavour agrees with the game', () => {
+    for (const m of GAME_MODES) {
+      const n = Math.max(m.playersMin, 2);
+      const idx = Array.from({ length: n }, (_, i) => i);
+      const half = Math.ceil(n / 2);
+      const game = makeGame({
+        indexes: idx, gameMode: m.id,
+        sides: m.category === 'team-within-group'
+          ? [{ id: 'a', playerIds: idx.slice(0, half).map((i) => `p${i + 1}`) }, { id: 'b', playerIds: idx.slice(half).map((i) => `p${i + 1}`) }]
+          : undefined,
+      });
+      const label = gameKindLabel(game);
+      expect(label.toLowerCase(), m.id).not.toMatch(/side|foursome/);
+      expect(gameKindLabelFrom({
+        gameMode: game.gameMode, playerCount: n, groupSizes: game.teams.map((t) => t.playerIds.length),
+        sideSizes: (game.sides ?? []).map((s) => s.playerIds.length), money: String(game.modeSettings?.moneyModel ?? 'legs'),
+      }), m.id).toBe(label);
+    }
   });
 });

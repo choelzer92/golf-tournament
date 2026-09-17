@@ -18,6 +18,7 @@ import {
   getGameHoles,
 } from '@/lib/pool-game';
 import { getGameMode, type IndividualResult } from '@/lib/game-modes';
+import { gameKindLabel } from '@/lib/game-structure';
 import type { TeamFormat } from '@/lib/game-modes/team-scoring';
 import type { WolfHoleLine, NassauLegLine, JunkLine } from '@/lib/game-modes/types';
 import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
@@ -958,7 +959,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
           <div>
             <h1 className="text-lg font-bold">{game.name}</h1>
             <p className="text-xs text-gray-400">
-              {mode?.name}{result && result.thruHole > 0 ? ` · thru hole ${result.thruHole}` : ''}
+              {gameKindLabel(game)}{result && result.thruHole > 0 ? ` · thru hole ${result.thruHole}` : ''}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -983,7 +984,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
                 <thead>
                   <tr className="text-gray-500 border-b border-gray-700/50 text-xs">
                     <th className="text-left px-3 py-1.5 font-medium">#</th>
-                    <th className="text-left px-2 py-1.5 font-medium">{isWithinGroup ? 'Side' : 'Player'}</th>
+                    <th className="text-left px-2 py-1.5 font-medium">{isWithinGroup ? 'Team' : 'Player'}</th>
                     <th className="text-center px-2 py-1.5 font-medium">{result.metricLabel}</th>
                     {/* The figure the board is RANKED and PAID on, when it isn't the metric
                         itself (DECISIONS.md §5.af). A raw total can't be compared across
@@ -1500,7 +1501,7 @@ function JunkBonusBoard({ lines, bySide = false }: { lines: JunkLine[]; bySide?:
       </div>
       <p className="px-3 py-1.5 text-[10px] text-gray-500 border-t border-gray-700">
         {bySide
-          ? 'Already included in the money column — the two sides are netted, so only the difference changes hands.'
+          ? 'Already included in the money column — the two teams are netted, so only the difference changes hands.'
           : 'Already included in the money column — each earner collects from the rest of the group.'}
       </p>
     </div>

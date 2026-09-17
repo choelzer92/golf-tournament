@@ -138,7 +138,7 @@ test.describe('F-020: the game picker annotates fit', () => {
     // Four DISTINCT sides, each named after its own players ("Straight down the list" is
     // deterministic: Craig+Jym, Dave+Rick, Sam, Tony) — no player on two money sides.
     const review = await page.locator('body').innerText();
-    expect(review).toContain('Sides (2 vs 2 vs 1 vs 1)');
+    expect(review).toContain('Teams (2 vs 2 vs 1 vs 1)');
     for (const label of ['Craig & Jym', 'Dave & Rick', 'Sam (solo)', 'Tony (solo)']) expect(review).toContain(label);
     expect(review).not.toContain('Craig & Dave');
     expect(review).not.toContain('Jym (solo)');
@@ -284,7 +284,7 @@ test.describe('a group offers the formats it plays', () => {
     // The summary states what moves money: game, format, stakes, handicap rule (§5.ax part 2).
     const body = await page.locator('body').innerText();
     expect(body).toContain('Your saved game style');
-    expect(body).toContain('Sides · best ball');
+    expect(body).toContain('Teams · best ball');
     expect(body).toContain('$10 / $10 / $20');
     expect(body).toContain('off the low');
     await page.screenshot({ path: 'e2e/screenshots/f021-summary.png', fullPage: true });
@@ -478,7 +478,7 @@ test.describe('a 1 v 1 singles match', () => {
     expect(body).toMatch(/1\s+Jym\s+53/);
     expect(body).toMatch(/2\s+Craig\s+57/);
     expect(body).not.toContain('(solo)');
-    expect(body).not.toContain('Side A');
+    expect(body).not.toContain('Team A');
 
     // The Nassau: three legs settling separately, which is the whole point.
     expect(body).toContain('Craig by 4');      // front
@@ -535,7 +535,7 @@ test.describe('a 1 v 1 singles match', () => {
     // member list ("Craig" with "Craig" under it), which only showed up on screen.
     await expect(page.getByRole('heading', { name: /Review & create/ })).toBeVisible();
     const review = await page.locator('body').innerText();
-    expect(review).toContain('Sides (1 vs 1)');
+    expect(review).toContain('Teams (1 vs 1)');
     expect(review).toMatch(/\$10 front/);
     expect((review.match(/Craig/g) ?? []).length).toBe(2);  // the game name + one row
     await page.screenshot({ path: 'e2e/screenshots/oneone-review.png', fullPage: true });
@@ -636,7 +636,7 @@ test.describe('F-020: the wizard proposes splits', () => {
     await page.getByRole('button', { name: 'Next: Groups' }).click();
     await page.getByRole('button', { name: /Next: Review/ }).click();
     const review = await page.locator('body').innerText();
-    expect(review).toContain('Sides (2 vs 2 vs 1)');
+    expect(review).toContain('Teams (2 vs 2 vs 1)');
   });
 
   // An ordinary 2v2 must not gain a control, but four players DO have a choice: 2v2, 2+1+1 and

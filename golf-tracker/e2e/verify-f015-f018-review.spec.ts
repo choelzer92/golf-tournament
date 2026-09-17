@@ -120,8 +120,8 @@ test.describe('F-015: a read-only summary prints no empty rows', () => {
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
     // The disclosure opens ITSELF when a side already has a name, so an existing game's names
     // are never hidden from whoever is editing them.
-    await expect(page.getByLabel('Side A')).toHaveValue('The Hogs');
-    await expect(page.getByLabel('Side B')).toHaveValue('The Dawgs');
+    await expect(page.getByLabel('Team A')).toHaveValue('The Hogs');
+    await expect(page.getByLabel('Team B')).toHaveValue('The Dawgs');
 
     // The old settings rows are gone from the read-only panel entirely.
     for (const letter of ['A', 'B', 'C', 'D', 'E', 'F']) {
@@ -186,7 +186,7 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
     await buildSideGame(page, { players: [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']] });
     const body = await page.locator('body').innerText();
 
-    expect(body).toContain('Sides (2 vs 2)');
+    expect(body).toContain('Teams (2 vs 2)');
     // Named exactly as the leaderboard will name them — same resolver.
     expect(body).toMatch(/Craig & \w+/);
     // The stakes in words, so the review confirms what's being played for.
@@ -207,12 +207,12 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
     });
     const body = await page.locator('body').innerText();
 
-    expect(body).toContain('Sides (2 vs 2 vs 2)');
+    expect(body).toContain('Teams (2 vs 2 vs 2)');
     // F-014's payoff: before, side C could never be named anywhere in the wizard.
     expect(body).toContain('The Cats');
     // At 3+ sides each leg is collected from EVERY side behind (§5.aj), which is not obvious
     // from the numbers alone — so the summary says it.
-    expect(body).toContain('every side behind');
+    expect(body).toContain('every team behind');
     await page.screenshot({ path: 'e2e/screenshots/f018-review-three-sides.png', fullPage: true });
   });
 });

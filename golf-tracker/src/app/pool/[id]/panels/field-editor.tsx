@@ -1034,7 +1034,7 @@ export function OversizedGroupPrompt({ game, onSave }: { game: PoolGame; onSave:
       <p className="mt-0.5 text-xs text-amber-800">
         More than four can&apos;t play as one group. Split them into separate tee times, or keep them
         together if that&apos;s really the plan — <span className="font-medium">scores already entered
-        are kept either way</span>, and your sides don&apos;t change.
+        are kept either way</span>, and your teams don&apos;t change.
       </p>
 
       {!choosing ? (
@@ -1218,4 +1218,4 @@ export function WolfRotationEditor({ game, onSave }: { game: PoolGame; onSave: (
     </section>
   );
 }
-
+

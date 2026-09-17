@@ -384,7 +384,7 @@ test.describe('F-012: the same rule, in the 2v2 editor', () => {
 
     // Assert we're on the 2v2 editor, not the classic pool one — this page renders two
     // different settings panels and an early version of this test could pass on the wrong one.
-    await expect(page.getByText('Sides / Match options')).toBeVisible();
+    await expect(page.getByText('Teams options')).toBeVisible();
 
     const picker = page.locator('select').filter({ hasText: 'Best ball (low net counts)' }).first();
     await expect(picker).toBeVisible();
@@ -413,7 +413,8 @@ test.describe('F-012: the same rule, in the 2v2 editor', () => {
   test('re-tapping a side a player is already on changes nothing on screen', async ({ page }) => {
     await seed(page, '2v2 best ball — mid-round');
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
-    await expect(page.getByText('Sides', { exact: true })).toBeVisible();
+    // The editor's Teams section — not the hub's "Teams" sheet button or the mode option of that name.
+    await expect(page.getByRole('paragraph').filter({ hasText: /^Teams$/ })).toBeVisible();
 
     const before = await page.locator('body').innerText();
     // Craig is on side A already (subTeams.a = [sp1, sp2]); tap A again.
@@ -486,7 +487,7 @@ test.describe('F-006: three sides in one group', () => {
     const id = await seed(page, 'Three sides in one group');
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
-    await expect(page.getByText('Sides / Match options')).toBeVisible();
+    await expect(page.getByText('Teams options')).toBeVisible();
 
     // The names are no longer settings, so the settings editor must not offer them at all.
     for (const letter of ['A', 'B', 'C', 'D', 'E', 'F']) {
@@ -495,16 +496,16 @@ test.describe('F-006: three sides in one group', () => {
 
     // They live behind a disclosure in the Sides editor, closed by default — almost nobody
     // names their sides, so "just the usual game" never sees these fields.
-    await page.getByRole('button', { name: /Name the sides/ }).click();
+    await page.getByRole('button', { name: /Name the teams/ }).click();
     // Exactly three fields, for the three sides this game HAS. No box for a side that
     // doesn't exist, which is what the old six-static-keys arrangement couldn't express.
-    await expect(page.getByLabel('Side A')).toBeVisible();
-    await expect(page.getByLabel('Side C')).toBeVisible();
-    await expect(page.getByLabel('Side D')).toHaveCount(0);
+    await expect(page.getByLabel('Team A')).toBeVisible();
+    await expect(page.getByLabel('Team C')).toBeVisible();
+    await expect(page.getByLabel('Team D')).toHaveCount(0);
 
     // Naming side C actually reaches the leaderboard.
-    await page.getByLabel('Side C').fill('The Cats');
-    await page.getByLabel('Side C').blur();
+    await page.getByLabel('Team C').fill('The Cats');
+    await page.getByLabel('Team C').blur();
     await page.goto(`${BASE}/pool/${id}/leaderboard`);
     // Appears in BOTH the standings row and the player-details side tag — that consistency is
     // the point (a name that reached one surface and not the other is the F-006 "Team A" bug).
@@ -517,17 +518,17 @@ test.describe('F-006: three sides in one group', () => {
     const id = await seed(page, 'Three sides in one group');
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
-    await expect(page.getByText('Sides / Match options')).toBeVisible();
+    await expect(page.getByText('Teams options')).toBeVisible();
 
     // Three side buttons per player row, and the controls to change that.
-    await expect(page.getByRole('button', { name: 'Remove side C' })).toBeVisible();
-    await expect(page.getByRole('button', { name: '+ Add a side' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove team C' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '+ Add a team' })).toBeVisible();
 
     await page.screenshot({ path: 'e2e/screenshots/three-sides-hub.png', fullPage: true });
 
     // Adding a fourth side gives every player a D button to tap.
-    await page.getByRole('button', { name: '+ Add a side' }).click();
-    await expect(page.getByRole('button', { name: 'Remove side D' })).toBeVisible();
+    await page.getByRole('button', { name: '+ Add a team' }).click();
+    await expect(page.getByRole('button', { name: 'Remove team D' })).toBeVisible();
   });
 });
 
@@ -553,14 +554,14 @@ test.describe('F-006: a side game can play a POT', () => {
     const id = await seed(page, 'Three sides playing a POT');
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
-    await expect(page.getByLabel('Buy-in ($ / side)')).toBeVisible();
+    await expect(page.getByLabel('Buy-in ($ / team)')).toBeVisible();
     await expect(page.getByLabel('Pot split (%)')).toBeVisible();
     // The margin models' fields are hidden while a pot is selected.
     await expect(page.getByLabel('$ per point')).toHaveCount(0);
 
     // Switching to a margin model hides the pot fields again (showIf, both directions).
     await page.getByLabel('Money', { exact: true }).selectOption('per-point');
-    await expect(page.getByLabel('Buy-in ($ / side)')).toHaveCount(0);
+    await expect(page.getByLabel('Buy-in ($ / team)')).toHaveCount(0);
     await expect(page.getByLabel('$ per point')).toBeVisible();
   });
 });
@@ -586,7 +587,7 @@ test.describe('F-013: the scorecard with three sides', () => {
     expect(body).not.toMatch(/\d+ UP/);
     // And the header says how many sides are playing — it read "Stroke Play · Best Ball · Full
     // Handicap" for a three-side game, true but silent about the surprising part.
-    expect(body).toContain('3 sides');
+    expect(body).toContain('3 teams');
 
     await page.screenshot({ path: 'e2e/screenshots/three-sides-scorecard.png', fullPage: true });
   });

@@ -6,7 +6,7 @@ import { QrImage } from '@/components/qr-image';
 import { type PoolGame, ensureShareToken } from '@/lib/pool-game';
 import { ORGANIZER_TOKEN, isAppOwner } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
-import { getGameMode } from '@/lib/game-modes';
+import { gameKindLabel } from '@/lib/game-structure';
 import { saveFormat, formatFromGame, attachFormatToGroup } from '@/lib/pool-formats';
 import { type RosterGroup, hydrateGroups, getGroupById } from '@/lib/roster-groups';
 
@@ -18,8 +18,8 @@ export function SaveFormatModal({ game, onClose }: { game: PoolGame; onClose: ()
   const [shared, setShared] = useState(false);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
-  const modeName = getGameMode(game.gameMode)?.name
-    ?? (game.moneyMode === 'match' ? 'Head-to-head match' : 'Pool (pot split)');
+  // The same game-kind label every other surface prints (F-061).
+  const modeName = gameKindLabel(game);
 
   // F-046: a game that came FROM a group saves its format TO that group (opt-out). "Save
   // format" used to write to the flat library only — Craig saved "friday game in the friday
@@ -179,4 +179,4 @@ export function SharePanel({ game, onSave, onClose }: { game: PoolGame; onSave: 
     </div>
   );
 }
-
+

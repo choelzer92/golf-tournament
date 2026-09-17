@@ -19,7 +19,7 @@ import type { GameSide } from '@/lib/game-modes/sides';
 import { getGameMode, fitExplanation, formatSummaryLine, type SettingsBag } from '@/lib/game-modes';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
-import type { Container, MoneyModel, MoneyModelOption } from '@/lib/game-structure';
+import { MONEY_WORD, structureLabel, type Container, type MoneyModel, type MoneyModelOption } from '@/lib/game-structure';
 import { type PotDollars, foldJunkStrings, legDollarsToStrings, potDollarsTotal } from './shared';
 
 // The sides engine's MONEY settings (plan §3.4). Everything else in its schema — format, hole
@@ -41,23 +41,23 @@ function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
     case 'pot': {
       const buyIn = num('sideBuyIn', 20);
       const split = String(settings.potSplit ?? '100');
-      // §5.ag: the ante is PER SIDE whatever its size, which is the surprising part worth saying.
-      return `$${buyIn} per side in the pot ($${buyIn * sideCount} total) — `
-        + `${split === '100' ? 'best side takes it all' : `paid ${split} down the order`}. `
-        + 'Each side antes the same, whatever its size.';
+      // §5.ag: the ante is PER TEAM whatever its size, which is the surprising part worth saying.
+      return `$${buyIn} per team in the pot ($${buyIn * sideCount} total) — `
+        + `${split === '100' ? 'best team takes it all' : `paid ${split} down the order`}. `
+        + 'Each team antes the same, whatever its size.';
     }
     case 'per-hole': {
       const d = num('dollarsPerHole', 2);
-      return `$${d} a hole won${many ? ', against each other side' : ''}.`;
+      return `$${d} a hole won${many ? ', against each other team' : ''}.`;
     }
     case 'per-point': {
       const d = num('dollarsPerPoint', 1);
-      return `$${d} per point of margin${many ? ', against each other side' : ''}.`;
+      return `$${d} per point of margin${many ? ', against each other team' : ''}.`;
     }
     default: {
       const f = num('legFront', 10), b = num('legBack', 10), o = num('legOverall', 10);
       return `$${f} front / $${b} back / $${o} overall`
-        + (many ? ' — each leg paid to the winner by every side behind.' : '.');
+        + (many ? ' — each leg paid to the winner by every team behind.' : '.');
     }
   }
 }
@@ -213,9 +213,14 @@ export function CreateStep({
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
         <div>
-          <p className="text-sm text-gray-500">{isIndividual ? mode!.name : 'Pool'}</p>
+          {/* The same game-kind label the hub and list cards print (F-061): structure · money. */}
+          <p className="text-sm text-gray-500">
+            {container === 'individual'
+              ? mode!.name
+              : `${structureLabel({ kind: 'teams', teamSizes: (container === 'sides' ? (sides ?? []) : teams).map((t) => t.playerIds.length) })} · ${MONEY_WORD[moneyModel]}`}
+          </p>
           <p className="text-lg font-bold text-gray-900">{name}</p>
-          {isIndividual && <p className="text-xs text-gray-500 mt-0.5">{mode!.description}</p>}
+          {container === 'individual' && <p className="text-xs text-gray-500 mt-0.5">{mode!.description}</p>}
           {/* THE STAKES (F-026). For an individual/within-group game the money lives in step 1's
               mode settings, so this last screen showed no dollar figure at all — the one number
               the group on the first tee wants confirmed. Same tested summary as step 1. */}
@@ -589,11 +594,11 @@ export function CreateStep({
             many sides, not who was with whom, not the stakes. Confirming who's paired with whom is
             the whole job of a review step, and it was the one thing it didn't show.
 
-            "Foursomes" is also simply the wrong word here (§5.al: say "side" in a side game). */}
+            "Foursomes" is also the wrong word here — money teams are "Teams" (§5.bm Q5). */}
         {isWithinGroupReview && sides && sides.length > 0 && (
           <div className="pt-2 border-t">
             <p className="text-sm font-semibold text-gray-800 mb-2">
-              Sides ({sides.map((s) => s.playerIds.length).join(' vs ')})
+              Teams ({sides.map((s) => s.playerIds.length).join(' vs ')})
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
               {sides.map((side) => {
@@ -641,7 +646,7 @@ export function CreateStep({
             {players.some((p) => !sides.some((s) => s.playerIds.includes(p.id))) && (
               <p className="text-xs text-amber-700 mt-1">
                 {players.filter((p) => !sides.some((s) => s.playerIds.includes(p.id)))
-                  .map((p) => p.name.split(' ')[0]).join(', ')} not on a side yet.
+                  .map((p) => p.name.split(' ')[0]).join(', ')} not on a team yet.
               </p>
             )}
           </div>

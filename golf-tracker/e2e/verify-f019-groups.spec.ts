@@ -86,8 +86,8 @@ test.describe('F-019: a side game with two playing groups', () => {
     await expect(page.getByText('Two Tee Times', { exact: false }).first()).toBeVisible();
 
     const body = await page.locator('body').innerText();
-    // A Sides block, naming all four.
-    expect(body).toContain('Sides');
+    // A Teams block, naming all four.
+    expect(body).toContain('Teams');
     for (const side of ['The Hogs', 'The Dawgs', 'The Cats', 'The Rats']) {
       expect(body).toContain(side);
     }
@@ -111,7 +111,7 @@ test.describe('F-019: a side game with two playing groups', () => {
     expect(sheet).toContain('7 players · 2 groups');
     expect(sheet).not.toContain('foursome');
     // The guest on nobody's side is named rather than silently absent from the money.
-    expect(sheet).toMatch(/Playing along, not on a side:[\s\S]{0,30}Will/);
+    expect(sheet).toMatch(/Playing along, not on a team:[\s\S]{0,30}Will/);
     await page.screenshot({ path: 'e2e/screenshots/f019-teams-threesome.png', fullPage: true });
 
     // The printable scorecards say it too — one card per group, and no "per foursome" caption on
@@ -264,7 +264,8 @@ test.describe('F-019: a fifth player in a scored group', () => {
     await page.getByRole('button', { name: /3 \+ 2/ }).click();
 
     // Two groups now.
-    await expect(page.getByText('Group 2')).toBeVisible();
+    // F-081: the hub's Teams list also tags each team with its group, so match the first.
+    await expect(page.getByText('Group 2').first()).toBeVisible();
     const hub = await page.locator('body').innerText();
     expect(hub).toContain('Group 1');
     expect(hub).toContain('Group 2');
@@ -313,7 +314,7 @@ test.describe('F-019: a fifth player in a scored group', () => {
     await page.getByRole('button', { name: /4 \+ 3/ }).click();
 
     // Three slots became two.
-    await expect(page.getByText('Group 2')).toBeVisible();
+    await expect(page.getByText('Group 2').first()).toBeVisible();
     const hub = await page.locator('body').innerText();
     expect(hub).not.toContain('Group 3');
 

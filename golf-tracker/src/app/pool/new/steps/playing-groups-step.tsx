@@ -107,7 +107,7 @@ export function PlayingGroupsStep({
         <span className="text-gray-500">
           {partnerTeams && partnerTeams.length > 0
             ? 'Partners walk together to start — move anyone to mix the groups; a partner can be in the other group.'
-            : 'Your sides come next, and a partner can be in the other group.'}
+            : 'Your teams come next, and a partner can be in the other group.'}
         </span>
       </p>
 

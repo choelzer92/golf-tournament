@@ -43,7 +43,12 @@ export function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
             <h2 className="font-semibold text-gray-900">{indMode.name}</h2>
             <span className="text-sm text-gray-600">{game.players.length} players · {game.handicapAllowance}% hcap</span>
           </div>
-          <p className="px-4 pt-2 text-xs text-gray-500">{indMode.description}</p>
+          {/* F-081: a team game's structure is already the hub header ("4 pairs · $/point · 2 groups")
+              and its pairings are the Teams list below, so the mode's developer prose goes; a solo
+              mode's rules are still worth a line. */}
+          {indMode.category !== 'team-within-group' && (
+            <p className="px-4 pt-2 text-xs text-gray-500">{indMode.description}</p>
+          )}
           <div className="px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-1">
             {rows.map((r) => (
               <div key={r.label} className="flex items-center justify-between text-sm">
@@ -262,7 +267,7 @@ export function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: Poo
         {isDone && (game.voidedLegs?.length ?? 0) > 0 && (
           <p className="text-xs text-amber-700 mt-1">
             {game.voidedLegs!.length === 1 ? 'One leg pays' : `${game.voidedLegs!.length} legs pay`} nothing —
-            not every side finished {game.voidedLegs!.length === 1 ? 'it' : 'them'}.
+            not every team finished {game.voidedLegs!.length === 1 ? 'it' : 'them'}.
           </p>
         )}
       </div>
@@ -282,8 +287,8 @@ export function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: Poo
         <div className="p-4 border-b bg-amber-50">
           <p className="text-sm font-semibold text-amber-900">
             {shortLegs.length === 1
-              ? 'One leg wasn’t finished by every side.'
-              : 'Some legs weren’t finished by every side.'}
+              ? 'One leg wasn’t finished by every team.'
+              : 'Some legs weren’t finished by every team.'}
           </p>
           <p className="text-xs text-amber-800 mt-1">
             Untick a leg to pay it on the holes everyone played. Leave it ticked and it pays nothing.
@@ -308,7 +313,7 @@ export function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: Poo
                       {leg.label} — ${Math.round(leg.dollars)} pays nothing
                     </span>
                     <span className="block text-xs text-gray-600">
-                      {leg.thru} of {leg.holes} holes played by every side
+                      {leg.thru} of {leg.holes} holes played by every team
                     </span>
                   </span>
                 </label>
@@ -358,4 +363,4 @@ export function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: Poo
     </section>
   );
 }
-
+

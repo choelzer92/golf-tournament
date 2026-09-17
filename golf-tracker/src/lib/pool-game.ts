@@ -9,7 +9,7 @@ import {
   ballsPerHole, betterValue, evenValueOnHole, isOneBall, teamValueOnHole,
   type ScoreBasis, type TeamFormat,
 } from './game-modes/team-scoring';
-import type { GameSide } from './game-modes/sides';
+import { sidesOfGame, type GameSide } from './game-modes/sides';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -2490,6 +2490,11 @@ export interface PoolGameListItem {
   // The registered mode id (undefined = classic pool). List cards need it to
   // avoid printing "N foursomes" for a single-group game (§5.al / §5.az).
   gameMode?: string;
+  // What `gameKindLabel` needs (F-061): tee groups and money teams by size, and the money
+  // word — so a list card prints the same label as the hub without loading the game.
+  groupSizes: number[];
+  sideSizes: number[];
+  money?: string;
 }
 
 // All pool games (newest first). Owner/dashboard view.
@@ -2533,6 +2538,9 @@ export function getPoolGameList(): PoolGameListItem[] {
       createdAt: g.createdAt,
       createdByGhin: g.createdByGhin,
       gameMode: g.gameMode,
+      groupSizes: g.teams.map((t) => t.playerIds.length),
+      sideSizes: g.gameMode ? sidesOfGame(g).map((s) => s.playerIds.length) : [],
+      money: g.gameMode ? String(g.modeSettings?.moneyModel ?? 'legs') : g.moneyMode,
     });
   }
   return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));

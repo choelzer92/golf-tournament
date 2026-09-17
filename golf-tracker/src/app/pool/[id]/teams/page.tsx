@@ -146,7 +146,7 @@ export default function PoolTeamsPage() {
                             {isCaptain && <span className="mr-0.5 font-bold text-green-700" title="Captain">(C)</span>}
                             {p.name}
                             {sideLabel && (
-                              <span className="ml-1 text-[9px] text-gray-500" title="Side">{sideLabel}</span>
+                              <span className="ml-1 text-[9px] text-gray-500" title="Team">{sideLabel}</span>
                             )}
                           </span>
                           {tn && <span className="text-[9px] text-gray-400 flex-shrink-0">{tn}</span>}
@@ -167,11 +167,11 @@ export default function PoolTeamsPage() {
         {/* THE MONEY AXIS, as its own block (F-019). The boxes above say who WALKS together; this
             says who's PLAYING each other, and the two need not line up — a partner is often in the
             other group, which is exactly what a sheet organised only by tee time can't show.
-            Absent for a classic pool, which has no sides. */}
+            Absent for a classic pool, whose teams ARE the groups. */}
         {sides.length > 0 && (
           <div className="mt-3 rounded-lg border border-gray-300 bg-white overflow-hidden" style={{ breakInside: 'avoid' }}>
             <div className="px-2 py-1 bg-gray-100 border-b border-gray-300">
-              <p className="font-bold text-gray-900 text-sm leading-tight">Sides</p>
+              <p className="font-bold text-gray-900 text-sm leading-tight">Teams</p>
               <p className="text-[9px] text-gray-500 leading-tight">Who plays whom — partners may be in different groups.</p>
             </div>
             <ul className="divide-y divide-gray-100">
@@ -212,7 +212,7 @@ export default function PoolTeamsPage() {
           if (guests.length === 0) return null;
           return (
             <p className="mt-1.5 text-[10px] text-gray-500">
-              Playing along, not on a side: {guests.map((p) => p.name).join(', ')}
+              Playing along, not on a team: {guests.map((p) => p.name).join(', ')}
             </p>
           );
         })()}

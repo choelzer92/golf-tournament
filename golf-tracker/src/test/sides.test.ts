@@ -267,8 +267,8 @@ describe('new side ids', () => {
   });
 
   it('labels a side with no name and no players', () => {
-    expect(defaultSideLabel('a')).toBe('Side A');
-    expect(defaultSideLabel('c')).toBe('Side C');
+    expect(defaultSideLabel('a')).toBe('Team A');
+    expect(defaultSideLabel('c')).toBe('Team C');
   });
 });
 
@@ -947,7 +947,7 @@ describe('side display names by size', () => {
   });
 
   it('an EMPTY side falls back to its letter', () => {
-    expect(sideNameFrom(ps, [], 'c')).toBe('Side C');
+    expect(sideNameFrom(ps, [], 'c')).toBe('Team C');
   });
 
   // F-039: The Meadows game paired Bill McAuliffe with Bill Grupp and the board said

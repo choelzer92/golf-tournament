@@ -38,13 +38,13 @@ const SETTINGS: FormatSetting[] = [
       { value: 'alternate-shot', label: 'Alternate shot (one ball)' },
     ],
     defaultValue: 'best-ball',
-    hint: 'How each side’s hole score is formed. Two-ball formats need two scores on the hole; scramble/alt-shot enter one team score per hole.',
+    hint: 'How each team’s hole score is formed. Two-ball formats need two scores on the hole; scramble/alt-shot enter one team score per hole.',
   },
   {
     key: 'scoring', label: 'Hole score', type: 'select',
     options: [{ value: 'stableford', label: 'Points (Stableford)' }, { value: 'stroke', label: 'Net strokes' }],
     defaultValue: 'stableford',
-    hint: 'How each side’s hole score is expressed — Stableford points or net strokes. (Not the same as match vs total — see “Compare by”.)',
+    hint: 'How each team’s hole score is expressed — Stableford points or net strokes. (Not the same as match vs total — see “Compare by”.)',
   },
   {
     key: 'result', label: 'Compare by', type: 'select',
@@ -58,7 +58,7 @@ const SETTINGS: FormatSetting[] = [
       { value: 'per-hole', label: '$ per hole won' },
       { value: 'per-point', label: '$ per point of margin' },
       { value: 'legs', label: 'Fixed front / back / overall' },
-      { value: 'pot', label: 'Pot (buy-in, best side wins)' },
+      { value: 'pot', label: 'Pot (buy-in, best team wins)' },
     ],
     defaultValue: 'legs',
   },
@@ -68,8 +68,8 @@ const SETTINGS: FormatSetting[] = [
   // equal shot at the pot whatever its size. At $20 a player an uneven game would let a solo side
   // risk $20 for the same prize a trio risked $60 for.
   {
-    key: 'sideBuyIn', label: 'Buy-in ($ / side)', type: 'number', defaultValue: 20,
-    hint: 'Each SIDE puts in this much, whatever its size. Best side wins the pot; ties split it.',
+    key: 'sideBuyIn', label: 'Buy-in ($ / team)', type: 'number', defaultValue: 20,
+    hint: 'Each TEAM puts in this much, whatever its size. Best team wins the pot; ties split it.',
     showIf: { key: 'moneyModel', in: ['pot'] },
   },
   {
@@ -172,7 +172,7 @@ export function sideNamesForGame(
   const solo = allSidesAreSolo(sides);
   const nameAt = (idx: number) => {
     const side = sides[idx];
-    if (!side) return idx === 0 ? 'Side A' : 'Side B';
+    if (!side) return idx === 0 ? 'Team A' : 'Team B';
     return sideNameFrom(game.players, side.playerIds, side.id, side.name, solo);
   };
   return { A: nameAt(0), B: nameAt(1) };
@@ -668,8 +668,10 @@ export const teamGame: GameModeDescriptor = {
   // NOT "Sides (within group)" any more. F-019 gave this mode real playing groups, so it spans
   // several tee times and "within group" described a limit that no longer exists (§5.at). At two
   // players it read worse still: a 1v1 has no "group" to be within.
-  name: 'Sides / Match',
-  description: 'Pick sides and play them off against each other — 1v1 up to four-a-side, any team format. Front, back and overall settle separately.',
+  // Phase 2 (§5.bm Q5): "team" everywhere — the game-kind label users see comes from
+  // `gameKindLabel` (structure · money), so this name only shows where a MODE is picked by name.
+  name: 'Teams',
+  description: 'Teams that share foursomes — 1 v 1 up to four-a-side, any team format — play each other. Front, back and overall settle separately.',
   category: 'team-within-group',
   inputType: 'gross',
   // TWO, so a singles match is reachable (Craig, 2026-08-27). The engine always handled it — one

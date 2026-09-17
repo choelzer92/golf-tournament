@@ -353,7 +353,10 @@ export function structureOf(game: PoolGame): Structure {
     teams = game.players.map((p) => [p.id]);
     container = 'individual';
   } else if (category === 'team-within-group') {
-    teams = sidesOfGame(game).map((s) => s.playerIds);
+    // No stored sides means the tee groups ARE the teams (the wizard writes sides only when
+    // partners share a foursome) — the same reading the engine makes.
+    const stored = sidesOfGame(game).map((s) => s.playerIds);
+    teams = stored.length > 0 ? stored : groups;
     container = 'sides';
   } else {
     teams = groups;
@@ -380,6 +383,72 @@ export function structureLabel(s: StructureShape): string {
   if (k === 1) return n === 2 ? '1 v 1' : `${n} singles`;
   if (k === 2) return `${n} pairs`;
   return `${n} teams of ${k}`;
+}
+
+// ---------------------------------------------------------------------------
+// gameKindLabel — the ONE game-kind label for a saved game (F-061, Phase 2, §5.bm Q5)
+// ---------------------------------------------------------------------------
+
+/** The money half of the label, one word a golfer would say. */
+export const MONEY_WORD: Record<MoneyModel, string> = {
+  pot: 'pot',
+  legs: 'head-to-head',
+  'per-hole': '$/hole',
+  'per-point': '$/point',
+};
+
+/**
+ * What a list card, hub header or leaderboard header knows about a game — the thin list item
+ * carries these so the card can print the same label the hub does without loading the game.
+ */
+export interface GameKindFacts {
+  gameMode?: string;
+  playerCount: number;
+  /** Tee groups (the pool's `teams[]`), by size. */
+  groupSizes: number[];
+  /** Money teams (`sides[]`) by size — empty for a classic pool or a solo game. */
+  sideSizes: number[];
+  /** `moneyMode` for a classic pool, `modeSettings.moneyModel` for a team game; ignored for solo. */
+  money?: string;
+}
+
+export function gameKindFactsOf(game: PoolGame): GameKindFacts {
+  return {
+    gameMode: game.gameMode,
+    playerCount: game.players.length,
+    groupSizes: game.teams.map((t) => t.playerIds.length),
+    sideSizes: sidesOfGame(game).map((s) => s.playerIds.length),
+    money: game.gameMode ? String(game.modeSettings?.moneyModel ?? 'legs') : game.moneyMode,
+  };
+}
+
+/**
+ * "2 teams of 4 · pot", "4 pairs · $/point · 2 groups", "1 v 1 · head-to-head", "Skins · 4 players".
+ * Four surfaces used to improvise this ("Sides / Match", "Pool", "Team pool", "Pool (pot split)") and
+ * Craig couldn't map one to another (F-037/F-061). The structure comes first because it's what the
+ * user PICKED on the wizard's first question; the money word is the second question. A solo game
+ * names its format instead — "Skins" says more than "8 players". The tee-time count is appended only
+ * when it isn't implied by the structure (partners sharing foursomes across 2+ groups, F-019).
+ */
+export function gameKindLabelFrom(f: GameKindFacts): string {
+  const mode = getGameMode(f.gameMode);
+  const category = mode?.category;
+  const players = `${f.playerCount} player${f.playerCount === 1 ? '' : 's'}`;
+  if (mode && category === 'individual') return `${mode.name} · ${players}`;
+  if (mode && category === 'team-within-group') {
+    // No stored sides → the tee groups are the teams (see `structureOf`).
+    const sizes = f.sideSizes.length > 0 ? f.sideSizes : f.groupSizes;
+    const money = MONEY_WORD[(f.money ?? 'legs') as MoneyModel] ?? f.money ?? '';
+    const head = sizes.length > 0 ? structureLabel({ kind: 'teams', teamSizes: sizes }) : players;
+    const groups = f.groupSizes.length > 1 ? ` · ${f.groupSizes.length} groups` : '';
+    return [head, money].filter(Boolean).join(' · ') + groups;
+  }
+  const head = f.groupSizes.length > 0 ? structureLabel({ kind: 'teams', teamSizes: f.groupSizes }) : players;
+  return `${head} · ${f.money === 'match' ? MONEY_WORD.legs : MONEY_WORD.pot}`;
+}
+
+export function gameKindLabel(game: PoolGame): string {
+  return gameKindLabelFrom(gameKindFactsOf(game));
 }
 
 // ---------------------------------------------------------------------------

@@ -245,11 +245,10 @@ export function nextSideId(sides: GameSide[]): string {
 
 /**
  * A side's display label when it has no custom name and no players to name it after.
- * "Side A" / "Side B" / "Side C" — the vocabulary already used for 2v2 (open question 1 in
- * DECISIONS.md settled on "side", reserving "team" for foursomes).
+ * "Team A" / "Team B" / "Team C" — §5.bm Q5 retired "side"; tee groups are "Group N".
  */
 export function defaultSideLabel(sideId: string): string {
-  return `Side ${sideId.toUpperCase()}`;
+  return `Team ${sideId.toUpperCase()}`;
 }
 
 // ---------------------------------------------------------------------------

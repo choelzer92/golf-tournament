@@ -91,7 +91,7 @@ test('routing row: two teams of 4, pot → the classic pool (hub shows its fours
   await page.getByRole('button', { name: 'Create Game' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   // Only the classic pool's hub says this.
-  await expect(page.getByText(/Pool · 2 foursomes/)).toBeVisible();
+  await expect(page.getByText(/2 teams of 4 · pot/)).toBeVisible();
 });
 
 test('F-084: head-to-head leg amounts are editable on the money step and reach the hub', async ({ page }) => {
@@ -135,7 +135,7 @@ test('routing row: two teams of 4, $ per point → the sides engine even though 
   await page.screenshot({ path: 'e2e/screenshots/collapse-05-money-aligned-per-point.png', fullPage: true });
   await page.getByRole('button', { name: 'Create Game' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
-  await expect(page.getByText(/Sides \/ Match · 8 players/)).toBeVisible();
+  await expect(page.getByText(/2 teams of 4 · \$\/point/)).toBeVisible();
 });
 
 test('routing row: four pairs, fixed legs → the sides engine with two tee times, partners together', async ({ page }) => {
@@ -176,13 +176,13 @@ test('routing row: four pairs, fixed legs → the sides engine with two tee time
   expect(body).toContain('Group 2');
   await page.screenshot({ path: 'e2e/screenshots/collapse-06-groups-four-pairs.png', fullPage: true });
   await page.getByRole('button', { name: /Next: Review/ }).click();
-  await expect(page.getByText('Sides (2 vs 2 vs 2 vs 2)')).toBeVisible();
+  await expect(page.getByText('Teams (2 vs 2 vs 2 vs 2)')).toBeVisible();
   await expect(page.locator('input[name="money-model"][value="legs"]')).toBeChecked();
   await expect(page.getByText(/Front 9 \(\$\)/)).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/collapse-07-money-sides.png', fullPage: true });
   await page.getByRole('button', { name: 'Create Game' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
-  await expect(page.getByText(/Sides \/ Match · 8 players · 2 groups/)).toBeVisible();
+  await expect(page.getByText(/4 pairs · head-to-head · 2 groups/)).toBeVisible();
 });
 
 test('F-072: four pairs, best net + best gross → the sides engine scores two balls a side', async ({ page }) => {
@@ -201,7 +201,7 @@ test('F-072: four pairs, best net + best gross → the sides engine scores two b
   await page.getByRole('button', { name: /Next: Review/ }).click();
   await expect(page.getByText('How is the money played?')).toBeVisible();
   // The summary line names the format the sides engine will score.
-  await expect(page.getByText(/Sides · best net \+ best gross/)).toBeVisible();
+  await expect(page.getByText(/Teams · best net \+ best gross/)).toBeVisible();
   // Every sides money model is open — nothing greyed for an engine reason.
   for (const m of ['legs', 'per-hole', 'per-point', 'pot']) {
     await expect(page.locator(`input[name="money-model"][value="${m}"]`)).toBeEnabled();
@@ -210,7 +210,7 @@ test('F-072: four pairs, best net + best gross → the sides engine scores two b
   await page.screenshot({ path: 'e2e/screenshots/f072-money-pairs-net-gross.png', fullPage: true });
   await page.getByRole('button', { name: 'Create Game' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
-  await expect(page.getByText(/Sides \/ Match · 8 players · 2 groups/)).toBeVisible();
+  await expect(page.getByText(/4 pairs · \$\/point · 2 groups/)).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/f072-hub-pairs-net-gross.png', fullPage: true });
 });
 
@@ -230,7 +230,7 @@ test('routing row: four pairs + closest-to-pin is refused with the reason, not s
   // F-077: a per-side pot's summary quotes the per-side buy-in the stakes field shows ($20 default),
   // never the classic per-player buy-in.
   await chooseMoney(page, 'pot');
-  await expect(page.getByLabel('Buy-in ($ / side)')).toHaveValue('20');
+  await expect(page.getByLabel('Buy-in ($ / team)')).toHaveValue('20');
   expect(await page.locator('body').innerText()).toContain('$20 buy-in pot');
 });
 
@@ -259,7 +259,7 @@ test('F-074: a typed split (4, 2, 2) is a real structure — three teams, the pa
   const group1 = page.locator('div.bg-white', { hasText: 'Group 1' }).first();
   for (const nm of ['Craig', 'Jym', 'Dave', 'Rick']) await expect(group1.getByText(nm)).toBeVisible();
   await page.getByRole('button', { name: /Next: Review/ }).click();
-  await expect(page.getByText('Sides (4 vs 2 vs 2)')).toBeVisible();
+  await expect(page.getByText('Teams (4 vs 2 vs 2)')).toBeVisible();
   await page.getByRole('button', { name: 'Create Game' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
 });
@@ -301,12 +301,12 @@ test('routing row: 1 v 1 → a singles match on the sides engine, 100% allowance
   // F-077: the summary must quote THIS game's money — the legs — not a skin value left over from
   // the everyone-for-themselves pick two players default to.
   const review = await page.locator('body').innerText();
-  expect(review).toContain('Sides (1 vs 1)');
+  expect(review).toContain('Teams (1 vs 1)');
   expect(review).toContain('$10 / $10 / $10 front·back·overall');
   expect(review).not.toMatch(/a skin/);
   await page.getByRole('button', { name: 'Create Game' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
-  await expect(page.getByText(/Sides \/ Match · 2 players/)).toBeVisible();
+  await expect(page.getByText(/1 v 1 · head-to-head/)).toBeVisible();
 });
 
 test('structure step: 5 players are offered 3 + 2 (recommended), 2 + 2 + 1 and singles', async ({ page }) => {

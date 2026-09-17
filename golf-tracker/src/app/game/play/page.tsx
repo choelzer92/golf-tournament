@@ -850,7 +850,7 @@ export default function PlayGamePage() {
           // "Stroke Play · Best Ball · Full Handicap" for a three-side game — true, but silent
           // about the thing most likely to surprise someone picking up the phone.
           if (sideBreakdown && sideBreakdown.length > 2) {
-            parts.push(`${sideBreakdown.length} sides`);
+            parts.push(`${sideBreakdown.length} teams`);
           }
 
           if (oneBall) {

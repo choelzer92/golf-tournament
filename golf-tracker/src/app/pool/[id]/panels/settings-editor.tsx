@@ -119,7 +119,7 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
     // screen is the drift this project's audit exists to catch. Wording matches the pool's.
     const lockModeNote = (settingKey: string): string | null =>
       lockModeOption(settingKey, 'scramble')
-        ? 'Scramble and alternate shot enter ONE score for the side. This game already has '
+        ? 'Scramble and alternate shot enter ONE score for the team. This game already has '
           + 'scores entered per player, so switching now would leave two different numbers on '
           + 'a hole that can only have one. Start a new game to play a scramble.'
         : null;
@@ -263,7 +263,7 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
           </div>
           {isWithinGroup && (
             <div className="pt-2 border-t">
-              <p className="text-sm font-semibold text-gray-800 mb-2">Sides</p>
+              <p className="text-sm font-semibold text-gray-800 mb-2">Teams</p>
               <div className="divide-y divide-gray-100 rounded-md border border-gray-200">
                 {game.players.map((p) => {
                   const s = sideOfPlayer(sides, p.id)?.id ?? null;
@@ -297,7 +297,7 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
                   disabled={sides.length >= game.players.length}
                   className="text-xs font-medium text-green-700 hover:text-green-900 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  + Add a side
+                  + Add a team
                 </button>
                 {sides.length > 2 && (
                   <button
@@ -305,14 +305,14 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
                     onClick={() => removeSide(sides[sides.length - 1].id)}
                     className="text-xs font-medium text-gray-500 hover:text-gray-800"
                   >
-                    Remove side {sides[sides.length - 1].id.toUpperCase()}
+                    Remove team {sides[sides.length - 1].id.toUpperCase()}
                   </button>
                 )}
               </div>
               {game.players.some((p) => !sideOfPlayer(sides, p.id)) && (
                 <p className="text-xs text-amber-700 mt-1">
                   {game.players.filter((p) => !sideOfPlayer(sides, p.id)).map((p) => p.name.split(' ')[0]).join(', ')} not
-                  on a side — their scores won&apos;t count toward any side until you assign them.
+                  on a team — their scores won&apos;t count toward any team until you assign them.
                 </p>
               )}
               {/* Optional custom names, one field per side that exists (F-014). Same component

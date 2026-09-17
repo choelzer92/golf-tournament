@@ -41,17 +41,17 @@ const str = (settings: SettingsBag, key: string, fallback: string): string => {
 /**
  * The GAME half: what's being played, in plain words.
  *
- * e.g. "Sides · best ball", "Skins", "Wolf". A side game's format is included because best-ball vs
+ * e.g. "Teams · best ball", "Skins", "Wolf". A side game's format is included because best-ball vs
  * scramble is the difference between two completely different rounds; an individual game has no
  * equivalent knob worth a word here.
  */
 export function gameSummary(mode: GameModeDescriptor | undefined, settings: SettingsBag): string {
-  if (!mode) return 'Team pool';
+  if (!mode) return 'Pool';
   if (mode.category !== 'team-within-group') return mode.name;
 
   // Strip the "/ Match" half of the mode name here — the format and the money line say more about
   // what the round IS than the registry label does.
-  const base = 'Sides';
+  const base = 'Teams';
   const fmt = str(settings, 'format', 'best-ball');
   const label: Record<string, string> = {
     'best-ball': 'best ball',

@@ -4,6 +4,7 @@ import { computePoolResult } from '../pool-game';
 import type { IndividualResult } from './types';
 import { getGameMode } from './index';
 import { buildGameModeContext } from './context';
+import { gameKindLabelFrom } from '../game-structure';
 
 // Unified result across both axes, discriminated by `kind`. The leaderboard (and
 // any other consumer) branches once: 'individual' → per-player standings;
@@ -37,17 +38,8 @@ export function isSingleGroupGame(game: PoolGame): boolean {
   return c === 'individual' || c === 'team-within-group';
 }
 
-// The game-list card subtitle, mode-aware. A single-group game names its format
-// and counts players — its "teams" are playing groups, and printing them as
-// "N foursomes" broke §5.al ("say side in a side game, team in a pool"). The
-// classic pool keeps its foursome count, pluralized.
-export function gameListSubtitle(item: Pick<PoolGameListItem, 'gameMode' | 'teamCount' | 'playerCount'>): string {
-  const mode = getGameMode(item.gameMode);
-  const c = mode?.category;
-  const players = `${item.playerCount} player${item.playerCount === 1 ? '' : 's'}`;
-  if (mode && (c === 'individual' || c === 'team-within-group')) {
-    // Several tee times is worth confirming (F-019); one group is the norm and says nothing.
-    return `${mode.name} · ${players}` + (item.teamCount > 1 ? ` · ${item.teamCount} groups` : '');
-  }
-  return `Pool · ${item.teamCount} foursome${item.teamCount === 1 ? '' : 's'} · ${players}`;
+// The game-list card subtitle — the same label the hub and leaderboard headers print
+// (F-061, Phase 2): "2 teams of 4 · pot", "4 pairs · $/point · 2 groups", "Skins · 4 players".
+export function gameListSubtitle(item: Pick<PoolGameListItem, 'gameMode' | 'playerCount' | 'groupSizes' | 'sideSizes' | 'money'>): string {
+  return gameKindLabelFrom(item);
 }

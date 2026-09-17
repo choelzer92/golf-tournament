@@ -76,19 +76,20 @@ test.describe('single-group vocabulary', () => {
     const body = await page.locator('body').innerText();
     expect(body).not.toContain('1 foursomes');
     expect(body).not.toContain('Pool Money Game · 1');
-    // Names the mode instead. Renamed twice as the mode widened: "2 vs 2 (within group)" →
-    // "Sides (within group)" when F-006 generalized the side count, then → "Sides / Match" when
-    // F-019 gave it real playing groups and 1v1 became reachable (§5.at — a capability change
-    // dates every string that described the old limit).
-    expect(body).toMatch(/Sides \/ Match/i);
+    // Names the structure instead (F-061): "2 pairs · head-to-head". Renamed three times as the
+    // mode widened — "2 vs 2 (within group)" → "Sides (within group)" → "Sides / Match" → this
+    // (§5.at — a capability change dates every string that described the old limit; §5.bm Q5
+    // retired "side").
+    expect(body).toMatch(/2 pairs · head-to-head/);
+    expect(body.toLowerCase()).not.toContain('side');
     await page.screenshot({ path: 'e2e/screenshots/hub-2v2.png', fullPage: true });
   });
 
-  test('classic pool still says foursomes, pluralized', async ({ page }) => {
+  test('classic pool hub names its structure and money (F-061)', async ({ page }) => {
     const id = await seed(page, 'Classic pool — 2 foursomes, mid-round');
     await goToGame(page, id);
     const body = await page.locator('body').innerText();
-    expect(body).toContain('2 foursomes');
+    expect(body).toContain('2 teams of 4 · pot');
   });
 });
 
