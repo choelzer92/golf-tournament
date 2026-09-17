@@ -1227,6 +1227,22 @@ line. Screenshot: `e2e/screenshots/f072-hub-pairs-net-gross.png`. Left in its wa
 
 ---
 
+### F-093 — On a team game's money step, "Junk pays" comes before the bonus grid it depends on  [P3] [start]
+
+**Where (`phase3-pairs-ctp-money.png`, 2026-09-17):** for a shared-foursome team the Stakes block
+(legs, then "Junk pays", "$ per junk point", "Bonuses count") renders ABOVE "Bonus points for good
+holes" and the hand-tracked buttons — so a first-time user is asked how junk pays before choosing
+any junk. Same shape as F-087 (classic: bonus sections between the money question and its amounts).
+
+**Options:** **A** move the junk-payout fields (`junkPayout`, `junkPerPoint`, `junkPot`,
+`junkBasis`) under the bonus grid, so the order is money model → stakes → bonuses → how bonuses pay.
+**B** fold them into the bonus grid's block as its footer. Recommend A; resolve with F-087 in one
+pass so both containers read the same order.
+
+**Status:** open — Craig's pick (§5.bo).
+
+---
+
 ### F-092 — The junk bonus board under a junk POT doesn't say who took the pot  [P3] [track]
 
 **Where (`phase3-junk-pot-leaderboard.png`, 2026-09-17):** with `junkPayout: 'pot'` the board lists

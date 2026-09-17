@@ -150,8 +150,17 @@ A: front 20 + overall 20 + junk 20 − 20 = **+40** · B: back 10 − 20 = **−
    money model; leaderboard bonus board shows Pts (+ Earned under per-point) and names the pot.
    Goldens `src/test/phase3-junk-vocabulary.test.ts` (6, 5 failed first); e2e `phase3-junk.spec.ts`;
    sandbox seed "2v2 best ball — junk POT with birdies (Phase 3)". Every older golden unmoved.
-2. §1 CTP / group hug / hand-tracked bonuses into `tallyJunk`; wizard stops treating them as
-   classic-only; `CtpEditor` gate (F-090) lifted; hub bonus marks on team games.
+2. ~~§1 CTP / group hug / hand-tracked bonuses~~ **BUILT 2026-09-17** — `junkCtp` (shared) and
+   `junkGroupHug` (team only) settings, default 0; `tallyJunk` reads `ctx.ctpWinners` (par 3s) and
+   `ctx.bonusMarks` × `customBonuses`; `countGroupHugs` per side; `settleJunkForSides` returns
+   `{ lines, sides }` → `IndividualResult.junkSides`. Router: CTP + manual bonuses leave
+   `classicOnlyNeeds`; `routedFields` maps the wizard's junk grid into the team engine's keys
+   (`junkSettingsFromValues`). Wizard: the ONE bonus grid + hand-tracked buttons show for every team
+   container (individual modes keep their settings editor — residue). `gameCountsCtp(game)` is the
+   one CTP predicate (hub editor + scorer picker); F-090's classic-only gate is gone. Leaderboard
+   board: CTP / Bonus columns + an "All par" line. Goldens `phase3-bonuses-as-junk.test.ts` (9, 8
+   failed first); e2e in `phase3-junk.spec.ts` (wizard: two pairs + CTP → hub CTP editor); routing
+   pins flipped in game-structure.test.ts, collapse-routing, f045.
 3. §2 `multiTeamPayout` setting for legs, $/hole, $/point. Goldens: the six tables above.
 4. §3 pot slices on the team engine. Golden: Example 3.
 5. §4 captains on sides; hide-holes on the team leaderboard.
