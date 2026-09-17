@@ -14,14 +14,20 @@ question outright (§5.bq, §5.br). The spec is `.claude/plans/phase3-money-conv
   `phase3-bonuses-as-junk.test.ts`. **Its first verify was NOT green** — my step-3 golden file,
   written mid-run, failed the unit stage and the wrapper masked exit 1; re-run as
   `.claude/verify-2026-09-17-p3s2b.log` (check `VERIFY_EXIT=`).
-- **Step 3 NOT built; goldens written and PARKED** at `.claude/tmp_phase3-multi-team-payout.test.ts.txt`
-  (move back to `src/test/phase3-multi-team-payout.test.ts` first). Rules (§5.br): `legsPayout`
-  default `winner-takes` (A +20, B −10, C −10; tie at top A +5, B +5, C −10 — the F-017 goldens in
-  n-side-golden.test.ts RE-PIN to this), `pay-each` alternative (A +20, B 0, C −20; tie C −20);
-  `pointsPayout` default `pay-each` (today) | `winner-takes` (leader collects its margin from each;
-  tie split); `carryover` toggle for $/hole (default OFF; carry left after 18 is dead). $/hole is
-  identical under both payout modes, so it gets no select. Hide all three in the UI when the game
-  has fewer than 3 teams (carry: 2 teams still meaningful). Then steps 4–6 of the spec.
+- **Step 3** BUILT (see the commit after f094269): `legsPayout` default `winner-takes` (A +20, B −10,
+  C −10; tie at top A +5, B +5, C −10 — the F-017 goldens RE-PINNED to §5.br), `pay-each` alternative
+  (A +20, B 0, C −20; tie C −20); `pointsPayout` default `pay-each` | `winner-takes`; `carryover`
+  toggle for $/hole (default OFF; carry after 18 is dead). $/hole is identical under both payout
+  modes, so it has no select. `MULTI_TEAM_ONLY_KEYS` hidden for < 3 teams on wizard, hub panel, hub
+  editor. Goldens `phase3-multi-team-payout.test.ts`; e2e `phase3-payout.spec.ts`. Verify log
+  `.claude/verify-2026-09-17-p3s3.log` (check `VERIFY_EXIT=`).
+- **Next = spec steps 4–6:** (4) pot SLICES on the team engine — front/back/overall/junk % of the
+  per-team buy-in pot, places paid per slice via `distributePot`, junk slice ranks junk points (Q-E
+  golden: 4 pairs × $20, four $20 slices, A wins front+overall+junk, B/C tie back → A +40, B −10,
+  C −10, D −20). Design note: under `moneyModel: 'pot'` the junk slice REPLACES the separately-anted
+  `junkPot` — hide `junkPot` there and settle the slice with antes already in the buy-in. (5)
+  captains on `GameSide` + hide-holes on the team leaderboard. (6) `classicOnlyNeeds` empties;
+  e2e pins that no money option is ever greyed for an engine reason.
 - New findings: F-092 (junk board doesn't name the pot winner), F-093 (team money step asks "Junk
   pays" above the grid; do with F-087), F-094 DECIDED by §5.br. F-091/F-087 still Craig's pick.
 - Residue: individual modes still edit junk via the settings editor (no grid, no hand-tracked

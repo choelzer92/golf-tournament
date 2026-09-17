@@ -148,7 +148,13 @@ A: front 20 + overall 20 + junk 20 − 20 = **+40** · B: back 10 − 20 = **−
    board: CTP / Bonus columns + an "All par" line. Goldens `phase3-bonuses-as-junk.test.ts` (9, 8
    failed first); e2e in `phase3-junk.spec.ts` (wizard: two pairs + CTP → hub CTP editor); routing
    pins flipped in game-structure.test.ts, collapse-routing, f045.
-3. §2 `multiTeamPayout` setting for legs, $/hole, $/point. Goldens: the six tables above.
+3. ~~§2 payout settings~~ **BUILT 2026-09-17** — `legsPayout` (winner-takes default | pay-each),
+   `pointsPayout` (pay-each default | winner-takes), `carryover` ($/hole, default off); `settleWinnerTakes`
+   in sides.ts (tied leaders split each loser's payment); `payLeg` split into the two named modes;
+   `holeWinner[]` recorded per hole for the carry walk. `MULTI_TEAM_ONLY_KEYS` hidden by the wizard,
+   hub money panel and hub editor when the game has < 3 teams. F-017 tie pins RE-PINNED to §5.br
+   (sides.test.ts, n-side-golden.test.ts + its snapshot: C −80 → −40). Goldens
+   `phase3-multi-team-payout.test.ts` (15, 6 failed first); e2e `phase3-payout.spec.ts`.
 4. §3 pot slices on the team engine. Golden: Example 3.
 5. §4 captains on sides; hide-holes on the team leaderboard.
 6. Router: `classicOnlyNeeds` empties; classic remains for games already stored with
