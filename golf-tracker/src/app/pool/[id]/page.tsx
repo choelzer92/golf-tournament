@@ -476,8 +476,11 @@ export default function PoolHubPage() {
             {/* Wolf rotation editor — only for Wolf games. */}
             {game.gameMode === 'wolf' && <WolfRotationEditor game={game} onSave={persist} />}
 
-            {/* CTP editor / finalize surface */}
-            <CtpEditor game={game} onSave={persist} />
+            {/* CTP editor / finalize surface. F-090 A: only the classic pool engine pays CTP
+                (team-game.ts settles junk through settleJunkForSides and never reads ctpWinners),
+                so a legacy team game carrying junkValues.ctp > 0 must not show a control that
+                lies. Phase 3 lifts this gate when CTP pays on every engine. */}
+            {!getGameMode(game.gameMode) && <CtpEditor game={game} onSave={persist} />}
 
             {/* Close out / reopen — the explicit lifecycle control. */}
             <GameCloseOut game={game} onSave={persist} />
