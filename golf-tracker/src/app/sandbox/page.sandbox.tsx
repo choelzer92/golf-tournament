@@ -154,6 +154,34 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: '2v2-junk-pot',
+    label: '2v2 best ball — junk POT with birdies (Phase 3)',
+    detail: '§5.bq: junk counted in points, paid as a junk pot (most points takes it). sp1 birdies 1–3, sp3 birdies 1.',
+    build: () => {
+      const ps = players([4, 12, 8, 16]);
+      const game = baseGame({
+        players: ps,
+        name: '2v2 Junk Pot',
+        gameMode: 'team-2v2',
+        subTeams: { a: ['sp1', 'sp2'], b: ['sp3', 'sp4'] },
+        modeSettings: {
+          format: 'best-ball', scoring: 'stableford', result: 'match',
+          moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 10,
+          junkEnabled: true, junkBirdie: 1, junkEagle: 2, junkAlbatross: 5, junkBasis: 'gross',
+          junkPayout: 'pot', junkPot: 20,
+        },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1' }],
+      });
+      saveGameScores('sm1', [
+        ...scores(['sp1'], [-1], [1, 2, 3]), ...scores(['sp1'], [0], [4, 5, 6, 7, 8, 9]),
+        ...scores(['sp2'], [1], [1, 2, 3, 4, 5, 6, 7, 8, 9]),
+        ...scores(['sp3'], [-1], [1]), ...scores(['sp3'], [1], [2, 3, 4, 5, 6, 7, 8, 9]),
+        ...scores(['sp4'], [2], [1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      ]);
+      return { game, goTo: (id) => `/pool/${id}` };
+    },
+  },
+  {
     key: 'three-sides',
     label: 'Three sides in one group (6 players)',
     detail: 'F-006 N sides: three pairs, pairwise round-robin money, to-par ranking, three side colours.',

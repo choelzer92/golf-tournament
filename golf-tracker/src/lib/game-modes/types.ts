@@ -203,6 +203,10 @@ export interface JunkLine {
   birdies: number;
   eagles: number;
   albatrosses: number;
+  // Junk POINTS earned (Phase 3 §5.bq: one vocabulary — birdie 1, eagle 2, … on every engine).
+  points: number;
+  // What those points are worth at the game's `junkPerPoint` rate. Under a junk POT payout this
+  // is 0 — the pot pays the most points, not each point — and the board shows points instead.
   dollars: number;
 }
 

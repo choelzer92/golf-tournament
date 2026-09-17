@@ -26,7 +26,7 @@ import { type PotDollars, foldJunkStrings, legDollarsToStrings, potDollarsTotal 
 // score, compare-by, side names — was answered on earlier steps or lives on the hub.
 const SIDES_MONEY_KEYS = new Set([
   'dollarsPerHole', 'dollarsPerPoint', 'sideBuyIn', 'potSplit', 'legFront', 'legBack', 'legOverall',
-  'junkEnabled', 'junkBirdie', 'junkEagle', 'junkAlbatross', 'junkBasis',
+  'junkEnabled', 'junkBirdie', 'junkEagle', 'junkAlbatross', 'junkBasis', 'junkPayout', 'junkPerPoint', 'junkPot',
 ]);
 
 function sideMoneySummary(settings: SettingsBag, sideCount: number): string {

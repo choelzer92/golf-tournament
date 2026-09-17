@@ -627,6 +627,9 @@ export function routedFields(
           result: scoring.compareBy,
           moneyModel: route.moneyModel,
           junkEnabled: draft.bonuses?.junk ?? false,
+          // §5.bq: how junk pays defaults from the money model — a pot game plays a junk pot (the
+          // Warriors), everything else pays per point. Editable on the hub afterwards.
+          junkPayout: route.moneyModel === 'pot' ? 'pot' : 'per-point',
         },
         ...persistedSides(opts.sides && opts.sides.length > 0 ? opts.sides : sidesFromTeams(teams)),
       };

@@ -104,39 +104,65 @@ export function settleNassauFromSettings(
 }
 
 // --- Shared junk / bonus money -----------------------------------------------
-// Birdies, eagles, albatrosses (and CTP, entered on the hub) paid as a flat
-// dollar BONUS on top of whatever the game's own money model settles. The
-// classic pool has always had junk, but it was team-scoped and lived entirely in
+// Birdies, eagles, albatrosses paid as a BONUS on top of whatever the game's own money model
+// settles. The classic pool has always had junk, but it was team-scoped and lived entirely in
 // pool-game.ts, so none of the game modes could offer it.
 //
-// Deliberately dollars-per-item here, not the classic points-then-value: a mode
-// game settles in dollars directly (no pot to divide), so an intermediate point
-// scale would be a unit nobody needs. Group hug is omitted — it's a TEAM idea
-// (every player in the foursome at par or better) that doesn't map to an
-// individual settlement.
+// ONE VOCABULARY (Phase 3, DECISIONS.md §5.bq, 2026-09-17). Junk is counted in POINTS — birdie 1,
+// eagle 2, albatross 5 by default — exactly as the classic pool counts it, and the points are paid
+// one of two ways Craig's groups actually play:
+//   • `junkPayout: 'per-point'` — every point is worth `junkPerPoint` dollars ("each junk point is
+//     worth 5 dollars"). Each earner collects from every other player / side — zero-sum.
+//   • `junkPayout: 'pot'`       — a stated `junkPot` is anted equally by everyone in play and goes
+//     to whoever has the MOST points; ties split it ("whichever foursome has the most junk points
+//     receives the junk pot" — the Warriors).
+// Before Phase 3 this layer read `junkBirdie` etc. as DOLLARS per item. Every saved game reads the
+// same numbers as points at the default $1 per point, so no settlement moves — pinned by
+// phase3-junk-vocabulary.test.ts alongside the older goldens.
 //
-// Zero-sum, like every other mode money model: each earner collects their bonus
-// from the rest of the group, so the table always sums to zero. Set every value
-// to 0 (the default) and the whole layer is inert — existing games are unchanged.
+// Group hug is omitted here — it's a TEAM idea (every player on the side at par or better) and is
+// counted by the side settlement, not per player.
+//
+// Set every value to 0 (the default) and the whole layer is inert — existing games are unchanged.
 export const JUNK_SETTINGS: FormatSetting[] = [
   {
     key: 'junkEnabled', label: 'Birdie / eagle bonuses', type: 'toggle', defaultValue: false,
-    hint: 'Pay a flat bonus for birdies and better, on top of the game money. Each earner collects from the rest of the group.',
+    hint: 'Count junk points for birdies and better, on top of the game money. Pay them per point, or as a junk pot to the most points.',
   },
   {
-    key: 'junkBirdie', label: 'Birdie ($)', type: 'number', defaultValue: 1,
-    hint: 'Per birdie (1 under par), paid by each other player.',
+    key: 'junkBirdie', label: 'Birdie (pts)', type: 'number', defaultValue: 1,
+    hint: 'Junk points per birdie (1 under par).',
     showIf: { key: 'junkEnabled', in: ['true'] },
   },
   {
-    key: 'junkEagle', label: 'Eagle ($)', type: 'number', defaultValue: 2,
-    hint: 'Per eagle (2 under). Replaces the birdie bonus on that hole, not added to it.',
+    key: 'junkEagle', label: 'Eagle (pts)', type: 'number', defaultValue: 2,
+    hint: 'Junk points per eagle (2 under). Replaces the birdie on that hole, not added to it.',
     showIf: { key: 'junkEnabled', in: ['true'] },
   },
   {
-    key: 'junkAlbatross', label: 'Albatross ($)', type: 'number', defaultValue: 5,
-    hint: 'Per double eagle (3+ under).',
+    key: 'junkAlbatross', label: 'Albatross (pts)', type: 'number', defaultValue: 5,
+    hint: 'Junk points per double eagle (3+ under).',
     showIf: { key: 'junkEnabled', in: ['true'] },
+  },
+  {
+    key: 'junkPayout', label: 'Junk pays', type: 'select',
+    options: [
+      { value: 'per-point', label: '$ per point (each earner collects from the others)' },
+      { value: 'pot', label: 'Junk pot (most points takes it, ties split)' },
+    ],
+    defaultValue: 'per-point',
+    hint: 'Per point: every junk point is worth a set amount. Pot: everyone antes into one junk pot and the most points wins it.',
+    showIf: { key: 'junkEnabled', in: ['true'] },
+  },
+  {
+    key: 'junkPerPoint', label: '$ per junk point', type: 'number', defaultValue: 1,
+    hint: 'What one junk point is worth, collected from each other player or team.',
+    showIf: [{ key: 'junkEnabled', in: ['true'] }, { key: 'junkPayout', in: ['per-point'] }],
+  },
+  {
+    key: 'junkPot', label: 'Junk pot ($)', type: 'number', defaultValue: 20,
+    hint: 'The whole junk pot. Everyone in play antes an equal share; the most junk points takes it, ties split.',
+    showIf: [{ key: 'junkEnabled', in: ['true'] }, { key: 'junkPayout', in: ['pot'] }],
   },
   {
     key: 'junkBasis', label: 'Bonuses count', type: 'select',
@@ -162,9 +188,19 @@ export function settleJunkFromSettings(
 ): JunkLine[] | null {
   const lines = tallyJunk(schema, bag, ctx);
   if (!lines) return null;
-
-  // Zero-sum: each earner collects from every other player.
   const byId = new Map(lines.map((l) => [l.playerId, l]));
+
+  if (junkPayout(schema, bag) === 'pot') {
+    // JUNK POT: everyone who has played antes an equal share; the most points takes it, ties split.
+    const inPlay = standings.filter((s) => s.thru > 0);
+    settleJunkPot(
+      numberSetting(schema, bag, 'junkPot'),
+      inPlay.map((s) => ({ points: byId.get(s.playerId)?.points ?? 0, pay: (d) => { s.moneyNet += d; } })),
+    );
+    return lines;
+  }
+
+  // $ PER POINT, zero-sum: each earner collects from every other player.
   const n = lines.length;
   if (n > 1) {
     const totalPaidOut = lines.reduce((s, l) => s + l.dollars, 0);
@@ -176,6 +212,24 @@ export function settleJunkFromSettings(
     }
   }
   return lines;
+}
+
+export function junkPayout(schema: FormatSetting[], bag: SettingsBag): 'per-point' | 'pot' {
+  return stringSetting(schema, bag, 'junkPayout') === 'pot' ? 'pot' : 'per-point';
+}
+
+// The junk POT rule, shared by the individual and side settlements: `pot` dollars, anted equally by
+// every participant in play, paid to the participant(s) with the most points — a tie splits the pot.
+// All-zero points = everyone tied = everyone gets their ante back (nothing moves). Zero-sum by
+// construction: antes in = pot out.
+function settleJunkPot(pot: number, participants: { points: number; pay: (dollars: number) => void }[]): void {
+  const n = participants.length;
+  if (pot <= 0 || n < 2) return;
+  const top = Math.max(...participants.map((p) => p.points));
+  const winners = participants.filter((p) => p.points === top);
+  const ante = pot / n;
+  const share = pot / winners.length;
+  for (const p of participants) p.pay((p.points === top ? share : 0) - ante);
 }
 
 // SIDE variant: junk is earned by INDIVIDUALS but settled between SIDES, because a side game's
@@ -202,14 +256,27 @@ export function settleJunkForSides(
   const n = sides.length;
   if (n < 2) return lines;
 
-  const sum = (ids: string[]) =>
-    ids.reduce((s, id) => s + (lines.find((l) => l.playerId === id)?.dollars ?? 0), 0);
-  const earned = sides.map((s) => sum(s.playerIds));
-  const total = earned.reduce((s, v) => s + v, 0);
+  // Standings for a side game are the SIDES, keyed by the side id uppercased ('A','B','C').
+  const standingOf = (side: { id: string }) => standings.find((s) => s.playerId === side.id.toUpperCase());
+  const sum = (ids: string[], field: 'points' | 'dollars') =>
+    ids.reduce((s, id) => s + (lines.find((l) => l.playerId === id)?.[field] ?? 0), 0);
 
+  if (junkPayout(schema, bag) === 'pot') {
+    // JUNK POT between sides (§5.bq): every side that has played antes an equal share; the side
+    // with the most junk points takes the pot, ties split it.
+    const inPlay = sides.map((side) => ({ side, st: standingOf(side) })).filter((x) => x.st && x.st.thru > 0);
+    settleJunkPot(
+      numberSetting(schema, bag, 'junkPot'),
+      inPlay.map(({ side, st }) => ({ points: sum(side.playerIds, 'points'), pay: (d) => { st!.moneyNet += d; } })),
+    );
+    return lines;
+  }
+
+  // $ PER POINT: each side collects its own junk dollars from every other side (§5.ad).
+  const earned = sides.map((s) => sum(s.playerIds, 'dollars'));
+  const total = earned.reduce((s, v) => s + v, 0);
   sides.forEach((side, idx) => {
-    // Standings for a side game are the SIDES, keyed by the side id uppercased ('A','B','C').
-    const st = standings.find((s) => s.playerId === side.id.toUpperCase());
+    const st = standingOf(side);
     if (!st) return;
     st.moneyNet += earned[idx] * (n - 1) - (total - earned[idx]);
   });
@@ -232,6 +299,8 @@ export function tallyJunk(
   };
   if (amt.birdie === 0 && amt.eagle === 0 && amt.albatross === 0) return null;
   const useNet = stringSetting(schema, bag, 'junkBasis') === 'net';
+  // Points → dollars at the game's rate. Under a junk POT no point has a price of its own.
+  const perPoint = junkPayout(schema, bag) === 'pot' ? 0 : numberSetting(schema, bag, 'junkPerPoint');
 
   return ctx.players.map((p) => {
     let birdies = 0, eagles = 0, albatrosses = 0;
@@ -243,9 +312,7 @@ export function tallyJunk(
       else if (diff === -2) eagles++;
       else if (diff === -1) birdies++;
     }
-    return {
-      playerId: p.id, playerName: p.name, birdies, eagles, albatrosses,
-      dollars: birdies * amt.birdie + eagles * amt.eagle + albatrosses * amt.albatross,
-    };
+    const points = birdies * amt.birdie + eagles * amt.eagle + albatrosses * amt.albatross;
+    return { playerId: p.id, playerName: p.name, birdies, eagles, albatrosses, points, dollars: points * perPoint };
   });
 }

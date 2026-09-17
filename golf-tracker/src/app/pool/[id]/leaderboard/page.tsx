@@ -20,7 +20,8 @@ import {
 import { getGameMode, type IndividualResult } from '@/lib/game-modes';
 import { gameKindLabel } from '@/lib/game-structure';
 import type { TeamFormat } from '@/lib/game-modes/team-scoring';
-import type { WolfHoleLine, NassauLegLine, JunkLine } from '@/lib/game-modes/types';
+import type { WolfHoleLine, NassauLegLine, JunkLine, SettingsBag } from '@/lib/game-modes/types';
+import { JUNK_SETTINGS, junkPayout, numberSetting } from '@/lib/game-modes/settings';
 import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
 import { defaultSideLabel, sideOfPlayer, sidesOfGame } from '@/lib/game-modes/sides';
 import { CardBoardToggle } from '@/components/card-board-toggle';
@@ -1092,7 +1093,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
             {/* Birdie / eagle bonus breakdown (any mode with the junk layer on).
                 Already settled into moneyNet above — this shows who earned what. */}
             {result.junkLines && result.junkLines.some((l) => l.birdies || l.eagles || l.albatrosses) && (
-              <JunkBonusBoard lines={result.junkLines} bySide={isWithinGroup} />
+              <JunkBonusBoard lines={result.junkLines} bySide={isWithinGroup} settings={game.modeSettings ?? {}} />
             )}
 
             {/* Wolf hole-by-hole matchup breakdown — who was Wolf, their call,
@@ -1465,11 +1466,21 @@ function countAtScore(teamScores: Record<string, number | null>, score: number |
 // `bySide` = a 2v2 game, where junk settles SIDE vs SIDE (settleJunkForSides nets
 // each side's total and moves only the difference), not earner-vs-group. The
 // footer said the latter for both, telling 2v2 players the wrong rule.
-function JunkBonusBoard({ lines, bySide = false }: { lines: JunkLine[]; bySide?: boolean }) {
+// Phase 3 (§5.bq): junk is counted in POINTS everywhere. Under `junkPayout: 'per-point'` the board
+// also shows what the points earned; under a junk POT there is no per-point price, so the board
+// shows points and names the pot — the money column already carries who won it.
+function JunkBonusBoard({ lines, bySide = false, settings }: { lines: JunkLine[]; bySide?: boolean; settings: SettingsBag }) {
+  const payout = junkPayout(JUNK_SETTINGS, settings);
+  const pot = numberSetting(JUNK_SETTINGS, settings, 'junkPot');
   const rows = [...lines]
     .filter((l) => l.birdies || l.eagles || l.albatrosses)
-    .sort((a, b) => b.dollars - a.dollars);
+    .sort((a, b) => b.points - a.points);
   if (rows.length === 0) return null;
+  const footer = payout === 'pot'
+    ? `Junk pot $${pot} — the most points takes it, ties split. Already included in the money column.`
+    : bySide
+      ? 'Already included in the money column — the teams are netted, so only the difference changes hands.'
+      : 'Already included in the money column — each earner collects from the rest of the group.';
   return (
     <div className="bg-gray-800 rounded-xl overflow-hidden">
       <div className="px-4 py-2 border-b border-gray-700">
@@ -1483,7 +1494,8 @@ function JunkBonusBoard({ lines, bySide = false }: { lines: JunkLine[]; bySide?:
               <th className="text-center px-2 py-1.5 font-medium">Bird</th>
               <th className="text-center px-2 py-1.5 font-medium">Eagle</th>
               <th className="text-center px-2 py-1.5 font-medium">Alb</th>
-              <th className="text-center px-3 py-1.5 font-bold text-gray-400">Earned</th>
+              <th className="text-center px-2 py-1.5 font-bold text-gray-400">Pts</th>
+              {payout === 'per-point' && <th className="text-center px-3 py-1.5 font-bold text-gray-400">Earned</th>}
             </tr>
           </thead>
           <tbody>
@@ -1493,17 +1505,14 @@ function JunkBonusBoard({ lines, bySide = false }: { lines: JunkLine[]; bySide?:
                 <td className="text-center px-2 py-1.5 text-gray-300">{l.birdies || '-'}</td>
                 <td className="text-center px-2 py-1.5 text-gray-300">{l.eagles || '-'}</td>
                 <td className="text-center px-2 py-1.5 text-gray-300">{l.albatrosses || '-'}</td>
-                <td className="text-center px-3 py-1.5 font-bold text-green-300">${l.dollars}</td>
+                <td className="text-center px-2 py-1.5 font-bold text-gray-200">{l.points}</td>
+                {payout === 'per-point' && <td className="text-center px-3 py-1.5 font-bold text-green-300">${l.dollars}</td>}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="px-3 py-1.5 text-[10px] text-gray-500 border-t border-gray-700">
-        {bySide
-          ? 'Already included in the money column — the two teams are netted, so only the difference changes hands.'
-          : 'Already included in the money column — each earner collects from the rest of the group.'}
-      </p>
+      <p className="px-3 py-1.5 text-[10px] text-gray-500 border-t border-gray-700">{footer}</p>
     </div>
   );
 }
