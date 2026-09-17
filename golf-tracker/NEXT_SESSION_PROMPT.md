@@ -1,4 +1,39 @@
-# Next session: Phase 2 vocabulary (F-061 + F-081) → Phase 3 needs Craig's worked examples
+# Next session: Phase 3 engine convergence — BLOCKED on Craig's worked examples; small findings meanwhile
+
+**UPDATE 2026-09-16 (fifth session): PHASE 2 VOCABULARY IS BUILT (F-061 + F-081)** — commit b8f9c79 on the
+branch after 6db4c9c. Step 3 is DONE. What changed: `gameKindLabel(game)` / `gameKindLabelFrom(facts)`
+in `lib/game-structure.ts` is the ONE game-kind label — "2 teams of 4 · pot", "4 pairs · $/point ·
+2 groups", "1 v 1 · head-to-head", "Skins · 4 players" (`MONEY_WORD` maps the money model; structure
+first, money second, tee-time count only when 2+ groups). It prints on: list cards
+(`gameListSubtitle` IS it now — `PoolGameListItem` grew `groupSizes`/`sideSizes`/`money`), the hub
+header, the leaderboard header, the save-format modal, the wizard review line. `gameSummary` says
+"Teams · best ball" and "Pool". "Side" is gone from every user-visible string: registry hints/labels
+("Buy-in ($ / team)", "Pot (buy-in, best team wins)"), the mode `name` is **"Teams"** (a placeholder
+— see F-088 C), `defaultSideLabel` → "Team A", the settings editor ("Teams" section, "+ Add a team",
+"Remove team C", "Teams options"), money panels, printable sheet, scorecard header ("3 teams"),
+`side-names.tsx` ("Name the teams", label "Team A"), review ("Teams (2 vs 2)"). `structureOf` and the
+label read the tee groups as the teams when a team game stores no sides (the wizard writes sides
+only when partners share a foursome). **F-081:** the hub has a "Teams" section (row per team, custom
+name's members beneath, tee group at right — hidden with one group) above the tee-group cards; the
+money panel's developer paragraph is gone for team games. e2e pins retargeted in collapse-routing,
+verify-core, f006, f015-f018, f019, f020 (`getByText('Group 2').first()` where the Teams tag now
+repeats it; the editor's Teams heading is `getByRole('paragraph').filter({ hasText: /^Teams$/ })`
+because the hub's "Teams" sheet button and the mode option share the word). Unit: `gameKindLabel
+(F-061)` block in game-structure.test.ts, gameListSubtitle tests rewritten. Verify log:
+`.claude/verify-2026-09-16-phase2.log` (check `VERIFY_EXIT=`). Screenshots read:
+`f072-hub-pairs-net-gross.png`, `hub-2v2.png`, `2v2-leaderboard.png` → three new findings
+**F-088** (hub says "Teams" twice: money-panel header is the mode name; opt A "How it's played"),
+**F-089** (header wraps a 3-word name to 3 lines beside 5 actions, pre-existing), **F-090** (CTP
+editor renders on a legacy team game whose `junkValues.ctp > 0`; the team engine never pays it; opt A
+one-line gate). All three are Craig's pick (§5.bo) — ASK, don't build. NOT done (residue, in
+BACKLOG): `isSingleGroupGame` rename (AGENTS.md cites it), `teamBuild` container-neutral, sandbox
+seed labels still say "sides". UI_CONVENTIONS §vocabulary table rewritten for "team everywhere".
+
+**What to do next:** Phase 3 is money math → its first step is a CONVERSATION, not code: ask Craig
+for worked examples (who pays whom, one game per shape: 4 foursomes + fixed legs + bonuses; pairs +
+CTP; 3 teams + pot with junk), pin them as tests (§5.z: prove each can fail), then build. While
+waiting, the actionable small items are F-088/F-089/F-090 — each needs his option first.
+
 
 **UPDATE 2026-09-16 (fourth session): the SMALL WIZARD BATCH is BUILT** — ten commits after a89c980,
 one per finding (6728a25 F-073+F-075+F-082 · f55c550 F-076 A · b4b6461 F-080 · 2b7f5c8 F-084 ·
@@ -96,8 +131,7 @@ against a hand-started sandbox and READ every `walk-*.png` as a first-time golfe
 walk-the-ui-before-handoff). He found six findings in ten minutes that the screenshots already
 showed.
 
-**Step 3 — Phase 2 vocabulary (F-061)** as before: `structureLabel` through the label sites,
-"team" everywhere (§5.bm Q5). Grep "Sides / Match", "Foursomes" pins first (§5.at).
+~~**Step 3 — Phase 2 vocabulary (F-061)**~~ DONE 2026-09-16 (fifth session) — see the update at the top.
 
 **Stop-and-ask lines:** F-063 opt C (per-cell rows) is persistence → its own session, ask first.
 F-069 residue (a non-`TeamFormat` string still defaults to best ball in `teamNetOnHole`, now the

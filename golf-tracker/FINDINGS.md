@@ -705,7 +705,18 @@ mapping.
 **Recommendation:** B — naming twice (once now, once after the design) would date one
 set of strings immediately (§5.at).
 
-**Status:** open — logged for the structure-design conversation.
+**Status:** FIXED 2026-09-16, commit b8f9c79 (Phase 2, §5.bm Q5) — option B as decided by the collapse plan. One
+helper, `gameKindLabel(game)` in `lib/game-structure.ts` ("2 teams of 4 · pot", "4 pairs · $/point
+· 2 groups", "1 v 1 · head-to-head", "Skins · 4 players"), prints on the list cards (`gameListSubtitle`
+is now that helper; the list item carries `groupSizes`/`sideSizes`/`money`), the hub header, the
+leaderboard header, the save-format modal and the wizard review; `gameSummary` says "Teams · best
+ball" / "Pool". "Side" is gone from every user-visible string (registry hints and labels, the
+editor, the money panels, the printable sheet, the scorecard header, the name fields — "Team A" is
+the fallback label now). Two judgement calls for Craig: the `team-2v2` mode's own `name` is
+**"Teams"** (it still shows in the settings editor's game select and the "Teams options" heading —
+one line to rename), and the sandbox seed labels still say "sides" (dev-only, e2e look them up).
+Residue NOT done: `isSingleGroupGame` keeps its name (AGENTS.md's one rule names it), `teamBuild`
+stays classic-only.
 
 ---
 
@@ -1206,6 +1217,59 @@ paired with whom — the one thing the organizer wants confirmed — appears now
 classic hub shows its teams. **Fix:** Phase 2 (F-061): the hub's team panel keyed on
 `structureOf(game)`, showing the pairs (with their tee group beside each), and the developer
 paragraph replaced by `structureLabel`. M, hub only, no engine change.
+
+**Status:** FIXED 2026-09-16 with F-061 (b8f9c79). The hub gets a **Teams** section above the tee-group cards
+for any shared-foursome game that stores sides: one row per team (player-derived or custom name,
+members under a custom name) with its tee group at the right — hidden when there is only one tee
+group, because every tag would read the same. The money panel's developer paragraph is gone for
+team games (the header already says "4 pairs · $/point · 2 groups"); solo modes keep their rules
+line. Screenshot: `e2e/screenshots/f072-hub-pairs-net-gross.png`. Left in its wake: F-088.
+
+---
+
+### F-088 — The team-game hub now says "Teams" twice: the money panel's header AND the new section  [P3] [start]
+
+**Where (`f072-hub-pairs-net-gross.png`, `hub-2v2.png`, 2026-09-16):** the money summary panel's
+header is the mode's `name`, which Phase 2 made "Teams"; directly under it sits the F-081 section
+also headed "Teams". Two identical headings, two different things (settings vs pairings).
+
+**Options:** **A** the money panel's header reads the same for every mode — "How it's played" (or
+"Game settings") — since the hub header already names the game. **B** the header reads the format
+line (`gameSummary`: "Teams · best ball · Stableford"). **C** rename the mode itself (e.g.
+"Team match") — but that word also fronts the settings editor, so pick it once. Recommend A.
+
+**Status:** open — Craig's pick (§5.bo).
+
+---
+
+### F-089 — The hub header wraps a three-word game name to three lines beside five actions  [P3] [track]
+
+**Where (`f072-hub-pairs-net-gross.png`, phone width, 2026-09-16; noticed in the F-072 session too):**
+"Pairs Net Gross" stacks one word per line and the subtitle wraps to four, because the header row
+holds Feedback · Share · Save format · Edit · Dashboard on the same line. Pre-existing.
+
+**Options:** **A** actions drop below the title on narrow screens (two rows). **B** collapse the
+three secondary actions (Feedback, Save format, Dashboard) into a "…" menu on phones. **C** shorter
+labels. Recommend A — no new control, nothing hidden.
+
+**Status:** open.
+
+---
+
+### F-090 — A team game whose bonuses include CTP shows the Closest-to-the-Pin editor, but the team engine never pays it  [P3] [track]
+
+**Where (`hub-2v2.png`, 2026-09-16):** the sandbox 2v2 seed carries classic `junkValues` with
+`ctp > 0`, so `CtpEditor` (gated only on par-3s and `junkValues.ctp`) renders four "Hole N — None /
+Craig / Jym / …" rows under "Counts toward that team's junk total". `team-game.ts` settles junk
+through `settleJunkForSides` and never reads `ctpWinners`, so a pick changes nothing. Scope is
+narrow: the wizard turns bonuses off for team games and the router refuses CTP for them, so only
+seeded or legacy games hit it — but a legacy live game would show a control that lies.
+
+**Options:** **A** gate `CtpEditor` on the classic container (`!getGameMode(game.gameMode)`) — one
+line. **B** Phase 3 makes CTP pay on every engine and the editor becomes truthful. Recommend A now,
+B keeps it.
+
+**Status:** open.
 
 ---
 
