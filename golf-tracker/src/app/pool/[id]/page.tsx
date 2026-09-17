@@ -294,7 +294,10 @@ export default function PoolHubPage() {
   return (
     <div className="min-h-full bg-gray-50">
       <header className="bg-green-800 text-white shadow">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+        {/* F-089 A: on a phone the five actions share the row with the title and squeeze a
+            three-word name to one word per line. Below `sm` the actions drop to their own row
+            under the title; from `sm` up the layout is unchanged. */}
+        <div className="max-w-3xl mx-auto px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl font-bold">{game.name}</h1>
             <p className="text-xs text-green-200">{hubSubtitle}</p>
@@ -315,7 +318,7 @@ export default function PoolHubPage() {
               What they must not do is CHANGE it for everyone else: Edit rebuilds
               teams, Close out ends the round for all four foursomes, GHIN refresh
               needs a token they don't have. Those are hidden. */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
             {/* Feedback is for EVERYONE in the game — the share-link friend
                 using the app mid-round is exactly who we want to hear from. */}
             <FeedbackButton gameId={game.id} />
