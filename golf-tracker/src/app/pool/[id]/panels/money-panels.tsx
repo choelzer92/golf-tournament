@@ -40,7 +40,10 @@ export function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
       <section>
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="px-4 py-3 bg-gray-100 border-b flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">{indMode.name}</h2>
+            {/* F-088 A: the hub header already names the game and its kind, and the F-081 Teams
+                list sits right below — so this heading is NOT the mode name (which read "Teams"
+                twice in a row on a team game). One fixed label for every mode. */}
+            <h2 className="font-semibold text-gray-900">How it&apos;s played</h2>
             <span className="text-sm text-gray-600">{game.players.length} players · {game.handicapAllowance}% hcap</span>
           </div>
           {/* F-081: a team game's structure is already the hub header ("4 pairs · $/point · 2 groups")
