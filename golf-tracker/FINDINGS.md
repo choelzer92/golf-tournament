@@ -1138,7 +1138,7 @@ unblocks them.
 Warriors' saved format carry its CTP 1, which it does. **B** individual toggles per bonus instead
 of one grid fill. A is one constant; B is the §5.j-shaped answer. Recommend A now, B with Phase 3.
 
-**Status:** FIXED 2026-09-16 (f55c550) on **option A (my recommendation — Craig to confirm)**: the tap sets birdie 1 / eagle 2 / albatross 3 / all-par 1 / CTP 0; the seeded Warriors' format still restores CTP 1. Pinned in `f045` (Closest = 0, margin money open until CTP typed). Option B (per-bonus toggles) stays for Phase 3.
+**Status:** FIXED 2026-09-16 (f55c550) on **option A — confirmed by Craig 2026-09-16 (§5.bo)**: the tap sets birdie 1 / eagle 2 / albatross 3 / all-par 1 / CTP 0; the seeded Warriors' format still restores CTP 1. Pinned in `f045` (Closest = 0, margin money open until CTP typed). Option B (per-bonus toggles) stays for Phase 3.
 
 ---
 
@@ -1254,7 +1254,7 @@ thin divider or the team's name as a sub-heading between pairs. **B** a small te
 ("Gary & Rick"). A is one sort key and reads as the claim it makes; B adds text to every row.
 Recommend A. Composes with F-081 (the hub's team panel should show the same pairing + tee group).
 
-**Status:** FIXED 2026-09-16 (c7ae51d) on **option A (my recommendation — Craig to confirm)**: rows clustered by team, handicap order within, a dashed rule between teams; display only. Pinned in `collapse-routing` (group 1 reads Craig, Jym, Dave, Rick).
+**Status:** FIXED 2026-09-16 (c7ae51d) on **option A — confirmed by Craig 2026-09-16 (§5.bo)**: rows clustered by team, handicap order within, a dashed rule between teams; display only. Pinned in `collapse-routing` (group 1 reads Craig, Jym, Dave, Rick).
 
 ---
 
@@ -1271,7 +1271,7 @@ card below already does.
 one whole team). **B** reword it for pairs ("Fix a pair before balancing the rest"). A is the
 minimum-exposed-complexity answer and keeps locks for triples, where they do add something.
 
-**Status:** FIXED 2026-09-16 (9f606cc) on **option A (my recommendation — Craig to confirm)**: the panel renders only when some team is larger than 2. Pinned in `collapse-routing` (gone on four pairs, present on two teams of 4). Note: `lockedGroups` state is shared across structures, so a lock set on a 4+4 before switching to pairs would still steer the balancer invisibly — edge case, not seen in practice.
+**Status:** FIXED 2026-09-16 (9f606cc) on **option A — confirmed by Craig 2026-09-16 (§5.bo)**: the panel renders only when some team is larger than 2. Pinned in `collapse-routing` (gone on four pairs, present on two teams of 4). Note: `lockedGroups` state is shared across structures, so a lock set on a 4+4 before switching to pairs would still steer the balancer invisibly — edge case, not seen in practice.
 
 ---
 

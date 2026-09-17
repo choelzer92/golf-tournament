@@ -1765,6 +1765,24 @@ Requested, in his stated order of interest:
 
 ---
 
+## 5.bo Recommended options stand unless the question is asked outright (F-076 A / F-085 A / F-086 A, 2026-09-16)
+
+**What happened:** the small wizard batch built three findings on the option I had recommended
+(F-076 A — "+ Add bonuses" leaves CTP at 0; F-085 A — groups step lists a group's rows by team;
+F-086 A — no pairing-locks panel when no team is bigger than two) without Craig picking, and flagged
+them for his nod afterwards.
+
+**Craig:** *"ok, lets just go with the recommendations I guess, unless in the next session I would be
+explicitly asked the question."*
+
+**Decision:** the three options are SETTLED as built. Working rule going forward: when a finding's
+option is his to choose and the work is about to be built, ASK THE QUESTION EXPLICITLY at that point
+(AskUserQuestion / a direct line in the handoff), rather than building on the recommendation and
+asking for a nod after. A recommendation is a proposal, not a pick — "chosen: X" in FINDINGS comes
+from him. Small mechanical items with one defensible answer still don't need the check-in (§2).
+
+---
+
 ## 7. Open questions
 
 Awaiting Craig's call. Inferred answers are marked as guesses.

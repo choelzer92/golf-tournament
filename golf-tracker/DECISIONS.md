@@ -36,6 +36,8 @@ code happens when asked.
 
 Stop and ask before anything that: changes money/handicap/scoring math; alters a rule
 mid-round; is irreversible or touches live data; or has more than one defensible answer.
+**When a finding's option is Craig's to choose, ask the question outright before building it
+(§5.bo)** — don't build the recommendation and ask for a nod afterwards.
 
 **Never commit or push unbidden.** Pushing is always Craig's call (the app is live).
 

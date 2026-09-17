@@ -12,8 +12,9 @@ head-to-head legs + junk/pt are inputs; an applied saved style hides the select 
 Pick another style"; "Other split…" has a typed row (`parseTeamSizes`, radio value `custom`, aria
 "Team sizes"); the groups step clusters rows by team with a dashed rule; the locks panel hides when no
 team is bigger than 2. New helpers/exports: `parseTeamSizes`, `structureOptionLabel` (the teams-step
-subtitle uses it, so a typed shape is labelled too). **Three items were built on MY recommended
-option and need Craig's nod: F-076 A, F-085 A, F-086 A** (FINDINGS statuses say so). New finding
+subtitle uses it, so a typed shape is labelled too). Craig confirmed F-076 A, F-085 A, F-086 A afterwards
+(§5.bo) — and set the rule: **when an option is his to pick, ASK the question explicitly before
+building; don't build the recommendation and ask for a nod after.** New finding
 F-087 (bonus sections sit between the money question and its amounts, P3, opt A = reorder). Verify
 log: `.claude/verify-2026-09-16-batch.log` (check `VERIFY_EXIT=`). Screenshots read: walk-A money,
 walk-B teams/groups, walk-G format, `f074-typed-split.png` — all clean.

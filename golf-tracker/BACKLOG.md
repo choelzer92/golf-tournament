@@ -19,7 +19,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
-| **Game-structure COLLAPSE — Phase 1 BUILT on `ui-simplification-2026-09-15`; F-071 A, F-072 and the SMALL WIZARD BATCH (F-073/074/075/076/080/082/083/084/085/086, ten commits 6728a25…f427809) all DONE 2026-09-16. NEXT, in Craig's agreed order: Phase 2 vocabulary (F-061 via `structureLabel`, "team" everywhere per §5.bm Q5, F-081 rides along) → Phase 3 engine convergence (money math — worked examples from Craig first). Craig's phone walk of the new wizard still wanted (§5.y); three batch items were built on MY recommended option and need his nod (F-076 A, F-085 A, F-086 A).** Screenshots: `e2e/screenshots/collapse-*.png`, `walk-*.png`, `f074-*.png`, `f082-*.png`, `f084-*.png`. Plan header carries the §5.bm amendments. | L | §5.bk/§5.bm |
+| **Game-structure COLLAPSE — Phase 1 BUILT on `ui-simplification-2026-09-15`; F-071 A, F-072 and the SMALL WIZARD BATCH (F-073/074/075/076/080/082/083/084/085/086, ten commits 6728a25…f427809) all DONE 2026-09-16. NEXT, in Craig's agreed order: Phase 2 vocabulary (F-061 via `structureLabel`, "team" everywhere per §5.bm Q5, F-081 rides along) → Phase 3 engine convergence (money math — worked examples from Craig first). Craig's phone walk of the new wizard still wanted (§5.y); F-076 A / F-085 A / F-086 A confirmed by Craig (§5.bo: ask option questions outright next time).** Screenshots: `e2e/screenshots/collapse-*.png`, `walk-*.png`, `f074-*.png`, `f082-*.png`, `f084-*.png`. Plan header carries the §5.bm amendments. | L | §5.bk/§5.bm |
 | **Course-data correctness audit — PARKED by Craig 2026-09-15 ("wait on the course data")**. Meadows payload banked + CLEAN (F-023); prime suspects now gender-name tee collisions and stale stored games. Resume on his word. | M | Craig 2026-09-10/14 + F-023 |
 | Merge-audit polish batch (all four S items below) — fallback slack work | S×4 | merge audit / §5.ak |
 
@@ -92,12 +92,12 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | ~~F-060 follow-through~~ DONE 2026-09-15 (877c9ea) — opt B + hub parity both built; the collapse plan keeps the method list as the teams step for any N × K | — | F-060 |
 | **F-063 opt C: per-cell score rows** — `(matchup_id, player_id, hole)` table, idempotent upserts, localStorage outbox, dual-read transition, sandbox fake gains the table first; retires the merge RPC. Makes `matchupId` a fetch key, not a correctness boundary — de-risks the whole sides family. Own session; persistence → Craig | M | F-063 / plan §5.3 |
 | ~~F-071 ONE teams step for every split (opt A)~~ DONE 2026-09-16 — `TeamsStep` money-teams mode, sides derived on leaving, partner-aware groups reshape (`packTeamsIntoShape`), `SubTeamsStep` deleted; F-078 + F-079 fell out; two judgement calls for Craig in FINDINGS F-071 status (empty-until-tapped, captains off for pairs) | — | F-071 |
-| ~~F-085 partners adjacent in the groups step~~ DONE 2026-09-16 (opt A, c7ae51d) — Craig to confirm the option | — | F-085 |
-| ~~F-086 no locks panel on pairs~~ DONE 2026-09-16 (opt A, 9f606cc) — Craig to confirm the option | — | F-086 |
+| ~~F-085 partners adjacent in the groups step~~ DONE 2026-09-16 (opt A, c7ae51d) — option confirmed (§5.bo) | — | F-085 |
+| ~~F-086 no locks panel on pairs~~ DONE 2026-09-16 (opt A, 9f606cc) — option confirmed (§5.bo) | — | F-086 |
 | ~~F-073 match-play / stroke-play words~~ DONE 2026-09-16 (6728a25) | — | F-073 |
 | ~~F-074 typed split under "Other split…"~~ DONE 2026-09-16 (ec47f98) | — | F-074 |
 | ~~F-075 refusals name the engine gap~~ DONE 2026-09-16 (6728a25) | — | F-075 |
-| ~~F-076 Add bonuses leaves CTP 0~~ DONE 2026-09-16 (opt A, f55c550) — Craig to confirm; opt B (per-bonus toggles) rides with Phase 3 | — | F-076 |
+| ~~F-076 Add bonuses leaves CTP 0~~ DONE 2026-09-16 (opt A, f55c550) — confirmed (§5.bo); opt B (per-bonus toggles) rides with Phase 3 | — | F-076 |
 | ~~F-078 hide the sides step's shape chooser~~ DONE 2026-09-16 with F-071 A (the step is gone) | — | F-078 |
 | ~~F-079 skip the teams step for a 1 v 1~~ DONE 2026-09-16 with F-071 A (tees → Money) | — | F-079 |
 | ~~F-084 editable head-to-head legs~~ DONE 2026-09-16 (2b7f5c8) | — | F-084 |
