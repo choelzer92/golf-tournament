@@ -17,7 +17,7 @@ import {
 } from '@/lib/pool-game';
 import type { GameSide } from '@/lib/game-modes/sides';
 import { getGameMode, fitExplanation, formatSummaryLine, type SettingsBag } from '@/lib/game-modes';
-import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
+import { sideNameFrom, allSidesAreSolo, MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { MONEY_WORD, structureLabel, type Container, type MoneyModel, type MoneyModelOption } from '@/lib/game-structure';
 import { type PotDollars, foldJunkStrings, legDollarsToStrings, potDollarsTotal } from './shared';
@@ -29,6 +29,8 @@ const SIDES_MONEY_KEYS = new Set([
   // Junk POINTS (birdie / eagle / albatross / all-par / closest) come from the shared bonus grid
   // above (§5.bq one vocabulary); only HOW junk pays is asked here.
   'junkBasis', 'junkPayout', 'junkPerPoint', 'junkPot',
+  // Phase 3 step 3: how losers pay with 3+ teams, and carry-ties for $/hole.
+  'legsPayout', 'pointsPayout', 'carryover',
 ]);
 
 function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
@@ -346,7 +348,9 @@ export function CreateStep({
             schema={mode.settings}
             values={{ ...modeSettings, junkEnabled: !junkIsOff(junkValues) }}
             onChangeAction={(key, value) => setModeSettings({ [key]: value })}
-            hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_MONEY_KEYS.has(k))}
+            hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_MONEY_KEYS.has(k)
+              // A payout choice that only bites with 3+ teams is not asked of a smaller game.
+              || (MULTI_TEAM_ONLY_KEYS.has(k) && (sides ?? []).length < 3))}
           />
         </div>
         )}

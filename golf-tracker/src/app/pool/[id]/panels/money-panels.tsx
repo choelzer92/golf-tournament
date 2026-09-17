@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { type PoolGame, DEFAULT_MATCH_CONFIG, isPoolGameFullyScored } from '@/lib/pool-game';
-import { incompleteLegsForCloseOut, persistedSides, type IncompleteLeg } from '@/lib/game-modes/sides';
+import { incompleteLegsForCloseOut, persistedSides, sidesOfGame, type IncompleteLeg } from '@/lib/game-modes/sides';
+import { MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
 import { type GameScore } from '@/lib/game-state';
 import { fetchGameScores } from '@/lib/tournament-state';
 import { getGameMode, buildGameModeContext, settingValue } from '@/lib/game-modes';
@@ -16,7 +17,10 @@ export function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
     // Honor each setting's showIf so only relevant options appear (e.g. "$ per
     // point" only in the per-point money model, alt-shot % only for alt-shot) —
     // same predicate the editor uses, so create and view stay consistent.
+    const fewTeams = sidesOfGame(game).length < 3;
     const rows = indMode.settings.filter((s) => {
+      // Phase 3 step 3: a 3+-team payout choice says nothing about a two-team game.
+      if (fewTeams && MULTI_TEAM_ONLY_KEYS.has(s.key)) return false;
       if (!s.showIf) return true;
       const conds = Array.isArray(s.showIf) ? s.showIf : [s.showIf];
       return conds.every((c) => c.in.includes(String(settingValue(indMode.settings, settings, c.key))));

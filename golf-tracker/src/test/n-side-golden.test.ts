@@ -292,36 +292,38 @@ describe('F-017 (SHOULD MOVE, legs only): top sides tie with a third behind', ()
     ...scoresFor('p5', flat(1)), ...scoresFor('p6', flat(1)),
   ];
 
-  it('F-017: legs — A and B tie, C is 18 over, so C pays BOTH', () => {
+  // RE-PINNED 2026-09-17 (Phase 3 step 3, DECISIONS.md §5.br). The F-017 fix (§5.aj) made C pay
+  // EACH tied leader ($80). Phase 3 named the two payout modes and Craig set the DEFAULT to
+  // winner-take-all — a loser pays a leg once and tied leaders split it — so the default now pays
+  // C −40 / A +20 / B +20. The §5.aj "owe both" reading is the explicit `legsPayout: 'pay-each'`.
+  it('F-017 → §5.br: legs — A and B tie, C is 18 over; by default C pays each leg ONCE, split', () => {
     const r = run(gameN(three, { moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20 }),
       tieAtTop());
     expect(shapeOf(r)).toMatchSnapshot();
     expect(sumMoney(r)).toBeCloseTo(0, 6);
-    // WAS $0 across the board: `winner` is null on a tie, so a side 18 over par owed nothing
-    // because the two ahead of it couldn't separate themselves. Now (§5.aj) C pays each leg to
-    // each side that led it: (10 + 10 + 20) x 2 leaders = $80, and A and B take $40 apiece.
     expect(Object.fromEntries(r.standings.map((s) => [s.playerId, s.moneyNet])))
+      .toEqual({ A: 20, B: 20, C: -40 });
+    const each = run(gameN(three, { moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20, legsPayout: 'pay-each' }),
+      tieAtTop());
+    expect(Object.fromEntries(each.standings.map((s) => [s.playerId, s.moneyNet])))
       .toEqual({ A: 40, B: 40, C: -80 });
   });
 
-  // The consequence Craig accepted knowingly: a tie at the top costs last place MORE than a
-  // clean defeat, because it lost to two sides rather than one. Pinned so the trade-off is
-  // visible in the tests rather than only in the decision log.
-  it('F-017: a tie at the top costs last place MORE than a clean defeat', () => {
-    const tied = run(gameN(three, { moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20 }),
-      tieAtTop());
-    // Same C, same cards, but A beats B outright — so C loses to two sides, one of which is
-    // also ahead of the other.
-    const separated = run(gameN(three, { moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20 }), [
+  // §5.br's reason for the default, pinned: by default a tie at the top costs last place the SAME
+  // as a clean defeat — "$10 per leg" never costs more than $10. Under pay-each last place owes BOTH
+  // teams either way ($80): the §5.aj trade-off Craig accepted now belongs to that mode alone.
+  it('§5.br: a tie at the top costs last place the same as a clean defeat in both modes; pay-each costs double', () => {
+    const legs = { moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20 };
+    const separatedCards = [
       ...scoresFor('p1', par()), ...scoresFor('p2', par()),
       ...scoresFor('p3', flat(1)), ...scoresFor('p4', flat(1)),
       ...scoresFor('p5', flat(2)), ...scoresFor('p6', flat(2)),
-    ]);
-    const cTied = tied.standings.find((s) => s.playerId === 'C')!.moneyNet;
-    const cClean = separated.standings.find((s) => s.playerId === 'C')!.moneyNet;
-    expect(cTied).toBe(-80);    // pays $40 to each of two leaders
-    expect(cClean).toBe(-40);   // pays $40 to the single winner
-    expect(cTied).toBeLessThan(cClean);
+    ];
+    const c = (r: IndividualResult) => r.standings.find((s) => s.playerId === 'C')!.moneyNet;
+    expect(c(run(gameN(three, legs), tieAtTop()))).toBe(-40);
+    expect(c(run(gameN(three, legs), separatedCards))).toBe(-40);
+    expect(c(run(gameN(three, { ...legs, legsPayout: 'pay-each' }), tieAtTop()))).toBe(-80);
+    expect(c(run(gameN(three, { ...legs, legsPayout: 'pay-each' }), separatedCards))).toBe(-80);
   });
 
   // The same cards under per-point and pot, which ALREADY charge C. These are the reference the

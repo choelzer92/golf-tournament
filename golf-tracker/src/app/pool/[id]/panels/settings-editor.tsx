@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { type Player } from '@/lib/game-state';
 import { type PoolGame, type PoolJunkValues, type PoolMoneyMode, getPar3Holes, defaultSubTeams, DEFAULT_MATCH_CONFIG, DEFAULT_MATCH_POINTS, DEFAULT_JUNK_VALUES, poolSplitDollarsForTeams, dollarsToPotSplit } from '@/lib/pool-game';
 import { gameCountsCtp } from '@/lib/game-modes/result';
+import { MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
 import { formatOfGame, isOneBall, persistedTeamScoring, TEAM_FORMAT_OPTIONS, type ScoreBasis, type TeamFormat } from '@/lib/game-modes/team-scoring';
 import { LEGACY_SIDE_NAME_KEYS, fromLegacySubTeams, nextSideId, persistedSides, sideMembers, sideOfPlayer, sidesOfGame, type GameSide } from '@/lib/game-modes/sides';
 import { fetchGameScores } from '@/lib/tournament-state';
@@ -257,9 +258,10 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
               onChangeAction={setModeSetting}
               lockOptionAction={lockModeOption}
               lockNoteAction={lockModeNote}
-              /* No hideKeys any more: side names left the settings schema (F-014), so there is
-                 nothing here to hide. That's the point — the old arrangement needed every
-                 consumer to remember, and one of three didn't. */
+              /* Side names left the settings schema (F-014), so they need no hiding here. The one
+                 thing hidden is structural, not a name: a 3+-team payout choice on a game with
+                 fewer teams (Phase 3 step 3) — the same rule the wizard and the money panel apply. */
+              hideKeys={sidesOfGame(game).length < 3 ? Array.from(MULTI_TEAM_ONLY_KEYS) : []}
             />
           </div>
           {isWithinGroup && (

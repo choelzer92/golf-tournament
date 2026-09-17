@@ -634,25 +634,34 @@ describe('three sides in one group', () => {
   // rule: "i think they would owe both based on the settings we are making. IF it was a pot
   // split situation, it would be different, no?" — `legs` is per-opponent stakes, a pot is a
   // divided prize. Lose to two sides, owe two sides.
-  it('F-017: a tied leg is paid by each side behind, to each side ahead', () => {
+  // RE-PINNED 2026-09-17 (Phase 3 step 3, DECISIONS.md §5.br): "owe both" is now the `pay-each`
+  // mode's rule. The DEFAULT is winner-take-all, where a loser pays a $10 leg once and tied leaders
+  // split it — Craig: a user who sees "$10 per leg" must never owe more than $10 by default.
+  it('F-017 / §5.br: a tied leg — default winner-take-all: C pays each leg ONCE, A and B split it', () => {
     // A and B level par on every hole; C one over on every hole. Every leg ties at the top.
     const level = HOLES.map((h) => TEST_PARS[h - 1]);
     const bogeys = HOLES.map((h) => TEST_PARS[h - 1] + 1);
-    const r = run3(game3({ moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20 }), [
+    const cards = [
       ...scoresFor('p1', level), ...scoresFor('p2', level),
       ...scoresFor('p3', level), ...scoresFor('p4', level),
       ...scoresFor('p5', bogeys), ...scoresFor('p6', bogeys),
-    ]);
-    // C pays each leg to each of the two leaders: (10 + 10 + 20) × 2 = $80.
-    expect(moneyOf(r, 'C')).toBe(-80);
-    expect(moneyOf(r, 'A')).toBe(40);
-    expect(moneyOf(r, 'B')).toBe(40);
+    ];
+    const r = run3(game3({ moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20 }), cards);
+    // C pays 10 + 10 + 20 = $40 in all; A and B take $20 apiece.
+    expect(moneyOf(r, 'C')).toBe(-40);
+    expect(moneyOf(r, 'A')).toBe(20);
+    expect(moneyOf(r, 'B')).toBe(20);
     expect(r.standings.reduce((s, x) => s + x.moneyNet, 0)).toBeCloseTo(0, 6);
     // Every leg is genuinely a tie at the top — two leaders, no single winner.
     for (const leg of r.teamLegs!) {
       expect(leg.winner).toBeNull();
       expect(leg.leaders.sort()).toEqual(['a', 'b']);
     }
+    // §5.aj's per-opponent reading lives on as the explicit `pay-each` mode: lose to two, owe two.
+    const each = run3(game3({ moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20, legsPayout: 'pay-each' }), cards);
+    expect(moneyOf(each, 'C')).toBe(-80);
+    expect(moneyOf(each, 'A')).toBe(40);
+    expect(moneyOf(each, 'B')).toBe(40);
   });
 
   it('F-017: `leaders` holds exactly one id when there IS an outright winner', () => {

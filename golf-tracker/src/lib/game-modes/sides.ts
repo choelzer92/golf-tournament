@@ -279,6 +279,33 @@ export function defaultSideLabel(sideId: string): string {
  * a push. Sides whose value is null are skipped entirely rather than treated as zero, so an
  * unscored side neither pays nor collects.
  */
+/**
+ * WINNER TAKES FROM EVERYONE (Phase 3 step 3, DECISIONS.md §5.bq/§5.br): only the side(s) holding
+ * the best value are paid. Every other side pays `owed(top, its value)` ONCE; tied leaders split each
+ * payment equally. Null values are out of the settlement (unscored sides neither pay nor collect).
+ * Zero-sum by construction; at two sides it is the plain head-to-head margin.
+ */
+export function settleWinnerTakes(
+  values: (number | null)[],
+  higherIsBetter: boolean,
+  owed: (top: number, value: number) => number,
+): number[] {
+  const inPlay = values.map((v) => v !== null);
+  const present = values.filter((v): v is number => v !== null);
+  const out = values.map(() => 0);
+  if (present.length < 2) return out;
+  const top = present.reduce((b, v) => ((higherIsBetter ? v > b : v < b) ? v : b), present[0]);
+  const leaders = values.map((v, i) => inPlay[i] && v === top);
+  const leaderCount = leaders.filter(Boolean).length;
+  values.forEach((v, i) => {
+    if (!inPlay[i] || leaders[i]) return;
+    const pay = owed(top, v as number);
+    out[i] -= pay;
+    leaders.forEach((isLeader, j) => { if (isLeader) out[j] += pay / leaderCount; });
+  });
+  return out;
+}
+
 export function settleRoundRobin<T>(
   sides: T[],
   valueOf: (side: T) => number | null,
