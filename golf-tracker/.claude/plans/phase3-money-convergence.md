@@ -144,8 +144,12 @@ A: front 20 + overall 20 + junk 20 − 20 = **+40** · B: back 10 − 20 = **−
 
 ## 5. Build order (each step = goldens first, one commit, verify green)
 
-1. §1 junk vocabulary on the team engine (points + $/pt), read-compatible with every saved game.
-   Goldens: Examples 1–2 + "every existing team-engine golden unmoved".
+1. ~~§1 junk vocabulary~~ **BUILT 2026-09-17** — `JUNK_SETTINGS` counts points (`junkBirdie` etc.), adds
+   `junkPayout` (per-point | pot), `junkPerPoint`, `junkPot`; `tallyJunk` returns `points` + `dollars`;
+   `settleJunkPot` shared by the individual and side settlements; wizard defaults `junkPayout` from the
+   money model; leaderboard bonus board shows Pts (+ Earned under per-point) and names the pot.
+   Goldens `src/test/phase3-junk-vocabulary.test.ts` (6, 5 failed first); e2e `phase3-junk.spec.ts`;
+   sandbox seed "2v2 best ball — junk POT with birdies (Phase 3)". Every older golden unmoved.
 2. §1 CTP / group hug / hand-tracked bonuses into `tallyJunk`; wizard stops treating them as
    classic-only; `CtpEditor` gate (F-090) lifted; hub bonus marks on team games.
 3. §2 `multiTeamPayout` setting for legs, $/hole, $/point. Goldens: the six tables above.

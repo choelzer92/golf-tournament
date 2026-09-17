@@ -1227,6 +1227,20 @@ line. Screenshot: `e2e/screenshots/f072-hub-pairs-net-gross.png`. Left in its wa
 
 ---
 
+### F-092 — The junk bonus board under a junk POT doesn't say who took the pot  [P3] [track]
+
+**Where (`phase3-junk-pot-leaderboard.png`, 2026-09-17):** with `junkPayout: 'pot'` the board lists
+each player's points and the footer says "Junk pot $20 — the most points takes it, ties split.
+Already included in the money column." The reader has to add the pairs up and compare to see that
+Craig & Jym took it. The standings' $ column carries the answer, but not labelled as junk.
+
+**Options:** **A** footer names the winner(s): "Junk pot $20 → Craig & Jym (3 pts)". **B** a
+per-team points row above the player rows. Recommend A — one line, no new table.
+
+**Status:** open — Craig's pick (§5.bo).
+
+---
+
 ### F-091 — The "How it's played" grid crams label and value together on a phone  [P3] [track]
 
 **Where (`f089-hub-header-phone.png`, 390px, 2026-09-16):** the mode-settings panel is a two-column

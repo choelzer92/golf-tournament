@@ -110,6 +110,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | ~~F-088 hub says "Teams" twice~~ DONE 2026-09-16 (opt A, 340cd60, §5.bp) | — | F-088 |
 | ~~F-089 phone header wraps the title~~ DONE 2026-09-16 (opt A, c60ae11, §5.bp) | — | F-089 |
 | ~~F-090 CTP editor on a team game~~ DONE 2026-09-16 (opt A, 3965d25, §5.bp); Phase 3 lifts the gate | — | F-090 |
+| F-092 junk bonus board under a junk pot doesn't name who took the pot — opt A footer names the winner(s); Craig's pick | S | F-092 |
 | F-091 hub "How it's played" grid crams label+value on a phone ("CompareMatch (hole by hole)") — opt A single-column rows below `sm`; Craig's pick | S | F-091 |
 | Phase 2 residue: `isSingleGroupGame` still named for what it used to mean (AGENTS.md's one rule cites it — rename both together); `teamBuild` provenance still classic-only; sandbox seed labels still say "sides" (dev-only, e2e `seed()` looks them up); the `team-2v2` mode `name` "Teams" is a placeholder Craig may rename (F-088 C) | S | plan §7 Phase 2 |
 | F-069: a NON-`TeamFormat` string in a sides game still scores as best ball (`teamNetOnHole` default arm, now the one place for both containers after F-072) — refuse vs default is Craig's call; Phase 3 rider | S | F-069 |
