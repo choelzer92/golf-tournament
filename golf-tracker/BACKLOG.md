@@ -110,6 +110,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | ~~F-088 hub says "Teams" twice~~ DONE 2026-09-16 (opt A, 340cd60, §5.bp) | — | F-088 |
 | ~~F-089 phone header wraps the title~~ DONE 2026-09-16 (opt A, c60ae11, §5.bp) | — | F-089 |
 | ~~F-090 CTP editor on a team game~~ DONE 2026-09-16 (opt A, 3965d25, §5.bp); Phase 3 lifts the gate | — | F-090 |
+| F-094 [P2 money] `legs` at 3+ teams: 2nd pays the leader, never collects from 3rd (vs §5.aj wording) — resolved by the step-3 default choice; Craig's pick | S | F-094 |
 | F-093 team money step asks "Junk pays" above the bonus grid — opt A move junk-payout fields under the grid; do with F-087 | S | F-093 |
 | F-092 junk bonus board under a junk pot doesn't name who took the pot — opt A footer names the winner(s); Craig's pick | S | F-092 |
 | F-091 hub "How it's played" grid crams label+value on a phone ("CompareMatch (hole by hole)") — opt A single-column rows below `sm`; Craig's pick | S | F-091 |

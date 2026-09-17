@@ -1854,6 +1854,35 @@ me from these rules and CONFIRMED by Craig before they become the Phase 3 golden
 
 ---
 
+## 5.br Phase 3 step 3: legs default to winner-take-all; a winner-take-all tie splits (2026-09-17)
+
+**What the goldens found (F-094):** under `legs` with three teams the engine paid A +20, B −10,
+C −10 — only the leader collects — while §5.ae/§5.aj SAY "you owe every side you lost to" (A +20,
+B 0, C −20). Today's `legs` was a hybrid: winner-take-all for distinct places, pay-each for ties.
+My Phase 3 spec had asserted the opposite without running it; the goldens-first rule (§5.z) caught it.
+
+**Asked with numbers, Craig answered:**
+- Default for `legs` with 3+ teams: **winner take all** (A +20, B −10, C −10). *"a user who sees
+  10$ per leg is going to be confused when they end up owing more than 10. so this could be
+  explained if the setting is changed, but default maybe its just winner take all."* `$ per point`
+  keeps its pay-each default (§5.ae, Q-B). `$ per hole` is the same under both modes (an outright
+  hole win already collects from every other team); its only new option is **carry ties** (Q-F).
+- Winner-take-all, A and B tie for first, C third, $10 leg: **C pays $10 total, split — A +5,
+  B +5, C −10**. *"in a winner take all situation, i think option 2 makes sense."* Under
+  pay-each C still pays both (−20), which is where §5.aj's per-opponent reasoning now lives.
+
+**Consequence, stated plainly:** a saved 3+-team legs game whose leg TIED at the top moves from
+C −20 to C −10 (the F-017 goldens are re-pinned with this § as the reason); a saved game with
+distinct places does not move. Two-team games never move. Carry-ties defaults OFF so no saved
+$/hole game moves (my assumption — Craig asked for the option, not a default).
+
+**Settings shape:** `legsPayout` (winner-takes | pay-each, default winner-takes, shown for legs),
+`pointsPayout` (pay-each | winner-takes, default pay-each, shown for $/point), `carryover` (toggle,
+shown for $/hole). All three only matter with 3+ teams (carry with 2 too) and are hidden by the UI
+when they can't change anything.
+
+---
+
 ## 7. Open questions
 
 Awaiting Craig's call. Inferred answers are marked as guesses.

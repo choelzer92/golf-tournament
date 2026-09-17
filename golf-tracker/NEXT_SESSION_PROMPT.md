@@ -1,4 +1,35 @@
-# Next session: Phase 3 engine convergence — BLOCKED on Craig's worked examples; small findings meanwhile
+# Next session: Phase 3 money convergence — steps 1–2 BUILT, step 3 goldens written; continue the build order
+
+**UPDATE 2026-09-17 (seventh session): PHASE 3 IS UNBLOCKED AND UNDER WAY.** Craig answered every rule
+question outright (§5.bq, §5.br). The spec is `.claude/plans/phase3-money-convergence.md` (read §0–§5;
+§6 lists what he confirmed). Built on the branch, one commit each, verify green before each commit:
+- **Step 1** (3bcb7dc) junk in POINTS on every engine, paid `per-point` ($/pt) or as a junk `pot`
+  (most points takes it, ties split, equal antes). `junkPayout`/`junkPerPoint`/`junkPot` settings;
+  wizard defaults `junkPayout` from the money model. Goldens `phase3-junk-vocabulary.test.ts`.
+- **Step 2** (e07ad10) CTP, all-par (group hug) and hand-tracked bonuses are junk points on the team
+  and individual engines (`junkCtp`, `junkGroupHug`, `ctx.ctpWinners/bonusMarks/customBonuses`,
+  `countGroupHugs`, `IndividualResult.junkSides`). Router no longer refuses them; the wizard's junk
+  grid + hand-tracked buttons show for every team container and map into the team engine
+  (`junkSettingsFromValues`). `gameCountsCtp(game)` is the one CTP predicate. Goldens
+  `phase3-bonuses-as-junk.test.ts`. **Its first verify was NOT green** — my step-3 golden file,
+  written mid-run, failed the unit stage and the wrapper masked exit 1; re-run as
+  `.claude/verify-2026-09-17-p3s2b.log` (check `VERIFY_EXIT=`).
+- **Step 3 NOT built; goldens written and PARKED** at `.claude/tmp_phase3-multi-team-payout.test.ts.txt`
+  (move back to `src/test/phase3-multi-team-payout.test.ts` first). Rules (§5.br): `legsPayout`
+  default `winner-takes` (A +20, B −10, C −10; tie at top A +5, B +5, C −10 — the F-017 goldens in
+  n-side-golden.test.ts RE-PIN to this), `pay-each` alternative (A +20, B 0, C −20; tie C −20);
+  `pointsPayout` default `pay-each` (today) | `winner-takes` (leader collects its margin from each;
+  tie split); `carryover` toggle for $/hole (default OFF; carry left after 18 is dead). $/hole is
+  identical under both payout modes, so it gets no select. Hide all three in the UI when the game
+  has fewer than 3 teams (carry: 2 teams still meaningful). Then steps 4–6 of the spec.
+- New findings: F-092 (junk board doesn't name the pot winner), F-093 (team money step asks "Junk
+  pays" above the grid; do with F-087), F-094 DECIDED by §5.br. F-091/F-087 still Craig's pick.
+- Residue: individual modes still edit junk via the settings editor (no grid, no hand-tracked
+  buttons); `junkGroupHug` is team-only by design.
+
+**Trap learned the hard way:** `npm run verify` is `tsc && build && test && e2e` — writing a
+deliberately-failing golden while it runs fails the UNIT stage and skips e2e; and `cmd; echo
+VERIFY_EXIT=$?` makes the background task report exit 0. Always read `VERIFY_EXIT=` in the log.
 
 **UPDATE 2026-09-16 (sixth session): the HUB BATCH is BUILT — F-088 A / F-089 A / F-090 A** (§5.bp;
 asked outright first per §5.bo, Craig picked A on all three). Three commits after 9a5dc6f: 340cd60 F-088 ·

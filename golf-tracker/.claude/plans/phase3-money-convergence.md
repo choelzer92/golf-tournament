@@ -64,61 +64,48 @@ Today's engine gives A +3 (ignores the CTP) — the test fails first, as it shou
 other three pay nothing extra** (the $20 came out of the buy-in, as the Warriors play it). If A and
 D had tied on 3, each gets $10.
 
-## 2. Three or more teams: ONE chosen setting for how losers pay (§5.bq Q2–Q4)
+## 2. Three or more teams: how losers pay is a chosen setting (§5.bq Q2–Q4, corrected by §5.br)
 
-**Setting:** `multiTeamPayout` — **"Winner takes from everyone"** | **"Pay each team you lost to"**.
-Shown only when the game has 3+ teams (with 2 the two coincide). Applies to fixed legs, $/hole and
-$/point. **Default: "Pay each team you lost to"** — it is what $/hole and $/point already do, so no
-existing game moves. (Craig: "should be a choosable setting … could be either.")
+**CORRECTION 2026-09-17 (§5.br, found by the step-3 goldens):** the first draft of this section said
+today's `legs` pays A +20 / B 0 / C −20. It does not — it pays **A +20, B −10, C −10** (only the
+leader collects; F-094). And `$ per hole` is IDENTICAL under both modes (an outright hole win already
+collects from every other team, which is what a pairwise margin over holes-won sums to), so its only
+new option is carry-ties. What stands:
 
-**Pot is NOT given this setting.** A pot already has *places paid* (`potSplit`/`positionSplit`):
-`100` = winner takes all, `60/40` = split. "Pay everyone you lost to" is not a pot — it is fixed legs.
-So for the pot the choice Craig described already exists; the gap is §3 (legs and junk slices).
+**Settings** (team engine, matter only with 3+ teams, hidden otherwise):
+- `legsPayout` — **Winner take all** (default, §5.br: "$10 per leg" never costs more than $10) |
+  Pay each team you lost to.
+- `pointsPayout` — **Pay each team you lost to** (default, §5.ae — today's round robin) | Winner take all.
+- `carryover` — Carry ties to the next hole (`$ per hole`, default OFF so no saved game moves;
+  a carry left after the last hole is dead, Q-G).
 
-### Fixed legs — front $10, 3 teams (A beat B beat C on the front)
+### Fixed legs — front $10, 3 teams
 
-| mode | A | B | C |
-|---|---|---|---|
-| Pay each you lost to (round robin, each pair settles $10) | **+20** | **0** | **−20** |
-| Winner takes from everyone | **+20** | **−10** | **−10** |
+| case | Winner take all (default) | Pay each team you lost to |
+|---|---|---|
+| A beat B beat C | **A +20, B −10, C −10** (today) | A +20, B 0, C −20 |
+| A = B tie, C third | **A +5, B +5, C −10** (Q-C / §5.br — moves the F-017 pins) | A +10, B +10, C −20 (§5.aj) |
+| A first, B = C | A +20, B −10, C −10 | A +20, B −10, C −10 |
+| all tied | nobody pays | nobody pays |
 
-Today's team engine pays +20 / 0 / −20 ("leaders collect from everyone behind" collapses to
-round robin when places are distinct) — so the default is a golden that passes; WTA fails first.
+### $/hole — $2 per hole, 3 teams
 
-**Tie at the top** (A = B, C third, front $10):
-- Round robin: A–B push; each beats C → **A +10, B +10, C −20**. (Today's engine does this.)
-- Winner takes from everyone: C owes the winning place once, the tied winners split it →
-  **A +5, B +5, C −10**. *(Alternative: C pays each tied winner, −20. I propose the split because
-  "winner takes all" names ONE prize; tell me if the Warriors would say otherwise.)*
+Outright low team on a hole collects $2 from each other team; a tied hole pays nothing (both
+modes — identical). With **carry ON** a tied hole's $2 rolls onto the next outright winner; a carry
+left after 18 is dead. Example: hole 1 A outright, hole 2 tied, hole 3 B outright → carry OFF: A +4,
+B −2, C −2 then B +4, A −2, C −2; carry ON: hole 3 pays B $4 from each → B +8, A −4, C −4.
 
-**Tie at the bottom** (A first, B = C): round robin → A +20, B −10, C −10. WTA → the same.
-All tied → nobody pays (both modes; today's rule).
+### $/point — $1 per point, score to par A E, B +6, C +10
 
-### $/hole — $2 per hole, 3 teams, one hole where A has the outright best score
-
-- Pay each you lost to: A +2 vs B, A +2 vs C → **A +4, B −2, C −2**; B–C tied on the hole → 0.
-  (Exactly today's round robin over holes won.)
-- Winner takes from everyone: **identical on this hole** — the difference appears when B beats C
-  outright on another hole: round robin pays B +2 / C −2 for it; WTA pays nothing unless a team has
-  the OUTRIGHT best score of all. Over a round: WTA = "only the low team on each hole is paid."
-- **Carry ties (Craig, 2026-09-17: "similar to a skins situation … there should be an option to
-  rollover"):** in WTA mode the setting `carryover` ("Carry ties to next hole", default ON — the
-  skins mode's toggle and rule, `skins.ts`) rolls a tied hole's $ onto the next hole; a carry still
-  unclaimed after the last hole is dead (nobody pays), as skins does today. Example, $2/hole,
-  3 teams: hole 1 tied, hole 2 A outright low → A collects $4 from each of B and C → **A +8, B −4,
-  C −4**. Carry OFF: hole 1 dead, hole 2 → A +4, B −2, C −2. Round-robin mode has no carry (every
-  pairwise win already pays).
-
-### $/point — $1 per point, match-point totals A 10, B 6, C 2
-
-- Pay each you lost to: A−B 4, A−C 8, B−C 4 → **A +12, B 0, C −12**. (Today.)
-- Winner takes from everyone: leader collects its margin from each team → **A +12, B −4, C −8**.
+- Pay each team you lost to (default, today): A +16, **B −2** (−6 vs A, +4 vs C), C −14.
+- Winner take all: the leader collects its margin from each team → A +16, B −6, C −10.
+- Winner take all, A = B tie, C +4: C pays once, split → A +2, B +2, C −4.
 
 ### Classic multi-foursome game on $/hole or $/point (Q4)
 
-Same code: the wizard already routes an aligned 2-teams-of-4 with margin money to the team engine
-(`sides = tee groups` is legal). Once §1 and §4 land there is nothing classic-only left to force
-the classic engine, so the router stops refusing. Numbers as in the tables above.
+Same code: the wizard already routes an aligned 2-teams-of-4 with margin money to the team engine.
+With steps 1–2 landed nothing classic-only forces the classic engine for bonuses; captains and
+hide-holes (§4) are the last two.
 
 ## 3. Pot by legs for 3+ teams that don't share foursomes (the one `not expressible` row)
 

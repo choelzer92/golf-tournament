@@ -1227,6 +1227,32 @@ line. Screenshot: `e2e/screenshots/f072-hub-pairs-net-gross.png`. Left in its wa
 
 ---
 
+### F-094 — Under `legs` with 3+ teams the SECOND team pays the leader but never collects from the third  [P2] [track] [money]
+
+**Where (`team-game.ts` `payLeg`, found 2026-09-17 by the Phase 3 step 3 goldens):** A beats B beats C
+on a $10 front. Today pays **A +20, B −10, C −10**: every side behind pays each LEADER; a non-leader
+collects from nobody. §5.aj's stated principle ("you owe every side you lost to … lose to two sides,
+owe two sides") and §5.ae's worked example ("2nd owes only 1st, and collects from 3rd") both say B
+should collect $10 from C → **A +20, B 0, C −20**. The tie cases pinned by F-017 (A = B, C pays both)
+come out the same under either reading, which is why this was never caught; the "MUST NOT MOVE"
+N-side snapshots pin B at −10.
+
+**What it means for Phase 3 step 3 (§5.bq):** today's `legs` is neither of the two chosen modes —
+it is *winner-takes* for distinct places and *pay-each* for ties. The step introduces both modes
+explicitly; the open question is which one `legs` DEFAULTS to (Craig's call, asked 2026-09-17).
+
+**Options:** **A** default `legs` to *pay each team you lost to* (matches §5.ae/§5.aj's words and Q-B;
+a saved 3+-team legs game moves: B −10 → 0, C −10 → −20). **B** default `legs` to *winner takes from
+everyone* (saved games' distinct-place payouts stay; their tie-at-top payouts change from C −20 to
+C −10 per Q-C). **C** default `legs` per money model as today's hybrid and offer both modes only as
+explicit choices (nothing saved moves; the hybrid stays a third, unnamed behaviour).
+
+**Status:** DECIDED 2026-09-17 (§5.br) — option B: `legs` default to winner-take-all (today's distinct-place
+numbers stay), a winner-take-all tie splits (C −10, A +5, B +5 — moves the F-017 tie pins); pay-each is
+the explicit alternative and keeps §5.aj's "owe both" tie. Built as Phase 3 step 3.
+
+---
+
 ### F-093 — On a team game's money step, "Junk pays" comes before the bonus grid it depends on  [P3] [start]
 
 **Where (`phase3-pairs-ctp-money.png`, 2026-09-17):** for a shared-foursome team the Stakes block

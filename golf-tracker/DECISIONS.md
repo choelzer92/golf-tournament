@@ -178,6 +178,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.bo | F-076 A / F-085 A / F-086 A (2026-09-16): recommended options stand as built; going forward, when an option is Craig's to pick, ASK the question outright before building |
 | 5.bp | F-088 A / F-089 A / F-090 A (2026-09-16): hub mode panel headed "How it's played"; phone header stacks actions under the title; CTP editor classic-only until Phase 3 pays CTP everywhere |
 | 5.bq | Phase 3 money rules (2026-09-17): CTP + hand-tracked bonuses are junk on every engine; with 3+ teams every money model gets ONE chosen setting — winner-takes-all vs pay-everyone-you-lost-to (hidden for 2 teams); pairs balance combined handicap → seed of the flight model |
+| 5.br | Phase 3 step 3 (2026-09-17): with 3+ teams `legs` default to WINNER-TAKE-ALL (a $10 leg never costs more than $10); a winner-take-all tie SPLITS the loser's payment (A +5, B +5, C −10); $/point stays pay-each; $/hole gains carry-ties (off by default). F-094 resolved |
 
 ---
 
