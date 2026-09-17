@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { type Player } from '@/lib/game-state';
 import { type PoolGame, type PoolJunkValues, type PoolMoneyMode, getPar3Holes, defaultSubTeams, DEFAULT_MATCH_CONFIG, DEFAULT_MATCH_POINTS, DEFAULT_JUNK_VALUES, poolSplitDollarsForTeams, dollarsToPotSplit } from '@/lib/pool-game';
+import { gameCountsCtp } from '@/lib/game-modes/result';
 import { formatOfGame, isOneBall, persistedTeamScoring, TEAM_FORMAT_OPTIONS, type ScoreBasis, type TeamFormat } from '@/lib/game-modes/team-scoring';
 import { LEGACY_SIDE_NAME_KEYS, fromLegacySubTeams, nextSideId, persistedSides, sideMembers, sideOfPlayer, sidesOfGame, type GameSide } from '@/lib/game-modes/sides';
 import { fetchGameScores } from '@/lib/tournament-state';
@@ -600,9 +601,9 @@ export function PotSplitEditor({ game, onSave }: { game: PoolGame; onSave: (g: P
 export function CtpEditor({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
   const par3Holes = getPar3Holes(game.course);
   if (par3Holes.length === 0) return null;
-  // F-045: CTP surfaces only when it's part of this game's bonuses. Absent
-  // junkValues = pre-setting game that played the classic defaults (CTP on).
-  if ((game.junkValues ?? DEFAULT_JUNK_VALUES).ctp === 0) return null;
+  // F-045 / F-090 / Phase 3: CTP surfaces only when THIS game's engine pays it — the classic
+  // pool's junkValues.ctp, or a mode game's junkCtp. One predicate, shared with the scorer.
+  if (!gameCountsCtp(game)) return null;
 
   function setWinner(hole: number, playerId: string | null) {
     const updated: PoolGame = {

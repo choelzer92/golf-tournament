@@ -19,6 +19,7 @@ import {
   groupShapesFor,
   groupShapeLabel,
   type PoolGame,
+  type PoolJunkValues,
   type PoolMatchConfig,
   type PoolMoneyMode,
 } from './pool-game';
@@ -480,8 +481,8 @@ const SIDES_MAX_PLAYERS = 8;   // team-2v2's playersMax; read here so the reason
 
 function classicOnlyNeeds(draft: StructureDraft): string[] {
   const needs: string[] = [];
-  if (draft.bonuses?.ctp) needs.push('Closest-to-pin');
-  if (draft.bonuses?.custom) needs.push('Manual bonuses');
+  // Closest-to-pin and hand-tracked bonuses used to be classic-only. Phase 3 step 2 (§5.bq) made
+  // them junk points on the team engine too, so they no longer force a container.
   if (draft.captains) needs.push('Captains');
   if (draft.hideHolesUntilAllFinish) needs.push('Hiding holes until every group finishes');
   if (draft.moneyModel === 'pot' && draft.potLegs) needs.push('Front / back / overall pot splits');
@@ -590,13 +591,23 @@ export function sidesFromTeams(teams: string[][]): GameSide[] {
  * the legacy path the golden snapshots pin; sides membership goes through `persistedSides` for
  * the same reason.
  */
+/**
+ * The classic junk grid (points per birdie / eagle / albatross / all-par / closest-to-pin) in the
+ * team engine's setting keys — the one bonus vocabulary of §5.bq. Undefined → nothing written, so
+ * the engine's own defaults (all 0 = no bonuses) apply.
+ */
+export function junkSettingsFromValues(v: PoolJunkValues | undefined): Record<string, number> {
+  if (!v) return {};
+  return { junkBirdie: v.birdie, junkEagle: v.eagle, junkAlbatross: v.albatross, junkGroupHug: v.groupHug, junkCtp: v.ctp };
+}
+
 export function routedFields(
   draft: StructureDraft,
   route: Route,
   teams: string[][],
   modeSettings: Record<string, string | number | boolean> = {},
   /** Sides the organizer already built (ids, custom names) — used instead of minting from `teams`. */
-  opts: { sides?: GameSide[] } = {},
+  opts: { sides?: GameSide[]; junkValues?: PoolJunkValues } = {},
 ): Partial<PoolGame> {
   switch (route.container) {
     case 'individual':
@@ -626,9 +637,13 @@ export function routedFields(
           scoring: scoring.basis,
           result: scoring.compareBy,
           moneyModel: route.moneyModel,
+          // §5.bq: ONE bonus vocabulary. The wizard's junk grid (points per birdie / eagle /
+          // albatross / all-par / closest-to-pin) is the same grid the classic pool uses; here it
+          // lands in the team engine's settings. How junk pays defaults from the money model — a
+          // pot game plays a junk pot (the Warriors), everything else pays per point. Editable on
+          // the hub afterwards.
+          ...junkSettingsFromValues(opts.junkValues),
           junkEnabled: draft.bonuses?.junk ?? false,
-          // §5.bq: how junk pays defaults from the money model — a pot game plays a junk pot (the
-          // Warriors), everything else pays per point. Editable on the hub afterwards.
           junkPayout: route.moneyModel === 'pot' ? 'pot' : 'per-point',
         },
         ...persistedSides(opts.sides && opts.sides.length > 0 ? opts.sides : sidesFromTeams(teams)),

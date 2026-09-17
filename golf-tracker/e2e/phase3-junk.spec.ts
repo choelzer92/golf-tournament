@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { resetBackend, seed, goToGame } from './helpers';
+import { BASE, resetBackend, seed, seedCard, goToGame, addPlayers, toScoringStep, buildTeams, FOUR_PLAYERS } from './helpers';
 
 // Phase 3 step 1 (§5.bq): junk is counted in POINTS on every engine and paid per point or as a
 // junk pot. The money math is pinned in src/test/phase3-junk-vocabulary.test.ts; these pins cover
@@ -42,4 +42,41 @@ test('junk POT: the hub names the pot and hides the per-point rate', async ({ pa
   expect(body).toContain('Junk pot ($)');
   expect(body).not.toContain('$ per junk point');
   await page.screenshot({ path: 'e2e/screenshots/phase3-junk-pot-hub.png', fullPage: true });
+});
+
+// Phase 3 step 2: closest-to-pin and hand-tracked bonuses are junk on the team engine, so the
+// wizard offers the SAME bonus grid to shared-foursome teams and the hub's CTP editor follows.
+test('step 2: two pairs with closest-to-pin — routed to the team engine, hub shows the CTP editor', async ({ page }) => {
+  // The "Past games" seed gives the course step its recent-course chip.
+  await seedCard(page, 'Past games (for recent-course');
+  await page.goto(`${BASE}/pool/new`);
+  await page.waitForLoadState('networkidle');
+  await addPlayers(page, FOUR_PLAYERS);
+  await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+  await expect(page.getByText('How do you want to compete?')).toBeVisible();
+  await page.getByPlaceholder('e.g. Saturday Pool').fill('Pairs CTP');
+  await toScoringStep(page, 'teams:2+2');
+  await page.getByRole('button', { name: /Next: Select Course/ }).click();
+  await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+  await page.getByRole('button', { name: /Next: Set Tees/ }).click();
+  await page.getByRole('button', { name: /Next: Teams/ }).click();
+  await buildTeams(page, 'list');
+  await page.getByRole('button', { name: /Next: Review/ }).click();
+  await expect(page.getByRole('heading', { name: 'Review & create' })).toBeVisible();
+  await page.getByRole('button', { name: /\+ Add bonuses/ }).click();
+  const closest = page.locator('xpath=//label[normalize-space()="Closest"]/following-sibling::input');
+  await closest.fill('1');
+  // Every money model stays open — nothing is "Not built yet" about bonuses any more.
+  await expect(page.locator('input[name="money-model"][value="per-hole"]')).toBeEnabled();
+  expect(await page.locator('body').innerText()).not.toContain('Not built yet');
+  await page.screenshot({ path: 'e2e/screenshots/phase3-pairs-ctp-money.png', fullPage: true });
+  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: "How it's played" })).toBeVisible();
+  // A team game (the hub lists the pairs) that pays CTP: the editor renders, the setting shows 1.
+  await expect(page.getByRole('heading', { name: 'Teams', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Closest to the Pin' })).toBeVisible();
+  const hub = await page.locator('body').innerText();
+  expect(hub).toContain('Closest to the pin (pts)');
+  await page.screenshot({ path: 'e2e/screenshots/phase3-pairs-ctp-hub.png', fullPage: true });
 });

@@ -1092,8 +1092,8 @@ function IndividualLeaderboard({ id }: { id: string }) {
 
             {/* Birdie / eagle bonus breakdown (any mode with the junk layer on).
                 Already settled into moneyNet above — this shows who earned what. */}
-            {result.junkLines && result.junkLines.some((l) => l.birdies || l.eagles || l.albatrosses) && (
-              <JunkBonusBoard lines={result.junkLines} bySide={isWithinGroup} settings={game.modeSettings ?? {}} />
+            {result.junkLines && (result.junkLines.some((l) => l.points > 0) || result.junkSides?.some((s) => s.groupHugs > 0)) && (
+              <JunkBonusBoard lines={result.junkLines} bySide={isWithinGroup} settings={game.modeSettings ?? {}} sides={result.junkSides} />
             )}
 
             {/* Wolf hole-by-hole matchup breakdown — who was Wolf, their call,
@@ -1469,13 +1469,21 @@ function countAtScore(teamScores: Record<string, number | null>, score: number |
 // Phase 3 (§5.bq): junk is counted in POINTS everywhere. Under `junkPayout: 'per-point'` the board
 // also shows what the points earned; under a junk POT there is no per-point price, so the board
 // shows points and names the pot — the money column already carries who won it.
-function JunkBonusBoard({ lines, bySide = false, settings }: { lines: JunkLine[]; bySide?: boolean; settings: SettingsBag }) {
+function JunkBonusBoard({ lines, bySide = false, settings, sides }: {
+  lines: JunkLine[]; bySide?: boolean; settings: SettingsBag;
+  sides?: { id: string; name: string; points: number; groupHugs: number }[];
+}) {
   const payout = junkPayout(JUNK_SETTINGS, settings);
   const pot = numberSetting(JUNK_SETTINGS, settings, 'junkPot');
   const rows = [...lines]
-    .filter((l) => l.birdies || l.eagles || l.albatrosses)
+    .filter((l) => l.birdies || l.eagles || l.albatrosses || l.ctps || l.custom)
     .sort((a, b) => b.points - a.points);
-  if (rows.length === 0) return null;
+  // Phase 3 step 2: closest-to-pin and hand-tracked bonus columns only when someone has one, and a
+  // team's all-par holes as a line below (no single player earns those).
+  const showCtp = rows.some((l) => l.ctps > 0);
+  const showCustom = rows.some((l) => l.custom > 0);
+  const hugSides = (sides ?? []).filter((s) => s.groupHugs > 0);
+  if (rows.length === 0 && hugSides.length === 0) return null;
   const footer = payout === 'pot'
     ? `Junk pot $${pot} — the most points takes it, ties split. Already included in the money column.`
     : bySide
@@ -1494,6 +1502,8 @@ function JunkBonusBoard({ lines, bySide = false, settings }: { lines: JunkLine[]
               <th className="text-center px-2 py-1.5 font-medium">Bird</th>
               <th className="text-center px-2 py-1.5 font-medium">Eagle</th>
               <th className="text-center px-2 py-1.5 font-medium">Alb</th>
+              {showCtp && <th className="text-center px-2 py-1.5 font-medium">CTP</th>}
+              {showCustom && <th className="text-center px-2 py-1.5 font-medium">Bonus</th>}
               <th className="text-center px-2 py-1.5 font-bold text-gray-400">Pts</th>
               {payout === 'per-point' && <th className="text-center px-3 py-1.5 font-bold text-gray-400">Earned</th>}
             </tr>
@@ -1505,6 +1515,8 @@ function JunkBonusBoard({ lines, bySide = false, settings }: { lines: JunkLine[]
                 <td className="text-center px-2 py-1.5 text-gray-300">{l.birdies || '-'}</td>
                 <td className="text-center px-2 py-1.5 text-gray-300">{l.eagles || '-'}</td>
                 <td className="text-center px-2 py-1.5 text-gray-300">{l.albatrosses || '-'}</td>
+                {showCtp && <td className="text-center px-2 py-1.5 text-gray-300">{l.ctps || '-'}</td>}
+                {showCustom && <td className="text-center px-2 py-1.5 text-gray-300">{l.custom || '-'}</td>}
                 <td className="text-center px-2 py-1.5 font-bold text-gray-200">{l.points}</td>
                 {payout === 'per-point' && <td className="text-center px-3 py-1.5 font-bold text-green-300">${l.dollars}</td>}
               </tr>
@@ -1512,6 +1524,11 @@ function JunkBonusBoard({ lines, bySide = false, settings }: { lines: JunkLine[]
           </tbody>
         </table>
       </div>
+      {hugSides.length > 0 && (
+        <p className="px-3 py-1.5 text-xs text-gray-300 border-t border-gray-700">
+          All par: {hugSides.map((s) => `${s.name} ${s.groupHugs} ${s.groupHugs === 1 ? 'hole' : 'holes'}`).join(' · ')}
+        </p>
+      )}
       <p className="px-3 py-1.5 text-[10px] text-gray-500 border-t border-gray-700">{footer}</p>
     </div>
   );

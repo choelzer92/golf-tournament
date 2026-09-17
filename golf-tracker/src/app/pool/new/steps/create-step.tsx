@@ -26,7 +26,9 @@ import { type PotDollars, foldJunkStrings, legDollarsToStrings, potDollarsTotal 
 // score, compare-by, side names — was answered on earlier steps or lives on the hub.
 const SIDES_MONEY_KEYS = new Set([
   'dollarsPerHole', 'dollarsPerPoint', 'sideBuyIn', 'potSplit', 'legFront', 'legBack', 'legOverall',
-  'junkEnabled', 'junkBirdie', 'junkEagle', 'junkAlbatross', 'junkBasis', 'junkPayout', 'junkPerPoint', 'junkPot',
+  // Junk POINTS (birdie / eagle / albatross / all-par / closest) come from the shared bonus grid
+  // above (§5.bq one vocabulary); only HOW junk pays is asked here.
+  'junkBasis', 'junkPayout', 'junkPerPoint', 'junkPot',
 ]);
 
 function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
@@ -334,20 +336,18 @@ export function CreateStep({
         )}
 
         {/* STAKES for teams that share foursomes: the sides engine's own money fields, rendered
-            from its schema (§5.ag per-side ante, §5.ae pairwise margins). Bonuses here are the
-            birdie/eagle differential; closest-to-pin and hand-tracked bonuses aren't built for this
-            engine yet, and the note says so (F-075: as a gap, not a rule) rather than hiding it. */}
+            from its schema (§5.ag per-side ante, §5.ae pairwise margins). Bonus POINTS are the
+            shared grid above (Phase 3 step 2 — closest-to-pin and hand-tracked bonuses are junk on
+            this engine too); the junk-payout fields below show once any bonus is on. */}
         {container === 'sides' && mode && (
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-2">Stakes</p>
           <ModeSettingsEditor
             schema={mode.settings}
-            values={modeSettings}
+            values={{ ...modeSettings, junkEnabled: !junkIsOff(junkValues) }}
             onChangeAction={(key, value) => setModeSettings({ [key]: value })}
             hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_MONEY_KEYS.has(k))}
           />
-          {/* The stakes in words sit under the sides review below, next to who's playing whom. */}
-          <p className="text-xs text-gray-400 mt-2">Not built yet: closest-to-pin and hand-tracked bonuses for teams that share a foursome.</p>
         </div>
         )}
 
@@ -388,7 +388,7 @@ export function CreateStep({
         {/* F-045 (§5.bg): bonuses are an ADDED choice, not a default — a fresh pool
             shows one button; the grid (and the junk pot leg) appear only when the
             game plays them. A saved format with junk restores with the grid open. */}
-        {!isIndividual && !junkShown && (
+        {container !== 'individual' && !junkShown && (
         <div className="pt-2 border-t">
           <button
             type="button"
@@ -400,7 +400,7 @@ export function CreateStep({
           </button>
         </div>
         )}
-        {!isIndividual && junkShown && (
+        {container !== 'individual' && junkShown && (
         <div className="pt-2 border-t">
           <div className="flex items-center justify-between mb-1">
             <p className="text-sm font-semibold text-gray-800">Bonus points for good holes</p>
@@ -435,7 +435,7 @@ export function CreateStep({
             no extra taps and no extra chrome on the scoring screen. F-083: they live behind
             the same "+ Add bonuses" reveal as the automatic ones (F-045 hid those for exactly
             this reason); a saved format with manual bonuses restores them open. */}
-        {!isIndividual && (junkShown || customBonuses.length > 0) && (
+        {container !== 'individual' && (junkShown || customBonuses.length > 0) && (
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-1">Extra bonuses to track by hand</p>
           <p className="text-xs text-gray-500 mb-2">

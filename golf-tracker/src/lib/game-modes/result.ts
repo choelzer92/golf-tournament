@@ -3,6 +3,8 @@ import type { PoolGame, PoolGameListItem, PoolResult } from '../pool-game';
 import { computePoolResult } from '../pool-game';
 import type { IndividualResult } from './types';
 import { getGameMode } from './index';
+import { boolSetting, numberSetting } from './settings';
+import { DEFAULT_JUNK_VALUES } from '../pool-game';
 import { buildGameModeContext } from './context';
 import { gameKindLabelFrom } from '../game-structure';
 
@@ -24,6 +26,17 @@ export function computeGameResult(
     return mode.compute(buildGameModeContext(game, scoresByMatchup));
   }
   return { kind: 'team', ...computePoolResult(game, scoresByMatchup) };
+}
+
+// Does this game pay closest-to-pin? The ONE predicate every CTP surface (hub editor, scorer's
+// par-3 picker) reads, so a control never shows for a game whose engine won't pay it (F-090).
+// Classic pool: `junkValues.ctp` (absent = pre-setting game that played the classic defaults).
+// Mode game (Phase 3 step 2): junk on and `junkCtp` > 0.
+export function gameCountsCtp(game: PoolGame): boolean {
+  const mode = getGameMode(game.gameMode);
+  if (!mode) return (game.junkValues ?? DEFAULT_JUNK_VALUES).ctp > 0;
+  const bag = game.modeSettings ?? {};
+  return boolSetting(mode.settings, bag, 'junkEnabled') && numberSetting(mode.settings, bag, 'junkCtp') > 0;
 }
 
 export function isIndividualGame(game: PoolGame): boolean {

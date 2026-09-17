@@ -97,15 +97,13 @@ test.describe('F-045: bonuses are OFF on a fresh classic pool', () => {
     await expect(page.locator('input[name="money-model"][value="per-point"]')).toBeEnabled();
     await page.screenshot({ path: 'e2e/screenshots/f045-money-step-bonuses-added.png', fullPage: true });
 
-    // Typing a CTP value is what greys them — and F-082: the reason appears ONCE, grey, not twice in amber.
+    // Phase 3 step 2 (§5.bq): closest-to-pin no longer greys margin money — the sides engine pays it
+    // as junk. (Nothing greys margin money for a 4+4 any more; F-082's dedup of the reason line stays in code.)
     await fieldInput(page, 'Closest').fill('1');
-    await expect(page.locator('input[name="money-model"][value="per-hole"]')).toBeDisabled();
-    await expect(page.locator('input[name="money-model"][value="per-point"]')).toBeDisabled();
-    const reason = page.getByText(/Not built yet: closest-to-pin on \$ per hole or \$ per point/);
-    await expect(reason).toHaveCount(1);
-    await expect(reason).toHaveClass(/text-gray-500/);
-    expect(await page.locator('body').innerText()).not.toContain('need each team in its own foursome');
-    await page.screenshot({ path: 'e2e/screenshots/f082-one-grey-reason.png', fullPage: true });
+    await expect(page.locator('input[name="money-model"][value="per-hole"]')).toBeEnabled();
+    await expect(page.locator('input[name="money-model"][value="per-point"]')).toBeEnabled();
+    expect(await page.locator('body').innerText()).not.toContain('Not built yet: closest-to-pin');
+    await page.screenshot({ path: 'e2e/screenshots/phase3-ctp-margin-money-open.png', fullPage: true });
     await fieldInput(page, 'Closest').fill('0');
 
     // And removing them folds the split straight back.

@@ -90,6 +90,13 @@ const SETTINGS: FormatSetting[] = [
   // games keep their names: `sidesOfGame` absorbs the legacy keys at the read boundary via
   // `hydrateLegacyNames`, so nothing needs migrating and there is one source of truth downstream.
   ...JUNK_SETTINGS,
+  // Team-only junk (Phase 3 step 2): the classic pool's "all par" — every member of the team at
+  // par or better on a hole. Not in the shared JUNK_SETTINGS because it has no individual meaning.
+  {
+    key: 'junkGroupHug', label: 'All par (pts)', type: 'number', defaultValue: 0,
+    hint: 'Junk points when every player on the team makes par or better on a hole. 0 = not played.',
+    showIf: { key: 'junkEnabled', in: ['true'] },
+  },
 ];
 
 // The ONE place a side gets its display name. Custom name if set, else the side's players'
@@ -580,7 +587,8 @@ function compute(ctx: GameModeContext): IndividualResult {
 
   // Birdie/eagle bonuses. Earned by individuals but settled between SIDES, since this game's
   // money is between sides, not a free-for-all among the players.
-  const junkLines = settleJunkForSides(SETTINGS, ctx.settings, ctx, stand, sides);
+  const junk = settleJunkForSides(SETTINGS, ctx.settings, ctx, stand, sides);
+  const junkLines = junk?.lines;
 
   // One side's ready-to-show status for the SCORECARD: its rank, plus the margin in the unit the
   // game actually counts (DECISIONS.md §5.ah). Craig's correction: "what if it isnt a score to
@@ -633,6 +641,7 @@ function compute(ctx: GameModeContext): IndividualResult {
       status: sideStatus(idx),
     })),
     junkLines: junkLines ?? undefined,
+    junkSides: junk ? junk.sides.map((s) => ({ ...s, name: names[sides.findIndex((x) => x.id === s.id)] ?? s.id })) : undefined,
   };
 }
 

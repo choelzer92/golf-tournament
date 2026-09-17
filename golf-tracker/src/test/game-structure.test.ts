@@ -335,8 +335,9 @@ const TABLE: Row[] = [
     extra: { scoring: { format: 'two-best-net', basis: 'stroke', compareBy: 'total' } }, expect: { container: 'sides' } },
 
   // --- refused, with the reason the money step shows ---------------------------------------
-  { name: 'three pairs, pot + CTP (bonuses need own foursome)', sizes: [2, 2, 2], money: 'pot', extra: { bonuses: { ctp: true } },
-    expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needAligned('Closest-to-pin') } },
+  // Phase 3 step 2 (§5.bq): closest-to-pin and hand-tracked bonuses are junk on the sides engine too.
+  { name: 'three pairs, pot + CTP (bonuses ride on the sides engine since Phase 3)', sizes: [2, 2, 2], money: 'pot', extra: { bonuses: { ctp: true } },
+    expect: { container: 'sides' } },
   { name: 'four pairs, pot split front/back/overall', sizes: [2, 2, 2, 2], money: 'pot', extra: { potLegs: true },
     expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needAligned('Front / back / overall pot splits') } },
   { name: '1 v 1, two-best-net (a team of one has one ball)', sizes: [1, 1], money: 'legs',
@@ -347,15 +348,15 @@ const TABLE: Row[] = [
     expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needTeams('Two-ball formats') } },
   { name: 'three teams of 4, head-to-head legs + captains', sizes: [4, 4, 4], money: 'legs', extra: { captains: true },
     expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needTwoTeams('Captains') } },
-  { name: 'two teams of 4, $ per hole + manual bonuses', sizes: [4, 4], money: 'per-hole', extra: { bonuses: { custom: true } },
-    expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needPotOrLegs('Manual bonuses') } },
+  { name: 'two teams of 4, $ per hole + manual bonuses (sides since Phase 3)', sizes: [4, 4], money: 'per-hole', extra: { bonuses: { custom: true } },
+    expect: { container: 'sides' } },
   { name: 'four pairs, scramble, partners in different foursomes', sizes: [2, 2, 2, 2], money: 'legs', mixed: true,
     extra: { scoring: { format: 'scramble', basis: 'stroke', compareBy: 'match' } },
     expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.oneBallApart } },
   { name: 'six pairs (12 players), legs — beyond the sides engine\'s field', sizes: [2, 2, 2, 2, 2, 2], money: 'legs',
     expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.sidesFieldCap(8) } },
-  { name: '1 v 1 with CTP (F-075: an engine gap, said as one — singles share a foursome)', sizes: [1, 1], money: 'legs', extra: { bonuses: { ctp: true } },
-    expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needAligned('Closest-to-pin') } },
+  { name: '1 v 1 with CTP (sides since Phase 3; F-075 gap closed)', sizes: [1, 1], money: 'legs', extra: { bonuses: { ctp: true } },
+    expect: { container: 'sides' } },
   { name: 'two needs joined in one sentence', sizes: [2, 2, 2], money: 'pot', extra: { captains: true, hideHolesUntilAllFinish: true },
     expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needAligned('Captains and hiding holes until every group finishes') } },
 ];
@@ -491,11 +492,11 @@ describe('routedFields', () => {
 // ---------------------------------------------------------------------------
 
 describe('moneyModelsFor', () => {
-  it('two teams of 4 with CTP: pot only; the others say why', () => {
+  it('two teams of 4 with CTP: every model — pot/legs on classic, margin money on sides (Phase 3)', () => {
     const { draft } = teamsDraft([4, 4], 'pot', { bonuses: { ctp: true } });
     const opts = moneyModelsFor(draft);
-    expect(opts.map((o) => [o.model, o.available])).toEqual([['pot', true], ['legs', true], ['per-hole', false], ['per-point', false]]);
-    expect(opts.find((o) => o.model === 'per-hole')?.route).toEqual({ container: 'unexpressible', reason: UNEXPRESSIBLE.needPotOrLegs('Closest-to-pin') });
+    expect(opts.map((o) => [o.model, o.available])).toEqual([['pot', true], ['legs', true], ['per-hole', true], ['per-point', true]]);
+    expect(opts.find((o) => o.model === 'per-hole')?.route).toEqual({ container: 'sides', gameMode: 'team-2v2', moneyModel: 'per-hole' });
     expect(opts.every((o) => o.label === MONEY_MODEL_LABELS[o.model])).toBe(true);
   });
 

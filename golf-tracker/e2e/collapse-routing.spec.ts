@@ -214,7 +214,7 @@ test('F-072: four pairs, best net + best gross → the sides engine scores two b
   await page.screenshot({ path: 'e2e/screenshots/f072-hub-pairs-net-gross.png', fullPage: true });
 });
 
-test('routing row: four pairs + closest-to-pin is refused with the reason, not silently dropped', async ({ page }) => {
+test('routing row: four pairs get the bonus grid (Phase 3: closest-to-pin is junk on the sides engine too)', async ({ page }) => {
   await startWizard(page, EIGHT_PLAYERS, 'Refused');
   await toScoringStep(page, 'teams:2+2+2+2');
   await courseAndTees(page);
@@ -222,11 +222,14 @@ test('routing row: four pairs + closest-to-pin is refused with the reason, not s
   await buildTeams(page, 'even');
   await page.getByRole('button', { name: 'Next: Groups' }).click();
   await page.getByRole('button', { name: /Next: Review/ }).click();
-  // Shared-foursome teams never see the classic bonus grid — the note says why, as an engine gap
-  // (F-075), never as a rule about foursomes.
-  await expect(page.getByRole('button', { name: /\+ Add bonuses/ })).toHaveCount(0);
-  await expect(page.getByText(/Not built yet: closest-to-pin and hand-tracked bonuses for teams that share a foursome/)).toBeVisible();
+  // Phase 3 step 2 (§5.bq): shared-foursome teams see the SAME bonus grid as the classic pool,
+  // and nothing is "Not built yet" about it any more.
+  await page.getByRole('button', { name: /\+ Add bonuses/ }).click();
+  await expect(page.getByText('Bonus points for good holes')).toBeVisible();
+  await expect(page.getByText('Extra bonuses to track by hand')).toBeVisible();
+  expect(await page.locator('body').innerText()).not.toContain('Not built yet: closest-to-pin');
   expect(await page.locator('body').innerText()).not.toContain('need each team in its own foursome');
+  await page.getByRole('button', { name: 'Remove bonuses' }).click();
   // F-077: a per-side pot's summary quotes the per-side buy-in the stakes field shows ($20 default),
   // never the classic per-player buy-in.
   await chooseMoney(page, 'pot');

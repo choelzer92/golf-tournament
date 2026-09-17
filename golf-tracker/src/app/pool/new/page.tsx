@@ -622,7 +622,7 @@ export default function NewPoolGamePage() {
     // ordinary two-side game still saves as legacy subTeams.
     if (container === 'unexpressible') return;
     const teamIds = container === 'sides' ? (sides ?? []).map((s) => s.playerIds) : teams.map((t) => t.playerIds);
-    const routed = routedFields(draft, route, teamIds, modeSettings, { sides: container === 'sides' ? sides : undefined });
+    const routed = routedFields(draft, route, teamIds, modeSettings, { sides: container === 'sides' ? sides : undefined, junkValues });
     const game: PoolGame = {
       id,
       name: name || 'Pool Game',

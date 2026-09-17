@@ -145,6 +145,11 @@ export const JUNK_SETTINGS: FormatSetting[] = [
     showIf: { key: 'junkEnabled', in: ['true'] },
   },
   {
+    key: 'junkCtp', label: 'Closest to the pin (pts)', type: 'number', defaultValue: 0,
+    hint: 'Junk points for closest to the pin on each par 3. The scorer picks the winner on the hole. 0 = not played.',
+    showIf: { key: 'junkEnabled', in: ['true'] },
+  },
+  {
     key: 'junkPayout', label: 'Junk pays', type: 'select',
     options: [
       { value: 'per-point', label: '$ per point (each earner collects from the others)' },
@@ -250,38 +255,46 @@ export function settleJunkForSides(
   ctx: GameModeContext,
   standings: PlayerStanding[],
   sides: { id: string; playerIds: string[] }[],
-): JunkLine[] | null {
+): { lines: JunkLine[]; sides: SideJunk[] } | null {
   const lines = tallyJunk(schema, bag, ctx);
   if (!lines) return null;
   const n = sides.length;
-  if (n < 2) return lines;
+  const hugPts = numberSetting(schema, bag, 'junkGroupHug');
+  const perPoint = junkPayout(schema, bag) === 'pot' ? 0 : numberSetting(schema, bag, 'junkPerPoint');
+  const sum = (ids: string[]) => ids.reduce((s, id) => s + (lines.find((l) => l.playerId === id)?.points ?? 0), 0);
+  // A side's junk = its members' points + its group-hug points (Phase 3 step 2).
+  const sideJunk: SideJunk[] = sides.map((side) => {
+    const groupHugs = hugPts > 0 ? countGroupHugs(ctx, side.playerIds) : 0;
+    return { id: side.id, points: sum(side.playerIds) + groupHugs * hugPts, groupHugs };
+  });
+  if (n < 2) return { lines, sides: sideJunk };
 
   // Standings for a side game are the SIDES, keyed by the side id uppercased ('A','B','C').
   const standingOf = (side: { id: string }) => standings.find((s) => s.playerId === side.id.toUpperCase());
-  const sum = (ids: string[], field: 'points' | 'dollars') =>
-    ids.reduce((s, id) => s + (lines.find((l) => l.playerId === id)?.[field] ?? 0), 0);
 
   if (junkPayout(schema, bag) === 'pot') {
     // JUNK POT between sides (§5.bq): every side that has played antes an equal share; the side
     // with the most junk points takes the pot, ties split it.
-    const inPlay = sides.map((side) => ({ side, st: standingOf(side) })).filter((x) => x.st && x.st.thru > 0);
+    const inPlay = sides.map((side, idx) => ({ st: standingOf(side), points: sideJunk[idx].points })).filter((x) => x.st && x.st.thru > 0);
     settleJunkPot(
       numberSetting(schema, bag, 'junkPot'),
-      inPlay.map(({ side, st }) => ({ points: sum(side.playerIds, 'points'), pay: (d) => { st!.moneyNet += d; } })),
+      inPlay.map(({ st, points }) => ({ points, pay: (d) => { st!.moneyNet += d; } })),
     );
-    return lines;
+    return { lines, sides: sideJunk };
   }
 
   // $ PER POINT: each side collects its own junk dollars from every other side (§5.ad).
-  const earned = sides.map((s) => sum(s.playerIds, 'dollars'));
+  const earned = sideJunk.map((s) => s.points * perPoint);
   const total = earned.reduce((s, v) => s + v, 0);
   sides.forEach((side, idx) => {
     const st = standingOf(side);
     if (!st) return;
     st.moneyNet += earned[idx] * (n - 1) - (total - earned[idx]);
   });
-  return lines;
+  return { lines, sides: sideJunk };
 }
+
+export interface SideJunk { id: string; points: number; groupHugs: number }
 
 // Count each player's birdies/eagles/albatrosses and their gross bonus dollars,
 // WITHOUT settling. Shared by the individual and 2v2 settlements above; null when
@@ -297,14 +310,23 @@ export function tallyJunk(
     eagle: numberSetting(schema, bag, 'junkEagle'),
     albatross: numberSetting(schema, bag, 'junkAlbatross'),
   };
-  if (amt.birdie === 0 && amt.eagle === 0 && amt.albatross === 0) return null;
+  const ctpPts = numberSetting(schema, bag, 'junkCtp');
+  const hugPts = numberSetting(schema, bag, 'junkGroupHug');   // 0 for schemas without it
+  const customDefs = ctx.customBonuses ?? [];
+  if (amt.birdie === 0 && amt.eagle === 0 && amt.albatross === 0 && ctpPts === 0 && hugPts === 0 && customDefs.length === 0) return null;
   const useNet = stringSetting(schema, bag, 'junkBasis') === 'net';
   // Points → dollars at the game's rate. Under a junk POT no point has a price of its own.
   const perPoint = junkPayout(schema, bag) === 'pot' ? 0 : numberSetting(schema, bag, 'junkPerPoint');
+  const customPointsById = new Map(customDefs.map((b) => [b.id, b.points]));
 
   return ctx.players.map((p) => {
-    let birdies = 0, eagles = 0, albatrosses = 0;
+    let birdies = 0, eagles = 0, albatrosses = 0, ctps = 0, custom = 0;
     for (const hole of ctx.holes) {
+      // Closest to the pin: the hole's named winner, par 3s only (a pick recorded on any other
+      // hole is ignored, as the classic pool ignores it).
+      if (ctpPts > 0 && hole.par === 3 && ctx.ctpWinners?.[hole.number] === p.id) ctps++;
+      // Hand-tracked bonuses marked for this player on this hole, at the game's point values.
+      for (const id of ctx.bonusMarks?.[hole.number]?.[p.id] ?? []) custom += customPointsById.get(id) ?? 0;
       const score = useNet ? ctx.netOnHole(p.id, hole) : ctx.grossOnHole(p.id, hole);
       if (score === null) continue;
       const diff = score - hole.par;
@@ -312,7 +334,24 @@ export function tallyJunk(
       else if (diff === -2) eagles++;
       else if (diff === -1) birdies++;
     }
-    const points = birdies * amt.birdie + eagles * amt.eagle + albatrosses * amt.albatross;
-    return { playerId: p.id, playerName: p.name, birdies, eagles, albatrosses, points, dollars: points * perPoint };
+    const points = birdies * amt.birdie + eagles * amt.eagle + albatrosses * amt.albatross + ctps * ctpPts + custom;
+    return { playerId: p.id, playerName: p.name, birdies, eagles, albatrosses, ctps, custom, points, dollars: points * perPoint };
   });
+}
+
+// GROUP HUG (the classic pool's "all par"): a hole where EVERY member of the side has scored and
+// nobody is over par (gross, as the classic pool counts it) earns the SIDE a point. Counted here
+// rather than per player because no one player earns it.
+export function countGroupHugs(ctx: GameModeContext, playerIds: string[]): number {
+  if (playerIds.length === 0) return 0;
+  let hugs = 0;
+  for (const hole of ctx.holes) {
+    let all = true;
+    for (const pid of playerIds) {
+      const g = ctx.grossOnHole(pid, hole);
+      if (g === null || g > hole.par) { all = false; break; }
+    }
+    if (all) hugs++;
+  }
+  return hugs;
 }
