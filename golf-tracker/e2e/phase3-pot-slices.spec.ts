@@ -13,15 +13,16 @@ test('Q-E: a sliced pairs pot shows each slice, who took it, and A +40 / B −10
   const id = await seed(page, 'Four pairs — POT sliced front / back / overall / junk (Phase 3 step 4)');
   await page.waitForURL(/\/leaderboard$/);
   const body = page.locator('body');
-  // The slice board: four $20 slices under one "Pot" caption.
-  await expect(page.getByText('$80 · 4 slices')).toBeVisible();
-  await expect(page.getByText('Overall 18', { exact: true }).first()).toBeVisible();
+  // F-095 B: ONE leg board carries margin and dollars per row, with Junk as a fourth row.
+  await expect(page.getByText('Front · Back · Overall · Junk')).toBeVisible();
   await expect(page.getByText('$20 pot')).toHaveCount(4);
   const text = await body.innerText();
-  // Front and overall to Craig & Jym; the back is tied and split; junk to the pair with the most points.
-  expect(text).toMatch(/Front 9\s*\n\s*\$20 pot\s*\n\s*Craig & Jym/);
-  expect(text).toMatch(/Back 9\s*\n\s*\$20 pot\s*\n\s*tied — split/);
-  expect(text).toMatch(/Junk\s*\n\s*\$20 pot\s*\n\s*Craig & Jym/);
+  expect((text.match(/\$80 pot/g) ?? []).length).toBeGreaterThanOrEqual(2);   // standings footer + board caption
+  // Front, overall and junk to Craig & Jym; the back is tied and split.
+  expect((text.match(/\$20 → Craig & Jym/g) ?? []).length).toBe(3);
+  expect(text).toMatch(/\$20 → Dave & Rick, Sam & Tony tied — split/);
+  expect(text).toContain('Craig & Jym · 3 pts');
+  expect(text).not.toContain('slices');
   // The money column carries the settlement, zero-sum.
   expect(text).toContain('+$40');
   expect(text).toContain('−$20');

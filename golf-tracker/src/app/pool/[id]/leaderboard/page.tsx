@@ -1108,18 +1108,38 @@ function IndividualLeaderboard({ id }: { id: string }) {
             {/* Front / Back / Overall breakdown (2v2 team games) — Nassau-style.
                 A 9-hole game collapses to ONE leg (team-game.ts), so derive the
                 caption from the legs actually present instead of hardcoding
-                "Front · Back · Overall" above a lone "Back 9" row. */}
-            {result.teamLegs && result.teamLegs.length > 0 && (
+                "Front · Back · Overall" above a lone "Back 9" row.
+                F-095 B (§5.bs): under a SLICED pot (Phase 3 step 4) this same board carries each
+                leg's dollars and who took them, plus a Junk row — one row per thing that pays,
+                like the classic pool's leg board, instead of a second board repeating the legs. */}
+            {result.teamLegs && result.teamLegs.length > 0 && (() => {
+              const slices = result.potSlices && result.potSlices.length > 1 ? result.potSlices : [];
+              const sliceOf = (key: string) => slices.find((s) => s.key === key);
+              const junkSlice = sliceOf('junk');
+              const potTotal = slices.reduce((s, x) => s + x.dollars, 0);
+              const sliceLine = (s: PotSliceLine) => {
+                const d = `$${Math.round(s.dollars)}`;
+                if (s.split) return `${d} — not started, split`;
+                if (s.winnerNames.length > 1) return `${d} → ${s.winnerNames.join(', ')} tied — split`;
+                return `${d} → ${s.winnerNames[0] ?? '—'}`;
+              };
+              const junkTop = (result.junkSides ?? []).reduce((m, x) => Math.max(m, x.points), 0);
+              const junkLeaders = (result.junkSides ?? []).filter((x) => x.points === junkTop && junkTop > 0);
+              return (
               <div className="bg-gray-800 rounded-xl overflow-hidden">
-                <div className="px-4 py-2 border-b border-gray-700">
+                <div className="px-4 py-2 border-b border-gray-700 flex items-baseline justify-between">
                   <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">
                     {result.teamLegs.length === 1
                       ? result.teamLegs[0].label
                       : result.teamLegs.map((l) => l.label.replace(/ (9|18)$/, '')).join(' · ')}
+                    {junkSlice ? ' · Junk' : ''}
                   </p>
+                  {slices.length > 0 && <p className="text-[10px] text-gray-500">${Math.round(potTotal)} pot</p>}
                 </div>
                 <div className="divide-y divide-gray-700/30">
-                  {result.teamLegs.map((leg) => (
+                  {result.teamLegs.map((leg) => {
+                    const slice = sliceOf(leg.key);
+                    return (
                     <div key={leg.key} className="px-4 py-2.5 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-200">{leg.label}</p>
@@ -1127,30 +1147,45 @@ function IndividualLeaderboard({ id }: { id: string }) {
                         {leg.thru > 0 && (
                           <p className="text-[10px] text-gray-500">{leg.thru} of {segmentHoles(leg.key, holesInPlay)} holes</p>
                         )}
+                        {slice && <p className="text-[10px] text-gray-500">${Math.round(slice.dollars)} pot</p>}
                         {/* A voided leg (F-016b) still shows its margin, so say WHY it paid
                             nothing — otherwise the board contradicts the money beside it. */}
                         {leg.voided && (
                           <p className="text-[10px] text-amber-500">pays nothing — unfinished</p>
                         )}
                       </div>
-                      <span className={`text-sm font-medium ${
-                        leg.voided ? 'text-gray-500 line-through'
-                          : leg.winner ? sideTone(leg.winner, sideOrder) : 'text-gray-400'
-                      }`}>
-                        {leg.status}
-                      </span>
+                      <div className="text-right">
+                        <span className={`text-sm font-medium ${
+                          leg.voided ? 'text-gray-500 line-through'
+                            : leg.winner ? sideTone(leg.winner, sideOrder) : 'text-gray-400'
+                        }`}>
+                          {leg.status}
+                        </span>
+                        {slice && <p className="text-[10px] text-gray-400">{sliceLine(slice)}</p>}
+                      </div>
                     </div>
-                  ))}
+                    );
+                  })}
+                  {junkSlice && (
+                    <div className="px-4 py-2.5 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-200">Junk</p>
+                        <p className="text-[10px] text-gray-500">${Math.round(junkSlice.dollars)} pot</p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-sm font-medium ${junkLeaders.length === 1 ? sideTone(junkLeaders[0].id, sideOrder) : 'text-gray-400'}`}>
+                          {junkLeaders.length === 0 ? 'No points yet'
+                            : junkLeaders.length === 1 ? `${junkLeaders[0].name} · ${junkTop} pts`
+                              : `${junkLeaders.map((x) => x.name).join(', ')} tied · ${junkTop} pts`}
+                        </span>
+                        <p className="text-[10px] text-gray-400">{sliceLine(junkSlice)}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
-
-            {/* Pot slices (Phase 3 step 4, §5.bq Q-E): a team-engine pot split front / back /
-                overall (/ junk). One unsliced prize is already told by the "$80 pot" footer and the
-                standings' order, so the board appears only when the pot is actually sliced. */}
-            {result.potSlices && result.potSlices.length > 1 && (
-              <PotSliceBoard slices={result.potSlices} sideOrder={sideOrder} />
-            )}
+              );
+            })()}
 
             {/* Per-player scorecard (reuses the same grid + strokes box as the team view).
                 F-028: in a game PLAYED in points (Stableford/quota/Nines/Wolf) the grid shows
@@ -1467,43 +1502,6 @@ function countAtScore(teamScores: Record<string, number | null>, score: number |
   let n = 0;
   for (const s of Object.values(teamScores)) if (s === score) n++;
   return n;
-}
-
-// A team-engine pot's slices (Phase 3 step 4, §5.bq Q-E): what each slice is worth and who took
-// it. Mirrors the classic pool's leg board in shape — label, "$X pot", winner — so a pairs game
-// sliced front / back / overall / junk reads like the Warriors' board does. A slice nobody has
-// started splits evenly (every ante comes back), and the row says so rather than naming a winner.
-function PotSliceBoard({ slices, sideOrder }: { slices: PotSliceLine[]; sideOrder: string[] }) {
-  const total = slices.reduce((s, x) => s + x.dollars, 0);
-  return (
-    <div className="bg-gray-800 rounded-xl overflow-hidden">
-      <div className="px-4 py-2 border-b border-gray-700 flex items-baseline justify-between">
-        <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Pot</p>
-        <p className="text-[10px] text-gray-500">${Math.round(total)} · {slices.length} slices</p>
-      </div>
-      <div className="divide-y divide-gray-700/30">
-        {slices.map((slice) => {
-          const paid = Object.entries(slice.payouts);
-          const winners = paid.filter(([, v]) => v === Math.max(...paid.map(([, x]) => x)));
-          const single = !slice.split && winners.length === 1 ? winners[0][0] : null;
-          const status = slice.split
-            ? 'not started — split'
-            : winners.length === paid.length && paid.length > 1
-              ? 'tied — split'
-              : `${slice.winnerNames.join(' & ')}${winners.length > 1 ? ' tied' : ''}`;
-          return (
-            <div key={slice.key} className="px-4 py-2.5 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-200">{slice.label}</p>
-                <p className="text-[10px] text-gray-500">${Math.round(slice.dollars)} pot</p>
-              </div>
-              <span className={`text-sm font-medium ${single ? sideTone(single, sideOrder) : 'text-gray-400'}`}>{status}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 // Who earned birdie/eagle bonuses. The dollars column is what a player EARNED
