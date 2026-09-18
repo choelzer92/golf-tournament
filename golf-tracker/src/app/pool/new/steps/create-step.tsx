@@ -26,8 +26,8 @@ import { type PotDollars, foldJunkStrings, legDollarsToStrings, potDollarsTotal 
 // score, compare-by, side names — was answered on earlier steps or lives on the hub.
 const SIDES_STAKES_KEYS = new Set([
   'dollarsPerHole', 'dollarsPerPoint', 'sideBuyIn', 'potSplit', 'legFront', 'legBack', 'legOverall',
-  // Phase 3 step 4: the pot's front / back / overall shares.
-  'potFront', 'potBack', 'potOverall',
+  // The pot's front / back / overall shares are NOT here: they render as one inline row below the
+  // schema fields (F-096 A, §5.bs — three full-width rows with hints were a screen and a half).
   // Phase 3 step 3: how losers pay with 3+ teams, and carry-ties for $/hole.
   'legsPayout', 'pointsPayout', 'carryover',
 ]);
@@ -365,6 +365,33 @@ export function CreateStep({
               // A payout choice that only bites with 3+ teams is not asked of a smaller game.
               || (MULTI_TEAM_ONLY_KEYS.has(k) && (sides ?? []).length < 3))}
           />
+          {/* F-096 A (§5.bs): the pot's SHARES as one row of small boxes — the classic pot-dollars
+              layout — instead of three schema rows. Scaled to the pot, so any numbers that read
+              right are right (Phase 3 step 4). */}
+          {moneyModel === 'pot' && (
+          <div className="mt-3">
+            <p className="text-xs text-gray-600 font-medium mb-1">Pot split (shares)</p>
+            <div className="grid grid-cols-3 gap-2">
+              {([['potFront', 'Front 9', 0], ['potBack', 'Back 9', 0], ['potOverall', 'Overall', 100]] as const).map(([key, label, dflt]) => (
+                <div key={key}>
+                  <label htmlFor={`pot-share-${key}`} className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
+                  <input
+                    id={`pot-share-${key}`}
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    value={String(modeSettings[key] ?? dflt)}
+                    onChange={(e) => setModeSettings({ [key]: Number(e.target.value) })}
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Shares are scaled to the pot — 25 / 25 / 50 and $20 / $20 / $40 split it the same way. Leave front and back at 0 for one prize on the overall.
+            </p>
+          </div>
+          )}
         </div>
         )}
 
