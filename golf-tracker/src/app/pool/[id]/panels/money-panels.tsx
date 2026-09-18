@@ -56,10 +56,12 @@ export function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
           {indMode.category !== 'team-within-group' && (
             <p className="px-4 pt-2 text-xs text-gray-500">{indMode.description}</p>
           )}
-          <div className="px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-1">
+          {/* F-091 A (§5.bs): below `sm` one column, label OVER value — the two-column key/value grid
+              ran "Compare by" into "Match (hole by hole)" at 390px. From `sm` up, unchanged. */}
+          <div className="px-4 py-3 grid grid-cols-1 gap-y-2 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-1">
             {rows.map((r) => (
-              <div key={r.label} className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">{r.label}</span>
+              <div key={r.label} className="flex flex-col text-sm sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-xs text-gray-500 sm:text-sm">{r.label}</span>
                 <span className="font-medium text-gray-800">{r.display}</span>
               </div>
             ))}
