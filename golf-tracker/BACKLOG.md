@@ -19,8 +19,8 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
-| ~~F-097 [P1] [money] aligned team game on margin money settled two invented sides~~ FIXED 2026-09-18 (opt C, §5.bs) — golden first, wizard + engine backstop. NEXT: the six option picks Craig chose (F-087 A, F-093 A, F-091 A, F-092 A, F-095 B, F-096 A), one commit each. | S | probe 2026-09-18 |
-| **Game-structure COLLAPSE — Phases 1, 2 and 3 (steps 1–6) BUILT on `ui-simplification-2026-09-15`, UNMERGED.** Phase 3 (§5.bq/§5.br): junk points everywhere, CTP/all-par/hand-tracked as junk, 3+-team payout settings, pot slices, captains on sides, hide-holes on the team board, router's classic-only list EMPTY. Remaining refusals are golf or the team engine's 8-player cap (12 players on legs/margin money stay refused — residue). Craig's phone walk still wanted (§5.y); F-091/F-087/F-092/F-093/F-095/F-096 are his option picks. Screenshots: `e2e/screenshots/collapse-*.png`, `walk-*.png`, `phase3-*.png`. | L | §5.bk/§5.bm/§5.bq |
+| ~~F-097 [P1] [money]~~ FIXED 2026-09-18 (edbe3ec). ~~Six option picks~~ ALL BUILT 2026-09-18 (§5.bs): F-087 A + F-093 A (ce439ac), F-091 A (0f0d6df), F-092 A (a78f0b3), F-096 A (4baca75), F-095 B (a9352ac). **Branch is code-complete for Phases 1–3; Craig's own wizard walk still wanted before merge (§5.y); merge is his call (§5.ab).** | — | §5.bs |
+| **Game-structure COLLAPSE — Phases 1, 2 and 3 (steps 1–6) BUILT on `ui-simplification-2026-09-15`, UNMERGED.** Phase 3 (§5.bq/§5.br): junk points everywhere, CTP/all-par/hand-tracked as junk, 3+-team payout settings, pot slices, captains on sides, hide-holes on the team board, router's classic-only list EMPTY. Remaining refusals are golf or the team engine's 8-player cap (12 players on legs/margin money stay refused — residue). F-097 fixed and all six option picks built 2026-09-18 (§5.bs). Craig's phone walk still wanted (§5.y). Screenshots: `e2e/screenshots/collapse-*.png`, `walk-*.png`, `phase3-*.png`. | L | §5.bk/§5.bm/§5.bq |
 | **Course-data correctness audit — PARKED by Craig 2026-09-15 ("wait on the course data")**. Meadows payload banked + CLEAN (F-023); prime suspects now gender-name tee collisions and stale stored games. Resume on his word. | M | Craig 2026-09-10/14 + F-023 |
 | Merge-audit polish batch (all four S items below) — fallback slack work | S×4 | merge audit / §5.ak |
 
@@ -28,6 +28,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | When |
 |---|---|
+| **F-097 fixed + six option picks built** (§5.bs, seven commits edbe3ec…a9352ac): aligned margin games settle the teams on screen; money amounts follow the question; junk payout under the grid; hub grid single-column on phones; junk footer names the winner; pot shares inline; one merged leg board. Per-commit gate = tsc + unit + touched specs, the ONE full gate at the end (`.claude/verify-2026-09-18-final.log`) was killed for low system memory near its end (unit 2138 green, e2e nearly done) — RERUN IT next session before merge | 2026-09-18 |
 | **Phase 3 steps 5–6 BUILT — captains on sides, hide-holes on the team board, router's classic-only list empty** (§5.bq Q5): `GameSide.captainId` (legacy shape refuses a captained pair), hub Teams list marks "C", hub editor offers hide-holes to team games across 2+ foursomes, `classicOnlyNeeds`/"Not built yet" reasons deleted. Goldens `phase3-captains-hide.test.ts` (2 failed first); e2e `phase3-convergence.spec.ts`. Residue: 12-player fields on legs/margin money stay refused (team engine cap 8). Found F-097 (P1 money) on the walk. Verify log `.claude/verify-2026-09-18-p3s56.log` | 2026-09-18 |
 | **Phase 3 step 4 BUILT — pot slices on the team engine** (§5.bq Q-E): `potFront`/`potBack`/`potOverall`/`potJunk` shares scaled to the pot, places paid per slice, junk slice replaces `junkPot` under a buy-in pot, `PotSliceBoard` on the leaderboard, router's `potLegs` refusal deleted. Goldens first (11, 6 failed, 3 mutations caught). Judgement calls listed in the spec §3 "As built". New findings F-095, F-096. Verify log `.claude/verify-2026-09-18-p3s4.log` | 2026-09-18 |
 | **Phase 3 money convergence steps 1–3 BUILT** (§5.bq/§5.br; spec `.claude/plans/phase3-money-convergence.md`): junk in POINTS everywhere paid per point or as a junk pot; CTP / all-par / hand-tracked bonuses are junk on the team + individual engines (router stops refusing them, wizard grid shared); with 3+ teams `legsPayout` (winner-takes default) / `pointsPayout` (pay-each default) / carry-ties for $/hole. Goldens first every step (§5.z). Verify logs `.claude/verify-2026-09-17-p3s1/p3s2b/p3s3.log`. Next: steps 4–6 (pot slices on the team engine, captains + hide-holes on sides, router's classic-only list empties) | 2026-09-17 |
@@ -111,16 +112,16 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | ~~F-082 one grey reason line~~ DONE 2026-09-16 (6728a25) | — | F-082 |
 | ~~F-080 applied style shown once~~ DONE 2026-09-16 (b4b6461) | — | F-080 |
 | ~~F-083 manual bonuses behind the reveal~~ DONE 2026-09-16 (f427809) | — | F-083 |
-| F-087 money step: bonus sections sit between the money question and its amounts — reorder (opt A) | S | F-087 |
+| ~~F-087 money step: bonus sections sit between the money question and its amounts — reorder (opt A)~~ DONE 2026-09-18 (§5.bs, ce439ac) | — | F-087 |
 | ~~F-088 hub says "Teams" twice~~ DONE 2026-09-16 (opt A, 340cd60, §5.bp) | — | F-088 |
 | ~~F-089 phone header wraps the title~~ DONE 2026-09-16 (opt A, c60ae11, §5.bp) | — | F-089 |
 | ~~F-090 CTP editor on a team game~~ DONE 2026-09-16 (opt A, 3965d25, §5.bp); Phase 3 lifts the gate | — | F-090 |
 | ~~F-094 `legs` at 3+ teams hybrid rule~~ DECIDED §5.br + BUILT 2026-09-17 (step 3: winner-take-all default, pay-each explicit) | — | F-094 |
-| F-096 team money step stacks the pot's share fields as four full-width rows — opt A one inline row (the classic pot-dollars layout); rides with F-087/F-093; Craig's pick | S | F-096 |
-| F-095 sliced team pot lists front/back/overall twice (leg board + Pot board) — opt B one merged board (margin + $ per row, Junk fourth); Craig's pick | S | F-095 |
-| F-093 team money step asks "Junk pays" above the bonus grid — opt A move junk-payout fields under the grid; do with F-087 | S | F-093 |
-| F-092 junk bonus board under a junk pot doesn't name who took the pot — opt A footer names the winner(s); Craig's pick | S | F-092 |
-| F-091 hub "How it's played" grid crams label+value on a phone ("CompareMatch (hole by hole)") — opt A single-column rows below `sm`; Craig's pick | S | F-091 |
+| ~~F-096 team money step stacks the pot's share fields as four full-width rows — opt A one inline row (the classic pot-dollars layout); rides with F-087/F-093; Craig's pick~~ DONE 2026-09-18 (§5.bs) | — | F-096 |
+| ~~F-095 sliced team pot lists front/back/overall twice (leg board + Pot board) — opt B one merged board (margin + $ per row, Junk fourth); Craig's pick~~ DONE 2026-09-18 (§5.bs) | — | F-095 |
+| ~~F-093 team money step asks "Junk pays" above the bonus grid — opt A move junk-payout fields under the grid; do with F-087~~ DONE 2026-09-18 (§5.bs) | — | F-093 |
+| ~~F-092 junk bonus board under a junk pot doesn't name who took the pot — opt A footer names the winner(s); Craig's pick~~ DONE 2026-09-18 (§5.bs) | — | F-092 |
+| ~~F-091 hub "How it's played" grid crams label+value on a phone ("CompareMatch (hole by hole)") — opt A single-column rows below `sm`; Craig's pick~~ DONE 2026-09-18 (§5.bs) | — | F-091 |
 | Phase 2 residue: `isSingleGroupGame` still named for what it used to mean (AGENTS.md's one rule cites it — rename both together); `teamBuild` provenance still classic-only; sandbox seed labels still say "sides" (dev-only, e2e `seed()` looks them up); the `team-2v2` mode `name` "Teams" is a placeholder Craig may rename (F-088 C) | S | plan §7 Phase 2 |
 | F-069: a NON-`TeamFormat` string in a sides game still scores as best ball (`teamNetOnHole` default arm, now the one place for both containers after F-072) — refuse vs default is Craig's call; Phase 3 rider | S | F-069 |
 | F-070: sandbox fake gains `.in()`/`.order()`/`.limit()` so the audit history renders in e2e (unhandled rejection in every verify log today) | S | F-070 |

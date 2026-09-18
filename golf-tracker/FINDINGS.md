@@ -1269,7 +1269,7 @@ collapsed to one line under the row — the classic pot-dollars layout, reused. 
 schema rows (what the hub editor shows too). Recommend A for the wizard only; the hub editor is
 read-mostly and its two-column grid already fits.
 
-**Status:** open — Craig's pick (§5.bo). Rides with F-087/F-093 (money-step ordering).
+**Status:** FIXED 2026-09-18 (opt A, §5.bs, commit 4baca75) — one inline row "Pot split (shares)" under the stakes; `potJunk` sits with the junk-payout fields.
 
 ---
 
@@ -1285,7 +1285,7 @@ shows only what the leg board can't — the Junk slice and the total; **B** merg
 margin AND dollars per row, Junk as a fourth row; **C** keep both (as built). Recommend B — one row
 per thing that pays, like the classic pool's leg board.
 
-**Status:** open — Craig's pick (§5.bo).
+**Status:** FIXED 2026-09-18 (opt B, §5.bs, commit a9352ac) — one leg board: margin and dollars per row, Junk as a fourth row; the separate Pot board is gone.
 
 ---
 
@@ -1327,7 +1327,7 @@ any junk. Same shape as F-087 (classic: bonus sections between the money questio
 **B** fold them into the bonus grid's block as its footer. Recommend A; resolve with F-087 in one
 pass so both containers read the same order.
 
-**Status:** open — Craig's pick (§5.bo).
+**Status:** FIXED 2026-09-18 (opt A, §5.bs, commit ce439ac) — "How the bonuses pay" block renders under the bonus grid.
 
 ---
 
@@ -1341,7 +1341,7 @@ Craig & Jym took it. The standings' $ column carries the answer, but not labelle
 **Options:** **A** footer names the winner(s): "Junk pot $20 → Craig & Jym (3 pts)". **B** a
 per-team points row above the player rows. Recommend A — one line, no new table.
 
-**Status:** open — Craig's pick (§5.bo).
+**Status:** FIXED 2026-09-18 (opt A, §5.bs, commit a78f0b3) — footer reads "Junk pot $20 → Craig & Jym (3 pts)"; ties named and split.
 
 ---
 
@@ -1357,7 +1357,7 @@ the F-089 fix only moved the header above it.
 the label column a fixed minimum width and let the value wrap. **C** show fewer rows on a phone
 (hide settings still at their default). Recommend A — same information, no hidden rows.
 
-**Status:** open — Craig's pick (§5.bo).
+**Status:** FIXED 2026-09-18 (opt A, §5.bs, commit 0f0d6df) — one column, label over value, below `sm`.
 
 ---
 
@@ -1489,7 +1489,7 @@ reads top-to-bottom: model → amounts → optional extras. **B** collapse the t
 "Bonuses" block with the junk grid and the manual buttons side by side. A is a reorder only; B is a
 redesign. Recommend A.
 
-**Status:** open.
+**Status:** FIXED 2026-09-18 (opt A, §5.bs, commit ce439ac) — the classic pot split and head-to-head legs render right after the money question, bonuses below.
 
 ---
 

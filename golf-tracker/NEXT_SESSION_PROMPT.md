@@ -1,8 +1,33 @@
-# Next session: Phase 3 is BUILT (steps 1–6); FIRST fix F-097 (P1 money, needs Craig's go), then his option picks
+# Next session: the collapse branch is CODE-COMPLETE (Phases 1–3 + F-097 + six picks); next = Craig's walk, then merge on his word
+
+**UPDATE 2026-09-18 (eighth session, late): F-097 FIXED and the SIX OPTION PICKS BUILT (§5.bs).** After the
+Phase 3 steps 4–6 commits (974d0c2, 6723e1a): edbe3ec F-097 · ce439ac F-087 A + F-093 A · 0f0d6df F-091 A ·
+a78f0b3 F-092 A · 4baca75 F-096 A · a9352ac F-095 B · then the docs commit. Craig's words: *"ok, should we go
+ahead and fix F-097? at that point the branch would be basically ready, right?"* and *"recommendations on all
+six"*. **Process note (his speed remark, same day):** each of those seven commits was gated by tsc + unit +
+the touched specs; the ONE full gate at the end (`.claude/verify-2026-09-18-final.log`) was STOPPED by Claude Code for low system memory after tsc + build + 2138 unit passed and ~all 217 e2e had run — no `VERIFY_EXIT` line. **Rerun `npm run verify` first thing (on Craig's word; it wasn't restarted unbidden) before calling the branch green.**
+Earlier full gates: `…-p3s4b.log` (step 4), `…-p3s56.log` (steps 5–6), both exit 0.
+
+- **F-097** (P1 money, probe-proved): the wizard's ALIGNED flow never set `sides`, so a margin-money game saved
+  `sides: []` and `sidesForCompute` settled a default TWO-side split. Fixed both ends: the wizard hands the
+  router the tee groups as sides (captains included); `sidesForCompute` backstops to the tee groups when a
+  game stores none and has 2+ tee groups (one-foursome 2v2 keeps its default split). Golden
+  `f097-aligned-sides.test.ts` (2 failed first); e2e pin in `phase3-convergence.spec.ts`.
+- **The six:** money amounts follow the money question and junk-payout fields sit under the bonus grid
+  (`SIDES_STAKES_KEYS` / `SIDES_JUNK_KEYS` in create-step); hub "How it's played" is one column below `sm`;
+  junk footer names the pot winner; pot shares are one inline row ("Pot split (shares)"); under a sliced pot
+  the leg board carries dollars + winner per row and a Junk row (`PotSliceBoard` deleted). Pins retargeted in
+  `phase3-junk.spec.ts`, `phase3-pot-slices.spec.ts`.
+- **What's left before merge (Craig's, not mine):** his own walk of `/pool/new` on a phone (§5.y — the
+  screenshots are the fallback: `walk-*.png`, `phase3-*.png`, `f097-aligned-margin-hub.png`); merge timing
+  (§5.ab). Nothing on the branch is waiting on a decision.
+- **Open, not blocking:** BACKLOG "Verify speed + context" (his pick A/B/C/D); team-engine 8-player cap
+  (12 players on legs / margin money stay refused); F-069/F-070; the pre-existing obsolete snapshot
+  "team-2v2 / 4 players (playersMin)" in one-group-golden.
 
 **UPDATE 2026-09-18 (eighth session): PHASE 3 STEPS 4–6 ARE BUILT.** Commits on the branch after dda06c3:
-974d0c2 step 4 · the steps 5–6 commit · the docs commit. Verify logs `.claude/verify-2026-09-18-p3s4b.log`
-(step 4, 214 e2e) and `.claude/verify-2026-09-18-p3s56.log` (steps 5–6) — check `VERIFY_EXIT=`. The first
+974d0c2 step 4 · 6723e1a steps 5–6. Verify logs `.claude/verify-2026-09-18-p3s4b.log`
+(step 4, 214 e2e) and `.claude/verify-2026-09-18-p3s56.log` (steps 5–6, 216 e2e) — both `VERIFY_EXIT=0`. The first
 step-4 run (`…-p3s4.log`) failed ONE e2e on a cold-compile `waitForURL` timeout and passed on a cold rerun
 of that spec and on the full rerun; nothing in the diff touched it.
 
@@ -24,13 +49,7 @@ of that spec and on the full rerun; nothing in the diff touched it.
   of one; one-ball apart) or the team engine's 8-player cap: **3 teams of 4 on legs / $/hole / $/point stay
   refused** (classic holds two teams; `team-2v2` playersMax 8) — honest residue, BACKLOG "Team engine field
   cap". Goldens `phase3-captains-hide.test.ts`; e2e `phase3-convergence.spec.ts`.
-- **NEW P1 money bug F-097 (probe-proved, NOT fixed — §2 stop-and-ask):** the wizard's ALIGNED flow (two teams
-  of 4, 3+3+2, 3+2 — teams built with the foursome builder) never sets `sides`, so a game routed to the team
-  engine (margin money) saves `sides: []`; `sidesForCompute` then falls back to `defaultSubTeams` — a
-  handicap-balanced TWO-side split — while the hub shows the real teams. Pre-existing since Phase 1
-  (2026-09-15), unmerged, no live game shaped like it. Fix = FINDINGS F-097 option C (wizard passes the tee
-  groups as sides, captains included + engine backstop to tee groups when 2+ groups). Golden first: the
-  probe in F-097. **Ask Craig, then build — first thing.**
+- ~~F-097~~ fixed later the same session (see the top block).
 - New findings F-095 (sliced pot lists the legs twice), F-096 (share fields dense in the wizard) — his picks.
 - Craig, mid-session: the gate is too slow (19–25 min) and sessions burn context waiting → BACKLOG "Verify
   speed + context" (options A parallel workers / B two-tier gate / C trim / D don't poll). His pick.
