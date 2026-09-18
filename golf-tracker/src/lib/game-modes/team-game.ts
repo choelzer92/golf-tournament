@@ -2,8 +2,8 @@ import type { FormatSetting } from '../formats';
 import type { HoleData, PoolGame } from '../pool-game';
 import { distributePot, teamHandicapForFormat } from '../pool-game';
 import type { Player } from '../game-state';
-import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding, TeamLegLine } from './types';
-import { boolSetting, numberSetting, parseVector, stringSetting, JUNK_SETTINGS, settleJunkForSides } from './settings';
+import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding, PotSliceLine, TeamLegLine } from './types';
+import { boolSetting, numberSetting, parseVector, stringSetting, JUNK_SETTINGS, junkPayout, settleJunkForSides, tallyJunkForSides } from './settings';
 import {
   defaultSideLabel, fromLegacySubTeams, settleRoundRobin, settleWinnerTakes, type GameSide,
 } from './sides';
@@ -62,7 +62,7 @@ const SETTINGS: FormatSetting[] = [
       { value: 'per-hole', label: '$ per hole won' },
       { value: 'per-point', label: '$ per point of margin' },
       { value: 'legs', label: 'Fixed front / back / overall' },
-      { value: 'pot', label: 'Pot (buy-in, best team wins)' },
+      { value: 'pot', label: 'Pot (buy-in per team)' },
     ],
     defaultValue: 'legs',
   },
@@ -73,12 +73,31 @@ const SETTINGS: FormatSetting[] = [
   // risk $20 for the same prize a trio risked $60 for.
   {
     key: 'sideBuyIn', label: 'Buy-in ($ / team)', type: 'number', defaultValue: 20,
-    hint: 'Each TEAM puts in this much, whatever its size. Best team wins the pot; ties split it.',
+    hint: 'Each TEAM puts in this much, whatever its size. The best team takes the pot — or each slice of it; ties split.',
+    showIf: { key: 'moneyModel', in: ['pot'] },
+  },
+  // POT SLICES (Phase 3 step 4, §5.bq Q-E): the classic pool's front / back / overall (/ junk)
+  // split, on this engine. The four are SHARES scaled to the pot — 25/25/25/25, 1/1/1/1 and
+  // $20/$20/$20/$20 all mean the same thing — so nobody has to make percentages add up. Defaults
+  // 0 / 0 / 100 keep every saved pot as it was: ONE prize on the overall. The junk share sits with
+  // the junk settings below (it only exists when junk pays as a pot).
+  {
+    key: 'potFront', label: 'Front 9 share of pot', type: 'number', defaultValue: 0,
+    hint: 'Shares are scaled to the pot: 25 / 25 / 50 and $20 / $20 / $40 split it the same way. Leave front and back at 0 for one prize on the overall.',
     showIf: { key: 'moneyModel', in: ['pot'] },
   },
   {
-    key: 'potSplit', label: 'Pot split (%)', type: 'text', defaultValue: '100',
-    hint: 'How the pot pays down the finishing order. "100" = winner takes all; "70,30" pays the top two.',
+    key: 'potBack', label: 'Back 9 share of pot', type: 'number', defaultValue: 0,
+    showIf: { key: 'moneyModel', in: ['pot'] },
+  },
+  {
+    key: 'potOverall', label: 'Overall share of pot', type: 'number', defaultValue: 100,
+    hint: 'On a 9-hole game the front and back shares fold into this one.',
+    showIf: { key: 'moneyModel', in: ['pot'] },
+  },
+  {
+    key: 'potSplit', label: 'Places paid (%)', type: 'text', defaultValue: '100',
+    hint: 'How each slice of the pot pays down its finishing order. "100" = winner takes it; "70,30" pays the top two. Ties split the places they span.',
     showIf: { key: 'moneyModel', in: ['pot'] },
   },
   { key: 'legFront', label: 'Front 9 ($)', type: 'number', defaultValue: 10, showIf: { key: 'moneyModel', in: ['legs'] } },
@@ -122,7 +141,16 @@ const SETTINGS: FormatSetting[] = [
   // A name now lives on the side itself (`GameSide.name`), edited where sides are assigned. Saved
   // games keep their names: `sidesOfGame` absorbs the legacy keys at the read boundary via
   // `hydrateLegacyNames`, so nothing needs migrating and there is one source of truth downstream.
-  ...JUNK_SETTINGS,
+  // Under a BUY-IN pot the junk pot is a SLICE of that pot (Phase 3 step 4, §5.bq Q-E), so the
+  // separately-anted `junkPot` is asked only under the other money models.
+  ...JUNK_SETTINGS.map((s) => (s.key === 'junkPot'
+    ? { ...s, showIf: [...(Array.isArray(s.showIf) ? s.showIf : s.showIf ? [s.showIf] : []), { key: 'moneyModel', in: ['legs', 'per-hole', 'per-point'] }] }
+    : s)),
+  {
+    key: 'potJunk', label: 'Junk share of pot', type: 'number', defaultValue: 25,
+    hint: 'The junk pot comes out of the buy-in. Scaled with the other shares (100 overall + 25 junk = four to one); the most junk points takes it, ties split.',
+    showIf: [{ key: 'moneyModel', in: ['pot'] }, { key: 'junkEnabled', in: ['true'] }, { key: 'junkPayout', in: ['pot'] }],
+  },
   // Team-only junk (Phase 3 step 2): the classic pool's "all par" — every member of the team at
   // par or better on a hole. Not in the shared JUNK_SETTINGS because it has no individual meaning.
   {
@@ -520,6 +548,10 @@ function compute(ctx: GameModeContext): IndividualResult {
   // is zero-sum at any side count AND reduces to today's head-to-head margin at two sides — so
   // every existing 2v2 game settles unchanged (held to that by two-side-golden.test.ts).
   const money = zeros();
+  // Each side's junk POINTS, tallied up front: the pot's junk slice ranks them (Phase 3 step 4).
+  // Null when the junk layer is off. Settlement (per point, or a separate junk pot) happens below.
+  const junkTally = tallyJunkForSides(SETTINGS, ctx.settings, ctx, sides);
+  const potSlices: PotSliceLine[] = [];
   const add = (amounts: number[]) => amounts.forEach((v, idx) => { money[idx] += v; });
 
   if (moneyModel === 'per-hole') {
@@ -583,22 +615,75 @@ function compute(ctx: GameModeContext): IndividualResult {
     const potSides = sides.filter((_, idx) => inPot[idx]);
     if (potSides.length > 0 && sideBuyIn > 0) {
       const pot = sideBuyIn * potSides.length;
-      // distributePot wants a lower-is-better metric, pre-sorted best-first.
-      const rankOf = (idx: number) => {
-        const v = rankValue(idx);
-        // 'match' points and Stableford are higher-is-better; negate for one direction, exactly
-        // as computePoolResult does with rankMetric.
-        return (result === 'match' || scoring === 'stableford') ? -v : v;
+      const places = parseVector(potSplit);
+      // 'match' points and Stableford are higher-is-better; negate for distributePot's one
+      // lower-is-better direction, exactly as computePoolResult does with rankMetric.
+      const orient = (v: number) => ((result === 'match' || scoring === 'stableford') ? -v : v);
+
+      // SLICES (Phase 3 step 4, §5.bq Q-E): the pot is divided front / back / overall (/ junk) by
+      // the share settings, scaled to add up. A 9-hole game has one leg, so front and back fold into
+      // the overall. The junk share is a slice only when junk pays as a pot — that pot then comes
+      // out of the buy-in and `junkPot` is not anted separately. All-zero shares = one prize on the
+      // overall (today's pot, and every saved game's).
+      const junkSliced = junkTally !== null && junkPayout(SETTINGS, ctx.settings) === 'pot';
+      const shares = {
+        front: nineOnly ? 0 : Math.max(0, numberSetting(SETTINGS, ctx.settings, 'potFront')),
+        back: nineOnly ? 0 : Math.max(0, numberSetting(SETTINGS, ctx.settings, 'potBack')),
+        overall: Math.max(0, numberSetting(SETTINGS, ctx.settings, 'potOverall'))
+          + (nineOnly ? Math.max(0, numberSetting(SETTINGS, ctx.settings, 'potFront')) + Math.max(0, numberSetting(SETTINGS, ctx.settings, 'potBack')) : 0),
+        junk: junkSliced ? Math.max(0, numberSetting(SETTINGS, ctx.settings, 'potJunk')) : 0,
       };
-      const ranked = sides
-        .map((s, idx) => ({ teamId: s.id, metric: rankOf(idx) }))
-        .filter((_, idx) => inPot[idx])
-        .sort((a, b) => a.metric - b.metric);
-      const payouts = distributePot(ranked, pot, parseVector(potSplit));
-      sides.forEach((s, idx) => {
-        if (!inPot[idx]) return;
-        money[idx] += (payouts[s.id] ?? 0) - sideBuyIn;
-      });
+      const shareTotal = shares.front + shares.back + shares.overall + shares.junk;
+      const dollarsOf = (k: keyof typeof shares) => (shareTotal > 0 ? (pot * shares[k]) / shareTotal : k === 'overall' ? pot : 0);
+
+      // Pay one slice: rank the ELIGIBLE sides on `metricOf` (lower is better) and hand the slice
+      // to distributePot — places by `potSplit`, tied sides share the SUM of the places they span,
+      // all of it distributed. Eligible = in the pot AND has played the slice's holes: once anyone
+      // has started a leg, a side still on the other nine can't be tied for it (the classic pool's
+      // F-011 rule). A slice NOBODY has started (the back nine at the turn), or whose leg the group
+      // voided, is a dead heat: it splits evenly among the sides in the pot, so every ante comes
+      // back on it and a mid-round board never shows phantom losses.
+      const paySlice = (
+        key: 'front' | 'back' | 'overall' | 'junk', label: string, dollars: number,
+        eligible: (idx: number) => boolean, metricOf: (idx: number) => number,
+      ) => {
+        if (dollars <= 0) return;
+        const entries = sides.map((s, idx) => ({ teamId: s.id, idx })).filter((e) => inPot[e.idx]);
+        const contenders = entries.filter((e) => eligible(e.idx));
+        const started = contenders.length > 0;
+        const ranked = (started ? contenders : entries)
+          .map((e) => ({ teamId: e.teamId, metric: started ? metricOf(e.idx) : 0 }))
+          .sort((a, b) => a.metric - b.metric);
+        const paid = distributePot(ranked, dollars, places);
+        entries.forEach((e) => { money[e.idx] += paid[e.teamId] ?? 0; });
+        const payouts = Object.fromEntries(Object.entries(paid).filter(([, v]) => v > 0));
+        const top = Math.max(0, ...Object.values(payouts));
+        const winnerNames = started && top > 0
+          ? entries.filter((e) => payouts[e.teamId] === top).map((e) => nameFor(e.idx))
+          : [];
+        potSlices.push({ key, label, dollars, payouts, winnerNames, split: !started });
+      };
+      // A side's holes played on a nine (its OWN holes, not only contested ones — a pot ranks each
+      // side on its own score to par, §5.af, exactly as the overall does).
+      const inLeg = (key: 'front' | 'back', h: HoleData) => (key === 'front' ? h.number <= 9 : h.number > 9);
+      const sideLegThru = (key: 'front' | 'back', idx: number) =>
+        ctx.holes.reduce((n, h, hIdx) => n + (inLeg(key, h) && holeValues[idx][hIdx] !== null ? 1 : 0), 0);
+      const legVoided = (key: 'front' | 'back') => !!teamLegs.find((l) => l.key === key)?.voided;
+      const legMetric = (key: 'front' | 'back') => (idx: number) =>
+        orient(result === 'match' ? legHolesWon[key][idx] : legToPar[key][idx]);
+      if (!nineOnly) {
+        for (const key of ['front', 'back'] as const) {
+          paySlice(key, legLabel(key), dollarsOf(key), (idx) => !legVoided(key) && sideLegThru(key, idx) > 0, legMetric(key));
+        }
+      }
+      // The overall slice ranks exactly as the standings do (assignPlaces on `rankValue`), so the
+      // board's finishing order and the money always agree — this is the old one-prize pot.
+      paySlice('overall', nineOnly ? teamLegs[0].label : legLabel('overall'), dollarsOf('overall'), () => true, (idx) => orient(rankValue(idx)));
+      if (junkSliced) {
+        const pts = junkTally!.sides;
+        paySlice('junk', 'Junk', dollarsOf('junk'), () => true, (idx) => -(pts.find((p) => p.id === sides[idx].id)?.points ?? 0));
+      }
+      sides.forEach((_, idx) => { if (inPot[idx]) money[idx] -= sideBuyIn; });
     }
   } else {
     // legs: each leg's winner collects that leg's dollars FROM EACH other side. At two sides
@@ -674,7 +759,8 @@ function compute(ctx: GameModeContext): IndividualResult {
 
   // Birdie/eagle bonuses. Earned by individuals but settled between SIDES, since this game's
   // money is between sides, not a free-for-all among the players.
-  const junk = settleJunkForSides(SETTINGS, ctx.settings, ctx, stand, sides);
+  // Under a buy-in pot the junk pot was paid as a SLICE above, so the settlement only tallies here.
+  const junk = settleJunkForSides(SETTINGS, ctx.settings, ctx, stand, sides, { junkPotInBuyIn: moneyModel === 'pot' });
   const junkLines = junk?.lines;
 
   // One side's ready-to-show status for the SCORECARD: its rank, plus the margin in the unit the
@@ -728,6 +814,7 @@ function compute(ctx: GameModeContext): IndividualResult {
       status: sideStatus(idx),
     })),
     junkLines: junkLines ?? undefined,
+    potSlices: potSlices.length > 0 ? potSlices : undefined,
     junkSides: junk ? junk.sides.map((s) => ({ ...s, name: names[sides.findIndex((x) => x.id === s.id)] ?? s.id })) : undefined,
   };
 }

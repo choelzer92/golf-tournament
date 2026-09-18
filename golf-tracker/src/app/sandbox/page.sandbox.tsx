@@ -399,6 +399,48 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'pairs-pot-slices',
+    label: 'Four pairs — POT sliced front / back / overall / junk (Phase 3 step 4)',
+    detail: 'Q-E golden: $20 a pair, four $20 slices. A wins front, overall and junk (two birdies + closest on 7); B and C tie the back; D has the eagle. Board must read A +40, B −10, C −10, D −20.',
+    build: () => {
+      const ps = players([0, 0, 0, 0, 0, 0, 0, 0]);
+      const cardOf = (id: string, off: Record<number, number>): GameScore[] =>
+        ALL18.map((h) => ({ playerId: id, hole: h, grossScore: PARS[h - 1] + (off[h] ?? 0) }));
+      const game = baseGame({
+        players: ps,
+        name: 'Pairs Pot, Sliced',
+        gameMode: 'team-2v2',
+        sides: [
+          { id: 'a', playerIds: ['sp1', 'sp2'] },
+          { id: 'b', playerIds: ['sp3', 'sp4'] },
+          { id: 'c', playerIds: ['sp5', 'sp6'] },
+          { id: 'd', playerIds: ['sp7', 'sp8'] },
+        ],
+        modeSettings: {
+          format: 'best-ball', scoring: 'stroke', result: 'total',
+          moneyModel: 'pot', sideBuyIn: 20, potSplit: '100',
+          potFront: 25, potBack: 25, potOverall: 25, potJunk: 25,
+          junkEnabled: true, junkBirdie: 1, junkEagle: 2, junkAlbatross: 5, junkCtp: 1, junkBasis: 'gross',
+          junkPayout: 'pot',
+        },
+        ctpWinners: { 7: 'sp1' },
+        teams: [
+          { id: 'st1', name: 'Group 1', playerIds: ['sp1', 'sp2', 'sp3', 'sp4'], matchupId: 'sm1' },
+          { id: 'st2', name: 'Group 2', playerIds: ['sp5', 'sp6', 'sp7', 'sp8'], matchupId: 'sm2' },
+        ],
+      });
+      saveGameScores('sm1', [
+        ...cardOf('sp1', { 1: -1, 4: -1, 10: 1 }), ...cardOf('sp2', { 10: 1 }),   // A: F −2 · B +1 · O −1
+        ...cardOf('sp3', { 5: -1, 6: 1 }), ...cardOf('sp4', { 6: 1 }),            // B: F 0 · B 0 · O 0
+      ]);
+      saveGameScores('sm2', [
+        ...cardOf('sp5', {}), ...cardOf('sp6', {}),                                                // C: all par
+        ...cardOf('sp7', { 13: -2, 14: 1, 15: 1, 16: 1 }), ...cardOf('sp8', { 14: 1, 15: 1, 16: 1 }), // D: eagle, back +1
+      ]);
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+  {
     key: 'walk-in-legs',
     label: 'Three sides, LEGS money — side C walked in at 12',
     detail: 'F-016b: the front nine is complete but the back and overall are short, so "Close out game" must ask whether those legs pay. Open, then scroll to Close out game.',

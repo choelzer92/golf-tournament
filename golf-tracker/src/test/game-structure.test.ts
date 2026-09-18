@@ -299,7 +299,7 @@ const TABLE: Row[] = [
   // --- classic pool: aligned teams, pot or two-team head-to-head --------------------------
   { name: 'two teams of 4, pot', sizes: [4, 4], money: 'pot', expect: { container: 'classic', moneyMode: 'pot' } },
   { name: 'three teams of 4, pot with CTP + captains + hidden holes', sizes: [4, 4, 4], money: 'pot',
-    extra: { bonuses: { junk: true, ctp: true }, captains: true, hideHolesUntilAllFinish: true, potLegs: true },
+    extra: { bonuses: { junk: true, ctp: true }, captains: true, hideHolesUntilAllFinish: true },
     expect: { container: 'classic', moneyMode: 'pot' } },
   { name: 'two teams of 4, fixed legs (the overlap row → classic, it carries more)', sizes: [4, 4], money: 'legs',
     extra: { bonuses: { junk: true } }, expect: { container: 'classic', moneyMode: 'match' } },
@@ -319,6 +319,10 @@ const TABLE: Row[] = [
   { name: 'four pairs, $ per hole', sizes: [2, 2, 2, 2], money: 'per-hole', expect: { container: 'sides' } },
   { name: 'four pairs, $ per point', sizes: [2, 2, 2, 2], money: 'per-point', expect: { container: 'sides' } },
   { name: 'four pairs, single pot per team', sizes: [2, 2, 2, 2], money: 'pot', expect: { container: 'sides' } },
+  // Phase 3 step 4 (§5.bq Q-E): the team engine's pot has front / back / overall / junk slices, so a
+  // pairs pot with a junk pot is a plain sides route — nothing about a split pot is classic-only.
+  { name: 'four pairs, pot with junk (sliced on the sides engine since Phase 3 step 4)', sizes: [2, 2, 2, 2], money: 'pot',
+    extra: { bonuses: { junk: true, ctp: true } }, expect: { container: 'sides' } },
   { name: 'two teams of 4 aligned, $ per point (classic cannot express margin money)', sizes: [4, 4], money: 'per-point', expect: { container: 'sides' } },
   { name: 'two teams of 4 aligned, legs with junk differential', sizes: [4, 4], money: 'per-hole', extra: { bonuses: { junk: true } }, expect: { container: 'sides' } },
   { name: 'two teams of 3 in one 6-player field, legs, partners apart', sizes: [3, 3], money: 'legs', mixed: true, expect: { container: 'sides' } },
@@ -338,8 +342,6 @@ const TABLE: Row[] = [
   // Phase 3 step 2 (§5.bq): closest-to-pin and hand-tracked bonuses are junk on the sides engine too.
   { name: 'three pairs, pot + CTP (bonuses ride on the sides engine since Phase 3)', sizes: [2, 2, 2], money: 'pot', extra: { bonuses: { ctp: true } },
     expect: { container: 'sides' } },
-  { name: 'four pairs, pot split front/back/overall', sizes: [2, 2, 2, 2], money: 'pot', extra: { potLegs: true },
-    expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needAligned('Front / back / overall pot splits') } },
   { name: '1 v 1, two-best-net (a team of one has one ball)', sizes: [1, 1], money: 'legs',
     extra: { scoring: { format: 'two-best-net', basis: 'stroke', compareBy: 'total' } },
     expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needTeams('Two-ball formats') } },

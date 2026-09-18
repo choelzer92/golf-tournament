@@ -555,7 +555,7 @@ test.describe('F-006: a side game can play a POT', () => {
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
     await expect(page.getByLabel('Buy-in ($ / team)')).toBeVisible();
-    await expect(page.getByLabel('Pot split (%)')).toBeVisible();
+    await expect(page.getByLabel('Places paid (%)')).toBeVisible();
     // The margin models' fields are hidden while a pot is selected.
     await expect(page.getByLabel('$ per point')).toHaveCount(0);
 

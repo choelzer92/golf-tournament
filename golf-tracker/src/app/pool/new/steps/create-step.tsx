@@ -26,6 +26,8 @@ import { type PotDollars, foldJunkStrings, legDollarsToStrings, potDollarsTotal 
 // score, compare-by, side names — was answered on earlier steps or lives on the hub.
 const SIDES_MONEY_KEYS = new Set([
   'dollarsPerHole', 'dollarsPerPoint', 'sideBuyIn', 'potSplit', 'legFront', 'legBack', 'legOverall',
+  // Phase 3 step 4: the pot's front / back / overall / junk shares.
+  'potFront', 'potBack', 'potOverall', 'potJunk',
   // Junk POINTS (birdie / eagle / albatross / all-par / closest) come from the shared bonus grid
   // above (§5.bq one vocabulary); only HOW junk pays is asked here.
   'junkBasis', 'junkPayout', 'junkPerPoint', 'junkPot',
@@ -45,9 +47,19 @@ function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
     case 'pot': {
       const buyIn = num('sideBuyIn', 20);
       const split = String(settings.potSplit ?? '100');
+      const pot = buyIn * sideCount;
+      // Phase 3 step 4: the pot's slices, scaled to add up. Junk is a slice only when it pays as a pot.
+      const junkSliced = String(settings.junkEnabled) === 'true' && String(settings.junkPayout ?? 'per-point') === 'pot';
+      const shares = { front: num('potFront', 0), back: num('potBack', 0), overall: num('potOverall', 100), junk: junkSliced ? num('potJunk', 25) : 0 };
+      const total = Math.max(0, shares.front) + Math.max(0, shares.back) + Math.max(0, shares.overall) + Math.max(0, shares.junk);
+      const dollars = (v: number) => (total > 0 ? Math.round((pot * Math.max(0, v)) / total) : 0);
+      const slices = ([['front', 'Front 9'], ['back', 'Back 9'], ['overall', 'Overall'], ['junk', 'Junk']] as const)
+        .filter(([k]) => shares[k] > 0 && total > 0)
+        .map(([k, label]) => `$${dollars(shares[k])} ${label}`);
+      const sliced = slices.length > 1 ? ` — ${slices.join(' · ')}` : '';
       // §5.ag: the ante is PER TEAM whatever its size, which is the surprising part worth saying.
-      return `$${buyIn} per team in the pot ($${buyIn * sideCount} total) — `
-        + `${split === '100' ? 'best team takes it all' : `paid ${split} down the order`}. `
+      return `$${buyIn} per team in the pot ($${pot} total)${sliced}. `
+        + `${split === '100' ? (slices.length > 1 ? 'Best team takes each slice' : 'Best team takes it all') : `Each slice paid ${split} down the order`}; ties split. `
         + 'Each team antes the same, whatever its size.';
     }
     case 'per-hole': {

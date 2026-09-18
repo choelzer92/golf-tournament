@@ -1227,6 +1227,39 @@ line. Screenshot: `e2e/screenshots/f072-hub-pairs-net-gross.png`. Left in its wa
 
 ---
 
+### F-096 — The team money step stacks the pot's three share fields as full-width rows  [P3] [start]
+
+**Where (`walk-B-pairs-10-money-pot.png`, 2026-09-18, Phase 3 step 4):** picking "Pot" for four pairs
+now shows "Front 9 share of pot", "Back 9 share of pot", "Overall share of pot" and "Places paid (%)"
+as four full-width inputs, each with a hint — a screen and a half of Stakes on a phone before the
+bonuses. The classic pot's money step shows the same idea as ONE row of small dollar boxes
+(front / back / overall / junk) that add up.
+
+**Options:** **A** render the three (four with junk) shares as one inline row of small inputs, hints
+collapsed to one line under the row — the classic pot-dollars layout, reused. **B** keep the generic
+schema rows (what the hub editor shows too). Recommend A for the wizard only; the hub editor is
+read-mostly and its two-column grid already fits.
+
+**Status:** open — Craig's pick (§5.bo). Rides with F-087/F-093 (money-step ordering).
+
+---
+
+### F-095 — On a sliced team pot the leaderboard lists the same legs twice  [P3] [track]
+
+**Where (`phase3-pot-slices-leaderboard.png`, 2026-09-18, Phase 3 step 4):** the "Front · Back ·
+Overall" leg board shows each leg's margin ("Craig & Jym by 2"); directly beneath it the new "Pot"
+board shows the same three legs again with their dollars and winner, plus a Junk row. Two boards,
+three shared rows, one story.
+
+**Options:** **A** under a sliced pot, the leg board grows a "$20 pot" sub-line and the Pot board
+shows only what the leg board can't — the Junk slice and the total; **B** merge fully: one board with
+margin AND dollars per row, Junk as a fourth row; **C** keep both (as built). Recommend B — one row
+per thing that pays, like the classic pool's leg board.
+
+**Status:** open — Craig's pick (§5.bo).
+
+---
+
 ### F-094 — Under `legs` with 3+ teams the SECOND team pays the leader but never collects from the third  [P2] [track] [money]
 
 **Where (`team-game.ts` `payLeg`, found 2026-09-17 by the Phase 3 step 3 goldens):** A beats B beats C

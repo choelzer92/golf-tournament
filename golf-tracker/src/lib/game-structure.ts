@@ -108,8 +108,6 @@ export interface StructureDraft {
   aligned: boolean;
   teamsTogether: boolean;
   moneyModel: MoneyModel;
-  /** Pot only: split across front / back / overall (the classic quarters) instead of one prize. */
-  potLegs?: boolean;
   /** Which bonuses the game plays. `junk` = birdie/eagle differential (both engines); CTP and
    *  manual bonuses exist only in the classic pool. */
   bonuses?: { junk?: boolean; ctp?: boolean; custom?: boolean };
@@ -483,9 +481,11 @@ function classicOnlyNeeds(draft: StructureDraft): string[] {
   const needs: string[] = [];
   // Closest-to-pin and hand-tracked bonuses used to be classic-only. Phase 3 step 2 (§5.bq) made
   // them junk points on the team engine too, so they no longer force a container.
+  // Front / back / overall pot splits left with Phase 3 step 4 (§5.bq Q-E): the team engine's pot has
+  // the same slices (`potFront` / `potBack` / `potOverall` / `potJunk`), so a split pot never forces
+  // a container either.
   if (draft.captains) needs.push('Captains');
   if (draft.hideHolesUntilAllFinish) needs.push('Hiding holes until every group finishes');
-  if (draft.moneyModel === 'pot' && draft.potLegs) needs.push('Front / back / overall pot splits');
   return needs;
 }
 

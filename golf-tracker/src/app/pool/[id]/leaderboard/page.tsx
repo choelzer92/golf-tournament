@@ -20,7 +20,7 @@ import {
 import { getGameMode, type IndividualResult } from '@/lib/game-modes';
 import { gameKindLabel } from '@/lib/game-structure';
 import type { TeamFormat } from '@/lib/game-modes/team-scoring';
-import type { WolfHoleLine, NassauLegLine, JunkLine, SettingsBag } from '@/lib/game-modes/types';
+import type { WolfHoleLine, NassauLegLine, JunkLine, PotSliceLine, SettingsBag } from '@/lib/game-modes/types';
 import { JUNK_SETTINGS, junkPayout, numberSetting } from '@/lib/game-modes/settings';
 import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
 import { defaultSideLabel, sideOfPlayer, sidesOfGame } from '@/lib/game-modes/sides';
@@ -1093,7 +1093,10 @@ function IndividualLeaderboard({ id }: { id: string }) {
             {/* Birdie / eagle bonus breakdown (any mode with the junk layer on).
                 Already settled into moneyNet above — this shows who earned what. */}
             {result.junkLines && (result.junkLines.some((l) => l.points > 0) || result.junkSides?.some((s) => s.groupHugs > 0)) && (
-              <JunkBonusBoard lines={result.junkLines} bySide={isWithinGroup} settings={game.modeSettings ?? {}} sides={result.junkSides} />
+              <JunkBonusBoard
+                lines={result.junkLines} bySide={isWithinGroup} settings={game.modeSettings ?? {}} sides={result.junkSides}
+                junkSlice={result.potSlices?.find((s) => s.key === 'junk')}
+              />
             )}
 
             {/* Wolf hole-by-hole matchup breakdown — who was Wolf, their call,
@@ -1140,6 +1143,13 @@ function IndividualLeaderboard({ id }: { id: string }) {
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* Pot slices (Phase 3 step 4, §5.bq Q-E): a team-engine pot split front / back /
+                overall (/ junk). One unsliced prize is already told by the "$80 pot" footer and the
+                standings' order, so the board appears only when the pot is actually sliced. */}
+            {result.potSlices && result.potSlices.length > 1 && (
+              <PotSliceBoard slices={result.potSlices} sideOrder={sideOrder} />
             )}
 
             {/* Per-player scorecard (reuses the same grid + strokes box as the team view).
@@ -1459,6 +1469,43 @@ function countAtScore(teamScores: Record<string, number | null>, score: number |
   return n;
 }
 
+// A team-engine pot's slices (Phase 3 step 4, §5.bq Q-E): what each slice is worth and who took
+// it. Mirrors the classic pool's leg board in shape — label, "$X pot", winner — so a pairs game
+// sliced front / back / overall / junk reads like the Warriors' board does. A slice nobody has
+// started splits evenly (every ante comes back), and the row says so rather than naming a winner.
+function PotSliceBoard({ slices, sideOrder }: { slices: PotSliceLine[]; sideOrder: string[] }) {
+  const total = slices.reduce((s, x) => s + x.dollars, 0);
+  return (
+    <div className="bg-gray-800 rounded-xl overflow-hidden">
+      <div className="px-4 py-2 border-b border-gray-700 flex items-baseline justify-between">
+        <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Pot</p>
+        <p className="text-[10px] text-gray-500">${Math.round(total)} · {slices.length} slices</p>
+      </div>
+      <div className="divide-y divide-gray-700/30">
+        {slices.map((slice) => {
+          const paid = Object.entries(slice.payouts);
+          const winners = paid.filter(([, v]) => v === Math.max(...paid.map(([, x]) => x)));
+          const single = !slice.split && winners.length === 1 ? winners[0][0] : null;
+          const status = slice.split
+            ? 'not started — split'
+            : winners.length === paid.length && paid.length > 1
+              ? 'tied — split'
+              : `${slice.winnerNames.join(' & ')}${winners.length > 1 ? ' tied' : ''}`;
+          return (
+            <div key={slice.key} className="px-4 py-2.5 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-200">{slice.label}</p>
+                <p className="text-[10px] text-gray-500">${Math.round(slice.dollars)} pot</p>
+              </div>
+              <span className={`text-sm font-medium ${single ? sideTone(single, sideOrder) : 'text-gray-400'}`}>{status}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Who earned birdie/eagle bonuses. The dollars column is what a player EARNED
 // gross; the actual signed settlement is already folded into the standings' money
 // column (each earner collects from the others), so this is a breakdown, not a
@@ -1469,12 +1516,15 @@ function countAtScore(teamScores: Record<string, number | null>, score: number |
 // Phase 3 (§5.bq): junk is counted in POINTS everywhere. Under `junkPayout: 'per-point'` the board
 // also shows what the points earned; under a junk POT there is no per-point price, so the board
 // shows points and names the pot — the money column already carries who won it.
-function JunkBonusBoard({ lines, bySide = false, settings, sides }: {
+function JunkBonusBoard({ lines, bySide = false, settings, sides, junkSlice }: {
   lines: JunkLine[]; bySide?: boolean; settings: SettingsBag;
   sides?: { id: string; name: string; points: number; groupHugs: number }[];
+  // Phase 3 step 4: under a buy-in pot the junk pot is a SLICE of it — its dollars come from the
+  // engine, not from the (hidden) `junkPot` setting.
+  junkSlice?: PotSliceLine;
 }) {
   const payout = junkPayout(JUNK_SETTINGS, settings);
-  const pot = numberSetting(JUNK_SETTINGS, settings, 'junkPot');
+  const pot = junkSlice ? Math.round(junkSlice.dollars) : numberSetting(JUNK_SETTINGS, settings, 'junkPot');
   const rows = [...lines]
     .filter((l) => l.birdies || l.eagles || l.albatrosses || l.ctps || l.custom)
     .sort((a, b) => b.points - a.points);
@@ -1485,7 +1535,7 @@ function JunkBonusBoard({ lines, bySide = false, settings, sides }: {
   const hugSides = (sides ?? []).filter((s) => s.groupHugs > 0);
   if (rows.length === 0 && hugSides.length === 0) return null;
   const footer = payout === 'pot'
-    ? `Junk pot $${pot} — the most points takes it, ties split. Already included in the money column.`
+    ? `Junk pot $${pot}${junkSlice ? ' (a slice of the buy-in)' : ''} — the most points takes it, ties split. Already included in the money column.`
     : bySide
       ? 'Already included in the money column — the teams are netted, so only the difference changes hands.'
       : 'Already included in the money column — each earner collects from the rest of the group.';

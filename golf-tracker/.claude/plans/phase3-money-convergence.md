@@ -119,6 +119,18 @@ front A wins · back B and C tie · overall A wins · junk A 3 / B 1 / C 0 / D 2
 A: front 20 + overall 20 + junk 20 − 20 = **+40** · B: back 10 − 20 = **−10** · C: 10 − 20 =
 **−10** · D: 0 − 20 = **−20**. Sums to 0. Today the team engine's pot pays only finishing order.
 
+**As built (2026-09-18) — judgement calls to surface to Craig, none of them a rule change:**
+- The slices are SHARES (`potFront` / `potBack` / `potOverall` / `potJunk`), scaled to add up — so
+  25/25/25/25, 1/1/1/1 and $20/$20/$20/$20 all mean the same. Nobody has to make percentages sum.
+- Defaults 0 / 0 / 100: a bag without the keys is ONE prize on the overall — today's team pot, and
+  the wizard writes nothing extra, so "just a pot" needs no touching. `potJunk` defaults 25 (a
+  quarter against the overall's 100 → 4:1) and only exists when junk pays as a pot.
+- Under a buy-in pot the junk pot IS the junk slice: `junkPot` is hidden and ignored there.
+- Per-slice eligibility follows the classic pool's F-011 rule: once anyone has started a nine, only
+  sides that have played it are in that slice; a slice nobody has started (or a voided leg) splits
+  evenly so every ante comes back. Front/back rank each side's OWN to-par on that nine (§5.af), the
+  overall ranks exactly as the standings do, junk ranks points (all-zero = tie = split, F-007).
+
 ## 4. Captains, hide-holes, one-ball scoring — capability, not money
 
 - **Captains for pairs (Q5, agreed):** `GameSide` gains `captainId`; the teams step's captain
@@ -155,7 +167,16 @@ A: front 20 + overall 20 + junk 20 − 20 = **+40** · B: back 10 − 20 = **−
    hub money panel and hub editor when the game has < 3 teams. F-017 tie pins RE-PINNED to §5.br
    (sides.test.ts, n-side-golden.test.ts + its snapshot: C −80 → −40). Goldens
    `phase3-multi-team-payout.test.ts` (15, 6 failed first); e2e `phase3-payout.spec.ts`.
-4. §3 pot slices on the team engine. Golden: Example 3.
+4. ~~§3 pot slices on the team engine~~ **BUILT 2026-09-18** — `potFront` / `potBack` / `potOverall` /
+   `potJunk` shares (scaled; defaults 0/0/100/25 = today's one-prize pot), `potSplit` relabelled
+   "Places paid (%)" and applied per slice via the classic `distributePot`; `paySlice` in team-game.ts;
+   `tallyJunkForSides` split out of `settleJunkForSides`, which takes `{ junkPotInBuyIn }` so the
+   junk pot is the slice (and `junkPot` hides under `moneyModel: 'pot'`). `IndividualResult.potSlices`
+   → `PotSliceBoard` on the leaderboard (only when sliced); junk footer names the slice. Router:
+   `potLegs` deleted from the draft — a split pot never forces classic. Wizard: shares in the Stakes
+   block, pot summary names the slices. Goldens `phase3-pot-slices.test.ts` (11, 6 failed first; three
+   mutations caught 2/2/1); e2e `phase3-pot-slices.spec.ts`; sandbox seed "Four pairs — POT sliced …".
+   New findings F-095 (legs listed twice under a sliced pot), F-096 (share rows dense in the wizard).
 5. §4 captains on sides; hide-holes on the team leaderboard.
 6. Router: `classicOnlyNeeds` empties; classic remains for games already stored with
    `gameMode` absent (Warriors). Money step never greys for an engine reason — e2e pins it on every

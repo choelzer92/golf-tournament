@@ -202,6 +202,23 @@ export interface IndividualResult {
   // Side games only: each side's junk POINTS (members' lines summed + the side's group-hug
   // points, which no single player earns). Phase 3 step 2.
   junkSides?: { id: string; name: string; points: number; groupHugs: number }[];
+  // Team-engine POT only (Phase 3 step 4, §5.bq Q-E): the pot's slices — front / back / overall,
+  // plus junk when junk pays as a pot — each with its dollars and what it paid every side. Already
+  // settled into standings.moneyNet; this is for the board. One 'overall' entry when unsliced.
+  potSlices?: PotSliceLine[];
+}
+
+// One slice of a team-engine pot. `payouts` is GROSS dollars by side id (antes are deducted once
+// per side, not per slice); `winnerNames` are the sides paid the most on this slice.
+export interface PotSliceLine {
+  key: 'front' | 'back' | 'overall' | 'junk';
+  label: string;
+  dollars: number;
+  payouts: Record<string, number>;
+  winnerNames: string[];
+  // True when nobody has started the slice (or the group voided its leg): it split evenly, so every
+  // ante came back and the board should say so rather than name a "winner".
+  split: boolean;
 }
 
 // One player's birdie/eagle bonus tally. Mirrors settings.ts's JunkLine; declared

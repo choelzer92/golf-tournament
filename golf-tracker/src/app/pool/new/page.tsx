@@ -266,7 +266,6 @@ export default function NewPoolGamePage() {
     ...teeFacts,
     moneyModel,
     // The classic pot carries its front/back/overall legs itself; a shared-foursome pot is one prize.
-    potLegs: false,
     bonuses: {
       junk: !junkIsOff(junkValues) || modeSettings.junkEnabled === true,
       ctp: junkValues.ctp > 0,

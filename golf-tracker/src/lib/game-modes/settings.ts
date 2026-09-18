@@ -255,24 +255,23 @@ export function settleJunkForSides(
   ctx: GameModeContext,
   standings: PlayerStanding[],
   sides: { id: string; playerIds: string[] }[],
+  // Phase 3 step 4: under a BUY-IN pot the junk pot is a SLICE of that pot (§5.bq Q-E), settled by
+  // the game's pot code with antes already in the buy-in. The caller says so, and this function then
+  // only tallies — it must not also collect a separate `junkPot` ante.
+  opts: { junkPotInBuyIn?: boolean } = {},
 ): { lines: JunkLine[]; sides: SideJunk[] } | null {
-  const lines = tallyJunk(schema, bag, ctx);
-  if (!lines) return null;
+  const tally = tallyJunkForSides(schema, bag, ctx, sides);
+  if (!tally) return null;
+  const { lines, sides: sideJunk } = tally;
   const n = sides.length;
-  const hugPts = numberSetting(schema, bag, 'junkGroupHug');
   const perPoint = junkPayout(schema, bag) === 'pot' ? 0 : numberSetting(schema, bag, 'junkPerPoint');
-  const sum = (ids: string[]) => ids.reduce((s, id) => s + (lines.find((l) => l.playerId === id)?.points ?? 0), 0);
-  // A side's junk = its members' points + its group-hug points (Phase 3 step 2).
-  const sideJunk: SideJunk[] = sides.map((side) => {
-    const groupHugs = hugPts > 0 ? countGroupHugs(ctx, side.playerIds) : 0;
-    return { id: side.id, points: sum(side.playerIds) + groupHugs * hugPts, groupHugs };
-  });
-  if (n < 2) return { lines, sides: sideJunk };
+  if (n < 2) return tally;
 
   // Standings for a side game are the SIDES, keyed by the side id uppercased ('A','B','C').
   const standingOf = (side: { id: string }) => standings.find((s) => s.playerId === side.id.toUpperCase());
 
   if (junkPayout(schema, bag) === 'pot') {
+    if (opts.junkPotInBuyIn) return tally;
     // JUNK POT between sides (§5.bq): every side that has played antes an equal share; the side
     // with the most junk points takes the pot, ties split it.
     const inPlay = sides.map((side, idx) => ({ st: standingOf(side), points: sideJunk[idx].points })).filter((x) => x.st && x.st.thru > 0);
@@ -295,6 +294,26 @@ export function settleJunkForSides(
 }
 
 export interface SideJunk { id: string; points: number; groupHugs: number }
+
+// Each side's junk POINTS without settling anything: its members' lines summed plus its group-hug
+// points (Phase 3 step 2). Null when the junk layer is off. The team engine's pot reads this to
+// rank the junk SLICE (Phase 3 step 4); `settleJunkForSides` reads it to pay per point or a pot.
+export function tallyJunkForSides(
+  schema: FormatSetting[],
+  bag: SettingsBag,
+  ctx: GameModeContext,
+  sides: { id: string; playerIds: string[] }[],
+): { lines: JunkLine[]; sides: SideJunk[] } | null {
+  const lines = tallyJunk(schema, bag, ctx);
+  if (!lines) return null;
+  const hugPts = numberSetting(schema, bag, 'junkGroupHug');
+  const sum = (ids: string[]) => ids.reduce((s, id) => s + (lines.find((l) => l.playerId === id)?.points ?? 0), 0);
+  const sideJunk: SideJunk[] = sides.map((side) => {
+    const groupHugs = hugPts > 0 ? countGroupHugs(ctx, side.playerIds) : 0;
+    return { id: side.id, points: sum(side.playerIds) + groupHugs * hugPts, groupHugs };
+  });
+  return { lines, sides: sideJunk };
+}
 
 // Count each player's birdies/eagles/albatrosses and their gross bonus dollars,
 // WITHOUT settling. Shared by the individual and 2v2 settlements above; null when
