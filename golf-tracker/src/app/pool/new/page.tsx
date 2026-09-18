@@ -616,8 +616,22 @@ export default function NewPoolGamePage() {
     // ordinary stroke pool still saves with NO teamFormat (the golden-snapshot path) and an
     // ordinary two-side game still saves as legacy subTeams.
     if (container === 'unexpressible') return;
-    const teamIds = container === 'sides' ? (sides ?? []).map((s) => s.playerIds) : teams.map((t) => t.playerIds);
-    const routed = routedFields(draft, route, teamIds, modeSettings, { sides: container === 'sides' ? sides : undefined, junkValues });
+    // F-097: in the ALIGNED flow (two teams of 4, 3 + 3 + 2 — teams built with the foursome builder)
+    // `sides` is never set, yet margin money routes the game to the team engine. The teams ARE the
+    // tee sheet, so hand the router the tee groups as the sides — captains included — instead of an
+    // empty list the engine would have to guess at. (It no longer guesses: `sidesForCompute`
+    // backstops to the tee groups too, but the saved game should say what it means.)
+    const sidesForRoute: GameSide[] | undefined = container !== 'sides'
+      ? undefined
+      : sides && sides.length > 0
+        ? sides
+        : teams.filter((t) => t.playerIds.length > 0).map((t, i) => ({
+          id: String.fromCharCode(97 + i),
+          playerIds: t.playerIds,
+          ...(useCaptains && t.captainId ? { captainId: t.captainId } : {}),
+        }));
+    const teamIds = (sidesForRoute ?? teams).map((s) => s.playerIds);
+    const routed = routedFields(draft, route, teamIds, modeSettings, { sides: sidesForRoute, junkValues });
     const game: PoolGame = {
       id,
       name: name || 'Pool Game',

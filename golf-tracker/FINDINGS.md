@@ -1248,7 +1248,11 @@ tee groups — a one-group 2v2 with no sides keeps today's default. **C** both. 
 the fix, B stops any future writer recreating the bug. Golden first (§5.z): the probe above, expecting
 three standings named for the tee groups.
 
-**Status:** open — money (§2 stop-and-ask). FIRST THING next session once Craig says go.
+**Status:** FIXED 2026-09-18 (option C, Craig's go — §5.bs). `sidesForCompute` backstops to the tee
+groups (captains carried) when a game stores no sides and has 2+ tee groups; the wizard hands the
+router the tee groups as the sides in the aligned flow. Golden `f097-aligned-sides.test.ts` (2 failed
+first: two invented sides, not three); e2e pin in `phase3-convergence.spec.ts` (hub lists the three
+teams with captains). One-foursome 2v2 games keep their default split (one-group goldens unmoved).
 
 ---
 

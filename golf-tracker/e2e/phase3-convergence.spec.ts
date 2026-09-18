@@ -67,6 +67,26 @@ test('step 5: captains chosen for 4 + 2 + 2 teams (the pairs share a foursome) r
   await page.screenshot({ path: 'e2e/screenshots/phase3-step5-hub-hide-holes.png', fullPage: true });
 });
 
+test('F-097: an aligned 3 + 3 + 2 on $ per point saves its three teams as the sides — the hub lists them, captains and all', async ({ page }) => {
+  await startWizard(page, EIGHT_PLAYERS, 'Aligned Margin');
+  await toScoringStep(page, 'teams:3+3+2');
+  await courseAndTees(page);
+  await page.getByRole('button', { name: 'Next: Teams' }).click();
+  await buildTeams(page, 'list');
+  // Each team fills its own tee group, so there is no groups step.
+  await page.getByRole('button', { name: /Next: Review/ }).click();
+  await chooseMoney(page, 'per-point');
+  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await expect(page.getByText(/3 \+ 3 \+ 2 · \$\/point · 3 groups/)).toBeVisible();
+  // Before the fix this game saved `sides: []`, the hub had no Teams list, and the engine settled two
+  // invented sides. Now the Teams list is the three tee groups, each with its captain.
+  const teams = page.locator('section', { has: page.getByRole('heading', { name: 'Teams' }) });
+  await expect(teams.getByText(/^Team [123]$/)).toHaveCount(3);
+  await expect(teams.getByTitle('Captain')).toHaveCount(3);
+  await page.screenshot({ path: 'e2e/screenshots/f097-aligned-margin-hub.png', fullPage: true });
+});
+
 test('step 6: 2 + 2 + 1 with every bonus on — pot, legs, $/hole and $/point all open', async ({ page }) => {
   await startWizard(page, EIGHT_PLAYERS.slice(0, 5), 'Two Two One');
   await toScoringStep(page, 'teams:2+2+1');

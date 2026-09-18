@@ -14,11 +14,22 @@ import { fromLegacySubTeams, sidesOfGame } from './sides';
  */
 export function sidesForCompute(game: PoolGame, players: PoolGame['players'] = game.players) {
   const stored = sidesOfGame(game);
-  return stored.length > 0
-    ? stored
-    : fromLegacySubTeams(
-        defaultSubTeams(players.map((p) => p.id), players, game.course, game.handicapAllowance, game.handicapBasis),
-      );
+  if (stored.length > 0) return stored;
+  // F-097: a team game ACROSS foursomes that stores no sides is one whose teams ARE the tee sheet
+  // (the wizard's aligned flow — two teams of 4, 3 + 3 + 2 — routed to this engine for margin
+  // money). The tee groups are its sides, captains included. Falling through to a balanced default
+  // split here settled money on two invented sides while the hub showed the real teams.
+  if (game.teams.length > 1) {
+    return game.teams.map((t, i) => ({
+      id: String.fromCharCode(97 + i),
+      playerIds: t.playerIds,
+      ...(t.captainId ? { captainId: t.captainId } : {}),
+    }));
+  }
+  // One foursome, no sides: the balanced default a legacy 2v2 has always been seeded with.
+  return fromLegacySubTeams(
+    defaultSubTeams(players.map((p) => p.id), players, game.course, game.handicapAllowance, game.handicapBasis),
+  );
 }
 
 // Build the compute context for an INDIVIDUAL game from its players' scores.
