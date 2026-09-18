@@ -1534,8 +1534,20 @@ function JunkBonusBoard({ lines, bySide = false, settings, sides, junkSlice }: {
   const showCustom = rows.some((l) => l.custom > 0);
   const hugSides = (sides ?? []).filter((s) => s.groupHugs > 0);
   if (rows.length === 0 && hugSides.length === 0) return null;
+  // F-092 A (§5.bs): say WHO took the junk pot. Teams' points when junk settles by side, else each
+  // player's; a tie names everyone tied and says it split; all-zero = nobody has a point yet.
+  const contenders: { name: string; points: number }[] = bySide && sides
+    ? sides.map((s) => ({ name: s.name, points: s.points }))
+    : lines.map((l) => ({ name: l.playerName.split(' ')[0], points: l.points }));
+  const top = Math.max(0, ...contenders.map((c) => c.points));
+  const winners = top > 0 ? contenders.filter((c) => c.points === top) : [];
+  const potGoesTo = winners.length === 0
+    ? 'no points yet'
+    : winners.length === 1
+      ? `→ ${winners[0].name} (${top} pts)`
+      : `→ ${winners.map((w) => w.name).join(' & ')} tied at ${top} pts — split`;
   const footer = payout === 'pot'
-    ? `Junk pot $${pot}${junkSlice ? ' (a slice of the buy-in)' : ''} — the most points takes it, ties split. Already included in the money column.`
+    ? `Junk pot $${pot}${junkSlice ? ' (a slice of the buy-in)' : ''} ${potGoesTo}. Most points takes it, ties split. Already included in the money column.`
     : bySide
       ? 'Already included in the money column — the teams are netted, so only the difference changes hands.'
       : 'Already included in the money column — each earner collects from the rest of the group.';

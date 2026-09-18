@@ -27,7 +27,8 @@ test('junk POT: the leaderboard bonus board shows points and names the pot, not 
   const bonus = page.locator('table').filter({ has: page.getByRole('columnheader', { name: 'Bird' }) });
   await expect(bonus.getByRole('columnheader', { name: 'Pts' })).toBeVisible();
   await expect(bonus.getByRole('columnheader', { name: 'Earned' })).toHaveCount(0);
-  await expect(page.getByText(/Junk pot \$20 — the most points takes it/)).toBeVisible();
+  // F-092 A (§5.bs): the footer names who took the pot.
+  await expect(page.getByText(/Junk pot \$20 → .+ \(\d+ pts\)\. Most points takes it/)).toBeVisible();
   // Side A (Craig 3 birdies + Jym) has 3 points to side B's 1: A takes the $20 pot, anted $10 each.
   // Legs are $10 each and A leads every leg thru 9 (front + overall) → +20 legs +10 junk = +30.
   const body = await page.locator('body').innerText();
