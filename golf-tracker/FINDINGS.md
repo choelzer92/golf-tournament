@@ -1227,6 +1227,31 @@ line. Screenshot: `e2e/screenshots/f072-hub-pairs-net-gross.png`. Left in its wa
 
 ---
 
+### F-097 — An aligned team game on margin money settles on two INVENTED sides, not the teams shown  [P1] [track] [money]
+
+**Where (probe, 2026-09-18, Phase 3 step 6 walk):** build 8 players → 3 + 3 + 2 (each team its own
+tee group, so the wizard uses the foursome builder and never sets `sides`) → money "$ per point"
+(margin money routes to the team engine). `createPoolGame` passes `teamIds = (sides ?? [])` → the
+saved game has `sides: []`. The engine's `sidesForCompute` sees no sides and falls back to
+`defaultSubTeams` — a handicap-balanced TWO-side split of the whole field. Probe: the leaderboard
+standings are "Player2 & Player4" vs "Player1 & Player3" while the hub header says "3 + 3 + 2 ·
+$/point · 3 groups" and its foursome cards show three teams. Same for two teams of four on $/hole or
+$/point (the collapse-routing e2e only checks the hub label, so it passed). Pre-existing since the
+Phase 1 routing (2026-09-15); not on `main`; no live game is shaped like this (the friends play the
+classic pot).
+
+**Options:** **A** the wizard hands the router the TEE GROUPS as the sides whenever the aligned flow
+built the teams (`teamIds`/`opts.sides` fall back to `teams`, captains included) — the engine then
+settles exactly the teams on screen, and the hub's Teams list appears for them too. **B** engine
+backstop: `sidesForCompute` falls back to the tee groups (not `defaultSubTeams`) when the game has 2+
+tee groups — a one-group 2v2 with no sides keeps today's default. **C** both. Recommend **C**: A is
+the fix, B stops any future writer recreating the bug. Golden first (§5.z): the probe above, expecting
+three standings named for the tee groups.
+
+**Status:** open — money (§2 stop-and-ask). FIRST THING next session once Craig says go.
+
+---
+
 ### F-096 — The team money step stacks the pot's three share fields as full-width rows  [P3] [start]
 
 **Where (`walk-B-pairs-10-money-pot.png`, 2026-09-18, Phase 3 step 4):** picking "Pot" for four pairs

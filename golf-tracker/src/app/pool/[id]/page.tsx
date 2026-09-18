@@ -416,8 +416,20 @@ export default function PoolHubPage() {
                   <div key={side.id} className="px-4 py-2 flex items-center justify-between gap-3 text-sm">
                     <div className="min-w-0">
                       <p className="font-medium text-gray-900 truncate">{label}</p>
-                      {side.name && members.length > 0 && (
-                        <p className="text-xs text-gray-500 truncate">{members.map((p) => p.name).join(', ')}</p>
+                      {/* Members line when the team has a custom name (the label doesn't say who) or a
+                          captain (Phase 3 step 5 — the role is worth a "C", as on the foursome cards). */}
+                      {(side.name || side.captainId) && members.length > 0 && (
+                        <p className="text-xs text-gray-500 truncate">
+                          {members.map((p, i) => (
+                            <span key={p.id}>
+                              {i > 0 && ', '}
+                              {p.name}
+                              {side.captainId === p.id && (
+                                <span className="ml-1 inline-block rounded-full bg-green-700 text-white text-[9px] font-bold px-1 leading-4 align-middle" title="Captain">C</span>
+                              )}
+                            </span>
+                          ))}
+                        </p>
                       )}
                     </div>
                     {groups.length > 0 && (

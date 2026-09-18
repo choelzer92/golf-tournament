@@ -39,6 +39,9 @@ export interface GameSide {
   /** Custom display name. Absent/blank falls back to naming the side after its players. */
   name?: string;
   playerIds: string[];
+  /** The side's captain (Phase 3 step 5, §5.bq Q5) — a saved ROLE, shown on the hub and the teams
+   *  step. Money never reads it; the pair balancer already works on combined handicap. */
+  captainId?: string;
 }
 
 /** The legacy two-side shape, still what every saved 2v2 game holds. */
@@ -136,6 +139,8 @@ export function toLegacySubTeams(sides: GameSide[]): LegacySubTeams | null {
   // A custom name can't ride in the legacy shape — it lives in modeSettings' sideAName /
   // sideBName there. If a side carries its own `name`, that's the N-side field's job.
   if (a.name || b.name) return null;
+  // Nor can a captain (Phase 3 step 5): the legacy shape is two bare player lists.
+  if (a.captainId || b.captainId) return null;
   return { a: a.playerIds, b: b.playerIds };
 }
 

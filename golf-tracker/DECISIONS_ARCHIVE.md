@@ -1881,6 +1881,31 @@ $/hole game moves (my assumption — Craig asked for the option, not a default).
 shown for $/hole). All three only matter with 3+ teams (carry with 2 too) and are hidden by the UI
 when they can't change anything.
 
+
+### 5.bs — F-097 fix approved; recommendations on all six open picks (2026-09-18)
+
+**Context:** Phase 3 steps 4–6 built; the step-6 walk found F-097 (an aligned team game on margin
+money saves `sides: []` and the engine settles a default two-side split, not the teams shown) and
+two new P3 findings (F-095, F-096). Asked whether to fix F-097 and whether the branch is then ready.
+
+**Craig:** *"ok, should we go ahead and fix F-097? at that point the branch would be basically
+ready, right?"* — then, shown the six open option picks with a recommendation each:
+*"recommendations on all six"*.
+
+**Decisions:**
+- **F-097 fix = option C**: the wizard hands the router the tee groups as the sides whenever the
+  aligned flow built the teams (captains included), AND `sidesForCompute` backstops to the tee
+  groups when a game stores no sides and has two or more tee groups. A one-group 2v2 keeps its
+  default split. Golden first (§5.z).
+- **F-087 A** money question → its amounts → bonuses below. **F-093 A** junk-payout fields under the
+  bonus grid (with F-087). **F-091 A** hub "How it's played" single-column below phone width.
+  **F-092 A** junk-board footer names the pot winner(s). **F-095 B** one merged leg board: margin
+  and dollars per row, Junk as a fourth row, under a sliced pot. **F-096 A** the wizard's pot shares
+  as one inline row of small boxes (the classic pot-dollars layout).
+- **Readiness:** after F-097 and this batch the branch is code-complete for Phases 1–3. Craig's own
+  walk of the wizard remains wanted before merge (§5.y); the screenshots are the fallback. Merge
+  timing stays his (§5.ab).
+
 ---
 
 ## 7. Open questions

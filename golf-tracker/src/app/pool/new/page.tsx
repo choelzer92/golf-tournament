@@ -271,10 +271,6 @@ export default function NewPoolGamePage() {
       ctp: junkValues.ctp > 0,
       custom: customBonuses.length > 0,
     },
-    // Captains are how the foursome builder works, not a rule of the game — the sides engine
-    // simply doesn't record them (plan §2, accepted for Phase 1), so they never block a route.
-    captains: false,
-    hideHolesUntilAllFinish: false,
   };
   const route = structure ? routeContainer(draft) : { container: 'unexpressible' as const, reason: 'Pick how you want to compete.' };
   const container = route.container;
@@ -907,6 +903,9 @@ export default function NewPoolGamePage() {
                 id: String.fromCharCode(97 + i),
                 ...(t.name.trim() ? { name: t.name.trim() } : {}),
                 playerIds: t.playerIds,
+                // Phase 3 step 5 (§5.bq Q5): the captain chosen on this step is a saved role on the
+                // side, not just how the teams were dealt.
+                ...(sideCaptains && t.captainId && t.playerIds.includes(t.captainId) ? { captainId: t.captainId } : {}),
               }));
               const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((id) => b.includes(id));
               // Coming back through with the same teams keeps the tee sheet the organizer may have

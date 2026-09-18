@@ -1,37 +1,41 @@
-# Next session: Phase 3 money convergence — steps 1–2 BUILT, step 3 goldens written; continue the build order
+# Next session: Phase 3 is BUILT (steps 1–6); FIRST fix F-097 (P1 money, needs Craig's go), then his option picks
 
-**UPDATE 2026-09-17 (seventh session): PHASE 3 IS UNBLOCKED AND UNDER WAY.** Craig answered every rule
-question outright (§5.bq, §5.br). The spec is `.claude/plans/phase3-money-convergence.md` (read §0–§5;
-§6 lists what he confirmed). Built on the branch, one commit each, verify green before each commit:
-- **Step 1** (3bcb7dc) junk in POINTS on every engine, paid `per-point` ($/pt) or as a junk `pot`
-  (most points takes it, ties split, equal antes). `junkPayout`/`junkPerPoint`/`junkPot` settings;
-  wizard defaults `junkPayout` from the money model. Goldens `phase3-junk-vocabulary.test.ts`.
-- **Step 2** (e07ad10) CTP, all-par (group hug) and hand-tracked bonuses are junk points on the team
-  and individual engines (`junkCtp`, `junkGroupHug`, `ctx.ctpWinners/bonusMarks/customBonuses`,
-  `countGroupHugs`, `IndividualResult.junkSides`). Router no longer refuses them; the wizard's junk
-  grid + hand-tracked buttons show for every team container and map into the team engine
-  (`junkSettingsFromValues`). `gameCountsCtp(game)` is the one CTP predicate. Goldens
-  `phase3-bonuses-as-junk.test.ts`. **Its first verify was NOT green** — my step-3 golden file,
-  written mid-run, failed the unit stage and the wrapper masked exit 1; re-run as
-  `.claude/verify-2026-09-17-p3s2b.log` (check `VERIFY_EXIT=`).
-- **Step 3** BUILT (see the commit after f094269): `legsPayout` default `winner-takes` (A +20, B −10,
-  C −10; tie at top A +5, B +5, C −10 — the F-017 goldens RE-PINNED to §5.br), `pay-each` alternative
-  (A +20, B 0, C −20; tie C −20); `pointsPayout` default `pay-each` | `winner-takes`; `carryover`
-  toggle for $/hole (default OFF; carry after 18 is dead). $/hole is identical under both payout
-  modes, so it has no select. `MULTI_TEAM_ONLY_KEYS` hidden for < 3 teams on wizard, hub panel, hub
-  editor. Goldens `phase3-multi-team-payout.test.ts`; e2e `phase3-payout.spec.ts`. Verify log
-  `.claude/verify-2026-09-17-p3s3.log` (check `VERIFY_EXIT=`).
-- **Next = spec steps 4–6:** (4) pot SLICES on the team engine — front/back/overall/junk % of the
-  per-team buy-in pot, places paid per slice via `distributePot`, junk slice ranks junk points (Q-E
-  golden: 4 pairs × $20, four $20 slices, A wins front+overall+junk, B/C tie back → A +40, B −10,
-  C −10, D −20). Design note: under `moneyModel: 'pot'` the junk slice REPLACES the separately-anted
-  `junkPot` — hide `junkPot` there and settle the slice with antes already in the buy-in. (5)
-  captains on `GameSide` + hide-holes on the team leaderboard. (6) `classicOnlyNeeds` empties;
-  e2e pins that no money option is ever greyed for an engine reason.
-- New findings: F-092 (junk board doesn't name the pot winner), F-093 (team money step asks "Junk
-  pays" above the grid; do with F-087), F-094 DECIDED by §5.br. F-091/F-087 still Craig's pick.
-- Residue: individual modes still edit junk via the settings editor (no grid, no hand-tracked
-  buttons); `junkGroupHug` is team-only by design.
+**UPDATE 2026-09-18 (eighth session): PHASE 3 STEPS 4–6 ARE BUILT.** Commits on the branch after dda06c3:
+974d0c2 step 4 · the steps 5–6 commit · the docs commit. Verify logs `.claude/verify-2026-09-18-p3s4b.log`
+(step 4, 214 e2e) and `.claude/verify-2026-09-18-p3s56.log` (steps 5–6) — check `VERIFY_EXIT=`. The first
+step-4 run (`…-p3s4.log`) failed ONE e2e on a cold-compile `waitForURL` timeout and passed on a cold rerun
+of that spec and on the full rerun; nothing in the diff touched it.
+
+- **Step 4** pot SLICES on the team engine (§5.bq Q-E): `potFront` / `potBack` / `potOverall` / `potJunk` are
+  SHARES scaled to the pot (25/25/25/25 ≡ 1/1/1/1 ≡ $20 each); defaults 0 / 0 / 100 / 25 keep every saved pot
+  one prize on the overall. `potSplit` relabelled "Places paid (%)", applied per slice via the classic
+  `distributePot`. Under a buy-in pot the junk pot IS the junk slice (`junkPot` hidden + ignored there).
+  Per-slice eligibility = classic F-011 (only teams that played the nine; nobody started → even split).
+  `IndividualResult.potSlices` → `PotSliceBoard` (leaderboard, only when sliced). Router's `potLegs` deleted.
+  Goldens `phase3-pot-slices.test.ts` (11; 6 failed first; 3 mutations caught). Seed "Four pairs — POT sliced …".
+  **Judgement calls to surface (spec §3 "As built"):** shares not percents; defaults; junk-slice-replaces-junkPot.
+- **Step 5** `GameSide.captainId` — the teams step's captain for SHARED-foursome teams (4+2+2, pairs with
+  captains on) rides onto the side; `toLegacySubTeams` refuses a captained pair; hub Teams list marks "C";
+  a captain moved in the hub editor drops the role. Aligned teams keep their captain on the foursome card as
+  always. Hide-holes: the team leaderboard already applied `filterConcealedScores`; the hub editor now offers
+  the toggle to team games across 2+ foursomes (`HideHolesToggle`, one component, both containers).
+- **Step 6** `classicOnlyNeeds`, `joinNeeds`, `UNEXPRESSIBLE.needAligned/needTwoTeams/needPotOrLegs` and
+  `StructureDraft.captains/hideHolesUntilAllFinish` are GONE. Remaining refusals are golf (two-ball on a team
+  of one; one-ball apart) or the team engine's 8-player cap: **3 teams of 4 on legs / $/hole / $/point stay
+  refused** (classic holds two teams; `team-2v2` playersMax 8) — honest residue, BACKLOG "Team engine field
+  cap". Goldens `phase3-captains-hide.test.ts`; e2e `phase3-convergence.spec.ts`.
+- **NEW P1 money bug F-097 (probe-proved, NOT fixed — §2 stop-and-ask):** the wizard's ALIGNED flow (two teams
+  of 4, 3+3+2, 3+2 — teams built with the foursome builder) never sets `sides`, so a game routed to the team
+  engine (margin money) saves `sides: []`; `sidesForCompute` then falls back to `defaultSubTeams` — a
+  handicap-balanced TWO-side split — while the hub shows the real teams. Pre-existing since Phase 1
+  (2026-09-15), unmerged, no live game shaped like it. Fix = FINDINGS F-097 option C (wizard passes the tee
+  groups as sides, captains included + engine backstop to tee groups when 2+ groups). Golden first: the
+  probe in F-097. **Ask Craig, then build — first thing.**
+- New findings F-095 (sliced pot lists the legs twice), F-096 (share fields dense in the wizard) — his picks.
+- Craig, mid-session: the gate is too slow (19–25 min) and sessions burn context waiting → BACKLOG "Verify
+  speed + context" (options A parallel workers / B two-tier gate / C trim / D don't poll). His pick.
+- Residue: obsolete snapshot "team-2v2 / 4 players (playersMin)" in one-group-golden (pre-existing, harmless);
+  individual modes still edit junk via the settings editor; `junkGroupHug` team-only by design.
 
 **Trap learned the hard way:** `npm run verify` is `tsc && build && test && e2e` — writing a
 deliberately-failing golden while it runs fails the UNIT stage and skips e2e; and `cmd; echo

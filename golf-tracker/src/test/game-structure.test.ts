@@ -299,7 +299,7 @@ const TABLE: Row[] = [
   // --- classic pool: aligned teams, pot or two-team head-to-head --------------------------
   { name: 'two teams of 4, pot', sizes: [4, 4], money: 'pot', expect: { container: 'classic', moneyMode: 'pot' } },
   { name: 'three teams of 4, pot with CTP + captains + hidden holes', sizes: [4, 4, 4], money: 'pot',
-    extra: { bonuses: { junk: true, ctp: true }, captains: true, hideHolesUntilAllFinish: true },
+    extra: { bonuses: { junk: true, ctp: true } },
     expect: { container: 'classic', moneyMode: 'pot' } },
   { name: 'two teams of 4, fixed legs (the overlap row → classic, it carries more)', sizes: [4, 4], money: 'legs',
     extra: { bonuses: { junk: true } }, expect: { container: 'classic', moneyMode: 'match' } },
@@ -348,8 +348,10 @@ const TABLE: Row[] = [
   { name: '2 + 2 + 1, best net + best gross (the single refuses it)', sizes: [2, 2, 1], money: 'legs',
     extra: { scoring: { format: 'net-and-gross', basis: 'stroke', compareBy: 'total' } },
     expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needTeams('Two-ball formats') } },
-  { name: 'three teams of 4, head-to-head legs + captains', sizes: [4, 4, 4], money: 'legs', extra: { captains: true },
-    expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needTwoTeams('Captains') } },
+  // Phase 3 step 6: no capability routes any more. What remains refused here is the FIELD — twelve
+  // players on head-to-head legs: classic holds two teams, the team engine tops out at 8.
+  { name: 'three teams of 4, head-to-head legs (12 players — beyond the sides engine\'s field)', sizes: [4, 4, 4], money: 'legs',
+    expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.sidesFieldCap(8) } },
   { name: 'two teams of 4, $ per hole + manual bonuses (sides since Phase 3)', sizes: [4, 4], money: 'per-hole', extra: { bonuses: { custom: true } },
     expect: { container: 'sides' } },
   { name: 'four pairs, scramble, partners in different foursomes', sizes: [2, 2, 2, 2], money: 'legs', mixed: true,
@@ -359,8 +361,8 @@ const TABLE: Row[] = [
     expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.sidesFieldCap(8) } },
   { name: '1 v 1 with CTP (sides since Phase 3; F-075 gap closed)', sizes: [1, 1], money: 'legs', extra: { bonuses: { ctp: true } },
     expect: { container: 'sides' } },
-  { name: 'two needs joined in one sentence', sizes: [2, 2, 2], money: 'pot', extra: { captains: true, hideHolesUntilAllFinish: true },
-    expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needAligned('Captains and hiding holes until every group finishes') } },
+  { name: 'three pairs, pot (captains and hidden holes are both engines\' now — Phase 3 steps 5–6)', sizes: [2, 2, 2], money: 'pot',
+    expect: { container: 'sides' } },
 ];
 
 describe('routeContainer — every row of the table', () => {

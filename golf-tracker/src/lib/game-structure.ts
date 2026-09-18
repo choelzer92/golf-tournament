@@ -108,11 +108,11 @@ export interface StructureDraft {
   aligned: boolean;
   teamsTogether: boolean;
   moneyModel: MoneyModel;
-  /** Which bonuses the game plays. `junk` = birdie/eagle differential (both engines); CTP and
-   *  manual bonuses exist only in the classic pool. */
+  /** Which bonuses the game plays — informational since Phase 3 (§5.bq): junk, closest-to-pin and
+   *  hand-tracked bonuses are junk points on EVERY engine, so none of them routes. Captains and
+   *  hiding holes until every group finishes used to be here too; both are capabilities of both
+   *  engines now (Phase 3 steps 5–6) and never touch the route. */
   bonuses?: { junk?: boolean; ctp?: boolean; custom?: boolean };
-  captains?: boolean;
-  hideHolesUntilAllFinish?: boolean;
 }
 
 export type Route =
@@ -456,61 +456,39 @@ export function gameKindLabel(game: PoolGame): string {
 
 /**
  * Plain-words reason for a greyed money option. Exported so the money step and the tests share one
- * string source. F-075: an ENGINE GAP must read as one ("not built yet"), never as a rule of golf —
- * "need each team in its own foursome" made Craig ask what foursomes have to do with closest-to-pin.
- * Only `oneBallApart` and `needTeams` describe the golf itself.
+ * string source.
+ *
+ * Since Phase 3 step 6 (§5.bq) EVERY reason here is either the golf itself (`oneBallApart`,
+ * `needTeams`) or the team engine's field cap — there is no "not built yet" left. The classic-only
+ * list (closest-to-pin, hand-tracked bonuses, pot slices, captains, hidden holes) emptied one step
+ * at a time; each capability now lives on both engines, so nothing routes on it. F-075's rule still
+ * stands for anything added later: an engine gap must READ as one, never as a rule of golf.
  */
 export const UNEXPRESSIBLE = {
   noSoloMode: 'Pick a game for everyone-for-themselves.',
   noScoring: 'Pick how the teams are scored.',
   oneBallApart: 'Scramble and alternate shot play one ball per team, so partners must walk together.',
   sidesFieldCap: (max: number) => `Teams that share foursomes top out at ${max} players for now.`,
-  needAligned: (needs: string) => `Not built yet: ${lower(needs)} for teams that share a foursome.`,
-  needTwoTeams: (needs: string) => `Not built yet: ${lower(needs)} on head-to-head with more than two teams.`,
-  needPotOrLegs: (needs: string) => `Not built yet: ${lower(needs)} on $ per hole or $ per point.`,
   needTeams: (needs: string) => `${needs} need teams of two or more.`,
 } as const;
 
-function lower(s: string): string {
-  return s.charAt(0).toLowerCase() + s.slice(1);
-}
-
 const SIDES_MAX_PLAYERS = 8;   // team-2v2's playersMax; read here so the reason string is honest
 
-function classicOnlyNeeds(draft: StructureDraft): string[] {
-  const needs: string[] = [];
-  // Closest-to-pin and hand-tracked bonuses used to be classic-only. Phase 3 step 2 (§5.bq) made
-  // them junk points on the team engine too, so they no longer force a container.
-  // Front / back / overall pot splits left with Phase 3 step 4 (§5.bq Q-E): the team engine's pot has
-  // the same slices (`potFront` / `potBack` / `potOverall` / `potJunk`), so a split pot never forces
-  // a container either.
-  if (draft.captains) needs.push('Captains');
-  if (draft.hideHolesUntilAllFinish) needs.push('Hiding holes until every group finishes');
-  return needs;
-}
-
-function joinNeeds(needs: string[]): string {
-  if (needs.length === 1) return needs[0];
-  return `${needs.slice(0, -1).join(', ')} and ${needs[needs.length - 1].charAt(0).toLowerCase()}${needs[needs.length - 1].slice(1)}`;
-}
-
 /**
- * Which engine carries EVERYTHING the draft asks for.
+ * Which engine carries the draft.
  *
  *   solo                                  → the individual mode
- *   teams, classic can hold it all        → classic pool (pot, or 2-team head-to-head 'match')
- *   teams, sides can hold it all          → sides engine ('team-2v2', any N, pairwise)
- *   needs something only classic has AND
- *   something only sides has              → unexpressible, with the reason the money step shows
+ *   teams, classic can hold it            → classic pool (pot, or 2-team head-to-head 'match')
+ *   teams, otherwise                      → sides engine ('team-2v2', any N ≤ 8 players, pairwise)
+ *   more than 8 players and not classic   → unexpressible (the team engine's field cap)
  *
- * Classic can serve: every team is its own tee group, and the money is a pot or a
- * two-team head-to-head. Sides can serve: at most 8 players, EVERY team format (F-072 routed
- * its hole scoring through the pool's `teamValueOnHole`), no CTP / manual bonuses / captains /
- * hidden holes. When both can (aligned two teams on fixed legs, or an aligned pot), classic
- * wins — it carries more.
+ * Classic can serve: every team is its own tee group, and the money is a pot or a two-team
+ * head-to-head. The sides engine serves every team format (F-072), every bonus, captains, hidden
+ * holes and every money model (Phase 3) for fields up to 8. When both can (aligned two teams on
+ * fixed legs, or an aligned pot), classic wins — it carries the Warriors' saved games unchanged.
  *
  * A two-ball format needs two cards on every team, so a team of one refuses it in BOTH
- * containers — the guard is here, not in `classicOnlyNeeds`, because it's about the golf.
+ * containers; one-ball formats need partners walking together. Those are the golf, not an engine.
  */
 export function routeContainer(draft: StructureDraft): Route {
   const { structure } = draft;
@@ -533,16 +511,8 @@ export function routeContainer(draft: StructureDraft): Route {
     return { container: 'unexpressible', reason: UNEXPRESSIBLE.needTeams('Two-ball formats') };
   }
 
-  const needs = classicOnlyNeeds(draft);
   const classicCan = !singles && draft.aligned
     && (draft.moneyModel === 'pot' || (draft.moneyModel === 'legs' && teamCount === 2));
-
-  if (needs.length > 0 && !classicCan) {
-    const what = joinNeeds(needs);
-    if (!draft.aligned) return { container: 'unexpressible', reason: UNEXPRESSIBLE.needAligned(what) };
-    if (draft.moneyModel === 'legs') return { container: 'unexpressible', reason: UNEXPRESSIBLE.needTwoTeams(what) };
-    return { container: 'unexpressible', reason: UNEXPRESSIBLE.needPotOrLegs(what) };
-  }
   if (classicCan) {
     return { container: 'classic', gameMode: undefined, moneyMode: draft.moneyModel === 'legs' ? 'match' : 'pot' };
   }
@@ -623,8 +593,6 @@ export function routedFields(
         moneyMode: route.moneyMode,
         matchConfig,
         ...persistedTeamScoring(scoring.format, scoring.basis),
-        useCaptains: draft.captains ?? false,
-        hideHolesUntilAllFinish: draft.hideHolesUntilAllFinish ?? false,
       };
     }
     case 'sides': {

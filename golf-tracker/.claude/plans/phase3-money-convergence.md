@@ -177,10 +177,21 @@ A: front 20 + overall 20 + junk 20 − 20 = **+40** · B: back 10 − 20 = **−
    block, pot summary names the slices. Goldens `phase3-pot-slices.test.ts` (11, 6 failed first; three
    mutations caught 2/2/1); e2e `phase3-pot-slices.spec.ts`; sandbox seed "Four pairs — POT sliced …".
    New findings F-095 (legs listed twice under a sliced pot), F-096 (share rows dense in the wizard).
-5. §4 captains on sides; hide-holes on the team leaderboard.
-6. Router: `classicOnlyNeeds` empties; classic remains for games already stored with
-   `gameMode` absent (Warriors). Money step never greys for an engine reason — e2e pins it on every
-   shape in `collapse-routing.spec.ts`.
+5. ~~§4 captains on sides; hide-holes on the team leaderboard~~ **BUILT 2026-09-18** — `GameSide.captainId`
+   (a saved role; `toLegacySubTeams` refuses to fold a captained pair into the legacy shape); the
+   teams step's captain for SHARED-foursome teams rides onto the side; the hub Teams list marks each
+   captain "C"; a captain moved to another team in the hub editor drops the role. Teams that each fill
+   their own tee group keep their captain on the foursome card as before. Hide-holes: the team
+   leaderboard already applied `filterConcealedScores`; the hub editor now offers the toggle to a team
+   game across 2+ foursomes (`HideHolesToggle`, one component for both containers). Goldens in
+   `phase3-captains-hide.test.ts` (captain cases failed first; hide-holes pinned).
+6. ~~Router~~ **BUILT 2026-09-18** — `classicOnlyNeeds`, `joinNeeds` and the three "Not built yet"
+   reasons are deleted; `StructureDraft` lost `captains` / `hideHolesUntilAllFinish`. What the router
+   still refuses is the golf (two-ball on a team of one, one-ball apart) or the team engine's 8-player
+   cap — e.g. THREE TEAMS OF FOUR on head-to-head legs stays refused (classic holds two teams; the team
+   engine tops out at 8). "Never greyed for an engine reason" therefore holds for fields of 8 or
+   fewer; the 12-player margin-money case is the honest residue (BACKLOG). Pinned: unit table of eight
+   shapes with every bonus on; e2e `phase3-convergence.spec.ts` (4+2+2 captains → hub; 2+2+1 all open).
 
 ## 6. Questions for Craig (yes/no each; numbers editable)
 

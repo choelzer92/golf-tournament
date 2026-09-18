@@ -167,6 +167,8 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
         playerIds: side.id === sideId
           ? [...side.playerIds.filter((x) => x !== pid), pid]
           : side.playerIds.filter((x) => x !== pid),
+        // A captain who leaves takes the role with them; the side is simply uncaptained after.
+        ...(side.captainId === pid && side.id !== sideId ? { captainId: undefined } : {}),
       })));
     };
     const addSide = () => saveSides([...sides, { id: nextSideId(sides), playerIds: [] }]);
@@ -324,6 +326,10 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
               <SideNames sides={sides} players={game.players} onChangeAction={saveSides} idPrefix="hub-side-name" />
             </div>
           )}
+          {/* Phase 3 step 5: a team game across two or more foursomes can hide holes until every
+              group has finished them — the team leaderboard already honours the flag. One foursome
+              has nobody to hide from, so the toggle stays off-screen there. */}
+          {game.teams.length > 1 && <HideHolesToggle game={game} onSave={onSave} />}
         </div>
       </section>
     );
@@ -547,22 +553,31 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
           </div>
         </div>
 
-        <div className="border-t pt-3">
-          <label className="flex items-start gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-              checked={!!game.hideHolesUntilAllFinish}
-              onChange={(e) => onSave({ ...game, hideHolesUntilAllFinish: e.target.checked })}
-            />
-            <span>
-              <span className="block text-sm font-medium text-gray-800">Hide holes until all groups finish</span>
-              <span className="block text-xs text-gray-500">The leaderboard reveals a hole only after every foursome has completed it — so a later group can&apos;t see the standings before they play. Scorecards are unaffected.</span>
-            </span>
-          </label>
-        </div>
+        <HideHolesToggle game={game} onSave={onSave} />
       </div>
     </section>
+  );
+}
+
+// Anti-sandbagging: reveal a hole on the shared leaderboard only once every foursome has played it.
+// One control for both containers (the classic pool always had it; the team engine's leaderboard
+// applies the same `filterConcealedScores`, Phase 3 step 5).
+function HideHolesToggle({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
+  return (
+    <div className="border-t pt-3">
+      <label className="flex items-start gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+          checked={!!game.hideHolesUntilAllFinish}
+          onChange={(e) => onSave({ ...game, hideHolesUntilAllFinish: e.target.checked })}
+        />
+        <span>
+          <span className="block text-sm font-medium text-gray-800">Hide holes until all groups finish</span>
+          <span className="block text-xs text-gray-500">The leaderboard reveals a hole only after every foursome has completed it — so a later group can&apos;t see the standings before they play. Scorecards are unaffected.</span>
+        </span>
+      </label>
+    </div>
   );
 }
 
