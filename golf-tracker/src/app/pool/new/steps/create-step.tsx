@@ -24,16 +24,17 @@ import { type PotDollars, foldJunkStrings, legDollarsToStrings, potDollarsTotal 
 
 // The sides engine's MONEY settings (plan §3.4). Everything else in its schema — format, hole
 // score, compare-by, side names — was answered on earlier steps or lives on the hub.
-const SIDES_MONEY_KEYS = new Set([
+const SIDES_STAKES_KEYS = new Set([
   'dollarsPerHole', 'dollarsPerPoint', 'sideBuyIn', 'potSplit', 'legFront', 'legBack', 'legOverall',
-  // Phase 3 step 4: the pot's front / back / overall / junk shares.
-  'potFront', 'potBack', 'potOverall', 'potJunk',
-  // Junk POINTS (birdie / eagle / albatross / all-par / closest) come from the shared bonus grid
-  // above (§5.bq one vocabulary); only HOW junk pays is asked here.
-  'junkBasis', 'junkPayout', 'junkPerPoint', 'junkPot',
+  // Phase 3 step 4: the pot's front / back / overall shares.
+  'potFront', 'potBack', 'potOverall',
   // Phase 3 step 3: how losers pay with 3+ teams, and carry-ties for $/hole.
   'legsPayout', 'pointsPayout', 'carryover',
 ]);
+// HOW JUNK PAYS — asked UNDER the bonus grid it depends on (F-093 A, §5.bs), not above it in the
+// stakes. Junk POINTS (birdie / eagle / albatross / all-par / closest) come from that shared grid
+// (§5.bq one vocabulary); these are only the payout: per point or a junk pot, and the pot's junk share.
+const SIDES_JUNK_KEYS = new Set(['junkPayout', 'junkPerPoint', 'junkPot', 'potJunk', 'junkBasis']);
 
 function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
   const num = (key: string, fallback: number) => {
@@ -360,7 +361,7 @@ export function CreateStep({
             schema={mode.settings}
             values={{ ...modeSettings, junkEnabled: !junkIsOff(junkValues) }}
             onChangeAction={(key, value) => setModeSettings({ [key]: value })}
-            hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_MONEY_KEYS.has(k)
+            hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_STAKES_KEYS.has(k)
               // A payout choice that only bites with 3+ teams is not asked of a smaller game.
               || (MULTI_TEAM_ONLY_KEYS.has(k) && (sides ?? []).length < 3))}
           />
@@ -401,6 +402,108 @@ export function CreateStep({
           </p>
         </div>
         )}
+        {/* F-087 A (§5.bs): the money question's AMOUNTS come right after the question — the
+            classic pot split and the head-to-head legs used to sit below the bonus sections. */}
+        {!isMatch && !isIndividual && (
+        <div className="pt-2 border-t">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-gray-800">Pot Split ($ per pot)</p>
+            {potEdited && (
+              <button
+                onClick={() => {
+                  setPotEdited(false);
+                  const std = poolSplitDollarsForTeams(teams.length);
+                  setPotDollars(legDollarsToStrings(junkShown ? std : foldJunkIntoOverall(std)));
+                }}
+                className="text-xs text-green-700 hover:text-green-900 font-medium"
+              >
+                Reset to standard
+              </button>
+            )}
+          </div>
+          {/* F-044: the defaults come from a table of the organizer's historical splits by team
+              count — and read as arbitrary hard-coding when nothing says so. Craig read his OWN
+              numbers as "weird". Name the source; the fields stay editable either way. */}
+          {!potEdited && (
+            <p className="text-xs text-gray-500 mb-2">
+              The usual split for {teams.length} team{teams.length === 1 ? '' : 's'} — edit any leg to change it.
+            </p>
+          )}
+          <div className="grid grid-cols-4 gap-2">
+            {potFields.map(({ key, label }) => (
+              <div key={key}>
+                <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={effective[key]}
+                  onChange={(e) => setLeg(key, e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+            ))}
+          </div>
+          <p className={`text-xs mt-1 ${balanced ? 'text-gray-500' : 'text-amber-600'}`}>
+            Split total: ${splitTotal} vs pot ${pot}{balanced ? ' ✓' : ' — should match the pot'}
+          </p>
+        </div>
+        )}
+
+        {/* Classic pot/match money UI applies ONLY to the classic team pool. A
+            registered game mode (individual OR 2v2-within-group) carries its own
+            money settings, so it must never render this block — otherwise a stale
+            moneyMode:'match' from a prior draft shows a contradictory "needs two
+            foursomes" warning over a self-contained single-group game. */}
+        {isMatch && !isIndividual && (
+        <div className="pt-2 border-t">
+          <p className="text-sm font-semibold text-gray-800 mb-2">Match Payouts ($ / player)</p>
+          {/* F-084: the legs are INPUTS, mirroring the pot's split grid — a saved format used to be
+              the only way to change them. On a nine there is only one score leg (see potFields
+              above), so ask for that leg and junk rather than three legs, two of which never pay. */}
+          <div className={`grid ${nineOnly ? 'grid-cols-2' : 'grid-cols-4'} gap-2`}>
+            {(nineOnly
+              ? [{ key: 'overall' as const, label: holesPlaying === 'front9' ? 'Front 9' : 'Back 9' }]
+              : [
+                  { key: 'front' as const, label: 'Front 9' },
+                  { key: 'back' as const, label: 'Back 9' },
+                  { key: 'overall' as const, label: 'Overall' },
+                ]
+            ).map(({ key, label }) => (
+              <div key={key}>
+                <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  value={matchLegs[key]}
+                  onChange={(e) => setMatchLegs({ ...matchLegs, [key]: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+            ))}
+            <div>
+              <label className="block text-xs text-gray-600 font-medium mb-1">Junk / pt</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                value={matchJunkPerPoint}
+                onChange={(e) => setMatchJunkPerPoint(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Each leg is paid by every player on the losing team to the winners; junk points settle at the per-point rate.
+          </p>
+          {teams.length !== 2 && (
+            <p className="text-xs text-amber-700 mt-2">
+              Head-to-head needs exactly two foursomes — you have {teams.length}. Go back and make two teams, or switch to Pool (pot split).
+            </p>
+          )}
+        </div>
+        )}
+
         {/* F-045 (§5.bg): bonuses are an ADDED choice, not a default — a fresh pool
             shows one button; the grid (and the junk pot leg) appear only when the
             game plays them. A saved format with junk restores with the grid open. */}
@@ -505,103 +608,17 @@ export function CreateStep({
         </div>
         )}
 
-        {!isMatch && !isIndividual && (
+        {/* HOW THE BONUSES PAY (F-093 A, §5.bs): per point or a junk pot, gross or net — asked once
+            the bonus grid above exists, because it is about those points. */}
+        {container === 'sides' && mode && junkShown && (
         <div className="pt-2 border-t">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-semibold text-gray-800">Pot Split ($ per pot)</p>
-            {potEdited && (
-              <button
-                onClick={() => {
-                  setPotEdited(false);
-                  const std = poolSplitDollarsForTeams(teams.length);
-                  setPotDollars(legDollarsToStrings(junkShown ? std : foldJunkIntoOverall(std)));
-                }}
-                className="text-xs text-green-700 hover:text-green-900 font-medium"
-              >
-                Reset to standard
-              </button>
-            )}
-          </div>
-          {/* F-044: the defaults come from a table of the organizer's historical splits by team
-              count — and read as arbitrary hard-coding when nothing says so. Craig read his OWN
-              numbers as "weird". Name the source; the fields stay editable either way. */}
-          {!potEdited && (
-            <p className="text-xs text-gray-500 mb-2">
-              The usual split for {teams.length} team{teams.length === 1 ? '' : 's'} — edit any leg to change it.
-            </p>
-          )}
-          <div className="grid grid-cols-4 gap-2">
-            {potFields.map(({ key, label }) => (
-              <div key={key}>
-                <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={effective[key]}
-                  onChange={(e) => setLeg(key, e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
-              </div>
-            ))}
-          </div>
-          <p className={`text-xs mt-1 ${balanced ? 'text-gray-500' : 'text-amber-600'}`}>
-            Split total: ${splitTotal} vs pot ${pot}{balanced ? ' ✓' : ' — should match the pot'}
-          </p>
-        </div>
-        )}
-
-        {/* Classic pot/match money UI applies ONLY to the classic team pool. A
-            registered game mode (individual OR 2v2-within-group) carries its own
-            money settings, so it must never render this block — otherwise a stale
-            moneyMode:'match' from a prior draft shows a contradictory "needs two
-            foursomes" warning over a self-contained single-group game. */}
-        {isMatch && !isIndividual && (
-        <div className="pt-2 border-t">
-          <p className="text-sm font-semibold text-gray-800 mb-2">Match Payouts ($ / player)</p>
-          {/* F-084: the legs are INPUTS, mirroring the pot's split grid — a saved format used to be
-              the only way to change them. On a nine there is only one score leg (see potFields
-              above), so ask for that leg and junk rather than three legs, two of which never pay. */}
-          <div className={`grid ${nineOnly ? 'grid-cols-2' : 'grid-cols-4'} gap-2`}>
-            {(nineOnly
-              ? [{ key: 'overall' as const, label: holesPlaying === 'front9' ? 'Front 9' : 'Back 9' }]
-              : [
-                  { key: 'front' as const, label: 'Front 9' },
-                  { key: 'back' as const, label: 'Back 9' },
-                  { key: 'overall' as const, label: 'Overall' },
-                ]
-            ).map(({ key, label }) => (
-              <div key={key}>
-                <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  min={0}
-                  value={matchLegs[key]}
-                  onChange={(e) => setMatchLegs({ ...matchLegs, [key]: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
-              </div>
-            ))}
-            <div>
-              <label className="block text-xs text-gray-600 font-medium mb-1">Junk / pt</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                value={matchJunkPerPoint}
-                onChange={(e) => setMatchJunkPerPoint(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-              />
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            Each leg is paid by every player on the losing team to the winners; junk points settle at the per-point rate.
-          </p>
-          {teams.length !== 2 && (
-            <p className="text-xs text-amber-700 mt-2">
-              Head-to-head needs exactly two foursomes — you have {teams.length}. Go back and make two teams, or switch to Pool (pot split).
-            </p>
-          )}
+          <p className="text-sm font-semibold text-gray-800 mb-2">How the bonuses pay</p>
+          <ModeSettingsEditor
+            schema={mode.settings}
+            values={{ ...modeSettings, junkEnabled: !junkIsOff(junkValues) }}
+            onChangeAction={(key, value) => setModeSettings({ [key]: value })}
+            hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_JUNK_KEYS.has(k))}
+          />
         </div>
         )}
 
