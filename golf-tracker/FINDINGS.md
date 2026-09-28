@@ -1248,6 +1248,56 @@ line. Screenshot: `e2e/screenshots/f072-hub-pairs-net-gross.png`. Left in its wa
 
 ---
 
+### F-101 — Big-field follow-ups after the team cap came off (§5.bv)  [P1–P3] [track] [continue]
+
+**Where (2026-09-28 sweep for the cap removal; walked in the sandbox with the new seed "§5.bv: 32
+players, 8 foursomes, 16 pairs", screenshots `e2e/screenshots/cap-32-*.png`):** the engine and
+the router take 32 players now (zero-sum at every money model, `src/test/team-field-32.test.ts`).
+These are what the sweep found around the edges. Each is Craig's call or deliberately left alone:
+
+- **a. [P1] A two-team card computes its team row from ITS OWN foursome only**
+  (`game/play/page.tsx` ~1392–1407, `hasTeams`). With two teams that span groups (8 v 8 across
+  four foursomes, or 4 v 4 across two, which was possible before the cap came off), the card's
+  team best-ball and total can disagree with the money. At 3+ teams the card already takes its
+  rows from the engine. **Options:** A: use the engine's rows (`sideBreakdown`) for every
+  team-engine game with teams across groups. B: A, plus a label saying "whole team, all groups".
+  C: leave it. Recommend A. This changes how a scorecard computes team rows, so it's Craig's call.
+- **b. [P2] A player added on the hub mid-round joins a tee group but NO team**
+  (`field-editor.tsx` `addPlayer` ~245–255), so they're silently out of the money. **Options:**
+  A: ask which team as they're added. B: a warning line "Pat isn't on a team — no money". C: put
+  them on the smallest team. Recommend A.
+- **c. [P2] A hole counts only once EVERY team has posted it** (`team-game.ts` ~376–434). Eight
+  staggered foursomes mean the front/back boards, holes won and per-hole money wait for the last
+  group. Totals don't wait. That's correct for match-style comparisons, but mid-round the board
+  shows "–" for a long time. **Options:** A: keep it and say so ("waiting on Group 8"). B: compare
+  on holes both teams have played (pairwise). This is a rule change. Recommend A.
+- **d. [question] "Everyone for themselves" stops at 4.** Skins, Stableford and the other
+  individual modes are `playersMax: 4`, and a 32-player field only reaches them "as teams" (F-041).
+  For a tournament (32 individuals in stroke play or Stableford, or skins across the field) this is
+  the next cap. Say whether it matters; the engine question is its own session.
+- **e. [P3] Polish, not built:**
+  - Leaderboard and card colours repeat past 6 teams (`SIDE_TONES`, `SIDE_ROW_COLORS`).
+  - The Back 9 "tied" line lists every tied team, and at 16 teams it wraps to three lines.
+  - The hub shows a multi-group team game as one group: the header says "Players" and the team
+    build card and field-editor team tools are hidden (`pool/[id]/page.tsx:283`,
+    `field-editor.tsx:25`).
+  - Printed scorecards show no team tag beside each name, and their footer prints the classic
+    ball-selection line on team games.
+  - Games with no stored sides fall back in three places to a whole-field split, not the engine's
+    tee-group fallback. Legacy only.
+  - The ordinal "21th" only appears past 20 teams.
+  - `scoreAt` is a linear scan, and the balancer has an 800 ms deadline at 16 teams.
+
+**Built with the cap removal:**
+- a card lists only the teams with someone in its foursome once there are more than 6, plus a line
+  "12 more teams in other groups — see Standings";
+- the hub team editor switches from circles to a list past 4 teams;
+- side ids continue `s27`, `s28`, … past 26 teams (`sideIdAt`).
+
+**Status:** OPEN. Items a–d need Craig's call; e is backlog.
+
+---
+
 ### F-100 — A plus index can't be typed on an iPhone: the decimal keypad has no "+" or "−"  [P2] [start]
 
 **Where (found 2026-09-28 building F-098):** the HCP boxes (`add-player-panel.tsx`, the hub

@@ -854,7 +854,7 @@ export const teamGame: GameModeDescriptor = {
   // Phase 2 (§5.bm Q5): "team" everywhere — the game-kind label users see comes from
   // `gameKindLabel` (structure · money), so this name only shows where a MODE is picked by name.
   name: 'Teams',
-  description: 'Teams that share foursomes — 1 v 1 up to four-a-side, any team format — play each other. Front, back and overall settle separately.',
+  description: 'Teams that share foursomes — singles, pairs or any size, any team format — play each other. Front, back and overall settle separately.',
   category: 'team-within-group',
   inputType: 'gross',
   // TWO, so a singles match is reachable (Craig, 2026-08-27). The engine always handled it — one
@@ -862,9 +862,11 @@ export const teamGame: GameModeDescriptor = {
   // treats like any other — so `playersMin: 4` was refusing a game that already worked. A singles
   // Nassau is the most common two-player bet in golf and was inexpressible.
   playersMin: 2,
-  // Raised from 4 so three pairs from six, or four singles, is reachable. Two sides remains
-  // the default, so "just the usual 2v2" is unaffected.
-  playersMax: 8,
+  // No ceiling (§5.bv, Craig 2026-09-28: "what if there are 32 people?"). It was 4, then 8; the
+  // engine reads every matchup and settles any number of sides zero-sum, so the cap only
+  // refused fields the classic pool already took. Two sides remains the default, so "just the
+  // usual 2v2" is unaffected.
+  playersMax: Number.POSITIVE_INFINITY,
   settings: SETTINGS,
   compute,
 };

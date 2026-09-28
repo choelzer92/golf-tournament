@@ -3,7 +3,7 @@ import type { PoolGame, HoleData } from '../pool-game';
 import { getGameHoles, numHolesForStrokes, buildHcapMap, playerHoleStrokeIndexForGame, gameNineBasis, getPoolPlayingHandicap, defaultSubTeams } from '../pool-game';
 import { getMoneyStrokesOnHole } from '../money-games';
 import type { GameModeContext, SettingsBag } from './types';
-import { fromLegacySubTeams, sidesOfGame } from './sides';
+import { fromLegacySubTeams, sideIdAt, sidesOfGame } from './sides';
 
 /**
  * The sides a game is COMPUTED on: the stored ones, else the balanced default the engine has
@@ -21,7 +21,7 @@ export function sidesForCompute(game: PoolGame, players: PoolGame['players'] = g
   // split here settled money on two invented sides while the hub showed the real teams.
   if (game.teams.length > 1) {
     return game.teams.map((t, i) => ({
-      id: String.fromCharCode(97 + i),
+      id: sideIdAt(i),
       playerIds: t.playerIds,
       ...(t.captainId ? { captainId: t.captainId } : {}),
     }));

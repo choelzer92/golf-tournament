@@ -16,6 +16,7 @@ import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, compute
 import { getMoneyStrokesOnHole } from '@/lib/money-games';
 import { strokesOnHole } from '@/lib/strokes';
 import { computeGameResult, isModeEngineGame, gameCountsCtp } from '@/lib/game-modes/result';
+import { sidesForCompute } from '@/lib/game-modes/context';
 import { getGameMode } from '@/lib/game-modes';
 import { sideNamesForGame } from '@/lib/game-modes/team-game';
 import { fromLegacySubTeams, sidesOfGame } from '@/lib/game-modes/sides';
@@ -1410,10 +1411,20 @@ export default function PlayGamePage() {
           // 'A' | 'B', so those players are deliberately left untagged (see pool/[id]/page.tsx).
           // Draw the rows from the ENGINE instead — one row per side, in board order, with the
           // side's own hole scores and a rank + margin in the game's own unit (§5.ah).
-          const engineSideRows = sideBreakdown && sideBreakdown.length > 2 ? sideBreakdown : null;
           // Side colours, matching the leaderboard's palette so one game reads the same on both
           // screens. Blue/red stay first, so a two-side game is unchanged.
           const SIDE_ROW_COLORS = ['text-blue-700', 'text-red-700', 'text-amber-700', 'text-emerald-700', 'text-fuchsia-700', 'text-cyan-700'];
+          const engineSideRows = (() => {
+            if (!sideBreakdown || sideBreakdown.length <= 2) return null;
+            // A big field (§5.bv: 32 players can be 16 teams) would put every team on every card.
+            // Past six — the palette — a card lists only the teams with someone in THIS group; the
+            // rest are one tap away on the standings. Rank and colour still come from the whole board.
+            if (sideBreakdown.length <= SIDE_ROW_COLORS.length || !poolGame) return sideBreakdown;
+            const here = new Set(setup.players.map((p) => p.id));
+            const mine = new Set(sidesForCompute(poolGame).filter((s) => s.playerIds.some((id) => here.has(id))).map((s) => s.id));
+            return sideBreakdown.filter((s) => mine.has(s.id));
+          })();
+          const hiddenSideCount = sideBreakdown && engineSideRows ? sideBreakdown.length - engineSideRows.length : 0;
 
           const formatId = setup.formatId;
           // A classic pool can now be scored in Stableford points (F-006). It arrives as
@@ -1783,8 +1794,9 @@ export default function PlayGamePage() {
                   })}
                   {/* THREE OR MORE SIDES: rows straight from the engine, so the card can't
                       disagree with the money (§5.ah). One row per side, in board order. */}
-                  {engineSideRows?.map((side, sideIdx) => {
-                    const color = SIDE_ROW_COLORS[sideIdx % SIDE_ROW_COLORS.length];
+                  {engineSideRows?.map((side) => {
+                    const boardIdx = sideBreakdown!.findIndex((s) => s.id === side.id);
+                    const color = SIDE_ROW_COLORS[boardIdx % SIDE_ROW_COLORS.length];
                     const valueAt = (holeNumber: number) => {
                       const i = holes.findIndex((h) => h.number === holeNumber);
                       return i < 0 ? null : side.values[i] ?? null;
@@ -1826,7 +1838,7 @@ export default function PlayGamePage() {
                                alike (which is why it doesn't key on the sign of the margin). */
                             <span className={`ml-1 text-[9px] font-bold px-1 py-0.5 rounded whitespace-nowrap ${
                               side.place === 1 ? 'text-green-800 bg-green-100'
-                                : side.place === engineSideRows.length ? 'text-red-800 bg-red-100'
+                                : side.place === sideBreakdown!.length ? 'text-red-800 bg-red-100'
                                   : 'text-gray-700 bg-gray-200'
                             }`}>
                               {side.status}
@@ -1836,6 +1848,13 @@ export default function PlayGamePage() {
                       </tr>
                     );
                   })}
+                  {hiddenSideCount > 0 && (
+                    <tr className="border-t border-gray-200 bg-gray-50">
+                      <td colSpan={visibleHoles.length + (hasOtherSide ? 3 : 2)} className="px-2 py-1 text-[10px] text-gray-500">
+                        {hiddenSideCount} more team{hiddenSideCount === 1 ? '' : 's'} in other groups — see Standings
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

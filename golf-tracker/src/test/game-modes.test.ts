@@ -16,7 +16,7 @@ import type { IndividualResult, PlayerStanding } from '@/lib/game-modes/types';
 import type { PoolGame } from '@/lib/pool-game';
 import type { GameScore } from '@/lib/game-state';
 import {
-  backNine, frontNine, makeGame, parScores, scoresFor, singleMatchup, TEST_PARS,
+  backNine, frontNine, makeGame, parScores, scoresFor, singleMatchup, TEST_PARS, testFieldMax,
 } from './fixtures';
 
 // --- helpers ---------------------------------------------------------------
@@ -63,7 +63,7 @@ describe('every registered mode', () => {
 
   it('returns an empty-but-valid result with no scores', () => {
     for (const m of GAME_MODES) {
-      const indexes = Array(m.playersMax).fill(10);
+      const indexes = Array(testFieldMax(m)).fill(10);
       const game = makeGame({ gameMode: m.id, indexes });
       const r = run(game, []);
       expect(r.thruHole, m.id).toBe(0);
@@ -76,7 +76,7 @@ describe('every registered mode', () => {
 
   it('is zero-sum once everyone has played (default money model)', () => {
     for (const m of GAME_MODES) {
-      const n = m.playersMax;
+      const n = testFieldMax(m);
       const game = makeGame({ gameMode: m.id, indexes: Array(n).fill(9) });
       const ids = game.players.map((p) => p.id);
       // Give each player a distinct-ish round so there are real winners/losers.
@@ -109,7 +109,7 @@ describe('every registered mode', () => {
     for (const m of GAME_MODES) {
       for (const basis of ['18', '9'] as const) {
         const game = makeGame({
-          gameMode: m.id, indexes: Array(m.playersMax).fill(8),
+          gameMode: m.id, indexes: Array(testFieldMax(m)).fill(8),
           holesPlaying: 'back9', nineHandicapBasis: basis,
         });
         const ids = game.players.map((p) => p.id);
@@ -126,7 +126,7 @@ describe('every registered mode', () => {
 
   it('ignores holes nobody has played yet (partial round)', () => {
     for (const m of GAME_MODES) {
-      const game = makeGame({ gameMode: m.id, indexes: Array(m.playersMax).fill(10) });
+      const game = makeGame({ gameMode: m.id, indexes: Array(testFieldMax(m)).fill(10) });
       const ids = game.players.map((p) => p.id);
       const thru6 = [1, 2, 3, 4, 5, 6];
       const scores = ids.flatMap((id, i) =>

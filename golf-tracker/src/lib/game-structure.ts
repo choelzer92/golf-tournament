@@ -24,7 +24,7 @@ import {
   type PoolMoneyMode,
 } from './pool-game';
 import { getGameMode } from './game-modes';
-import { persistedSides, sidesOfGame, type GameSide } from './game-modes/sides';
+import { persistedSides, sideIdAt, sidesOfGame, type GameSide } from './game-modes/sides';
 import {
   isOneBall,
   needsTwoScores,
@@ -468,23 +468,19 @@ export const UNEXPRESSIBLE = {
   noSoloMode: 'Pick a game for everyone-for-themselves.',
   noScoring: 'Pick how the teams are scored.',
   oneBallApart: 'Scramble and alternate shot play one ball per team, so partners must walk together.',
-  sidesFieldCap: (max: number) => `Teams that share foursomes top out at ${max} players for now.`,
   needTeams: (needs: string) => `${needs} need teams of two or more.`,
 } as const;
-
-const SIDES_MAX_PLAYERS = 8;   // team-2v2's playersMax; read here so the reason string is honest
 
 /**
  * Which engine carries the draft.
  *
  *   solo                                  → the individual mode
  *   teams, classic can hold it            → classic pool (pot, or 2-team head-to-head 'match')
- *   teams, otherwise                      → sides engine ('team-2v2', any N ≤ 8 players, pairwise)
- *   more than 8 players and not classic   → unexpressible (the team engine's field cap)
+ *   teams, otherwise                      → sides engine ('team-2v2', any field, pairwise)
  *
  * Classic can serve: every team is its own tee group, and the money is a pot or a two-team
  * head-to-head. The sides engine serves every team format (F-072), every bonus, captains, hidden
- * holes and every money model (Phase 3) for fields up to 8. When both can (aligned two teams on
+ * holes and every money model (Phase 3), at any field size — the 8-player cap went in §5.bv. When both can (aligned two teams on
  * fixed legs, or an aligned pot), classic wins — it carries the Warriors' saved games unchanged.
  *
  * A two-ball format needs two cards on every team, so a team of one refuses it in BOTH
@@ -501,7 +497,6 @@ export function routeContainer(draft: StructureDraft): Route {
 
   const sizes = structure.teamSizes;
   const teamCount = sizes.length;
-  const players = sizes.reduce((s, k) => s + k, 0);
   const singles = sizes.every((k) => k === 1);
 
   if (isOneBall(draft.scoring.format) && !draft.teamsTogether) {
@@ -515,9 +510,6 @@ export function routeContainer(draft: StructureDraft): Route {
     && (draft.moneyModel === 'pot' || (draft.moneyModel === 'legs' && teamCount === 2));
   if (classicCan) {
     return { container: 'classic', gameMode: undefined, moneyMode: draft.moneyModel === 'legs' ? 'match' : 'pot' };
-  }
-  if (players > SIDES_MAX_PLAYERS) {
-    return { container: 'unexpressible', reason: UNEXPRESSIBLE.sidesFieldCap(SIDES_MAX_PLAYERS) };
   }
   return { container: 'sides', gameMode: 'team-2v2', moneyModel: draft.moneyModel };
 }
@@ -551,7 +543,7 @@ export function moneyModelsFor(draft: Omit<StructureDraft, 'moneyModel'>): Money
 
 /** Sides for the sides engine, ids 'a', 'b', 'c', … so two unnamed sides persist as legacy `subTeams`. */
 export function sidesFromTeams(teams: string[][]): GameSide[] {
-  return teams.map((playerIds, i) => ({ id: String.fromCharCode(97 + i), playerIds }));
+  return teams.map((playerIds, i) => ({ id: sideIdAt(i), playerIds }));
 }
 
 /**

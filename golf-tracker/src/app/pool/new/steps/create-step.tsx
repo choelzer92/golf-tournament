@@ -16,7 +16,7 @@ import {
   poolSplitDollarsForTeams,
 } from '@/lib/pool-game';
 import type { GameSide } from '@/lib/game-modes/sides';
-import { getGameMode, fitExplanation, formatSummaryLine, type SettingsBag } from '@/lib/game-modes';
+import { getGameMode, fitExplanation, formatSummaryLine, playerRangeText, type SettingsBag } from '@/lib/game-modes';
 import { sideNameFrom, allSidesAreSolo, MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { HandicapChip } from '@/components/handicap-chain';
@@ -277,7 +277,7 @@ export function CreateStep({
                     span several groups, so nothing here describes a group. */}
                 <p className="text-xs text-gray-500">This game needs</p>
                 <p className="text-lg font-bold text-gray-900">
-                  {mode!.playersMin === mode!.playersMax ? mode!.playersMin : `${mode!.playersMin}–${mode!.playersMax}`}
+                  {playerRangeText(mode!)}
                 </p>
               </div>
             </div>

@@ -231,6 +231,15 @@ export function sideOfPlayer(sides: GameSide[], playerId: string): GameSide | nu
 }
 
 /**
+ * The id of the i-th side (0-based) in a freshly built collection: 'a'..'z', then 's27', 's28', …
+ * The same scheme `nextSideId` falls back to. Letters alone ran out at 26 — reachable since the
+ * team engine lost its field cap (§5.bv): 32 singles would have been ids '{', '|', ….
+ */
+export function sideIdAt(i: number): string {
+  return i < 26 ? String.fromCharCode(97 + i) : `s${i + 1}`;
+}
+
+/**
  * A fresh side id that doesn't collide with the collection's existing ones.
  *
  * Continues the legacy 'a'/'b' lettering ('c', 'd', …) so a three-side game reads as A/B/C on

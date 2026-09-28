@@ -348,17 +348,21 @@ const TABLE: Row[] = [
   { name: '2 + 2 + 1, best net + best gross (the single refuses it)', sizes: [2, 2, 1], money: 'legs',
     extra: { scoring: { format: 'net-and-gross', basis: 'stroke', compareBy: 'total' } },
     expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.needTeams('Two-ball formats') } },
-  // Phase 3 step 6: no capability routes any more. What remains refused here is the FIELD — twelve
-  // players on head-to-head legs: classic holds two teams, the team engine tops out at 8.
-  { name: 'three teams of 4, head-to-head legs (12 players — beyond the sides engine\'s field)', sizes: [4, 4, 4], money: 'legs',
-    expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.sidesFieldCap(8) } },
+  // §5.bv: the team engine's 8-player field cap is gone. Twelve players on head-to-head legs used
+  // to be refused (classic holds two teams, the team engine topped out at 8); now they're sides.
+  { name: 'three teams of 4, head-to-head legs (12 players — sides since §5.bv)', sizes: [4, 4, 4], money: 'legs',
+    expect: { container: 'sides' } },
+  { name: 'sixteen pairs (32 players, 8 foursomes), $ per point', sizes: Array(16).fill(2), money: 'per-point',
+    expect: { container: 'sides' } },
+  { name: 'eight teams of 4 (32 players), head-to-head legs', sizes: Array(8).fill(4), money: 'legs',
+    expect: { container: 'sides' } },
   { name: 'two teams of 4, $ per hole + manual bonuses (sides since Phase 3)', sizes: [4, 4], money: 'per-hole', extra: { bonuses: { custom: true } },
     expect: { container: 'sides' } },
   { name: 'four pairs, scramble, partners in different foursomes', sizes: [2, 2, 2, 2], money: 'legs', mixed: true,
     extra: { scoring: { format: 'scramble', basis: 'stroke', compareBy: 'match' } },
     expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.oneBallApart } },
-  { name: 'six pairs (12 players), legs — beyond the sides engine\'s field', sizes: [2, 2, 2, 2, 2, 2], money: 'legs',
-    expect: { container: 'unexpressible', reason: UNEXPRESSIBLE.sidesFieldCap(8) } },
+  { name: 'six pairs (12 players), legs (sides since §5.bv)', sizes: [2, 2, 2, 2, 2, 2], money: 'legs',
+    expect: { container: 'sides' } },
   { name: '1 v 1 with CTP (sides since Phase 3; F-075 gap closed)', sizes: [1, 1], money: 'legs', extra: { bonuses: { ctp: true } },
     expect: { container: 'sides' } },
   { name: 'three pairs, pot (captains and hidden holes are both engines\' now — Phase 3 steps 5–6)', sizes: [2, 2, 2], money: 'pot',

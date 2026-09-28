@@ -101,10 +101,14 @@ describe('GOLDEN: every mode at one group (MUST NOT MOVE)', () => {
     // Plus a foursome wherever it's strictly inside the range: team-2v2's playersMin fell to 2
     // (the 1 v 1), and the default-settings 2v2 foursome — the friends' usual game — must stay
     // pinned. Its snapshot is the one recorded when 4 WAS playersMin, re-keyed unchanged.
-    const counts = [mode.playersMin, mode.playersMax];
+    // An UNCAPPED mode (team-2v2 since §5.bv) runs at 8 — its old playersMax, snapshot re-keyed
+    // unchanged — and at 32, eight foursomes' worth, in place of a ceiling it no longer has.
+    const capped = Number.isFinite(mode.playersMax);
+    const counts = capped ? [mode.playersMin, mode.playersMax] : [mode.playersMin, 8, 32];
     if (mode.playersMin < 4 && mode.playersMax > 4 && mode.category === 'team-within-group') counts.splice(1, 0, 4);
     for (const count of counts) {
-      const label = count === mode.playersMin ? 'playersMin' : count === mode.playersMax ? 'playersMax' : 'foursome';
+      const label = count === mode.playersMin ? 'playersMin' : count === mode.playersMax ? 'playersMax'
+        : count === 4 ? 'foursome' : `${count / 4} foursomes' worth`;
       // Skip the duplicate run for a mode whose min === max (Wolf).
       if (count === mode.playersMax && mode.playersMin === mode.playersMax) continue;
 
@@ -226,6 +230,8 @@ describe('GOLDEN: side game, one group, every money model (MUST NOT MOVE)', () =
     });
   }
 
+  // (Named "playersMax" when recorded; the 8-player cap went in §5.bv. Names kept so the
+  // snapshot keys — and the money — stay exactly as pinned.)
   // 8 players / 4 sides — playersMax. THE case F-019 is about: today these eight are one
   // "foursome"; tomorrow they are two groups of four. The money must be identical either way,
   // because the sides did not change.

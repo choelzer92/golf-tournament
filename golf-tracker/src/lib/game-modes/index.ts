@@ -22,7 +22,7 @@ export type {
 } from './types';
 export { buildGameModeContext } from './context';
 export {
-  fitForMode, modeFits, playerRangeSentence, fitBadge, fitExplanation, type FitVerdict,
+  fitForMode, modeFits, playerRangeSentence, playerRangeText, fitBadge, fitExplanation, type FitVerdict,
 } from './fit';
 export {
   gameSummary, stakesSummary, handicapSummary, formatSummaryLine, type HandicapSummaryInput,

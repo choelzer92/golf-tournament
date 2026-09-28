@@ -60,6 +60,7 @@ import {
 } from '@/lib/game-modes/team-scoring';
 import {
   persistedSides,
+  sideIdAt,
   sidesOfGame,
   type GameSide,
 } from '@/lib/game-modes/sides';
@@ -626,7 +627,7 @@ export default function NewPoolGamePage() {
       : sides && sides.length > 0
         ? sides
         : teams.filter((t) => t.playerIds.length > 0).map((t, i) => ({
-          id: String.fromCharCode(97 + i),
+          id: sideIdAt(i),
           playerIds: t.playerIds,
           ...(useCaptains && t.captainId ? { captainId: t.captainId } : {}),
         }));
@@ -853,7 +854,7 @@ export default function NewPoolGamePage() {
               // to ask (F-079): the sides are the players and the field walks as one group.
               const present = new Set(players.map((p) => p.id));
               if (structure!.teamSizes.every((k) => k === 1)) {
-                setSides(players.map((p, i) => ({ id: String.fromCharCode(97 + i), playerIds: [p.id] })));
+                setSides(players.map((p, i) => ({ id: sideIdAt(i), playerIds: [p.id] })));
                 setSideTeams([]);
                 setTeams(singleGroup());
                 setStep('create');
@@ -903,8 +904,8 @@ export default function NewPoolGamePage() {
             // The board's name for an unnamed team ("Craig & Jym"), so leaving the box blank
             // promises what will actually show (same resolver as the review and the leaderboard).
             namePlaceholder={(team, i) => sideNameFrom(
-              players, team.playerIds, String.fromCharCode(97 + i), undefined,
-              allSidesAreSolo(sideTeams.map((t, j) => ({ id: String.fromCharCode(97 + j), playerIds: t.playerIds }))),
+              players, team.playerIds, sideIdAt(i), undefined,
+              allSidesAreSolo(sideTeams.map((t, j) => ({ id: sideIdAt(j), playerIds: t.playerIds }))),
             )}
             nextLabel={needsPlayingGroups ? 'Next: Groups' : 'Next: Review & Create'}
             handicapAllowance={parseFloat(handicapAllowance) || 100}
@@ -914,7 +915,7 @@ export default function NewPoolGamePage() {
             onNext={() => {
               const built = sideTeams.filter((t) => t.playerIds.length > 0);
               const nextSides: GameSide[] = built.map((t, i) => ({
-                id: String.fromCharCode(97 + i),
+                id: sideIdAt(i),
                 ...(t.name.trim() ? { name: t.name.trim() } : {}),
                 playerIds: t.playerIds,
                 // Phase 3 step 5 (§5.bq Q5): the captain chosen on this step is a saved role on the

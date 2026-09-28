@@ -275,6 +275,21 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
                   return (
                     <div key={p.id} className="flex items-center justify-between px-3 py-2">
                       <span className="text-sm text-gray-800">{p.name}</span>
+                      {/* Past four teams a row of circles runs off a phone (16 pairs is 16
+                          buttons, §5.bv), so a big field picks from a list instead. */}
+                      {sides.length > 4 ? (
+                        <select
+                          aria-label={`${p.name}'s team`}
+                          value={s ?? ''}
+                          onChange={(e) => assignSide(p.id, e.target.value)}
+                          className="rounded-md border border-gray-300 px-2 py-1 text-sm font-semibold text-gray-700"
+                        >
+                          {s === null && <option value="" disabled>No team</option>}
+                          {sides.map((side) => (
+                            <option key={side.id} value={side.id}>{side.id.toUpperCase()}</option>
+                          ))}
+                        </select>
+                      ) : (
                       <div className="flex gap-1.5">
                         {sides.map((side) => (
                           <button
@@ -289,6 +304,7 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
                           </button>
                         ))}
                       </div>
+                      )}
                     </div>
                   );
                 })}

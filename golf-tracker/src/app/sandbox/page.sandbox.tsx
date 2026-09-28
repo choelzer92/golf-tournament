@@ -587,6 +587,37 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'thirty-two-pairs',
+    label: '§5.bv: 32 players, 8 foursomes, 16 pairs across groups (staggered)',
+    detail: 'No field cap on team games. Each pair splits across two foursomes (sp1 with sp17, …); the groups tee off 10 minutes apart and are 18, 16, … 4 holes in.',
+    build: () => {
+      // Beyond NAMES' eight, real first names — "Player 12" abbreviates to "Player" on the hub.
+      const more = ['Al', 'Bo', 'Cy', 'Don', 'Ed', 'Flo', 'Gus', 'Hal', 'Ike', 'Jo', 'Kip', 'Lou',
+        'Mo', 'Ned', 'Oz', 'Pat', 'Quin', 'Ray', 'Sid', 'Ted', 'Ula', 'Vic', 'Wes', 'Xan'];
+      const ps = players(Array.from({ length: 32 }, (_, i) => (i * 7) % 29))
+        .map((p, i) => (i < 8 ? p : { ...p, name: `${more[i - 8]} Test` }));
+      const ids = ps.map((p) => p.id);
+      const game = baseGame({
+        players: ps,
+        name: 'Big Field Pairs',
+        gameMode: 'team-2v2',
+        sides: Array.from({ length: 16 }, (_, i) => ({ id: String.fromCharCode(97 + i), playerIds: [ids[i], ids[i + 16]] })),
+        modeSettings: {
+          format: 'best-ball', scoring: 'stroke', result: 'total',
+          moneyModel: 'per-point', dollarsPerPoint: 1,
+        },
+        teams: Array.from({ length: 8 }, (_, g) => ({
+          id: `st${g + 1}`, name: `Group ${g + 1}`, playerIds: ids.slice(g * 4, g * 4 + 4),
+          matchupId: `sm${g + 1}`, teeTime: `${8 + Math.floor((g * 10) / 60)}:${String((g * 10) % 60).padStart(2, '0')}`,
+        })),
+      });
+      for (let g = 0; g < 8; g++) {
+        saveGameScores(`sm${g + 1}`, scores(ids.slice(g * 4, g * 4 + 4), [g % 3, (g + 1) % 3, (g + 2) % 4, g % 2], ALL18.slice(0, 18 - 2 * g)));
+      }
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+  {
     key: 'pool-2x4-complete',
     label: 'Classic pool — 2 foursomes, FULLY scored',
     detail: 'Verifies close-out → Stats & money (the completion bug). Ready to close out.',

@@ -6,9 +6,8 @@
 //           group finishes is a presentation flag the team leaderboard already honours through
 //           `filterConcealedScores` — pinned here so it can't quietly stop.
 //   Step 6  `classicOnlyNeeds` is gone: no money option is ever greyed for an ENGINE reason. What the
-//           router still refuses is golf, or the team engine's field cap: a two-ball format on a team
-//           of one, one-ball formats with partners apart, and fields above 8 players that classic
-//           can't hold (margin money, 3+-team legs).
+//           router still refuses is golf: a two-ball format on a team of one, one-ball formats with
+//           partners apart. (The team engine's 8-player field cap came off in §5.bv.)
 //
 // Written BEFORE the change (§5.z): the captain cases fail on today's code (`persistedSides` folds a
 // captained pair into the legacy shape and drops the role); the hide-holes and routing cases are
@@ -113,17 +112,18 @@ describe('Phase 3 step 6 — nothing is greyed for an engine reason (fields of 8
     expect(opts.every((o) => o.available && o.route.container === 'sides')).toBe(true);
   });
 
-  it('what is still refused is golf or the field cap, never a missing feature', () => {
+  it('what is still refused is golf, never a missing feature or the field size', () => {
     // A team of one has one ball → no two-ball format (both containers).
     const oneBall = { ...draftFor([2, 2, 1], 'legs'), scoring: { format: 'two-best-net' as const, basis: 'stroke' as const, compareBy: 'total' as const } };
     expect(routeContainer(oneBall)).toEqual({ container: 'unexpressible', reason: UNEXPRESSIBLE.needTeams('Two-ball formats') });
-    // Twelve players on head-to-head legs: classic holds two teams only, the team engine tops out at 8.
-    expect(routeContainer(draftFor([4, 4, 4], 'legs'))).toEqual({ container: 'unexpressible', reason: UNEXPRESSIBLE.sidesFieldCap(8) });
+    // Twelve players on head-to-head legs: classic holds two teams only, so the team engine takes
+    // them — its 8-player cap is gone (§5.bv).
+    expect(routeContainer(draftFor([4, 4, 4], 'legs'))).toEqual({ container: 'sides', gameMode: 'team-2v2', moneyModel: 'legs' });
     // …but the same twelve on a pot are the classic pool, bonuses and all.
     expect(routeContainer(draftFor([4, 4, 4], 'pot')).container).toBe('classic');
   });
 
   it('the reason strings for engine gaps are gone from the vocabulary', () => {
-    expect(Object.keys(UNEXPRESSIBLE).sort()).toEqual(['needTeams', 'noScoring', 'noSoloMode', 'oneBallApart', 'sidesFieldCap']);
+    expect(Object.keys(UNEXPRESSIBLE).sort()).toEqual(['needTeams', 'noScoring', 'noSoloMode', 'oneBallApart']);
   });
 });

@@ -202,3 +202,11 @@ export function singleMatchup(scores: GameScore[], matchupId = 'm1'): Map<string
 export function frontNine(): number[] { return [1, 2, 3, 4, 5, 6, 7, 8, 9]; }
 export function backNine(): number[] { return [10, 11, 12, 13, 14, 15, 16, 17, 18]; }
 export function allEighteen(): number[] { return Array.from({ length: 18 }, (_, i) => i + 1); }
+
+/**
+ * The largest field a test should build for a mode: its `playersMax`, or 32 (eight foursomes)
+ * for a mode with no ceiling — the team engine since §5.bv ("what if there are 32 people?").
+ */
+export function testFieldMax(mode: { playersMax: number }): number {
+  return Number.isFinite(mode.playersMax) ? mode.playersMax : 32;
+}

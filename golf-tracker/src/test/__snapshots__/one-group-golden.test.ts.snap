@@ -626,7 +626,7 @@ exports[`GOLDEN: every mode at one group (MUST NOT MOVE) > team-2v2 / 4 players 
 }
 `;
 
-exports[`GOLDEN: every mode at one group (MUST NOT MOVE) > team-2v2 / 8 players (playersMax) 1`] = `
+exports[`GOLDEN: every mode at one group (MUST NOT MOVE) > team-2v2 / 8 players (2 foursomes' worth) 1`] = `
 {
   "junkLines": undefined,
   "metricLabel": "match pts",
@@ -692,6 +692,80 @@ exports[`GOLDEN: every mode at one group (MUST NOT MOVE) > team-2v2 / 8 players 
       "key": "overall",
       "label": "Overall 18",
       "status": "Player1 & Player3 +2 14 up",
+      "thru": 18,
+      "winner": "a",
+    },
+  ],
+  "thruHole": 18,
+}
+`;
+
+exports[`GOLDEN: every mode at one group (MUST NOT MOVE) > team-2v2 / 32 players (8 foursomes' worth) 1`] = `
+{
+  "junkLines": undefined,
+  "metricLabel": "match pts",
+  "moneyModel": "per-point",
+  "sideBreakdown": [
+    {
+      "id": "a",
+      "name": "Player1 & Player3 +14",
+      "status": "1st · 14 holes",
+      "total": 36,
+    },
+    {
+      "id": "b",
+      "name": "Player2 & Player4 +14",
+      "status": "2nd · 0 holes",
+      "total": 22,
+    },
+  ],
+  "sideLabels": [
+    {
+      "id": "a",
+      "name": "Player1 & Player3 +14",
+    },
+    {
+      "id": "b",
+      "name": "Player2 & Player4 +14",
+    },
+  ],
+  "standings": [
+    {
+      "id": "A",
+      "money": 30,
+      "place": 1,
+      "points": 16,
+      "thru": 18,
+      "toPar": undefined,
+    },
+    {
+      "id": "B",
+      "money": -30,
+      "place": 2,
+      "points": 2,
+      "thru": 18,
+      "toPar": undefined,
+    },
+  ],
+  "teamLegs": [
+    {
+      "key": "front",
+      "label": "Front 9",
+      "status": "Player1 & Player3 +14 5 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "back",
+      "label": "Back 9",
+      "status": "Player1 & Player3 +14 9 up",
+      "thru": 9,
+      "winner": "a",
+    },
+    {
+      "key": "overall",
+      "label": "Overall 18",
+      "status": "Player1 & Player3 +14 14 up",
       "thru": 18,
       "winner": "a",
     },

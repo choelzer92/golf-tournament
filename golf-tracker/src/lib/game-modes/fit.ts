@@ -58,7 +58,17 @@ export function modeFits(mode: GameModeDescriptor | undefined, playerCount: numb
  */
 export function playerRangeSentence(mode: GameModeDescriptor): string {
   if (mode.playersMin === mode.playersMax) return `Exactly ${mode.playersMin} players.`;
-  return `For ${mode.playersMin}–${mode.playersMax} players.`;
+  return `For ${playerRangeText(mode)} players.`;
+}
+
+/**
+ * The bare range: "4", "2–8", or "2 or more" for a mode with no ceiling (`playersMax: Infinity`,
+ * the team engine since §5.bv — a 32-player field is eight foursomes, not a limit).
+ */
+export function playerRangeText(mode: GameModeDescriptor): string {
+  if (mode.playersMin === mode.playersMax) return String(mode.playersMin);
+  if (!Number.isFinite(mode.playersMax)) return `${mode.playersMin} or more`;
+  return `${mode.playersMin}–${mode.playersMax}`;
 }
 
 /**
@@ -96,6 +106,6 @@ export function fitExplanation(mode: GameModeDescriptor | undefined, playerCount
   if (fit.kind === 'fits' || fit.kind === 'unknown') return null;
   const range = mode!.playersMin === mode!.playersMax
     ? `exactly ${mode!.playersMin}`
-    : `${mode!.playersMin}–${mode!.playersMax}`;
+    : playerRangeText(mode!);
   return `${mode!.name} needs ${range} players — you have ${playerCount}.`;
 }
