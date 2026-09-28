@@ -1,11 +1,11 @@
-# Next session: the collapse branch is CODE-COMPLETE (Phases 1–3 + F-097 + six picks); next = Craig's walk, then merge on his word
+# Next session: the collapse branch is CODE-COMPLETE and GREEN (full gate rerun 2026-09-18, exit 0); next = Craig's phone walk, then merge on his word
 
 **UPDATE 2026-09-18 (eighth session, late): F-097 FIXED and the SIX OPTION PICKS BUILT (§5.bs).** After the
 Phase 3 steps 4–6 commits (974d0c2, 6723e1a): edbe3ec F-097 · ce439ac F-087 A + F-093 A · 0f0d6df F-091 A ·
 a78f0b3 F-092 A · 4baca75 F-096 A · a9352ac F-095 B · then the docs commit. Craig's words: *"ok, should we go
 ahead and fix F-097? at that point the branch would be basically ready, right?"* and *"recommendations on all
 six"*. **Process note (his speed remark, same day):** each of those seven commits was gated by tsc + unit +
-the touched specs; the ONE full gate at the end (`.claude/verify-2026-09-18-final.log`) was STOPPED by Claude Code for low system memory after tsc + build + 2138 unit passed and ~all 217 e2e had run — no `VERIFY_EXIT` line. **Rerun `npm run verify` first thing (on Craig's word; it wasn't restarted unbidden) before calling the branch green.**
+the touched specs; the ONE full gate at the end (`.claude/verify-2026-09-18-final.log`) was STOPPED by Claude Code for low system memory after tsc + build + 2138 unit passed and ~all 217 e2e had run — no `VERIFY_EXIT` line. **RERUN DONE (ninth session, 2026-09-18):** `.claude/verify-2026-09-18-rerun.log` — tsc, build, 2138 unit, 217 e2e (14.4 min), `VERIFY_EXIT=0`. The branch is GREEN at 64dee93.
 Earlier full gates: `…-p3s4b.log` (step 4), `…-p3s56.log` (steps 5–6), both exit 0.
 
 - **F-097** (P1 money, probe-proved): the wizard's ALIGNED flow never set `sides`, so a margin-money game saved
