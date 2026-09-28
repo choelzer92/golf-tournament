@@ -127,14 +127,29 @@ function makeQuery(store: FakeStore, table: string) {
   let filterCol: string | null = null;
   let filterVal: unknown = null;
   let wantSingle = false;
+  let inCol: string | null = null;
+  let inVals: string[] = [];
+  let orderCol: string | null = null;
+  let orderAsc = true;
+  let limitN: number | null = null;
 
   const exec = (): { data: unknown; error: null | { message: string } } => {
     const t = tableOf(store, table);
     const pk = PRIMARY_KEYS[table] ?? 'id';
 
     if (mode === 'select') {
-      let rows = [...t.values()];
+      // An append-only table (score_audit) keeps its rows in the log, not the keyed map.
+      let rows = pk === '__append__' ? [...(store.appendLog.get(table) ?? [])] : [...t.values()];
       if (filterCol !== null) rows = rows.filter((r) => String(r[filterCol!]) === String(filterVal));
+      if (inCol !== null) rows = rows.filter((r) => inVals.includes(String(r[inCol!])));
+      if (orderCol !== null) {
+        const col = orderCol;
+        rows.sort((a, b) => {
+          const x = a[col] as string | number, y = b[col] as string | number;
+          return (x < y ? -1 : x > y ? 1 : 0) * (orderAsc ? 1 : -1);
+        });
+      }
+      if (limitN !== null) rows = rows.slice(0, limitN);
       store.ops.push({ op: 'select', table });
       if (wantSingle) {
         return rows.length > 0
@@ -161,7 +176,9 @@ function makeQuery(store: FakeStore, table: string) {
     if (mode === 'insert') {
       const rows = Array.isArray(payload) ? payload : [payload!];
       const log = store.appendLog.get(table) ?? [];
-      log.push(...rows.map((r) => ({ ...r })));
+      // Column defaults the migrations declare (score_audit.changed_at DEFAULT NOW()).
+      const defaults = table === 'score_audit' ? { changed_at: new Date().toISOString() } : {};
+      log.push(...rows.map((r) => ({ ...defaults, ...r })));
       store.appendLog.set(table, log);
       store.ops.push({ op: 'insert', table });
       persist(store);
@@ -190,6 +207,9 @@ function makeQuery(store: FakeStore, table: string) {
     delete() { mode = 'delete'; return builder; },
     update(rows: Row) { mode = 'upsert'; payload = rows; return builder; },
     eq(col: string, val: unknown) { filterCol = col; filterVal = val; return builder; },
+    in(col: string, vals: unknown[]) { inCol = col; inVals = vals.map(String); return builder; },
+    order(col: string, opts?: { ascending?: boolean }) { orderCol = col; orderAsc = opts?.ascending ?? true; return builder; },
+    limit(n: number) { limitN = n; return builder; },
     single() { wantSingle = true; return builder; },
     maybeSingle() { wantSingle = true; return builder; },
     // Thenable: `await q`, `q.then()`, and `q.then(undefined, onErr)` all work.

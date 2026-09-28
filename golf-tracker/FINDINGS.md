@@ -1014,6 +1014,12 @@ empty result. Cosmetic in the logs, but it means the audit history is never SEEN
 **Fix (S):** add `in()` (and `order`/`limit` pass-throughs) to the fake's query builder, then a
 screenshot of the history panel joins the sandbox scenarios.
 
+**Status:** FIXED 2026-09-27. The fake gains `in`/`order`/`limit`. A second bug turned up
+along the way: a select on the append-only `score_audit` read the keyed map, not the log the
+inserts go to, so the history would have stayed empty even with `.in`. That's fixed too, and
+`changed_at` now gets its migration default. `src/test/fake-supabase.test.ts` (3 tests, all
+failed on the old fake) and `e2e/f070-score-history.spec.ts` (fails with the fix stashed).
+
 ---
 
 ### F-071 — Teams that share foursomes get a DIFFERENT teams screen (letter buttons) than teams that are their own foursomes (method list)  [P1] [start]
