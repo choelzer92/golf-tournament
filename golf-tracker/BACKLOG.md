@@ -20,9 +20,12 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | Item | Size | Source |
 |---|---|---|
 | ~~F-097 [P1] [money]~~ FIXED 2026-09-18 (edbe3ec). ~~Six option picks~~ ALL BUILT 2026-09-18 (§5.bs): F-087 A + F-093 A (ce439ac), F-091 A (0f0d6df), F-092 A (a78f0b3), F-096 A (4baca75), F-095 B (a9352ac). **Branch is code-complete for Phases 1–3; Craig's own wizard walk still wanted before merge (§5.y); merge is his call (§5.ab).** | — | §5.bs |
-| **Game-structure COLLAPSE — Phases 1, 2 and 3 (steps 1–6) BUILT on `ui-simplification-2026-09-15`, UNMERGED.** Phase 3 (§5.bq/§5.br): junk points everywhere, CTP/all-par/hand-tracked as junk, 3+-team payout settings, pot slices, captains on sides, hide-holes on the team board, router's classic-only list EMPTY. Remaining refusals are golf or the team engine's 8-player cap (12 players on legs/margin money stay refused — residue). F-097 fixed and all six option picks built 2026-09-18 (§5.bs). Craig's phone walk still wanted (§5.y). Screenshots: `e2e/screenshots/collapse-*.png`, `walk-*.png`, `phase3-*.png`. | L | §5.bk/§5.bm/§5.bq |
+| **Game-structure COLLAPSE — Phases 1, 2 and 3 (steps 1–6) BUILT and MERGED to main 2026-09-27 (f163242, pushed; §5.bt).** Phase 3 (§5.bq/§5.br): junk points everywhere, CTP/all-par/hand-tracked as junk, 3+-team payout settings, pot slices, captains on sides, hide-holes on the team board, router's classic-only list EMPTY. Remaining refusals are golf or the team engine's 8-player cap (12 players on legs/margin money stay refused — residue). F-097 fixed and all six option picks built 2026-09-18 (§5.bs). Craig's phone walk still wanted (§5.y). Screenshots: `e2e/screenshots/collapse-*.png`, `walk-*.png`, `phase3-*.png`. | L | §5.bk/§5.bm/§5.bq |
 | **Course-data correctness audit — PARKED by Craig 2026-09-15 ("wait on the course data")**. Meadows payload banked + CLEAN (F-023); prime suspects now gender-name tee collisions and stale stored games. Resume on his word. | M | Craig 2026-09-10/14 + F-023 |
 | Merge-audit polish batch (all four S items below) — fallback slack work | S×4 | merge audit / §5.ak |
+| **NEXT SESSION step 1 — Verify speed + context, A + B + D** (row under "Next few sessions"): parallel Playwright workers (check `fake-supabase` store scoping first), `verify:quick` tier per commit + full gate once before handoff, never poll a running gate | M | Craig 2026-09-27 (§5.bt) |
+| **NEXT SESSION step 2 — Home/Event P3 design conversation** (row under "Bigger arcs") | L | Craig 2026-09-27 (§5.bt) |
+| **NEXT SESSION step 3 — small items:** team-engine 8-player cap · Phase 2 residue (`isSingleGroupGame` rename + AGENTS.md, sandbox seed labels, obsolete one-group snapshot) · F-062 A/B/C (ask) · F-069 refuse-vs-default (ask) · F-070 | S×5 | Craig 2026-09-27 (§5.bt) |
 
 ## Done recently
 
@@ -79,7 +82,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | What's needed |
 |---|---|
-| **Walk the collapsed wizard on your phone** (sandbox: `NEXT_PUBLIC_SANDBOX=1 npx next dev --port 3200` → /pool/new; or the `collapse-*.png` screenshots) — every setup flow changed; findings go to FINDINGS.md before merge | Craig's eyes on the 8-player pool, four pairs, 1 v 1 and skins flows |
+| ~~Walk the collapsed wizard on your phone~~ WAIVED 2026-09-27 — Craig merged on the green gate + screenshots (§5.bt). The live app is now the walk: friends' feedback on the new wizard goes to FINDINGS.md as it arrives | — |
 | F-022 on-course verification | Spot-check 90% strokes vs the GHIN app (incl. an off-the-low game); screenshots if anything is off by one |
 | ~~F-023 part B payload~~ DONE 2026-09-15 — Craig ran the script; Meadows payload is CLEAN (see F-023). Optional: capture 1–2 more suspect courses the same way before the audit session | — |
 | §7 q4 | Confirm dark = live / light = setup is deliberate |
@@ -135,7 +138,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | Item | Size | Source |
 |---|---|---|
 | **Accounts / §5c hardening** (reshaped 2026-09-15, §5.bj — the audit + F-047…F-059 delivered the sharing/login polish; this row is what remains): revoke/rotate per-game tokens, real RLS under the settled §5.bi ownership model, and the F-049 remainder (tappable "Viewing as…"). Crossing into real accounts/auth is the §5c/F-002 trigger — pause for Craig there. | M–L | Craig 2026-09-10 + §5.bi/§5.bj |
-| **Home screen & Event model** — P1 flag-gated read-only /home → stats/ledger → shared Event → flights | L | approved plan `.claude/plans/adaptive-squishing-locket.md` |
+| **Home screen & Event model — P3 the shared Event spine** (P1 hub + P2 stats/ledger BUILT 2026-08-05, `HOME_V2` ON since 2026-08-12; the plan file is gone — record = session memory + §5.bt). P3 = Pool as an Event with one round over `game_scores`, tournament teams N-way, owner on tournaments; unlocks >2-team tournaments, flights (P4), multi-day pool. Starts as a design conversation + a plan in the repo's `.claude/plans/` | L | Craig 2026-09-27 (step 2 of the next session) |
 | **Team Competition engine** — N teams of size K within foursomes (4 pairs combined Stableford etc.). Now = Phase 3 (convergence) of the collapse plan. NOTE: the plan file `tingly-petting-reddy.md` is NOT on disk (plans written outside the repo were lost); memory `project_pool-team-competition-plan` is the durable copy. Plans now live in the repo's `.claude/plans/` | L | approved 2026-08-03 + collapse plan §7 |
 | **Team engine field cap (8 players)** — the last engine reason a money option is greyed: 3 teams of 4 on head-to-head legs / $ per hole / $ per point (classic holds two teams; `team-2v2` playersMax 8). Lifting it = the team engine over N foursomes (it already reads every matchup); check `sidesFieldCap` users, the 1-worker leaderboard, and the scorecard's team rows | M | Phase 3 step 6 residue |
 | **Flight mode** — handicap flights/divisions competing separately | L | folded in as Phase 4 of the Home/Event plan; §5.bq: the Phase 3 pair-balancing (similar combined handicap per pair) is its seed — build that routine so flights can reuse it |

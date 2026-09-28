@@ -82,6 +82,7 @@ scope now: backups/JSON export, and per-game share tokens (really a feature).
 **Branch discipline while friends use the live app (§5.ab).** Keep building on the
 feature branch and keep `npm run verify` green, but do not merge, push, or suggest
 either — and don't treat a green gate as a cue to ask. Merge timing is Craig's call.
+(The collapse branch merged 2026-09-27 on his word, §5.bt; the rule stands for the next branch.)
 
 ---
 
@@ -180,6 +181,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.bq | Phase 3 money rules (2026-09-17): CTP + hand-tracked bonuses are junk on every engine; with 3+ teams every money model gets ONE chosen setting — winner-takes-all vs pay-everyone-you-lost-to (hidden for 2 teams); pairs balance combined handicap → seed of the flight model |
 | 5.br | Phase 3 step 3 (2026-09-17): with 3+ teams `legs` default to WINNER-TAKE-ALL (a $10 leg never costs more than $10); a winner-take-all tie SPLITS the loser's payment (A +5, B +5, C −10); $/point stays pay-each; $/hole gains carry-ties (off by default). F-094 resolved |
 | 5.bs | 2026-09-18: F-097 fix approved (opt C — wizard passes tee groups as sides + engine backstop); recommendations on all six open picks: F-087 A, F-093 A, F-091 A, F-092 A, F-095 B, F-096 A; branch code-complete after, Craig's walk still wanted before merge |
+| 5.bt | 2026-09-27: collapse branch MERGED to main (f163242) + pushed on Craig's word, walk waived for the green gate + screenshots; next-session order = verify speed (A+B+D) → Home/Event P3 design conversation (P1+P2 already built, flag ON since 2026-08-12) → small items |
 
 ---
 

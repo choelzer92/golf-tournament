@@ -1908,6 +1908,33 @@ ready, right?"* — then, shown the six open option picks with a recommendation 
 
 ---
 
+### 5.bt — Collapse branch merged to main; next-session order (2026-09-27)
+
+**Context.** The full gate was rerun at the start of the ninth session (`.claude/verify-2026-09-18-rerun.log`:
+tsc, build, 2138 unit, 217 e2e in 14.4 min, `VERIFY_EXIT=0`) at 64dee93. Craig chose to merge WITHOUT the
+phone walk that §5.y/§5.bs had wanted — the green gate plus the screenshot set (`walk-*.png`, `phase3-*.png`,
+`f097-aligned-margin-hub.png`) stood in for it. His words: *"so lets merge it, and then lets talk about what we
+should do in the next session"*, then *"also, lets push the branch?"*.
+
+**Decision.** `ui-simplification-2026-09-15` merged to `main` with a merge commit (f163242, 50 commits,
+§5.bk–§5.bs) and pushed; the branch pushed too. §5.ab's standing rule (don't merge/push/suggest) is
+unchanged for future branches — this was his explicit word.
+
+**Next-session order (Craig: "lets try to do steps 1 and 2, and then the smaller items"):**
+1. **Verify speed + context** — BACKLOG row; approach A + B + D (parallel Playwright workers, a quick
+   tier per commit with the full gate once before handoff, never poll). Process work, no product decision.
+2. **Home screen & Event model — what's actually left.** Correction recorded here: P1 (the /home hub) and
+   P2 (stats + money ledger, settle-up) were BUILT 2026-08-05 and `HOME_V2` has been ON since 2026-08-12;
+   the plan file `.claude/plans/adaptive-squishing-locket.md` no longer exists (the durable record is the
+   session memory + this archive). The remaining arc is **P3, the shared Event spine** — Pool as "an Event
+   with one round" over `game_scores`, tournament teams N-way, owner on tournaments — which is the hinge
+   that also unlocks >2-team tournaments, flights (P4) and multi-day pool. It's architecture, so its first
+   step is a design conversation and a plan in the repo's `.claude/plans/`, not code.
+3. **Smaller items:** team-engine 8-player cap; Phase 2 residue (`isSingleGroupGame` rename with AGENTS.md,
+   sandbox seed labels, obsolete one-group snapshot); F-062 A/B/C; F-069 refuse-vs-default; F-070.
+
+---
+
 ## 7. Open questions
 
 Awaiting Craig's call. Inferred answers are marked as guesses.
