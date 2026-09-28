@@ -1062,9 +1062,21 @@ function StepIndicator({ current, course, solo, playingGroups }: { current: Step
     { key: 'create', label: 'Money' },
   ];
   const currentIdx = steps.findIndex((s) => s.key === current);
+  const here = steps[Math.max(0, currentIdx)];
 
+  // F-099 (§5.bv, opt C): seven-plus steps run ~630px wide, off a phone screen, and dragged the
+  // whole form sideways. Phones get one line and a thin bar; the full bar returns from `sm:` up.
   return (
-    <div className="flex items-center gap-2 mb-6 text-sm">
+    <>
+    <div className="sm:hidden mb-6">
+      <div className="text-sm text-gray-600 truncate">
+        Step {currentIdx + 1} of {steps.length} · <span className="font-semibold text-green-800">{here.label}</span>
+      </div>
+      <div className="mt-1.5 h-1 rounded bg-gray-200">
+        <div className="h-1 rounded bg-green-700" style={{ width: `${((currentIdx + 1) / steps.length) * 100}%` }} />
+      </div>
+    </div>
+    <div className="hidden sm:flex items-center gap-2 mb-6 text-sm">
       {steps.map((s, i) => (
         <div key={s.key} className="flex items-center gap-2">
           <span className={`px-2 py-1 rounded ${i <= currentIdx ? 'bg-green-700 text-white' : 'bg-gray-200 text-gray-500'}`}>
@@ -1074,6 +1086,7 @@ function StepIndicator({ current, course, solo, playingGroups }: { current: Step
         </div>
       ))}
     </div>
+    </>
   );
 }
 
