@@ -10,7 +10,7 @@ import type { GameSide } from './sides';
 //   'team-within-group' — the players of ONE foursome are split into two SIDES
 //                         (2v2) that compete head-to-head. Also single-group.
 // Both 'individual' and 'team-within-group' produce an IndividualResult and use
-// the single-group leaderboard (see isSingleGroupGame).
+// the single-group leaderboard (see isModeEngineGame).
 export type GameCategory = 'team' | 'individual' | 'team-within-group';
 
 // What score entry a mode needs. 'gross' reuses the existing gross-per-player

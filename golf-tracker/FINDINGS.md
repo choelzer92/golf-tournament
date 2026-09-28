@@ -715,8 +715,8 @@ editor, the money panels, the printable sheet, the scorecard header, the name fi
 the fallback label now). Two judgement calls for Craig: the `team-2v2` mode's own `name` is
 **"Teams"** (it still shows in the settings editor's game select and the "Teams options" heading —
 one line to rename), and the sandbox seed labels still say "sides" (dev-only, e2e look them up).
-Residue NOT done: `isSingleGroupGame` keeps its name (AGENTS.md's one rule names it), `teamBuild`
-stays classic-only.
+Residue: `isSingleGroupGame` was RENAMED `isModeEngineGame` 2026-09-28 (AGENTS.md's one rule
+updated with it). `teamBuild` stays classic-only.
 
 ---
 

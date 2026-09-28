@@ -98,8 +98,13 @@ const spreadCards = (ids: string[]) =>
 
 describe('GOLDEN: every mode at one group (MUST NOT MOVE)', () => {
   for (const mode of GAME_MODES) {
-    for (const count of [mode.playersMin, mode.playersMax]) {
-      const label = count === mode.playersMin ? 'playersMin' : 'playersMax';
+    // Plus a foursome wherever it's strictly inside the range: team-2v2's playersMin fell to 2
+    // (the 1 v 1), and the default-settings 2v2 foursome — the friends' usual game — must stay
+    // pinned. Its snapshot is the one recorded when 4 WAS playersMin, re-keyed unchanged.
+    const counts = [mode.playersMin, mode.playersMax];
+    if (mode.playersMin < 4 && mode.playersMax > 4 && mode.category === 'team-within-group') counts.splice(1, 0, 4);
+    for (const count of counts) {
+      const label = count === mode.playersMin ? 'playersMin' : count === mode.playersMax ? 'playersMax' : 'foursome';
       // Skip the duplicate run for a mode whose min === max (Wolf).
       if (count === mode.playersMax && mode.playersMin === mode.playersMax) continue;
 

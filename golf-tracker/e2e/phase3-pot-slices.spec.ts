@@ -43,7 +43,7 @@ test('Q-E: a sliced pairs pot shows each slice, who took it, and A +40 / B −10
 });
 
 test('an unsliced pot (one prize on the overall) shows no slice board — nothing saved changes', async ({ page }) => {
-  await seed(page, 'Three sides playing a POT (uneven 3/2/1)');
+  await seed(page, 'Three teams playing a POT (uneven 3/2/1)');
   await page.waitForURL(/\/leaderboard$/);
   await expect(page.getByText('$60 pot')).toBeVisible();
   const text = await page.locator('body').innerText();

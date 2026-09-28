@@ -209,7 +209,7 @@ test.describe('the hub settings panel — where F-014 suspects the real exposure
 
   test('three sides: how many settings does the hub show?', async ({ page }) => {
     await page.setViewportSize(PHONE);
-    await seedAndOpen(page, 'Three sides in one group');
+    await seedAndOpen(page, 'Three teams in one group');
     // This seed opens the leaderboard; the hub is one hop up.
     await page.waitForURL(/\/pool\/[0-9a-f-]+\/leaderboard/);
     await countScreen(page, '13-leaderboard-3side');
@@ -230,7 +230,7 @@ test.describe('the hub settings panel — where F-014 suspects the real exposure
 test.describe('the 3-side game on the surfaces that matter', () => {
   test('capture the scorecard for a 3-side game', async ({ page }) => {
     await page.setViewportSize(PHONE);
-    await seedAndOpen(page, 'Three sides in one group');
+    await seedAndOpen(page, 'Three teams in one group');
     await page.waitForURL(/leaderboard/);
     await page.goto(page.url().replace('/leaderboard', ''));
     await page.waitForLoadState('networkidle');
@@ -247,7 +247,7 @@ test.describe('the 3-side game on the surfaces that matter', () => {
 
   test('capture the pot board for three uneven sides', async ({ page }) => {
     await page.setViewportSize(PHONE);
-    await seedAndOpen(page, 'Three sides playing a POT');
+    await seedAndOpen(page, 'Three teams playing a POT');
     await page.waitForURL(/leaderboard/);
     await countScreen(page, '17-pot-3side-uneven');
   });

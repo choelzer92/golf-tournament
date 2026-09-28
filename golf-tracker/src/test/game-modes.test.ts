@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import { GAME_MODES, getGameMode } from '@/lib/game-modes';
 import { buildGameModeContext } from '@/lib/game-modes/context';
-import { computeGameResult, gameListSubtitle, isSingleGroupGame } from '@/lib/game-modes/result';
+import { computeGameResult, gameListSubtitle, isModeEngineGame } from '@/lib/game-modes/result';
 import type { IndividualResult, PlayerStanding } from '@/lib/game-modes/types';
 import type { PoolGame } from '@/lib/pool-game';
 import type { GameScore } from '@/lib/game-state';
@@ -57,7 +57,7 @@ describe('every registered mode', () => {
   // the other. Every registered mode is single-group by construction.
   it('routes to the single-group leaderboard', () => {
     for (const m of GAME_MODES) {
-      expect(isSingleGroupGame(makeGame({ gameMode: m.id }))).toBe(true);
+      expect(isModeEngineGame(makeGame({ gameMode: m.id }))).toBe(true);
     }
   });
 
@@ -989,7 +989,7 @@ describe('classic pool (team axis)', () => {
   it('is a team result, not an individual one', () => {
     const game = makeGame({ teamCount: 2, indexes: Array(8).fill(10) });
     expect(game.gameMode).toBeUndefined();
-    expect(isSingleGroupGame(game)).toBe(false);
+    expect(isModeEngineGame(game)).toBe(false);
     const r = computeGameResult(game, new Map([
       ['m1', parScores(['p1', 'p2', 'p3', 'p4'])],
       ['m2', parScores(['p5', 'p6', 'p7', 'p8'])],

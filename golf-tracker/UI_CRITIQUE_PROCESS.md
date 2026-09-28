@@ -60,7 +60,7 @@ In priority order. A finding should always name which one it violates.
    states, colour meaning, panel order.
 3. **The golfer's context** — phone, one hand, sunlight, glove, cart-path wifi,
    group waiting. If a screen needs two hands or a second look, that's a finding.
-4. **Cross-mode consistency** — both sides of `isSingleGroupGame`, 2/3/4 players,
+4. **Cross-mode consistency** — both sides of `isModeEngineGame`, 2/3/4 players,
    front/back/18 holes.
 
 ### Questions that reliably surface findings

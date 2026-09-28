@@ -183,7 +183,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'three-sides',
-    label: 'Three sides in one group (6 players)',
+    label: 'Three teams in one group (6 players)',
     detail: 'F-006 N sides: three pairs, pairwise round-robin money, to-par ranking, three side colours.',
     build: () => {
       const ps = players([4, 12, 8, 16, 6, 14]);
@@ -221,7 +221,7 @@ const SCENARIOS: Scenario[] = [
   // scorecards, and sides whose members SPAN them.
   {
     key: 'two-groups-four-sides',
-    label: 'F-019: 8 players, TWO tee times, four sides',
+    label: 'F-019: 8 players, TWO tee times, four teams',
     detail: 'The headline case. Two foursomes at 8:10 and 8:20, four sides that CROSS the two groups (your partner is in the other foursome). Check the Teams sheet and Scorecards — today they claim "1 foursome" of eight.',
     build: () => {
       const ps = players([4, 12, 8, 16, 6, 14, 10, 2]);
@@ -256,7 +256,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'threesome-plus-guest',
-    label: 'F-019: 7 players as 4 + 3, one guest on no side',
+    label: 'F-019: 7 players as 4 + 3, one guest on no team',
     detail: 'A threesome is a real tee group, and the random who joined is in a group but on nobody\'s side. Checks 3-player groups and that a sideless player still appears on the card.',
     build: () => {
       const ps = players([4, 12, 8, 16, 6, 14, 10]);
@@ -442,7 +442,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'walk-in-legs',
-    label: 'Three sides, LEGS money — side C walked in at 12',
+    label: 'Three teams, LEGS money — team C walked in at 12',
     detail: 'F-016b: the front nine is complete but the back and overall are short, so "Close out game" must ask whether those legs pay. Open, then scroll to Close out game.',
     build: () => {
       const ps = players([4, 12, 8, 16, 6, 14]);
@@ -474,7 +474,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'three-sides-pot',
-    label: 'Three sides playing a POT (uneven 3/2/1)',
+    label: 'Three teams playing a POT (uneven 3/2/1)',
     detail: 'DECISIONS 5.ag: buy-in is PER SIDE, so the solo player and the trio have the same stake.',
     build: () => {
       const ps = players([4, 12, 8, 16, 6, 14]);

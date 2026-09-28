@@ -13,7 +13,7 @@ test.beforeEach(async ({ context, page }) => {
 
 test.describe('F-016b: close-out asks about legs nobody finished', () => {
   test('the prompt names only the SHORT legs, and the money follows the answer', async ({ page }) => {
-    const id = await seed(page, 'side C walked in at 12');
+    const id = await seed(page, 'team C walked in at 12');
     await page.goto(`${BASE}/pool/${id}/leaderboard`);
     await page.waitForLoadState('networkidle');
     const before = await page.locator('body').innerText();
@@ -53,7 +53,7 @@ test.describe('F-016b: close-out asks about legs nobody finished', () => {
   });
 
   test('unticking a leg pays it on the holes everyone played', async ({ page }) => {
-    const id = await seed(page, 'side C walked in at 12');
+    const id = await seed(page, 'team C walked in at 12');
     await page.goto(`${BASE}/pool/${id}`);
     await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: 'Close out game' }).first().click();

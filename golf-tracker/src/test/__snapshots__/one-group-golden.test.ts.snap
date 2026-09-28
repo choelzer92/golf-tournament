@@ -552,7 +552,7 @@ exports[`GOLDEN: every mode at one group (MUST NOT MOVE) > team-2v2 / 2 players 
 }
 `;
 
-exports[`GOLDEN: every mode at one group (MUST NOT MOVE) > team-2v2 / 4 players (playersMin) 1`] = `
+exports[`GOLDEN: every mode at one group (MUST NOT MOVE) > team-2v2 / 4 players (foursome) 1`] = `
 {
   "junkLines": undefined,
   "metricLabel": "match pts",

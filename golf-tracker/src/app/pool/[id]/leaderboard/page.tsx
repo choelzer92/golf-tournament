@@ -22,7 +22,7 @@ import { gameKindLabel } from '@/lib/game-structure';
 import type { TeamFormat } from '@/lib/game-modes/team-scoring';
 import type { WolfHoleLine, NassauLegLine, JunkLine, PotSliceLine, SettingsBag } from '@/lib/game-modes/types';
 import { JUNK_SETTINGS, junkPayout, numberSetting } from '@/lib/game-modes/settings';
-import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
+import { computeGameResult, isModeEngineGame } from '@/lib/game-modes/result';
 import { defaultSideLabel, sideOfPlayer, sidesOfGame } from '@/lib/game-modes/sides';
 import { CardBoardToggle } from '@/components/card-board-toggle';
 
@@ -108,7 +108,7 @@ export default function PoolLeaderboardPage() {
   // Single-group game (9s / skins / quota / sides — 1v1 up to four-a-side): render the
   // per-player/side leaderboard. The team path below is untouched for classic
   // pot/match pools.
-  if (isSingleGroupGame(game)) {
+  if (isModeEngineGame(game)) {
     return <IndividualLeaderboard id={id} />;
   }
 

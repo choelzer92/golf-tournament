@@ -544,7 +544,7 @@ test.describe('a 1 v 1 singles match', () => {
   // A solo side AGAINST a pair keeps its "(solo)" marker — there it distinguishes something.
   test('1v1: a solo against a pair still says (solo)', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    const id = await seed(page, 'Three sides playing a POT (uneven 3/2/1)');
+    const id = await seed(page, 'Three teams playing a POT (uneven 3/2/1)');
     await goToGame(page, id, '/leaderboard');
     await expect(page.getByRole('main').getByText('STANDINGS')).toBeVisible();
     expect(await page.locator('body').innerText()).toContain('(solo)');

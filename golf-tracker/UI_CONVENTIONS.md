@@ -74,10 +74,10 @@ This app has two parallel presentation axes, built at different times:
 | Axis | Result | Renderer |
 |---|---|---|
 | **team** — N foursomes compete | `PoolResult` (`kind:'team'`) | top-level component in `pool/[id]/leaderboard/page.tsx` |
-| **single-group** — `individual` + `team-within-group` | `IndividualResult` | `<IndividualLeaderboard>`, *same file* |
+| **mode-engine** — `individual` + `team-within-group` | `IndividualResult` | `<IndividualLeaderboard>`, *same file* |
 | **tournament** — 2 teams, rounds | `matchup.result` | `tournament/[id]/*` |
 
-`isSingleGroupGame(game)` (`lib/game-modes/result.ts`) is the one branch point.
+`isModeEngineGame(game)` (`lib/game-modes/result.ts`) is the one branch point.
 
 > **Touch a shared surface → check BOTH sides of that branch.**
 
@@ -324,7 +324,7 @@ The most under-served phase, and the reason a group comes back:
 
 ## 7. Checklist for a new panel or game mode
 
-- [ ] Renders on **both** sides of `isSingleGroupGame` — or documented why not
+- [ ] Renders on **both** sides of `isModeEngineGame` — or documented why not
 - [ ] Uses the shared `money()` helper; sign outside the `$`; zero is grey
 - [ ] Field size and hole count derived from the game, never literals
 - [ ] Captions/labels derived from data, not hardcoded strings

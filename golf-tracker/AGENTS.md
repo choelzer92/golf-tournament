@@ -46,10 +46,11 @@ the fact, and a season-long money ledger. Bias effort there.
 
 ## The one rule that prevents most bugs
 
-Two parallel presentation axes exist: the classic **team** pool (N foursomes) and
-**single-group** games (`individual` + `team-within-group`, i.e. 2v2). Both render
-from `pool/[id]/leaderboard/page.tsx`, branching on `isSingleGroupGame(game)`
-(`lib/game-modes/result.ts`).
+Two parallel presentation axes exist: the classic **team** pool (N foursomes, scored
+by `computePoolResult`) and **mode-engine** games (`individual` + `team-within-group`:
+skins, Stableford, teams through `sides` — which may span several tee groups). Both
+render from `pool/[id]/leaderboard/page.tsx`, branching on `isModeEngineGame(game)`
+(`lib/game-modes/result.ts`; it was `isSingleGroupGame` before the collapse).
 
 > Touching a shared surface? Check **both** sides of that branch.
 

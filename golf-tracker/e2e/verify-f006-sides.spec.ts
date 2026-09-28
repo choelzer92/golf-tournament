@@ -431,7 +431,7 @@ test.describe('F-006: three sides in one group', () => {
   // The N-sides half of F-006. Two sides is still the default; this proves the third is real
   // on screen, not just in the engine.
   test('the leaderboard shows all three sides, ranked, with money', async ({ page }) => {
-    const id = await seed(page, 'Three sides in one group');
+    const id = await seed(page, 'Three teams in one group');
     await page.waitForURL(new RegExp(`/pool/${id}/leaderboard`));
 
     // All three sides present and named after their players.
@@ -448,7 +448,7 @@ test.describe('F-006: three sides in one group', () => {
   });
 
   test('the board shows the TO PAR figure it ranks on', async ({ page }) => {
-    await seed(page, 'Three sides in one group');
+    await seed(page, 'Three teams in one group');
     // DECISIONS 5.af: a side game under 'total' scoring ranks on score to par, and used to
     // display only the raw total — so the order looked wrong with nothing explaining it.
     await expect(page.getByRole('columnheader', { name: 'To par' })).toBeVisible();
@@ -456,7 +456,7 @@ test.describe('F-006: three sides in one group', () => {
   });
 
   test('side C, thru fewer holes, is not paid for playing less golf', async ({ page }) => {
-    await seed(page, 'Three sides in one group');
+    await seed(page, 'Three teams in one group');
     const body = await page.locator('body').innerText();
     // The seed has side C twelve holes in while A and B are done, and C playing WORSE.
     // On raw totals C's lower total would have ranked it first; on to-par it is last.
@@ -470,7 +470,7 @@ test.describe('F-006: three sides in one group', () => {
 
   // Both of these were found by LOOKING at three-sides-leaderboard.png, not by reading code.
   test('a bad to-par is drawn red, not the same grey as a good one', async ({ page }) => {
-    await seed(page, 'Three sides in one group');
+    await seed(page, 'Three teams in one group');
     // Side A is -4 (good), side C is +18 (bad). They rendered identically until this fix, so
     // being 18 over par read as unremarkable. Colour keys on the BASIS: under strokes lower is
     // better, so a positive to-par is red.
@@ -484,7 +484,7 @@ test.describe('F-006: three sides in one group', () => {
   // side that exists. The INTENT of this test is unchanged — naming side C must reach the board —
   // only the control moved.
   test('a third side can be NAMED, and unused name boxes stay hidden', async ({ page }) => {
-    const id = await seed(page, 'Three sides in one group');
+    const id = await seed(page, 'Three teams in one group');
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
     await expect(page.getByText('Teams options')).toBeVisible();
@@ -515,7 +515,7 @@ test.describe('F-006: three sides in one group', () => {
   });
 
   test('the hub can add and remove a side', async ({ page }) => {
-    const id = await seed(page, 'Three sides in one group');
+    const id = await seed(page, 'Three teams in one group');
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
     await expect(page.getByText('Teams options')).toBeVisible();
@@ -535,7 +535,7 @@ test.describe('F-006: three sides in one group', () => {
 test.describe('F-006: a side game can play a POT', () => {
   // DECISIONS 5.ag. The side game only had margin money models until now.
   test('the board shows the pot and pays the best side', async ({ page }) => {
-    await seed(page, 'Three sides playing a POT');
+    await seed(page, 'Three teams playing a POT');
     const body = await page.locator('body').innerText();
 
     // Three sides of 3 / 2 / 1 at $20 a SIDE = $60, not 6 x $20 = $120. That's the whole
@@ -551,7 +551,7 @@ test.describe('F-006: a side game can play a POT', () => {
   });
 
   test('the buy-in and split fields appear only for a pot game', async ({ page }) => {
-    const id = await seed(page, 'Three sides playing a POT');
+    const id = await seed(page, 'Three teams playing a POT');
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
     await expect(page.getByLabel('Buy-in ($ / team)')).toBeVisible();
@@ -571,7 +571,7 @@ test.describe('F-013: the scorecard with three sides', () => {
   // showed no team row at all. It now draws one row per side FROM THE ENGINE, so the card and
   // the money cannot disagree.
   test('draws a row per side, with rank + margin in the game own unit', async ({ page }) => {
-    const id = await seed(page, 'Three sides in one group');
+    const id = await seed(page, 'Three teams in one group');
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: /enter scores/i }).first().click();
     await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
@@ -593,7 +593,7 @@ test.describe('F-013: the scorecard with three sides', () => {
   });
 
   test('every player can still enter a score, including on the third side', async ({ page }) => {
-    const id = await seed(page, 'Three sides in one group');
+    const id = await seed(page, 'Three teams in one group');
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: /enter scores/i }).first().click();
     await page.waitForURL(/\/game\/play/, { timeout: 15_000 });

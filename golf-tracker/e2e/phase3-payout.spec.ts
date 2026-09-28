@@ -11,7 +11,7 @@ test.beforeEach(async ({ context, page }) => {
 
 test('a three-team game shows how its points pay, defaulting to pay each team you lost to', async ({ page }) => {
   // The seed opens its leaderboard; the setting rows live on the hub.
-  const id = await seed(page, 'Three sides in one group (6 players)');
+  const id = await seed(page, 'Three teams in one group (6 players)');
   await goToGame(page, id);
   await expect(page.getByRole('heading', { name: "How it's played" })).toBeVisible();
   const body = await page.locator('body').innerText();

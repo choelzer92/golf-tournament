@@ -13,7 +13,7 @@ import type { SideGameResult } from '@/lib/side-game';
 import type { PoolGame, PoolResult, PoolLeg } from '@/lib/pool-game';
 import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores, buildHcapMap, playerHoleStrokeIndexForGame, numHolesForStrokes, defaultSubTeams, isPoolGameFullyScored, DEFAULT_JUNK_VALUES } from '@/lib/pool-game';
 import { getMoneyStrokesOnHole } from '@/lib/money-games';
-import { computeGameResult, isSingleGroupGame, gameCountsCtp } from '@/lib/game-modes/result';
+import { computeGameResult, isModeEngineGame, gameCountsCtp } from '@/lib/game-modes/result';
 import { getGameMode } from '@/lib/game-modes';
 import { sideNamesForGame } from '@/lib/game-modes/team-game';
 import { fromLegacySubTeams, sidesOfGame } from '@/lib/game-modes/sides';
@@ -400,7 +400,7 @@ export default function PlayGamePage() {
   // subscription above). Passing only my own group made each side's total its in-my-group member
   // alone, so a card in group 2 showed different side totals than the leaderboard.
   const sideBreakdown = (() => {
-    if (!poolGame || !poolCtx || !isSingleGroupGame(poolGame)) return null;
+    if (!poolGame || !poolCtx || !isModeEngineGame(poolGame)) return null;
     if (getGameMode(poolGame.gameMode)?.category !== 'team-within-group') return null;
     void poolOtherTick;   // recompute when another group posts a score
     const byMatchup = new Map<string, GameScore[]>([[poolCtx.matchupId, scores]]);
@@ -888,7 +888,7 @@ export default function PlayGamePage() {
       {/* The pool overview is the foursome-vs-foursome standing — only meaningful
           for the classic multi-team pool. Single-group games (9s/skins/quota/2v2)
           have their own leaderboard and would get a meaningless "1st of 1" here. */}
-      {poolCtx && poolGame && !isSingleGroupGame(poolGame) && (
+      {poolCtx && poolGame && !isModeEngineGame(poolGame) && (
         <PoolOverviewPanel poolGame={poolGame} myMatchupId={poolCtx.matchupId} myScores={scores} tick={poolOtherTick} />
       )}
 

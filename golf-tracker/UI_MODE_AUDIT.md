@@ -9,10 +9,10 @@ different times, so drift between them is the default failure mode:
 | Axis | Result type | Renderer | Entry |
 |---|---|---|---|
 | **team** (classic pool: N foursomes compete) | `PoolResult` (`kind:'team'`) | the top-level component in `pool/[id]/leaderboard/page.tsx` | `computePoolResult` |
-| **single-group** (`individual` + `team-within-group`) | `IndividualResult` | `<IndividualLeaderboard>` in the *same* file | `mode.compute()` |
+| **mode-engine** (`individual` + `team-within-group`) | `IndividualResult` | `<IndividualLeaderboard>` in the *same* file | `mode.compute()` |
 | **tournament** (2 teams, rounds/matchups) | `matchup.result` | `tournament/[id]/*` | `computeMatchPlayResult` / `computeStrokePlayResult` |
 
-`isSingleGroupGame(game)` (`src/lib/game-modes/result.ts`) is the single branch
+`isModeEngineGame(game)` (`src/lib/game-modes/result.ts`) is the single branch
 point. **Every** UI surface that renders a game must be checked on both sides of
 it — that's what this audit does.
 
@@ -54,7 +54,7 @@ renders. Anything that differs without a *deliberate* reason is a finding.
 
 ```bash
 # 1. Every branch on game category — each is a spot where the two axes can diverge
-grep -rn "isSingleGroupGame\|isIndividualGame\|team-within-group\|category ===" src
+grep -rn "isModeEngineGame\|isIndividualGame\|team-within-group\|category ===" src
 
 # 2. Hardcoded player/team counts (should be derived from the game)
 grep -rn "length >= 4\|length === 4\|=== 2 &&\|foursome" src --include=*.tsx

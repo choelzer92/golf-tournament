@@ -15,7 +15,7 @@ test.beforeEach(async ({ context, page }) => {
 test.describe('F-019: a side game with two playing groups', () => {
   test('F-019: the money reads BOTH groups — a partner in the other foursome counts', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    const id = await seed(page, 'F-019: 8 players, TWO tee times, four sides');
+    const id = await seed(page, 'F-019: 8 players, TWO tee times, four teams');
     await page.goto(`${BASE}/pool/${id}/leaderboard`);
     await expect(page.getByRole('main').getByText('STANDINGS')).toBeVisible();
 
@@ -51,7 +51,7 @@ test.describe('F-019: a side game with two playing groups', () => {
 
   test('F-019: the player grid lists EVERY group, not just the first', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    const id = await seed(page, 'F-019: 8 players, TWO tee times, four sides');
+    const id = await seed(page, 'F-019: 8 players, TWO tee times, four teams');
     await page.goto(`${BASE}/pool/${id}/leaderboard`);
     await expect(page.getByText('PLAYER DETAILS')).toBeVisible();
 
@@ -64,7 +64,7 @@ test.describe('F-019: a side game with two playing groups', () => {
   });
 
   test('F-019: the teams sheet prints a box per tee time', async ({ page }) => {
-    const id = await seed(page, 'F-019: 8 players, TWO tee times, four sides');
+    const id = await seed(page, 'F-019: 8 players, TWO tee times, four teams');
     await page.goto(`${BASE}/pool/${id}/teams`);
     await expect(page.getByText('Two Tee Times', { exact: false }).first()).toBeVisible();
 
@@ -81,7 +81,7 @@ test.describe('F-019: a side game with two playing groups', () => {
   // about BOTH axes. The groups were already there; the SIDES were not, so the sheet that gets
   // sent out showed who walks together and nothing about who plays whom.
   test('F-019: the teams sheet carries the SIDES as well as the tee groups', async ({ page }) => {
-    const id = await seed(page, 'F-019: 8 players, TWO tee times, four sides');
+    const id = await seed(page, 'F-019: 8 players, TWO tee times, four teams');
     await page.goto(`${BASE}/pool/${id}/teams`);
     await expect(page.getByText('Two Tee Times', { exact: false }).first()).toBeVisible();
 
@@ -184,7 +184,7 @@ test.describe('F-019: a side game with two playing groups', () => {
 test.describe('F-019: the scorecard agrees with the leaderboard across groups', () => {
   test('F-019: side totals on the card match the board when partners are split', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    const id = await seed(page, 'F-019: 8 players, TWO tee times, four sides');
+    const id = await seed(page, 'F-019: 8 players, TWO tee times, four teams');
 
     // What the BOARD says each side scored — the engine's answer, over both groups.
     await page.goto(`${BASE}/pool/${id}/leaderboard`);

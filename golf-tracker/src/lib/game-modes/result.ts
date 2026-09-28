@@ -43,10 +43,11 @@ export function isIndividualGame(game: PoolGame): boolean {
   return getGameMode(game.gameMode)?.category === 'individual';
 }
 
-// A single-group game (individual OR 2v2 within-group) — one foursome, one
-// device inputs, shared live leaderboard. Used at every UI branch point that
-// distinguishes single-group play from the classic multi-foursome pool.
-export function isSingleGroupGame(game: PoolGame): boolean {
+// Scored by a game-mode ENGINE (individual, or teams through `sides`) rather than the
+// classic foursome pool engine (`computePoolResult`). The one UI branch point between
+// the two presentation axes. Formerly `isSingleGroupGame` — renamed once the collapse
+// let a teams game span several tee groups, so "single group" stopped being true.
+export function isModeEngineGame(game: PoolGame): boolean {
   const c = getGameMode(game.gameMode)?.category;
   return c === 'individual' || c === 'team-within-group';
 }
