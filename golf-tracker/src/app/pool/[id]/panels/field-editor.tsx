@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { type Player, type TeeSetOption, parseGhinIndex, type GameScore } from '@/lib/game-state';
+import { type Player, type TeeSetOption, parseGhinIndex, type GameScore, formatHandicapIndex } from '@/lib/game-state';
 import { type PoolGame, type PoolTeam, getPoolPlayingHandicap, gameNineBasis, balanceTeamsWithCaptains, captainsDealTeams, balanceTeamsWithLocks, pickCaptains, sortPlayerIdsByHcap, groupShapesFor, groupShapeLabel, dealBalancedIntoShape, TEE_GROUP_SHAPE_OPTS, orderPlayerIdsWithCaptain, teeOptionsForPlayer, playerTeeGenderMismatch, rankSwapCandidates, teamHandicapSpread, poolStrokeMap } from '@/lib/pool-game';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { isAppOwner } from '@/lib/invite-gate';
@@ -207,8 +207,7 @@ export function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; on
   // mirrors to the roster so it sticks for future games. Empty clears to null.
   function setPlayerHandicap(playerId: string, raw: string) {
     const trimmed = raw.trim();
-    const idx = trimmed === '' ? null : parseFloat(trimmed);
-    const handicapIndex = idx === null || isNaN(idx) ? null : idx;
+    const handicapIndex = parseGhinIndex(trimmed);   // "+2.1" is a plus index (F-098)
     onSave({
       ...game,
       players: game.players.map((p) => (p.id === playerId ? { ...p, handicapIndex } : p)),
@@ -552,11 +551,10 @@ export function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; on
                     <label className="flex flex-col gap-0.5">
                       <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Index</span>
                       <input
-                        type="number"
+                        type="text"
                         inputMode="decimal"
-                        step="0.1"
-                        defaultValue={p.handicapIndex ?? ''}
-                        onBlur={(e) => { if ((e.target.value.trim() === '' ? null : parseFloat(e.target.value)) !== p.handicapIndex) setPlayerHandicap(pid, e.target.value); }}
+                        defaultValue={formatHandicapIndex(p.handicapIndex, '')}
+                        onBlur={(e) => { if (parseGhinIndex(e.target.value) !== p.handicapIndex) setPlayerHandicap(pid, e.target.value); }}
                         placeholder="—"
                         className="w-16 text-sm rounded-md border border-gray-300 px-2 py-1 shadow-sm focus:border-green-500 focus:outline-none bg-white"
                         title="Handicap index — edit for a player entered by hand"
@@ -762,7 +760,7 @@ export function AddPlayerPanel({
                 >
                   <span className="flex-1 font-medium text-gray-900">{rp.name}</span>
                   <span className="text-xs text-gray-500">
-                    {rp.handicapIndex ?? '—'}{rp.gender ? ` · ${rp.gender}` : ''}
+                    {formatHandicapIndex(rp.handicapIndex)}{rp.gender ? ` · ${rp.gender}` : ''}
                   </span>
                   {!inGame && <span className="text-xs text-green-700 font-medium">+ Add</span>}
                   {inGame && <span className="text-xs text-gray-400">In game</span>}

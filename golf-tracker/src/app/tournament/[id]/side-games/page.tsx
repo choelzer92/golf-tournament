@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { Tournament, SideGame } from '@/lib/tournament-state';
 import type { GameScore, Player } from '@/lib/game-state';
+import { parseGhinIndex } from '@/lib/game-state';
 import { loadTournament, loadGameScores, fetchTournament, fetchGameScores, subscribeToTournament, subscribeToScores, saveTournament, saveGameScores } from '@/lib/tournament-state';
 import { computeSideGameResult, computeSideGamePlayerDetails } from '@/lib/side-game';
 import type { SideGameResult, SideGameTeamDetail, SideGameHoleResult } from '@/lib/side-game';
@@ -561,7 +562,7 @@ function SetupForm({ tournament, onCreated }: { tournament: Tournament; onCreate
       .map((p) => ({
         id: crypto.randomUUID(),
         name: p.name.trim(),
-        handicapIndex: parseFloat(p.handicap) || null,
+        handicapIndex: parseGhinIndex(p.handicap),   // keeps "+2.1" and a scratch 0 (F-098)
         teeSetId: p.teeId ? Number(p.teeId) : undefined,
       }));
 

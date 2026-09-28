@@ -121,7 +121,7 @@ export function AddPlayerPanel({
     if (!nameInput.trim()) return;
     await onAddAction({
       name: nameInput.trim(),
-      handicapIndex: handicapInput ? parseFloat(handicapInput) : null,
+      handicapIndex: parseGhinIndex(handicapInput),   // "+2.1" is a plus index (F-098)
       ghinNumber: null,
       gender: genderInput,
       source: 'manual',

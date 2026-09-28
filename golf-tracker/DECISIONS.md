@@ -183,6 +183,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.bs | 2026-09-18: F-097 fix approved (opt C — wizard passes tee groups as sides + engine backstop); recommendations on all six open picks: F-087 A, F-093 A, F-091 A, F-092 A, F-095 B, F-096 A; branch code-complete after, Craig's walk still wanted before merge |
 | 5.bt | 2026-09-27: collapse branch MERGED to main (f163242) + pushed on Craig's word, walk waived for the green gate + screenshots; next-session order = verify speed (A+B+D) → Home/Event P3 design conversation (P1+P2 already built, flag ON since 2026-08-12) → small items |
 | 5.bu | 2026-09-27: gate stops at 2 workers + `verify:quick` (CPU-bound, ~1.25× max; full gate 12.3 min e2e); Event spine slice 1 APPROVED (tournament owner writers-first + pure N-way `teamsOf`/`computeStandingsN`, no shape/UI change); legacy owner-less tournaments stay visible to everyone; F-062 opt A (display pass) |
+| 5.bv | 2026-09-28: plus handicaps work everywhere: off-the-low sets the plus player to 0 and others gain strokes; full handicap GIVES strokes back on the easiest holes (SI 18 first); typed "+2.1" must keep its sign (F-098). F-099 step bar → compact "Step N of M" on phones (opt C). A full UI revamp waits until the back end works; until then UI work = fixes and consistency only. Team field cap REMOVED: 32 players / 8 foursomes must work |
 
 ---
 

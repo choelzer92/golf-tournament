@@ -1,5 +1,6 @@
 'use client';
 
+import { formatHandicapIndex } from '@/lib/game-state';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { GameSetup, GameScore, Player } from '@/lib/game-state';
@@ -13,6 +14,7 @@ import type { SideGameResult } from '@/lib/side-game';
 import type { PoolGame, PoolResult, PoolLeg } from '@/lib/pool-game';
 import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores, buildHcapMap, playerHoleStrokeIndexForGame, numHolesForStrokes, defaultSubTeams, isPoolGameFullyScored, DEFAULT_JUNK_VALUES } from '@/lib/pool-game';
 import { getMoneyStrokesOnHole } from '@/lib/money-games';
+import { strokesOnHole } from '@/lib/strokes';
 import { computeGameResult, isModeEngineGame, gameCountsCtp } from '@/lib/game-modes/result';
 import { getGameMode } from '@/lib/game-modes';
 import { sideNamesForGame } from '@/lib/game-modes/team-game';
@@ -627,16 +629,8 @@ export default function PlayGamePage() {
 
   function getTeamStrokesOnHole(teamPlayers: Player[], holeHandicap: number): number {
     const teamHcap = getTeamHandicapForFormat(teamPlayers);
-    if (teamHcap <= 0) return 0;
-
-    const numHoles = holes.length;
-    if (teamHcap >= numHoles * 2) return 2;
-    if (teamHcap > numHoles) {
-      if (holeHandicap <= teamHcap - numHoles) return 2;
-      return 1;
-    }
-    if (holeHandicap <= teamHcap) return 1;
-    return 0;
+    // A plus team gives back on the easiest holes, as a plus player does (F-098).
+    return strokesOnHole(teamHcap, holeHandicap, holes.length);
   }
 
   function getPlayingHandicap(player: Player, holeNumber?: number): number {
@@ -679,7 +673,6 @@ export default function PlayGamePage() {
     }
 
     const rawHcap = getPlayingHandicap(player, holeNumber);
-    const playingHcap = Math.round(rawHcap);
     const numHoles = setup!.splitFormat ? 9 : holes.length;
 
     // Allocate strokes off the player's OWN tee stroke index — men's and women's
@@ -692,28 +685,9 @@ export default function PlayGamePage() {
       if (ownHole) holeHandicap = ownHole.handicap;
     }
 
-    if (playingHcap === 0) return 0;
-
-    // Negative handicap: player gives strokes back on hardest holes
-    if (playingHcap < 0) {
-      const absHcap = Math.abs(playingHcap);
-      if (absHcap >= numHoles * 2) return -2;
-      if (absHcap > numHoles) {
-        if (holeHandicap <= absHcap - numHoles) return -2;
-        return -1;
-      }
-      if (holeHandicap <= absHcap) return -1;
-      return 0;
-    }
-
-    // Positive handicap: player receives strokes
-    if (playingHcap >= numHoles * 2) return 2;
-    if (playingHcap > numHoles) {
-      if (holeHandicap <= playingHcap - numHoles) return 2;
-      return 1;
-    }
-    if (holeHandicap <= playingHcap) return 1;
-    return 0;
+    // The shared allocator (lib/strokes.ts): a plus handicap gives back on the EASIEST holes,
+    // matching live-scoring and the money engines (F-098, §5.bv).
+    return strokesOnHole(rawHcap, holeHandicap, numHoles);
   }
 
   function getScore(playerId: string, hole: number): number | null {
@@ -1006,7 +980,7 @@ export default function PlayGamePage() {
                       return (
                         <div key={player.id} className="text-[11px] text-gray-600 flex flex-wrap gap-x-3">
                           <span className={`font-medium ${teamColor}`}>{player.name.split(' ')[0]}</span>
-                          <span>Index: {player.handicapIndex ?? '–'}{is9 ? ` (÷2=${indexUsed?.toFixed(1)})` : ''}</span>
+                          <span>Index: {formatHandicapIndex(player.handicapIndex, '–')}{is9 ? ` (÷2=${indexUsed?.toFixed(1)})` : ''}</span>
                           {usingFallback && <span className="text-amber-600">Using: 18-hole÷2</span>}
                           <span>Slope: {usedRating?.slopeRating ?? '–'}</span>
                           <span>CR: {usedRating?.courseRating ?? '–'}</span>
@@ -1045,6 +1019,7 @@ export default function PlayGamePage() {
                             return (
                               <td key={h.number} className="px-1.5 py-1 text-center">
                                 {strokes > 0 && <span className="text-sm text-orange-600">{'●'.repeat(strokes)}</span>}
+                                {strokes < 0 && <span className="text-sm text-purple-600">{'○'.repeat(-strokes)}</span>}
                               </td>
                             );
                           })}
@@ -1283,6 +1258,11 @@ export default function PlayGamePage() {
                           {'●'.repeat(strokes)}
                         </span>
                       )}
+                      {strokes < 0 && (
+                        <span className="ml-1 text-sm text-purple-600" title="Gives a stroke back">
+                          {'○'.repeat(-strokes)}
+                        </span>
+                      )}
                     </p>
                     {net !== null && (
                       <p className={`text-xs font-medium ${scoreToPar! < 0 ? 'text-red-600' : scoreToPar! > 0 ? 'text-blue-600' : 'text-gray-500'}`}>
@@ -1340,6 +1320,11 @@ export default function PlayGamePage() {
                       {strokes > 0 && (
                         <span className="ml-1 text-sm text-orange-600">
                           {'●'.repeat(strokes)}
+                        </span>
+                      )}
+                      {strokes < 0 && (
+                        <span className="ml-1 text-sm text-purple-600" title="Gives a stroke back">
+                          {'○'.repeat(-strokes)}
                         </span>
                       )}
                     </p>
@@ -1711,9 +1696,9 @@ export default function PlayGamePage() {
                           const netScore = score !== null ? score - strokes : null;
                           const netToPar = netScore !== null ? netScore - h.par : null;
                           const isCurrent = h.number === currentHole;
-                          const strokeBg = strokes > 0 ? 'bg-green-100' : '';
+                          const strokeBg = strokes > 0 ? 'bg-green-100' : strokes < 0 ? 'bg-purple-50' : '';
                           const currentBg = isCurrent ? 'bg-yellow-50' : '';
-                          const bgClass = strokes > 0 ? strokeBg : currentBg;
+                          const bgClass = strokes !== 0 ? strokeBg : currentBg;
                           const colorClass = score === null ? 'text-gray-300'
                             : score <= h.par - 2 ? 'text-yellow-600 font-bold'
                             : score === h.par - 1 ? 'text-red-600 font-bold'

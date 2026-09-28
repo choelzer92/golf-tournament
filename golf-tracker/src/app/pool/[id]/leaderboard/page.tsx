@@ -3,6 +3,7 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { GameScore } from '@/lib/game-state';
+import { formatHandicapIndex } from '@/lib/game-state';
 import { loadGameScores, fetchGameScores, subscribeToScores, onVisibilityRefetch, fetchScoreAudit, type ScoreAuditEntry } from '@/lib/tournament-state';
 import type { PoolGame, PoolResult, PoolTeamDetail, PoolPlayerDetail, PoolPlayerHoleScore, PoolLegKey, PoolLeg } from '@/lib/pool-game';
 import {
@@ -434,7 +435,7 @@ export default function PoolLeaderboardPage() {
                             <td className="px-1 py-1 text-gray-300 font-medium whitespace-nowrap sticky left-0 bg-gray-800">
                               {isCaptain && <span className="text-[9px] font-bold text-green-400 mr-0.5" title="Captain">(C)</span>}
                               {player.playerName.split(' ')[0]}
-                              <span className="text-[10px] text-gray-500 ml-0.5">({Math.round(player.playingHcap)})</span>
+                              <span className="text-[10px] text-gray-500 ml-0.5">({formatHandicapIndex(Math.round(player.playingHcap))})</span>
                             </td>
                             {player.holes.filter((h) => h.holeNumber <= 9).map((h) => (
                               <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
@@ -445,7 +446,7 @@ export default function PoolLeaderboardPage() {
                                     shots fell before teeing off. */}
                                 <span>
                                   {h.gross != null ? h.gross : <span className="text-gray-600">-</span>}
-                                  {h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}
+                                  {h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}{h.strokes < 0 && <span className="text-[11px] text-purple-300 align-super" title="Gives a stroke back">{'○'.repeat(-h.strokes)}</span>}
                                 </span>
                               </td>
                             ))}
@@ -459,7 +460,7 @@ export default function PoolLeaderboardPage() {
                                     shots fell before teeing off. */}
                                 <span>
                                   {h.gross != null ? h.gross : <span className="text-gray-600">-</span>}
-                                  {h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}
+                                  {h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}{h.strokes < 0 && <span className="text-[11px] text-purple-300 align-super" title="Gives a stroke back">{'○'.repeat(-h.strokes)}</span>}
                                 </span>
                               </td>
                             ))}
@@ -1403,7 +1404,7 @@ function IndividualPlayerGrid({ players, sideOf, sideOrder = [], pointsPerHole }
               <tr key={player.playerId} className={showSide && idx > 0 ? 'border-t-2 border-gray-600' : 'border-t border-gray-700/30'}>
                 <td className="px-1 py-1 text-gray-300 font-medium whitespace-nowrap sticky left-0 bg-gray-800">
                   {player.playerName.split(' ')[0]}
-                  <span className="text-[10px] text-gray-500 ml-0.5">({Math.round(player.playingHcap)})</span>
+                  <span className="text-[10px] text-gray-500 ml-0.5">({formatHandicapIndex(Math.round(player.playingHcap))})</span>
                   {showSide && (
                     <span className={`ml-1 text-[9px] font-normal ${sideTone(side!.sideId, sideOrder)}`}>
                       {side!.label}
@@ -1415,7 +1416,7 @@ function IndividualPlayerGrid({ players, sideOf, sideOrder = [], pointsPerHole }
                   return (
                     <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
                       {/* Dots show even with no score entered — see the team grid. */}
-                      <span>{v != null ? v : <span className="text-gray-600">-</span>}{h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}</span>
+                      <span>{v != null ? v : <span className="text-gray-600">-</span>}{h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}{h.strokes < 0 && <span className="text-[11px] text-purple-300 align-super" title="Gives a stroke back">{'○'.repeat(-h.strokes)}</span>}</span>
                     </td>
                   );
                 })}
@@ -1425,7 +1426,7 @@ function IndividualPlayerGrid({ players, sideOf, sideOrder = [], pointsPerHole }
                   return (
                     <td key={h.holeNumber} className="text-center px-1 py-1 text-gray-300">
                       {/* Dots show even with no score entered — see the team grid. */}
-                      <span>{v != null ? v : <span className="text-gray-600">-</span>}{h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}</span>
+                      <span>{v != null ? v : <span className="text-gray-600">-</span>}{h.strokes > 0 && <span className="text-[11px] text-sky-300 align-super">{'•'.repeat(h.strokes)}</span>}{h.strokes < 0 && <span className="text-[11px] text-purple-300 align-super" title="Gives a stroke back">{'○'.repeat(-h.strokes)}</span>}</span>
                     </td>
                   );
                 })}
@@ -1447,7 +1448,7 @@ function IndividualPlayerGrid({ players, sideOf, sideOrder = [], pointsPerHole }
 // without reading the tiny dots off the grid. Collapsed by default.
 function StrokesGivenBox({ players }: { players: PoolPlayerDetail[] }) {
   const [open, setOpen] = useState(false);
-  const anyStrokes = players.some((p) => p.holes.some((h) => h.strokes > 0));
+  const anyStrokes = players.some((p) => p.holes.some((h) => h.strokes !== 0));   // a plus player's give-backs count (F-098)
   if (!anyStrokes) return null;
 
   return (
@@ -1460,16 +1461,20 @@ function StrokesGivenBox({ players }: { players: PoolPlayerDetail[] }) {
         <div className="px-3 pb-2 space-y-1">
           {players.map((p) => {
             const strokeHoles = p.holes.filter((h) => h.strokes > 0);
+            const giveHoles = p.holes.filter((h) => h.strokes < 0);
             return (
               <div key={p.playerId} className="flex gap-2 text-xs">
                 <span className="text-gray-300 font-medium whitespace-nowrap min-w-[70px]">
                   {p.playerName.split(' ')[0]}
-                  <span className="text-[10px] text-gray-500 ml-0.5">({Math.round(p.playingHcap)})</span>
+                  <span className="text-[10px] text-gray-500 ml-0.5">({formatHandicapIndex(Math.round(p.playingHcap))})</span>
                 </span>
                 <span className="text-gray-400">
-                  {strokeHoles.length === 0
+                  {strokeHoles.length === 0 && giveHoles.length === 0
                     ? 'none'
-                    : strokeHoles.map((h) => `${h.holeNumber}${h.strokes > 1 ? `×${h.strokes}` : ''}`).join(', ')}
+                    : [
+                        strokeHoles.map((h) => `${h.holeNumber}${h.strokes > 1 ? `×${h.strokes}` : ''}`).join(', '),
+                        giveHoles.length ? `gives back ${giveHoles.map((h) => `${h.holeNumber}${h.strokes < -1 ? `×${-h.strokes}` : ''}`).join(', ')}` : '',
+                      ].filter(Boolean).join(' · ')}
                 </span>
               </div>
             );

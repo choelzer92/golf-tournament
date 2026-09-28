@@ -1,5 +1,6 @@
 'use client';
 
+import { formatHandicapIndex } from '@/lib/game-state';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Player, CourseSelection, TeeSetOption, HandicapBasis } from '@/lib/game-state';
@@ -667,7 +668,7 @@ function PlayersStep({
               <div className="flex-1">
                 <p className="font-medium text-gray-900 text-sm">{p.name}</p>
                 <p className="text-xs text-gray-500">
-                  {p.handicapIndex !== null ? `HI: ${p.handicapIndex}` : 'No handicap'}
+                  {p.handicapIndex !== null ? `HI: ${formatHandicapIndex(p.handicapIndex)}` : 'No handicap'}
                 </p>
               </div>
               <button
@@ -764,7 +765,7 @@ function ReviewStep({
           <p className="font-medium text-blue-900 mb-2">{teamAName}</p>
           {teamAPlayers.map((p) => (
             <p key={p.id} className="text-sm text-blue-800">
-              {p.name} {p.handicapIndex !== null && <span className="text-blue-500">({p.handicapIndex})</span>}
+              {p.name} {p.handicapIndex !== null && <span className="text-blue-500">({formatHandicapIndex(p.handicapIndex)})</span>}
             </p>
           ))}
         </div>
@@ -772,7 +773,7 @@ function ReviewStep({
           <p className="font-medium text-red-900 mb-2">{teamBName}</p>
           {teamBPlayers.map((p) => (
             <p key={p.id} className="text-sm text-red-800">
-              {p.name} {p.handicapIndex !== null && <span className="text-red-500">({p.handicapIndex})</span>}
+              {p.name} {p.handicapIndex !== null && <span className="text-red-500">({formatHandicapIndex(p.handicapIndex)})</span>}
             </p>
           ))}
         </div>

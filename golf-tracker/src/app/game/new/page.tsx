@@ -1,5 +1,6 @@
 'use client';
 
+import { formatHandicapIndex } from '@/lib/game-state';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FORMATS, TEAM_MODES, getTeamModeConfig, resolveAllowance, type GameFormat, type FormatSetting, type TeamMode } from '@/lib/formats';
@@ -558,7 +559,7 @@ function PlayersStep({
                         )}
                       </p>
                       <p className="text-sm text-gray-500">
-                        Index: {player.handicapIndex ?? 'N/A'}
+                        Index: {formatHandicapIndex(player.handicapIndex, 'N/A')}
                         {getPlayerCourseHcap(player) !== null && (
                           <span className="ml-2 text-green-700">
                             Course HCP: {getPlayerCourseHcap(player)}

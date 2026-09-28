@@ -567,6 +567,26 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'pool-plus-handicap',
+    label: 'F-098: a +2 player in a full-handicap pool (thru 6)',
+    detail: 'Plus index −2: gives strokes back on the easiest holes (SI 17, 18), shown as ○.',
+    build: () => {
+      const ps = players([-2, 6, 12, 18, 3, 9, 15, 21]);
+      const game = baseGame({
+        players: ps,
+        name: 'Plus Pool',
+        teams: [
+          { id: 'st1', name: 'Team 1', playerIds: ['sp1', 'sp2', 'sp3', 'sp4'], matchupId: 'sm1' },
+          { id: 'st2', name: 'Team 2', playerIds: ['sp5', 'sp6', 'sp7', 'sp8'], matchupId: 'sm2' },
+        ],
+      });
+      const six = [1, 2, 3, 4, 5, 6];
+      saveGameScores('sm1', scores(['sp1', 'sp2', 'sp3', 'sp4'], [0, 1, 1, 2], six));
+      saveGameScores('sm2', scores(['sp5', 'sp6', 'sp7', 'sp8'], [1, 1, 2, 2], six));
+      return { game, goTo: (id) => `/pool/${id}` };
+    },
+  },
+  {
     key: 'pool-2x4-complete',
     label: 'Classic pool — 2 foursomes, FULLY scored',
     detail: 'Verifies close-out → Stats & money (the completion bug). Ready to close out.',

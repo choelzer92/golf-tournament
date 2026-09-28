@@ -1,5 +1,6 @@
 'use client';
 
+import { formatHandicapIndex } from '@/lib/game-state';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { hydrateGroups, getGroupById, addGroupMember, removeGroupMember, renameGroup, deleteGroup, type RosterGroup } from '@/lib/roster-groups';
@@ -475,7 +476,7 @@ export default function GroupDetailPage() {
                       <div className="min-w-0">
                         <p className="font-medium text-gray-900 truncate">{m.name}</p>
                         <p className="text-xs text-gray-500">
-                          {m.handicapIndex != null ? `Index ${m.handicapIndex}` : 'No index'}
+                          {m.handicapIndex != null ? `Index ${formatHandicapIndex(m.handicapIndex)}` : 'No index'}
                         </p>
                       </div>
                       <button

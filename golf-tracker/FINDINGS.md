@@ -754,7 +754,22 @@ to "Course HCP".
 **Recommendation:** A now (or C — same work), B as its own decision with screenshots of
 the numbers that would change.
 
-**Status:** open — safe slice done; A/B/C needs Craig.
+**Status:** A DONE 2026-09-28 (§5.bu). The review step's three player chips and the captain
+picker's chip are now the F-043 `HandicapChip` (same number, which a unit test pins to
+`getPoolPlayingHandicap`, and a tap shows the chain). Their rows gained `flex-wrap` so the
+open chain drops under the name instead of squeezing it out. The review's "CHcp 24" team total
+now reads "combined HCP 24", as the teams step does. So the one spelling is "Course HCP" per
+player and "combined HCP" per team. e2e `f062-handicap-display.spec.ts` fails on the old code.
+**Deliberately left:**
+- The hub StrokeAllocation "{n} hcp" (`summary-cards.tsx:247`) is the value AFTER
+  off-the-low, not a course handicap, so a chip or "Course HCP" label there would change or
+  mislabel the number.
+- The field-editor/SwapPanel `(n)` values are strokes received (its comment at :533 wrongly
+  says "course handicap").
+- The leaderboard's bare `(n)` after names.
+- The captain `<option>` text (a select can't hold a button).
+- The legacy scorer's "CH: 8.4 / Plays: 8.40", which pool players DO see during play
+  (`game/play/page.tsx:1012`), is option B territory and stays open with B.
 
 ---
 
@@ -1233,6 +1248,47 @@ line. Screenshot: `e2e/screenshots/f072-hub-pairs-net-gross.png`. Left in its wa
 
 ---
 
+### F-100 — A plus index can't be typed on an iPhone: the decimal keypad has no "+" or "−"  [P2] [start]
+
+**Where (found 2026-09-28 building F-098):** the HCP boxes (`add-player-panel.tsx`, the hub
+field editor) use `inputMode="decimal"`. iOS shows a digits-and-point pad with no sign key, so
+"+2.1" can only arrive through a GHIN import or a hardware keyboard. The parse is correct now
+(F-098); the problem is the keypad.
+
+**Options**
+- **A. "+" toggle** beside the HCP box: a small ± chip that flips the sign of what's typed.
+  Keeps the number pad, and the sign shows at a glance.
+- **B. Full keyboard** (`inputMode="text"`): one attribute, but typing a handicap gets clumsier
+  for the 99% who aren't plus.
+- **C. Rely on GHIN import:** plus players almost always have a GHIN number. Document it
+  and change nothing.
+
+**Recommendation:** A. **Status:** open — Craig's pick.
+
+---
+
+### F-099 — The new-game step bar runs off a phone screen; the whole wizard scrolls sideways  [P2] [start]
+
+**Where (seen 2026-09-28 walking F-062, `e2e/screenshots/f062-review-chip.png`):** the step
+bar at `pool/new/page.tsx:1066` is `flex items-center gap-2` with no wrap and no overflow
+rule. An 8-player pool shows Players → Compete → Scoring → *course name* → Tees → Teams →
+Money, about 630px wide on a 390px phone, so Tees/Teams/Money sit off-screen, and the page
+gains a horizontal scroll that drags every step's form with it. The course step's label is
+the course's own name, so a long name makes it worse.
+
+**Options**
+- **A. Wrap:** `flex-wrap` on the bar. One class; two lines on a phone.
+- **B. Scroll strip:** `overflow-x-auto` on the bar only, scrolled so the current step is in
+  view. One line, and the page stops scrolling; later steps are hidden until swiped.
+- **C. Compact:** on narrow screens show "Step 5 of 7 · Teams" (plus a thin progress bar),
+  with the full bar from `sm:` up.
+
+**Recommendation:** C, which reads best on the phones the friends use; A is the one-line stopgap.
+
+**Status:** DECIDED 2026-09-28 — **C** (§5.bv). Build queued.
+
+---
+
 ### F-098 — A PLUS-handicap player gets 0 strokes in every pool / sides / money game; the tournament engine gives them back on the wrong holes  [P1] [track] [money]
 
 **Where (code read during the Event-spine survey, 2026-09-27; not yet seen on a screen):**
@@ -1256,7 +1312,25 @@ if nobody in the circle carries a plus index. It's latent until then, but the Ev
 converges the two engines, so C only puts off the choice. Recommend A.
 Handicap math is Craig's call (§2). Also: does anyone the friends play with carry a plus index?
 
-**Status:** OPEN — logged 2026-09-27, not built.
+**Status:** DONE 2026-09-28 (§5.bv, option A + display). One allocator, `src/lib/strokes.ts`
+`strokesOnHole`: a plus handicap gives back on SI 18, 17, … (on a USGA nine, index 9 first), and a
+second give-back follows the same order past the hole count. `getMoneyStrokesOnHole`,
+`live-scoring.ts` (player and team) and the play page's tournament-path copy all call it, and the
+team clamps `<= 0 → 0` are gone. Off-the-low was already right: `buildHcapMap` subtracts the lowest
+rounded value, so the plus player plays off 0 and the others gain strokes. A typed "+2.1" now keeps
+its sign: `parseGhinIndex` runs in the add-player panel, the hub field editor (now a text box with a
+decimal keypad) and side-games. `formatHandicapIndex` shows a plus index as "+2" everywhere it used
+to show "-2". Give-backs show as a purple ○ on the play page, the leaderboard grid, the scorecards,
+the hub StrokeAllocation ("N given back") and the foursome cards ("gives N back").
+Tests: `src/test/strokes.test.ts` checks parity for every non-plus handicap, the mirror/conservation
+rule, zero-sum for every mode with a plus player, and both engines. A mutation back to
+`rounded <= 0` turns 6 red. `e2e/f098-plus-handicap.spec.ts` covers the hub, the leaderboard and
+typed entry. The sandbox seed is "F-098: a +2 player in a full-handicap pool".
+**Left:** legacy tournament display pages still show only received strokes (dots count
+`strokes > 0`): `tournament/[id]/money` :361/:370, side-games :426, side-games/scoreboard :250/:261,
+scoreboard :1516/:1527, round page :1329/:1434; and `money-games.ts:672` `strokeHoles` counts
+receives only. The math is right; only the dots are missing. LOW, see BACKLOG. The GHIN-app
+side-by-side for a plus player (§5.ba) is still to do on the course. Also see F-100.
 
 ---
 

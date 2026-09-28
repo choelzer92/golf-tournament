@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { type Player } from '@/lib/game-state';
+import { type Player, formatHandicapIndex } from '@/lib/game-state';
 import { type PoolGame, type PoolTeam, type PoolTeamDetail, getFieldLow, distinctRankingsForPlayers, summarizeTeamBuild } from '@/lib/pool-game';
 import { timeAgo } from './shared';
 
@@ -178,8 +178,9 @@ export function FoursomeCard({
               )}
               {p.name.split(' ')[0]}
               {strokes !== null && (
-                <span className="text-xs text-gray-400 ml-0.5" title="Strokes received in this game">
-                  ({strokes} {strokes === 1 ? 'stroke' : 'strokes'})
+                <span className="text-xs text-gray-400 ml-0.5" title={strokes < 0 ? 'Strokes given back in this game' : 'Strokes received in this game'}>
+                  {/* A plus handicap gives strokes back (F-098): "(gives 2 back)", not "(-2 strokes)". */}
+                  ({strokes < 0 ? `gives ${-strokes} back` : `${strokes} ${strokes === 1 ? 'stroke' : 'strokes'}`})
                 </span>
               )}
             </span>
@@ -244,9 +245,11 @@ export function StrokeAllocation({ detail, game }: { detail: PoolTeamDetail; gam
                 {tn && <span className="ml-1.5 text-[10px] font-normal text-gray-400">{tn}</span>}
               </p>
               <p className="text-xs text-gray-500">
-                <span className="font-medium text-gray-700">{Math.round(pl.playingHcap)}</span> hcp
+                <span className="font-medium text-gray-700">{formatHandicapIndex(Math.round(pl.playingHcap))}</span> hcp
                 <span className="mx-1 text-gray-300">·</span>
-                <span className="font-medium text-green-700">{totalStrokes}</span> strokes
+                {totalStrokes < 0
+                  ? <><span className="font-medium text-purple-700">{-totalStrokes}</span> given back</>
+                  : <><span className="font-medium text-green-700">{totalStrokes}</span> strokes</>}
               </p>
             </div>
             <div className="flex gap-3">
@@ -259,12 +262,12 @@ export function StrokeAllocation({ detail, game }: { detail: PoolTeamDetail; gam
                         <div
                           key={holeNumber}
                           className={`flex-1 rounded-sm text-center py-1 ${
-                            strokes >= 2 ? 'bg-green-600 text-white' : strokes === 1 ? 'bg-green-100 text-green-800' : 'bg-white text-gray-300'
+                            strokes >= 2 ? 'bg-green-600 text-white' : strokes === 1 ? 'bg-green-100 text-green-800' : strokes < 0 ? 'bg-purple-100 text-purple-800' : 'bg-white text-gray-300'
                           }`}
                           title={`Hole ${holeNumber}`}
                         >
                           <div className="text-[8px] leading-none opacity-60">{holeNumber}</div>
-                          <div className="text-[11px] leading-tight font-semibold h-3">{strokes > 0 ? strokes : ''}</div>
+                          <div className="text-[11px] leading-tight font-semibold h-3">{strokes > 0 ? strokes : strokes < 0 ? '○'.repeat(-strokes) : ''}</div>
                         </div>
                       );
                     })}
@@ -299,4 +302,4 @@ export function StrokeAllocation({ detail, game }: { detail: PoolTeamDetail; gam
 // add players by roster search or GHIN #. Scores stay attached because every
 // team keeps its matchupId and we never touch ctpWinners.
 // ---------------------------------------------------------------------------
-
+

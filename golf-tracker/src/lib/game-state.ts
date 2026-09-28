@@ -142,3 +142,10 @@ export function parseGhinIndex(raw: unknown): number | null {
   if (isNaN(n)) return null;
   return isPlus ? -n : n;
 }
+
+// The inverse, for display: a plus index is stored negative (see parseGhinIndex) but golfers
+// and GHIN write it "+2.1". Everything else prints as it always has.
+export function formatHandicapIndex(index: number | null | undefined, empty = '—'): string {
+  if (index === null || index === undefined || Number.isNaN(index)) return empty;
+  return index < 0 ? `+${-index}` : String(index);
+}

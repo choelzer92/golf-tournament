@@ -1962,6 +1962,33 @@ Still open from this session: F-069 refuse-vs-default and F-098 (plus handicaps)
 
 ---
 
+### 5.bv — Plus handicaps must work everywhere; the step bar goes compact; the UI revamp waits for the back end (2026-09-28)
+
+Craig's answers (2026-09-28) on F-098, F-099 and the team field cap:
+
+1. **Plus handicaps "need to work regardless"**, in every engine and money game (F-098).
+   - **Off-the-low:** the plus player is set to 0 and everyone else receives MORE strokes,
+     their course handicap minus the (negative) low. The pool engine already does this
+     (`buildHcapMap` subtracts the lowest rounded value). Check the tournament engine against it.
+   - **Full handicap (not off-the-low):** a course handicap better than scratch GIVES strokes
+     back on the EASIEST holes (stroke index 18 first, then 17, …), the reverse of receiving
+     them on the hardest. This replaces `getMoneyStrokesOnHole`'s `rounded <= 0 → 0` in the
+     pool/sides/money engines, and `live-scoring.ts`'s give-back on the hardest holes.
+   - Found in the same pass: a plus index TYPED by hand ("+2.1" in the add-player box or the hub
+     field editor) is read by `parseFloat` as 2.1, so it receives strokes. Only the GHIN import
+     (`parseGhinIndex`) keeps the sign. Manual entry must read "+" the same way.
+2. **F-099 step bar: option C** (the recommendation): compact "Step N of M · Name" on a phone,
+   and the full bar from `sm:` up.
+3. **A full UI revamp comes later.** Craig: the UI "will be the thing that really attracts
+   users", but it comes once the back end and the app work properly. Until then, keep UI work
+   to fixes and consistency passes; don't restyle. (BACKLOG Ideas.)
+4. **Team field cap: REMOVE it.** Craig: "i think we need to remove that cap … the max foursomes
+   thing would be important for tournaments. what if there are 32 people?" A team game on the
+   sides engine must take any field the pool takes (32 players = 8 foursomes), not stop at 8
+   (`SIDES_MAX_PLAYERS`). No new cap in its place.
+
+---
+
 ## 7. Open questions
 
 Awaiting Craig's call. Inferred answers are marked as guesses.

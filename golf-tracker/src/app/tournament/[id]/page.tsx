@@ -1,5 +1,6 @@
 'use client';
 
+import { formatHandicapIndex } from '@/lib/game-state';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { FORMATS } from '@/lib/formats';
@@ -550,7 +551,7 @@ function RosterEditor({ tournament, onSave }: { tournament: Tournament; onSave: 
               className={`${hcapColorClass} hover:underline`}
               title="Tap to edit handicap"
             >
-              {p.handicapIndex !== null ? `(${p.handicapIndex})` : '(-)'}
+              {p.handicapIndex !== null ? `(${formatHandicapIndex(p.handicapIndex)})` : '(-)'}
             </button>
           )}
         </span>

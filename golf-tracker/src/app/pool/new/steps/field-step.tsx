@@ -1,5 +1,6 @@
 'use client';
 
+import { formatHandicapIndex } from '@/lib/game-state';
 import { useState, useEffect, useRef } from 'react';
 import type { CourseSelection, Player } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
@@ -416,7 +417,7 @@ export function FieldStep({
                   </span>
                   <span className="flex-1 font-medium text-gray-900">{rp.name}</span>
                   <span className="text-xs text-gray-500">
-                    {rp.handicapIndex ?? '—'}{rp.gender ? ` · ${rp.gender}` : ''}
+                    {formatHandicapIndex(rp.handicapIndex)}{rp.gender ? ` · ${rp.gender}` : ''}
                   </span>
                 </button>
               </li>
@@ -491,7 +492,7 @@ export function FieldStep({
                         </span>
                       </p>
                       <p className="text-sm text-gray-500">
-                        Index: {player.handicapIndex ?? 'N/A'}
+                        Index: {formatHandicapIndex(player.handicapIndex, 'N/A')}
                         {/* F-023: when this tee has no usable slope/rating the number is the raw
                             index, not a course handicap — SAY so instead of printing a confident
                             "Course HCP" that's wrong on any course whose slope is far from 113.

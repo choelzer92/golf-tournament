@@ -3,6 +3,7 @@ import type { Tournament, TournamentRound, SkinsConfig, TeamNassauConfig } from 
 import { loadGameScores } from './tournament-state';
 import { getHoleDataForRound } from './live-scoring';
 import { calcCourseHandicap, applyAllowance } from './game-state';
+import { strokesOnHole } from './strokes';
 
 export interface NassauLegResult {
   teamATotal: number;
@@ -110,14 +111,10 @@ export function getMoneyGamePlayingHandicap(player: Player, round: TournamentRou
   return applyAllowance(courseHcap, allowance);
 }
 
+// The shared allocator (lib/strokes.ts): a plus handicap gives strokes back on the easiest
+// holes (F-098, §5.bv); it used to get 0 here.
 export function getMoneyStrokesOnHole(playingHcap: number, holeHandicap: number, numHoles: number): number {
-  const rounded = Math.round(playingHcap);
-  if (rounded <= 0) return 0;
-  if (rounded >= numHoles * 2) return 2;
-  if (rounded > numHoles) {
-    return holeHandicap <= rounded - numHoles ? 2 : 1;
-  }
-  return holeHandicap <= rounded ? 1 : 0;
+  return strokesOnHole(playingHcap, holeHandicap, numHoles);
 }
 
 // --- Helpers ---

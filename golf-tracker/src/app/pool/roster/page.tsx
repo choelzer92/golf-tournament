@@ -1,5 +1,6 @@
 'use client';
 
+import { formatHandicapIndex } from '@/lib/game-state';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { AddPlayerPanel } from '@/components/add-player-panel';
@@ -189,7 +190,7 @@ export default function RosterPage() {
                   </div>
                   <div className="mt-1 flex items-center justify-between gap-3">
                     <span className="text-xs text-gray-500">
-                      Index {rp.handicapIndex ?? '—'}
+                      Index {formatHandicapIndex(rp.handicapIndex)}
                       {rp.ghinNumber ? ` · GHIN ${rp.ghinNumber}` : ' · manual'}
                     </span>
                     <select

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatHandicapIndex } from '@/lib/game-state';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { FORMATS, TEAM_MODES, getTeamModeConfig, resolveAllowance } from '@/lib/formats';
@@ -450,7 +451,7 @@ function RosterStep({
                     </button>
                     <div>
                       <p className="text-sm font-medium text-gray-900">{p.name}</p>
-                      <p className="text-xs text-gray-500">{p.handicapIndex ?? '—'}</p>
+                      <p className="text-xs text-gray-500">{formatHandicapIndex(p.handicapIndex)}</p>
                     </div>
                   </div>
                   <div className="flex gap-1">
@@ -475,7 +476,7 @@ function RosterStep({
                     </button>
                     <div>
                       <p className="text-sm font-medium text-gray-900">{p.name}</p>
-                      <p className="text-xs text-gray-500">{p.handicapIndex ?? '—'}</p>
+                      <p className="text-xs text-gray-500">{formatHandicapIndex(p.handicapIndex)}</p>
                     </div>
                   </div>
                   <div className="flex gap-1">
@@ -1180,13 +1181,13 @@ function ReviewStep({
           <div>
             <p className="text-sm font-bold text-blue-700 mb-1">{teamAName}</p>
             {teamA.map((p) => (
-              <p key={p.id} className="text-sm text-gray-700">{p.name} ({p.handicapIndex ?? '—'})</p>
+              <p key={p.id} className="text-sm text-gray-700">{p.name} ({formatHandicapIndex(p.handicapIndex)})</p>
             ))}
           </div>
           <div>
             <p className="text-sm font-bold text-red-700 mb-1">{teamBName}</p>
             {teamB.map((p) => (
-              <p key={p.id} className="text-sm text-gray-700">{p.name} ({p.handicapIndex ?? '—'})</p>
+              <p key={p.id} className="text-sm text-gray-700">{p.name} ({formatHandicapIndex(p.handicapIndex)})</p>
             ))}
           </div>
         </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatHandicapIndex } from '@/lib/game-state';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { FORMATS, TEAM_MODES, getTeamModeConfig, getUsgaAllowance, getUsgaStrokeMethod } from '@/lib/formats';
@@ -369,7 +370,7 @@ export default function RoundDetailPage() {
                               : 'bg-blue-50 text-gray-700 hover:bg-blue-100'
                           }`}
                         >
-                          {p.name} <span className={isSelected ? 'text-blue-200' : 'text-gray-400'}>({p.handicapIndex ?? '—'})</span>
+                          {p.name} <span className={isSelected ? 'text-blue-200' : 'text-gray-400'}>({formatHandicapIndex(p.handicapIndex)})</span>
                         </button>
                         <button
                           onClick={() => setSittingOut((prev) => new Set([...prev, p.id]))}
@@ -398,7 +399,7 @@ export default function RoundDetailPage() {
                               : 'bg-red-50 text-gray-700 hover:bg-red-100'
                           }`}
                         >
-                          {p.name} <span className={isSelected ? 'text-red-200' : 'text-gray-400'}>({p.handicapIndex ?? '—'})</span>
+                          {p.name} <span className={isSelected ? 'text-red-200' : 'text-gray-400'}>({formatHandicapIndex(p.handicapIndex)})</span>
                         </button>
                         <button
                           onClick={() => setSittingOut((prev) => new Set([...prev, p.id]))}
@@ -1220,12 +1221,12 @@ function MatchupCard({
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
           {teamAPlayers.map((p) => (
-            <p key={p.id} className="text-sm text-blue-700">{p.name} <span className="text-gray-400 text-xs">({p.handicapIndex ?? '—'})</span></p>
+            <p key={p.id} className="text-sm text-blue-700">{p.name} <span className="text-gray-400 text-xs">({formatHandicapIndex(p.handicapIndex)})</span></p>
           ))}
         </div>
         <div>
           {teamBPlayers.map((p) => (
-            <p key={p.id} className="text-sm text-red-700">{p.name} <span className="text-gray-400 text-xs">({p.handicapIndex ?? '—'})</span></p>
+            <p key={p.id} className="text-sm text-red-700">{p.name} <span className="text-gray-400 text-xs">({formatHandicapIndex(p.handicapIndex)})</span></p>
           ))}
         </div>
       </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatHandicapIndex } from '@/lib/game-state';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { Tournament } from '@/lib/tournament-state';
@@ -637,7 +638,7 @@ function HandicapReference({ tournament }: { tournament: Tournament }) {
                       <td className={`py-0.5 ${isTeamA ? 'text-blue-800' : 'text-red-800'}`}>
                         {p.name.split(' ')[0]}
                       </td>
-                      <td className="text-right text-gray-500">{p.handicapIndex ?? '-'}</td>
+                      <td className="text-right text-gray-500">{formatHandicapIndex(p.handicapIndex, '-')}</td>
                       <td className="text-right text-gray-600">{courseHcap.toFixed(1)}</td>
                       {nassauAllowance != null && (
                         <td className="text-right text-gray-800 font-medium">{nassauHcap != null ? Math.round(nassauHcap) : '-'}</td>

@@ -351,6 +351,12 @@ function ScoreBox({ strokes, className }: { strokes: number; className: string }
           {'•'.repeat(strokes)}
         </span>
       )}
+      {/* A plus handicap's give-back (F-098): an open circle, as on the live scorecard. */}
+      {strokes < 0 && (
+        <span className="absolute top-[1px] right-[2px] leading-none text-gray-900 font-bold text-[9px]">
+          {'○'.repeat(-strokes)}
+        </span>
+      )}
     </td>
   );
 }

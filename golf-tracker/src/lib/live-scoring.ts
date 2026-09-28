@@ -1,6 +1,7 @@
 import type { Player, GameScore, TeeSetOption } from './game-state';
 import type { TournamentRound, RoundMatchup, Tournament, SplitPairing } from './tournament-state';
 import { calcCourseHandicap, applyAllowance } from './game-state';
+import { strokesOnHole } from './strokes';
 import type { TeamMode, StablefordScale, TwoBestBallsVariant } from './formats';
 import { resolveStablefordScale, STABLEFORD_SCALES } from './formats';
 
@@ -170,29 +171,10 @@ function getPlayingHandicap(player: Player, round: TournamentRound, holes: HoleD
 
 function getPlayerStrokesOnHole(player: Player, holeHandicap: number, round: TournamentRound, holes: HoleData[], allMatchupPlayers: Player[], holeNumber?: number): number {
   const rawHcap = getPlayingHandicap(player, round, holes, allMatchupPlayers, holeNumber);
-  const playingHcap = Math.round(rawHcap);
   const numHoles = round.splitFormat ? 9 : holes.length;
-
-  if (playingHcap === 0) return 0;
-
-  if (playingHcap < 0) {
-    const absHcap = Math.abs(playingHcap);
-    if (absHcap >= numHoles * 2) return -2;
-    if (absHcap > numHoles) {
-      if (holeHandicap <= absHcap - numHoles) return -2;
-      return -1;
-    }
-    if (holeHandicap <= absHcap) return -1;
-    return 0;
-  }
-
-  if (playingHcap >= numHoles * 2) return 2;
-  if (playingHcap > numHoles) {
-    if (holeHandicap <= playingHcap - numHoles) return 2;
-    return 1;
-  }
-  if (holeHandicap <= playingHcap) return 1;
-  return 0;
+  // The shared allocator (lib/strokes.ts). A plus handicap now gives back on the EASIEST holes;
+  // this used to give it back on the hardest (F-098, §5.bv).
+  return strokesOnHole(rawHcap, holeHandicap, numHoles);
 }
 
 function getPlayerRawCourseHandicap(player: Player, round: TournamentRound): number {
@@ -262,16 +244,8 @@ function getTeamHandicapForFormat(teamPlayers: Player[], round: TournamentRound,
 
 function getTeamStrokesOnHole(teamPlayers: Player[], holeHandicap: number, round: TournamentRound, holes: HoleData[], teamMode: TeamMode): number {
   const teamHcap = getTeamHandicapForFormat(teamPlayers, round, teamMode);
-  if (teamHcap <= 0) return 0;
-
-  const numHoles = holes.length;
-  if (teamHcap >= numHoles * 2) return 2;
-  if (teamHcap > numHoles) {
-    if (holeHandicap <= teamHcap - numHoles) return 2;
-    return 1;
-  }
-  if (holeHandicap <= teamHcap) return 1;
-  return 0;
+  // A plus team gives back on the easiest holes, as a plus player does (F-098).
+  return strokesOnHole(teamHcap, holeHandicap, holes.length);
 }
 
 function getScore(scores: GameScore[], playerId: string, holeNumber: number): number | null {
