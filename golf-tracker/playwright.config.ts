@@ -13,8 +13,14 @@ export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
   expect: { timeout: 10_000 },
-  fullyParallel: false,        // one shared in-memory store per server
-  workers: 1,
+  // The fake backend lives in each BROWSER TAB (module state + sessionStorage), not on
+  // the server, so tests can't collide through it — proven by
+  // e2e/parallel-isolation.spec.ts. The limit is CPU: dev-mode pages are heavy, and on
+  // this 8-core machine a 57-test subset measured (warm, 2026-09-27) 4.5 min on 1 worker,
+  // 3.6 on 2, 3.6 on 3, 3.8 and flaky on 4 even with one dev server PER worker. So 2 on
+  // one server. PW_WORKERS=1 on a low-memory day.
+  fullyParallel: true,
+  workers: Number(process.env.PW_WORKERS ?? 2),
   reporter: [['list']],
   // Start the sandbox server ourselves so `npx playwright test` is a single
   // unattended command. reuseExistingServer keeps a hand-started dev server (with
