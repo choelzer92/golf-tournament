@@ -1935,6 +1935,33 @@ unchanged for future branches — this was his explicit word.
 
 ---
 
+### 5.bu — Gate speed stops at 2 workers + verify:quick; Event spine slice 1 approved; F-062 A (2026-09-27)
+
+Craig's answers, asked outright (§5.bo), after measuring:
+
+1. **Gate speed: "Stop here."** Measured on a warm server with a 57-test subset: 4.5 min on 1
+   worker, 3.6 on 2, 3.6 on 3, and 3.8 on 4 (flaky), even with one dev server per worker. The
+   machine is CPU-bound on dev-mode pages, so parallelism tops out at about 1.25×. Shipped
+   config: `fullyParallel` with 2 workers on one server (`PW_WORKERS` overrides). The per-commit
+   win is `npm run verify:quick`. The full gate runs once before handoff: 220 e2e in 12.3 min,
+   14.0 min wall. Declined for now: seed injection (a harness-only change, est. 25–40%) and a
+   prod-mode e2e build (it would weaken the §3 sandbox-absent guarantee to an env var).
+   Isolation proof: `e2e/parallel-isolation.spec.ts`. The store lives in the browser tab, not the
+   server; there are two colliding tests plus a positive control.
+2. **Event spine slice 1 APPROVED** (`.claude/plans/event-spine.md` §3): `createdByGhin` /
+   `createdAt` are written on NEW tournaments (writers first, §5.be). Pure `teamsOf()` and
+   `computeStandingsN()` are added, and today's `computeStandings` becomes a 2-team wrapper
+   pinned by goldens first (§5.z). No stored-shape change, no UI change, Pool untouched.
+3. **Legacy owner-less tournaments: everyone sees them, as today** (plan §4 option A). Readers
+   filter only when an owner is present.
+4. **F-062 option A**: a display pass only. One spelling, plus `HandicapChip` on every pool
+   surface that shows a labelled CH. Legacy pages are untouched and no number changes. B (retire
+   the legacy math) is still its own decision, and it overlaps Event-spine S2.
+
+Still open from this session: F-069 refuse-vs-default and F-098 (plus handicaps).
+
+---
+
 ## 7. Open questions
 
 Awaiting Craig's call. Inferred answers are marked as guesses.

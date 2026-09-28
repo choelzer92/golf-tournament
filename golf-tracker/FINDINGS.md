@@ -1227,6 +1227,33 @@ line. Screenshot: `e2e/screenshots/f072-hub-pairs-net-gross.png`. Left in its wa
 
 ---
 
+### F-098 — A PLUS-handicap player gets 0 strokes in every pool / sides / money game; the tournament engine gives them back on the wrong holes  [P1] [track] [money]
+
+**Where (code read during the Event-spine survey, 2026-09-27; not yet seen on a screen):**
+`getMoneyStrokesOnHole` (`src/lib/money-games.ts:113`) does `if (rounded <= 0) return 0`. It
+allocates strokes for the pool engine (`pool-game.ts:1809, 2372`), the sides engine
+(`side-game.ts:155`) and the tournament money ledger (`money-games.ts:159, 674`), so in all of
+them a player whose playing handicap is below zero plays off scratch rather than giving strokes
+back. Off-the-low games never produce a negative handicap. Full-handicap games do, whenever a
+plus-index player is in the field.
+The tournament's own match engine (`live-scoring.ts:171` `getPlayerStrokesOnHole`) does return
+−1/−2, but it applies them where `holeHandicap <= |hcap|` — the HARDEST holes. The usual
+USGA/GHIN convention gives a plus player's strokes back on the EASIEST holes, starting at
+stroke index 18. So the two engines disagree with each other, and each one disagrees with GHIN
+(§5.ba).
+
+**Options:** **A** one shared allocator: negative handicaps give back on SI 18, 17, … (for a
+nine, the nine's own order). Both engines call it. Goldens go first (§5.z), with a GHIN-app
+side-by-side for a plus player before merging (§5.ba). **B** A, plus a hub note when a plus
+player is in the field ("+2 gives back 2 strokes on the easiest holes"). **C** leave it alone
+if nobody in the circle carries a plus index. It's latent until then, but the Event spine
+converges the two engines, so C only puts off the choice. Recommend A.
+Handicap math is Craig's call (§2). Also: does anyone the friends play with carry a plus index?
+
+**Status:** OPEN — logged 2026-09-27, not built.
+
+---
+
 ### F-097 — An aligned team game on margin money settles on two INVENTED sides, not the teams shown  [P1] [track] [money]
 
 **Where (probe, 2026-09-18, Phase 3 step 6 walk):** build 8 players → 3 + 3 + 2 (each team its own
