@@ -945,36 +945,39 @@ describe('junk bonuses', () => {
 });
 
 // ---------------------------------------------------------------------------
-// The game-list card subtitle (§5.al / §5.az) — a claim users act on
+// The game-list card subtitle (§5.al / §5.az / F-061) — a claim users act on. It IS
+// `gameKindLabelFrom` (game-structure.test.ts pins the label itself); this pins the wiring.
 // ---------------------------------------------------------------------------
 
 describe('gameListSubtitle', () => {
-  it('names the format and counts players for a single-group game', () => {
-    expect(gameListSubtitle({ gameMode: 'skins', teamCount: 1, playerCount: 4 }))
+  it('names the format and counts players for a solo game', () => {
+    expect(gameListSubtitle({ gameMode: 'skins', playerCount: 4, groupSizes: [4], sideSizes: [] }))
       .toBe('Skins · 4 players');
   });
 
-  it('never says "foursomes" for ANY registered mode', () => {
+  it('never says "foursomes" or "side" for ANY registered mode', () => {
     for (const m of GAME_MODES) {
-      const s = gameListSubtitle({ gameMode: m.id, teamCount: 1, playerCount: m.playersMin });
+      const n = m.playersMin;
+      const sideSizes = m.category === 'team-within-group' ? [Math.ceil(n / 2), Math.floor(n / 2)].filter((k) => k > 0) : [];
+      const s = gameListSubtitle({ gameMode: m.id, playerCount: n, groupSizes: [n], sideSizes });
       expect(s, m.id).not.toContain('foursome');
-      expect(s, m.id).toContain(m.name);
+      expect(s.toLowerCase(), m.id).not.toContain('side');
+      if (m.category === 'individual') expect(s, m.id).toContain(m.name);
     }
   });
 
-  it('confirms multiple tee times, but stays quiet about one group', () => {
-    expect(gameListSubtitle({ gameMode: 'skins', teamCount: 2, playerCount: 8 }))
-      .toBe('Skins · 8 players · 2 groups');
-    expect(gameListSubtitle({ gameMode: 'skins', teamCount: 1, playerCount: 4 }))
-      .not.toContain('group');
+  it('a team game reads structure · money, and confirms 2+ tee times', () => {
+    expect(gameListSubtitle({ gameMode: 'team-2v2', playerCount: 8, groupSizes: [4, 4], sideSizes: [2, 2, 2, 2], money: 'per-point' }))
+      .toBe('4 pairs · $/point · 2 groups');
+    expect(gameListSubtitle({ gameMode: 'team-2v2', playerCount: 4, groupSizes: [4], sideSizes: [2, 2], money: 'legs' }))
+      .toBe('2 pairs · head-to-head');
   });
 
-  it('keeps the pluralized foursome count for the classic pool', () => {
-    expect(gameListSubtitle({ gameMode: undefined, teamCount: 2, playerCount: 8 }))
-      .toBe('Pool · 2 foursomes · 8 players');
-    // Singulars: never "1 foursomes" / "1 players" (the §5.al bug).
-    expect(gameListSubtitle({ gameMode: undefined, teamCount: 1, playerCount: 1 }))
-      .toBe('Pool · 1 foursome · 1 player');
+  it('the classic pool reads its structure and money word — no "Pool", no "foursomes"', () => {
+    expect(gameListSubtitle({ gameMode: undefined, playerCount: 8, groupSizes: [4, 4], sideSizes: [], money: 'pot' }))
+      .toBe('2 teams of 4 · pot');
+    expect(gameListSubtitle({ gameMode: undefined, playerCount: 8, groupSizes: [4, 4], sideSizes: [], money: 'match' }))
+      .toBe('2 teams of 4 · head-to-head');
   });
 });
 

@@ -36,7 +36,7 @@ test('F-034: a name auto-filled by one group is replaced by the next group — a
   await page.getByRole('button', { name: /Tuesday Crew/ }).first().click();
   await expect(page.getByText(/Loaded “Tuesday Crew”/)).toBeVisible();
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-  await expect(page.getByText('Which game are you playing?')).toBeVisible();
+  await expect(page.getByText('How do you want to compete?')).toBeVisible();
   await expect(page.getByPlaceholder('e.g. Saturday Pool')).toHaveValue('Tuesday Crew');
 });
 
@@ -50,7 +50,7 @@ test('F-034: a hand-typed name survives switching groups', async ({ context, pag
   await page.getByRole('button', { name: /Craig Hoelzer/ }).click();
   await page.getByRole('button', { name: /Jym Youngberg/ }).click();
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-  await expect(page.getByText('Which game are you playing?')).toBeVisible();
+  await expect(page.getByText('How do you want to compete?')).toBeVisible();
 
   // The organizer names the game themself — that must never be clobbered.
   const nameBox = page.getByPlaceholder('e.g. Saturday Pool');

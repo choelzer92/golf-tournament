@@ -18,6 +18,8 @@ import {
 } from '@/lib/stats-ledger';
 import type { RosterGroup } from '@/lib/roster-groups';
 import { makeGame, scoresFor, singleMatchup, TEST_PARS } from './fixtures';
+import { computeGameResult } from '@/lib/game-modes/result';
+import type { IndividualResult } from '@/lib/game-modes/types';
 
 // --- fixtures ---------------------------------------------------------------
 
@@ -207,5 +209,102 @@ describe('F-032: gameRollups + settleUp for one game', () => {
     // rollup that forgot to divide by team size would read +$80 here and still pass
     // the two checks above (4× a zero-sum, teammate-equal set is both).
     expect(byTeam(t1.playerIds)[0]).toBeCloseTo(20, 6);
+  });
+});
+
+// F-068: a SIDES game's money must land on PLAYERS, not on side ids. The sides engine
+// reports standings per side (playerId 'A'/'B'…, playerName = side name); the ledger and
+// the hub's "Who pays whom" both reduce to per-player nets, so each side's net is split
+// evenly across its members — the same per-person convention the classic pool uses.
+// Before the fix, gameRollups returned ids 'A'/'B' (no such players) and the season ledger
+// ran the CLASSIC engine on every game, zeroing every sides/individual game out of Stats.
+describe('F-068: sides games reduce to per-PLAYER nets', () => {
+  const legs = { format: 'best-ball', scoring: 'stroke', result: 'total', moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20 };
+  const zeroSum = (rows: { net: number }[]) => expect(rows.reduce((s, r) => s + r.net, 0)).toBeCloseTo(0, 6);
+  const idsOf = (rows: { playerId: string }[]) => rows.map((r) => r.playerId).sort();
+
+  it('a 1v1 settles on the two players by id, ±the legs money', () => {
+    const game = makeGame({
+      gameMode: 'team-2v2', indexes: [4, 12], status: 'completed',
+      sides: [{ id: 'a', playerIds: ['p1'] }, { id: 'b', playerIds: ['p2'] }],
+      modeSettings: legs,
+    });
+    const scores = singleMatchup([
+      ...scoresFor('p1', TEST_PARS.map((p) => p)),
+      ...scoresFor('p2', TEST_PARS.map((p) => p + 1)),
+    ]);
+    const rollups = gameRollups(game, scores);
+    expect(idsOf(rollups)).toEqual(['p1', 'p2']);
+    expect(rollups.find((r) => r.playerId === 'p1')!.net).toBeCloseTo(40, 6);
+    expect(rollups.find((r) => r.playerId === 'p2')!.net).toBeCloseTo(-40, 6);
+    expect(rollups.find((r) => r.playerId === 'p1')!.playerName).toBe(game.players[0].name);
+    zeroSum(rollups);
+    const transfers = settleUp(rollups);
+    expect(transfers).toHaveLength(1);
+    expect(transfers[0].fromPlayerId).toBe('p2');
+    expect(transfers[0].toPlayerId).toBe('p1');
+  });
+
+  it('a 2v2 splits each side net evenly across its two players', () => {
+    const game = makeGame({
+      gameMode: 'team-2v2', indexes: [4, 12, 8, 16], status: 'completed',
+      subTeams: { a: ['p1', 'p2'], b: ['p3', 'p4'] },
+      modeSettings: legs,
+    });
+    const scores = singleMatchup([
+      ...scoresFor('p1', TEST_PARS.map((p) => p)),
+      ...scoresFor('p2', TEST_PARS.map((p) => p)),
+      ...scoresFor('p3', TEST_PARS.map((p) => p + 1)),
+      ...scoresFor('p4', TEST_PARS.map((p) => p + 1)),
+    ]);
+    const rollups = gameRollups(game, scores);
+    expect(idsOf(rollups)).toEqual(['p1', 'p2', 'p3', 'p4']);
+    // Side A wins $40 → $20 a head. A reducer that forgot to split would say $40.
+    for (const id of ['p1', 'p2']) expect(rollups.find((r) => r.playerId === id)!.net).toBeCloseTo(20, 6);
+    for (const id of ['p3', 'p4']) expect(rollups.find((r) => r.playerId === id)!.net).toBeCloseTo(-20, 6);
+    zeroSum(rollups);
+  });
+
+  it('uneven sides (2 / 2 / 1): the solo player carries the whole side net', () => {
+    const game = makeGame({
+      gameMode: 'team-2v2', indexes: [4, 12, 8, 16, 10], status: 'completed',
+      sides: [
+        { id: 'a', playerIds: ['p1', 'p2'] },
+        { id: 'b', playerIds: ['p3', 'p4'] },
+        { id: 'c', playerIds: ['p5'] },
+      ],
+      modeSettings: { format: 'best-ball', scoring: 'stroke', result: 'total', moneyModel: 'per-point', dollarsPerPoint: 1 },
+    });
+    const scores = singleMatchup([
+      ...scoresFor('p1', TEST_PARS.map((p) => p)),
+      ...scoresFor('p2', TEST_PARS.map((p) => p)),
+      ...scoresFor('p3', TEST_PARS.map((p) => p + 1)),
+      ...scoresFor('p4', TEST_PARS.map((p) => p + 1)),
+      ...scoresFor('p5', TEST_PARS.map((p) => p + 2)),
+    ]);
+    const result = computeGameResult(game, scores);
+    expect(result.kind).toBe('individual');
+    const sideC = (result as IndividualResult).standings.find((s) => s.playerId === 'C')!;
+    expect(sideC.moneyNet).not.toBe(0);           // the probe has teeth
+    const rollups = gameRollups(game, scores);
+    expect(idsOf(rollups)).toEqual(['p1', 'p2', 'p3', 'p4', 'p5']);
+    expect(rollups.find((r) => r.playerId === 'p5')!.net).toBeCloseTo(sideC.moneyNet, 6);
+    zeroSum(rollups);
+  });
+
+  it('a genuinely individual game (skins) is untouched — one row per player', () => {
+    const game = makeGame({
+      gameMode: 'skins', indexes: [0, 6, 12, 18], entryPerPlayer: 0, status: 'completed',
+      modeSettings: { moneyModel: 'per-skin', skinValue: 2 },
+    });
+    const scores = singleMatchup([
+      ...scoresFor('p1', TEST_PARS.map((p) => p - 1)),
+      ...scoresFor('p2', TEST_PARS.map((p) => p)),
+      ...scoresFor('p3', TEST_PARS.map((p) => p + 1)),
+      ...scoresFor('p4', TEST_PARS.map((p) => p + 2)),
+    ]);
+    const rollups = gameRollups(game, scores);
+    expect(idsOf(rollups)).toEqual(['p1', 'p2', 'p3', 'p4']);
+    zeroSum(rollups);
   });
 });

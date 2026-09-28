@@ -5,7 +5,6 @@ import type { CourseSelection, Player } from '@/lib/game-state';
 import {
   type PoolTeam,
   type PoolJunkValues,
-  type PoolMoneyMode,
   type PoolMatchConfig,
   type CustomBonus,
   COMMON_BONUSES,
@@ -18,8 +17,24 @@ import {
 } from '@/lib/pool-game';
 import type { GameSide } from '@/lib/game-modes/sides';
 import { getGameMode, fitExplanation, formatSummaryLine, type SettingsBag } from '@/lib/game-modes';
-import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
+import { sideNameFrom, allSidesAreSolo, MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
+import { ModeSettingsEditor } from '@/components/mode-settings-editor';
+import { MONEY_WORD, structureLabel, type Container, type MoneyModel, type MoneyModelOption } from '@/lib/game-structure';
 import { type PotDollars, foldJunkStrings, legDollarsToStrings, potDollarsTotal } from './shared';
+
+// The sides engine's MONEY settings (plan §3.4). Everything else in its schema — format, hole
+// score, compare-by, side names — was answered on earlier steps or lives on the hub.
+const SIDES_STAKES_KEYS = new Set([
+  'dollarsPerHole', 'dollarsPerPoint', 'sideBuyIn', 'potSplit', 'legFront', 'legBack', 'legOverall',
+  // The pot's front / back / overall shares are NOT here: they render as one inline row below the
+  // schema fields (F-096 A, §5.bs — three full-width rows with hints were a screen and a half).
+  // Phase 3 step 3: how losers pay with 3+ teams, and carry-ties for $/hole.
+  'legsPayout', 'pointsPayout', 'carryover',
+]);
+// HOW JUNK PAYS — asked UNDER the bonus grid it depends on (F-093 A, §5.bs), not above it in the
+// stakes. Junk POINTS (birdie / eagle / albatross / all-par / closest) come from that shared grid
+// (§5.bq one vocabulary); these are only the payout: per point or a junk pot, and the pot's junk share.
+const SIDES_JUNK_KEYS = new Set(['junkPayout', 'junkPerPoint', 'junkPot', 'potJunk', 'junkBasis']);
 
 function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
   const num = (key: string, fallback: number) => {
@@ -33,23 +48,33 @@ function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
     case 'pot': {
       const buyIn = num('sideBuyIn', 20);
       const split = String(settings.potSplit ?? '100');
-      // §5.ag: the ante is PER SIDE whatever its size, which is the surprising part worth saying.
-      return `$${buyIn} per side in the pot ($${buyIn * sideCount} total) — `
-        + `${split === '100' ? 'best side takes it all' : `paid ${split} down the order`}. `
-        + 'Each side antes the same, whatever its size.';
+      const pot = buyIn * sideCount;
+      // Phase 3 step 4: the pot's slices, scaled to add up. Junk is a slice only when it pays as a pot.
+      const junkSliced = String(settings.junkEnabled) === 'true' && String(settings.junkPayout ?? 'per-point') === 'pot';
+      const shares = { front: num('potFront', 0), back: num('potBack', 0), overall: num('potOverall', 100), junk: junkSliced ? num('potJunk', 25) : 0 };
+      const total = Math.max(0, shares.front) + Math.max(0, shares.back) + Math.max(0, shares.overall) + Math.max(0, shares.junk);
+      const dollars = (v: number) => (total > 0 ? Math.round((pot * Math.max(0, v)) / total) : 0);
+      const slices = ([['front', 'Front 9'], ['back', 'Back 9'], ['overall', 'Overall'], ['junk', 'Junk']] as const)
+        .filter(([k]) => shares[k] > 0 && total > 0)
+        .map(([k, label]) => `$${dollars(shares[k])} ${label}`);
+      const sliced = slices.length > 1 ? ` — ${slices.join(' · ')}` : '';
+      // §5.ag: the ante is PER TEAM whatever its size, which is the surprising part worth saying.
+      return `$${buyIn} per team in the pot ($${pot} total)${sliced}. `
+        + `${split === '100' ? (slices.length > 1 ? 'Best team takes each slice' : 'Best team takes it all') : `Each slice paid ${split} down the order`}; ties split. `
+        + 'Each team antes the same, whatever its size.';
     }
     case 'per-hole': {
       const d = num('dollarsPerHole', 2);
-      return `$${d} a hole won${many ? ', against each other side' : ''}.`;
+      return `$${d} a hole won${many ? ', against each other team' : ''}.`;
     }
     case 'per-point': {
       const d = num('dollarsPerPoint', 1);
-      return `$${d} per point of margin${many ? ', against each other side' : ''}.`;
+      return `$${d} per point of margin${many ? ', against each other team' : ''}.`;
     }
     default: {
       const f = num('legFront', 10), b = num('legBack', 10), o = num('legOverall', 10);
       return `$${f} front / $${b} back / $${o} overall`
-        + (many ? ' — each leg paid to the winner by every side behind.' : '.');
+        + (many ? ' — each leg paid to the winner by every team behind.' : '.');
     }
   }
 }
@@ -67,11 +92,12 @@ const JUNK_FIELDS: { key: keyof PoolJunkValues; label: string; hint: string }[] 
 
 export function CreateStep({
   name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited,
-  moneyMode, matchConfig, handicapBasis, nine, holesPlaying, gameMode,
+  container, blockedReason, moneyModel, setMoneyModel, moneyOptions,
+  matchConfig, handicapBasis, nine, holesPlaying, gameMode,
   entryPerPlayerText, setEntryPerPlayer, positionSplitText, setPositionSplitText,
   junkValues, setJunkValues, customBonuses, setCustomBonuses,
   matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
-  sides, modeSettings, strokeMethod, onSaveFormat,
+  sides, modeSettings, setModeSettings, strokeMethod, onSaveFormat,
   onCreate, onBack,
 }: {
   name: string;
@@ -84,7 +110,15 @@ export function CreateStep({
   setPotDollars: (d: PotDollars | null) => void;
   potEdited: boolean;
   setPotEdited: (b: boolean) => void;
-  moneyMode: PoolMoneyMode;
+  /** The routed container (lib/game-structure.ts). The user never sees this word; it decides
+      which money blocks render. 'unexpressible' = no engine carries what was asked. */
+  container: Container | 'unexpressible';
+  /** Why nothing can be created yet, or null. Shown under a disabled Create button. */
+  blockedReason: string | null;
+  moneyModel: MoneyModel;
+  setMoneyModel: (m: MoneyModel) => void;
+  /** The four money models judged by the router for THIS game — greyed with its own reason. */
+  moneyOptions: MoneyModelOption[];
   matchConfig: PoolMatchConfig;
   handicapBasis: 'course' | 'index';
   nine: 'front9' | 'back9' | null;
@@ -108,14 +142,19 @@ export function CreateStep({
   // the thing the game is actually about instead of listing every player in one run.
   sides: GameSide[] | undefined;
   modeSettings: SettingsBag;
+  /** Merges the given keys into the mode settings (the sides engine's stakes live there). */
+  setModeSettings: (v: SettingsBag) => void;
   strokeMethod: 'full' | 'off-the-low';
   onSaveFormat: () => Promise<void>;
   onCreate: () => void; onBack: () => void;
 }) {
-  const mode = getGameMode(gameMode);
-  const isIndividual = mode?.category === 'individual' || mode?.category === 'team-within-group';
-  const isWithinGroupReview = mode?.category === 'team-within-group';
-  const isMatch = moneyMode === 'match';
+  // Rendering follows the ROUTED container, not a picked mode: an aligned pot is the classic pool,
+  // shared-foursome teams (or margin money) are the sides engine, everyone-for-themselves is the
+  // individual mode. Same game shape in the wizard; different machinery underneath.
+  const mode = container === 'individual' ? getGameMode(gameMode) : container === 'sides' ? getGameMode('team-2v2') : undefined;
+  const isIndividual = container === 'individual' || container === 'sides';
+  const isWithinGroupReview = container === 'sides';
+  const isMatch = container === 'classic' && moneyModel === 'legs';
   // "Save this format" (§5.ax part 4) — local button state only; the save itself is the parent's.
   const [savingFormat, setSavingFormat] = useState(false);
   const [savedFormat, setSavedFormat] = useState(false);
@@ -143,8 +182,11 @@ export function CreateStep({
   const splitTotal = potDollarsTotal(effective);
   const balanced = Math.abs(splitTotal - pot) < 0.01;
 
+  // F-076 (opt A): the one-tap set is the score-derived bonuses only — closest-to-pin stays 0
+  // until typed. It was silently included, and on a pot game it then greyed $ per hole / $ per
+  // point for a reason nobody had asked for. A saved format still restores whatever CTP it saved.
   function addBonuses() {
-    setJunkValues({ ...DEFAULT_JUNK_VALUES });
+    setJunkValues({ ...DEFAULT_JUNK_VALUES, ctp: 0 });
     setBonusesOpened(true);
   }
   function removeBonuses() {
@@ -188,9 +230,14 @@ export function CreateStep({
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
         <div>
-          <p className="text-sm text-gray-500">{isIndividual ? mode!.name : 'Pool'}</p>
+          {/* The same game-kind label the hub and list cards print (F-061): structure · money. */}
+          <p className="text-sm text-gray-500">
+            {container === 'individual'
+              ? mode!.name
+              : `${structureLabel({ kind: 'teams', teamSizes: (container === 'sides' ? (sides ?? []) : teams).map((t) => t.playerIds.length) })} · ${MONEY_WORD[moneyModel]}`}
+          </p>
           <p className="text-lg font-bold text-gray-900">{name}</p>
-          {isIndividual && <p className="text-xs text-gray-500 mt-0.5">{mode!.description}</p>}
+          {container === 'individual' && <p className="text-xs text-gray-500 mt-0.5">{mode!.description}</p>}
           {/* THE STAKES (F-026). For an individual/within-group game the money lives in step 1's
               mode settings, so this last screen showed no dollar figure at all — the one number
               the group on the first tee wants confirmed. Same tested summary as step 1. */}
@@ -258,6 +305,96 @@ export function CreateStep({
         </div>
         )}
 
+        {/* HOW IS THE MONEY PLAYED (plan §3.4, §5.bm Q1). One vocabulary for every team game;
+            a model the routed machinery can't carry is greyed WITH the router's own reason, so
+            the honest residue of two engines shows as a sentence, never as a missing option. */}
+        {container !== 'individual' && moneyOptions.length > 0 && (
+        <div className="pt-2 border-t">
+          <p className="text-sm font-medium text-gray-800 mb-2">How is the money played?</p>
+          <div className="space-y-2" role="radiogroup" aria-label="How is the money played?">
+            {moneyOptions.map((o) => {
+              const selected = o.model === moneyModel;
+              return (
+                <label
+                  key={o.model}
+                  className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 min-h-[44px] ${
+                    !o.available ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+                      : selected ? 'border-green-600 bg-green-50 cursor-pointer'
+                      : 'border-gray-300 bg-white hover:border-green-400 cursor-pointer'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="money-model"
+                    value={o.model}
+                    checked={selected}
+                    disabled={!o.available}
+                    onChange={() => setMoneyModel(o.model)}
+                    className="mt-1 h-4 w-4 accent-green-700"
+                    aria-label={o.label}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className={`block text-sm font-medium ${o.available ? 'text-gray-900' : 'text-gray-400'}`}>{o.label}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          {/* F-082: the router's reason ONCE per reason, grey, under the list — two greyed options
+              usually share a sentence, and repeating it in amber read as an error twice over. */}
+          {Array.from(new Set(moneyOptions
+            .flatMap((o) => (o.route.container === 'unexpressible' ? [o.route.reason] : []))))
+            .map((reason) => (
+              <p key={reason} className="mt-2 text-xs text-gray-500">{reason}</p>
+            ))}
+        </div>
+        )}
+
+        {/* STAKES for teams that share foursomes: the sides engine's own money fields, rendered
+            from its schema (§5.ag per-side ante, §5.ae pairwise margins). Bonus POINTS are the
+            shared grid above (Phase 3 step 2 — closest-to-pin and hand-tracked bonuses are junk on
+            this engine too); the junk-payout fields below show once any bonus is on. */}
+        {container === 'sides' && mode && (
+        <div className="pt-2 border-t">
+          <p className="text-sm font-semibold text-gray-800 mb-2">Stakes</p>
+          <ModeSettingsEditor
+            schema={mode.settings}
+            values={{ ...modeSettings, junkEnabled: !junkIsOff(junkValues) }}
+            onChangeAction={(key, value) => setModeSettings({ [key]: value })}
+            hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_STAKES_KEYS.has(k)
+              // A payout choice that only bites with 3+ teams is not asked of a smaller game.
+              || (MULTI_TEAM_ONLY_KEYS.has(k) && (sides ?? []).length < 3))}
+          />
+          {/* F-096 A (§5.bs): the pot's SHARES as one row of small boxes — the classic pot-dollars
+              layout — instead of three schema rows. Scaled to the pot, so any numbers that read
+              right are right (Phase 3 step 4). */}
+          {moneyModel === 'pot' && (
+          <div className="mt-3">
+            <p className="text-xs text-gray-600 font-medium mb-1">Pot split (shares)</p>
+            <div className="grid grid-cols-3 gap-2">
+              {([['potFront', 'Front 9', 0], ['potBack', 'Back 9', 0], ['potOverall', 'Overall', 100]] as const).map(([key, label, dflt]) => (
+                <div key={key}>
+                  <label htmlFor={`pot-share-${key}`} className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
+                  <input
+                    id={`pot-share-${key}`}
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    value={String(modeSettings[key] ?? dflt)}
+                    onChange={(e) => setModeSettings({ [key]: Number(e.target.value) })}
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Shares are scaled to the pot — 25 / 25 / 50 and $20 / $20 / $40 split it the same way. Leave front and back at 0 for one prize on the overall.
+            </p>
+          </div>
+          )}
+        </div>
+        )}
+
         {/* WHAT'S IT WORTH — the money questions live here, not on step 1, because
             the pot can only be shown in real dollars once the field and team count
             are known. */}
@@ -292,108 +429,8 @@ export function CreateStep({
           </p>
         </div>
         )}
-        {/* MANUAL bonuses — the ones no scorecard can reveal, so a scorer taps them per
-            hole while playing. Off unless chosen: a group that doesn't play barkies gets
-            no extra taps and no extra chrome on the scoring screen. */}
-        {!isIndividual && (
-        <div className="pt-2 border-t">
-          <p className="text-sm font-semibold text-gray-800 mb-1">Extra bonuses to track by hand</p>
-          <p className="text-xs text-gray-500 mb-2">
-            These can&apos;t be worked out from a score, so whoever&apos;s scoring taps them on the hole.
-            Skip them entirely if your group doesn&apos;t play them.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {COMMON_BONUSES.map((b) => {
-              const chosen = customBonuses.find((c) => c.id === b.id);
-              return (
-                <button
-                  key={b.id}
-                  type="button"
-                  onClick={() =>
-                    setCustomBonuses(chosen
-                      ? customBonuses.filter((c) => c.id !== b.id)
-                      : [...customBonuses, { ...b }])
-                  }
-                  title={b.hint}
-                  className={`min-h-[44px] rounded-lg border px-3 py-2 text-sm font-medium ${
-                    chosen
-                      ? 'border-green-600 bg-green-600 text-white'
-                      : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
-                  }`}
-                >
-                  {chosen ? '✓ ' : ''}{b.label}
-                  <span className={`ml-1 text-xs ${chosen ? 'text-green-100' : 'text-gray-400'}`}>{b.hint}</span>
-                </button>
-              );
-            })}
-          </div>
-          {customBonuses.length > 0 && (
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {customBonuses.map((b) => (
-                <div key={b.id}>
-                  <label className="block text-xs text-gray-600 font-medium mb-1">{b.label} (points)</label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    value={b.points}
-                    onChange={(e) =>
-                      setCustomBonuses(customBonuses.map((c) =>
-                        c.id === b.id ? { ...c, points: Number(e.target.value) } : c))
-                    }
-                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        )}
-
-        {/* F-045 (§5.bg): bonuses are an ADDED choice, not a default — a fresh pool
-            shows one button; the grid (and the junk pot leg) appear only when the
-            game plays them. A saved format with junk restores with the grid open. */}
-        {!isIndividual && !junkShown && (
-        <div className="pt-2 border-t">
-          <button
-            type="button"
-            onClick={addBonuses}
-            className="min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-green-400"
-          >
-            + Add bonuses
-            <span className="ml-1 text-xs text-gray-400">birdies, eagles, closest to the pin…</span>
-          </button>
-        </div>
-        )}
-        {!isIndividual && junkShown && (
-        <div className="pt-2 border-t">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-semibold text-gray-800">Bonus points for good holes</p>
-            <button
-              type="button"
-              onClick={removeBonuses}
-              className="text-xs text-gray-500 hover:text-gray-700 font-medium"
-            >
-              Remove bonuses
-            </button>
-          </div>
-          <p className="text-xs text-gray-500 mb-2">These add to a team&apos;s bonus total. Set any to 0 to skip it.</p>
-          <div className="grid grid-cols-5 gap-2">
-            {JUNK_FIELDS.map(({ key, label, hint }) => (
-              <div key={key}>
-                <label className="block text-xs text-gray-600 font-medium">{label}</label>
-                <span className="block text-[10px] text-gray-400 mb-1">{hint}</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={junkValues[key]}
-                  onChange={(e) => setJunkValues({ ...junkValues, [key]: Number(e.target.value) })}
-                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-        )}
+        {/* F-087 A (§5.bs): the money question's AMOUNTS come right after the question — the
+            classic pot split and the head-to-head legs used to sit below the bonus sections. */}
         {!isMatch && !isIndividual && (
         <div className="pt-2 border-t">
           <div className="flex items-center justify-between mb-2">
@@ -447,23 +484,45 @@ export function CreateStep({
         {isMatch && !isIndividual && (
         <div className="pt-2 border-t">
           <p className="text-sm font-semibold text-gray-800 mb-2">Match Payouts ($ / player)</p>
-          {/* On a nine there is only one score leg (see potFields above), so show
-              that leg and junk rather than three legs, two of which never pay. */}
-          <div className={`grid ${nineOnly ? 'grid-cols-2' : 'grid-cols-4'} gap-2 text-center`}>
-            {nineOnly ? (
-              <div>
-                <p className="text-xs text-gray-500">{holesPlaying === 'front9' ? 'Front 9' : 'Back 9'}</p>
-                <p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.overall}</p>
+          {/* F-084: the legs are INPUTS, mirroring the pot's split grid — a saved format used to be
+              the only way to change them. On a nine there is only one score leg (see potFields
+              above), so ask for that leg and junk rather than three legs, two of which never pay. */}
+          <div className={`grid ${nineOnly ? 'grid-cols-2' : 'grid-cols-4'} gap-2`}>
+            {(nineOnly
+              ? [{ key: 'overall' as const, label: holesPlaying === 'front9' ? 'Front 9' : 'Back 9' }]
+              : [
+                  { key: 'front' as const, label: 'Front 9' },
+                  { key: 'back' as const, label: 'Back 9' },
+                  { key: 'overall' as const, label: 'Overall' },
+                ]
+            ).map(({ key, label }) => (
+              <div key={key}>
+                <label className="block text-xs text-gray-600 font-medium mb-1">{label}</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  value={matchLegs[key]}
+                  onChange={(e) => setMatchLegs({ ...matchLegs, [key]: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
               </div>
-            ) : (
-              <>
-                <div><p className="text-xs text-gray-500">Front 9</p><p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.front}</p></div>
-                <div><p className="text-xs text-gray-500">Back 9</p><p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.back}</p></div>
-                <div><p className="text-xs text-gray-500">Overall</p><p className="text-sm font-bold text-gray-900">${matchConfig.legDollars.overall}</p></div>
-              </>
-            )}
-            <div><p className="text-xs text-gray-500">Junk / pt</p><p className="text-sm font-bold text-gray-900">${matchConfig.junkPerPoint}</p></div>
+            ))}
+            <div>
+              <label className="block text-xs text-gray-600 font-medium mb-1">Junk / pt</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                value={matchJunkPerPoint}
+                onChange={(e) => setMatchJunkPerPoint(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+              />
+            </div>
           </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Each leg is paid by every player on the losing team to the winners; junk points settle at the per-point rate.
+          </p>
           {teams.length !== 2 && (
             <p className="text-xs text-amber-700 mt-2">
               Head-to-head needs exactly two foursomes — you have {teams.length}. Go back and make two teams, or switch to Pool (pot split).
@@ -472,16 +531,134 @@ export function CreateStep({
         </div>
         )}
 
+        {/* F-045 (§5.bg): bonuses are an ADDED choice, not a default — a fresh pool
+            shows one button; the grid (and the junk pot leg) appear only when the
+            game plays them. A saved format with junk restores with the grid open. */}
+        {container !== 'individual' && !junkShown && (
+        <div className="pt-2 border-t">
+          <button
+            type="button"
+            onClick={addBonuses}
+            className="min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-green-400"
+          >
+            + Add bonuses
+            <span className="ml-1 text-xs text-gray-400">birdies, eagles, sandies…</span>
+          </button>
+        </div>
+        )}
+        {container !== 'individual' && junkShown && (
+        <div className="pt-2 border-t">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-semibold text-gray-800">Bonus points for good holes</p>
+            <button
+              type="button"
+              onClick={removeBonuses}
+              className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+            >
+              Remove bonuses
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mb-2">These add to a team&apos;s bonus total. Set any to 0 to skip it.</p>
+          <div className="grid grid-cols-5 gap-2">
+            {JUNK_FIELDS.map(({ key, label, hint }) => (
+              <div key={key}>
+                <label className="block text-xs text-gray-600 font-medium">{label}</label>
+                <span className="block text-[10px] text-gray-400 mb-1">{hint}</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={junkValues[key]}
+                  onChange={(e) => setJunkValues({ ...junkValues, [key]: Number(e.target.value) })}
+                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+        )}
+        {/* MANUAL bonuses — the ones no scorecard can reveal, so a scorer taps them per
+            hole while playing. Off unless chosen: a group that doesn't play barkies gets
+            no extra taps and no extra chrome on the scoring screen. F-083: they live behind
+            the same "+ Add bonuses" reveal as the automatic ones (F-045 hid those for exactly
+            this reason); a saved format with manual bonuses restores them open. */}
+        {container !== 'individual' && (junkShown || customBonuses.length > 0) && (
+        <div className="pt-2 border-t">
+          <p className="text-sm font-semibold text-gray-800 mb-1">Extra bonuses to track by hand</p>
+          <p className="text-xs text-gray-500 mb-2">
+            These can&apos;t be worked out from a score, so whoever&apos;s scoring taps them on the hole.
+            Skip them entirely if your group doesn&apos;t play them.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {COMMON_BONUSES.map((b) => {
+              const chosen = customBonuses.find((c) => c.id === b.id);
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() =>
+                    setCustomBonuses(chosen
+                      ? customBonuses.filter((c) => c.id !== b.id)
+                      : [...customBonuses, { ...b }])
+                  }
+                  title={b.hint}
+                  className={`min-h-[44px] rounded-lg border px-3 py-2 text-sm font-medium ${
+                    chosen
+                      ? 'border-green-600 bg-green-600 text-white'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+                  }`}
+                >
+                  {chosen ? '✓ ' : ''}{b.label}
+                  <span className={`ml-1 text-xs ${chosen ? 'text-green-100' : 'text-gray-400'}`}>{b.hint}</span>
+                </button>
+              );
+            })}
+          </div>
+          {customBonuses.length > 0 && (
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {customBonuses.map((b) => (
+                <div key={b.id}>
+                  <label className="block text-xs text-gray-600 font-medium mb-1">{b.label} (points)</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={b.points}
+                    onChange={(e) =>
+                      setCustomBonuses(customBonuses.map((c) =>
+                        c.id === b.id ? { ...c, points: Number(e.target.value) } : c))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        )}
+
+        {/* HOW THE BONUSES PAY (F-093 A, §5.bs): per point or a junk pot, gross or net — asked once
+            the bonus grid above exists, because it is about those points. */}
+        {container === 'sides' && mode && junkShown && (
+        <div className="pt-2 border-t">
+          <p className="text-sm font-semibold text-gray-800 mb-2">How the bonuses pay</p>
+          <ModeSettingsEditor
+            schema={mode.settings}
+            values={{ ...modeSettings, junkEnabled: !junkIsOff(junkValues) }}
+            onChangeAction={(key, value) => setModeSettings({ [key]: value })}
+            hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_JUNK_KEYS.has(k))}
+          />
+        </div>
+        )}
+
         {/* THE SIDES (F-018). The last screen before money changes hands used to say only
             "Players 6 · Group size 4–8 · Foursomes" over one flat list of six names — not how
             many sides, not who was with whom, not the stakes. Confirming who's paired with whom is
             the whole job of a review step, and it was the one thing it didn't show.
 
-            "Foursomes" is also simply the wrong word here (§5.al: say "side" in a side game). */}
+            "Foursomes" is also the wrong word here — money teams are "Teams" (§5.bm Q5). */}
         {isWithinGroupReview && sides && sides.length > 0 && (
           <div className="pt-2 border-t">
             <p className="text-sm font-semibold text-gray-800 mb-2">
-              Sides ({sides.map((s) => s.playerIds.length).join(' vs ')})
+              Teams ({sides.map((s) => s.playerIds.length).join(' vs ')})
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
               {sides.map((side) => {
@@ -529,7 +706,7 @@ export function CreateStep({
             {players.some((p) => !sides.some((s) => s.playerIds.includes(p.id))) && (
               <p className="text-xs text-amber-700 mt-1">
                 {players.filter((p) => !sides.some((s) => s.playerIds.includes(p.id)))
-                  .map((p) => p.name.split(' ')[0]).join(', ')} not on a side yet.
+                  .map((p) => p.name.split(' ')[0]).join(', ')} not on a team yet.
               </p>
             )}
           </div>
@@ -625,10 +802,30 @@ export function CreateStep({
 
       <button
         onClick={onCreate}
-        className="mt-6 w-full rounded-md bg-green-700 px-4 py-3 text-white font-bold text-lg hover:bg-green-800"
+        disabled={!!blockedReason}
+        className="mt-6 w-full rounded-md bg-green-700 px-4 py-3 text-white font-bold text-lg hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Create Game
       </button>
+      {blockedReason && (
+        <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+          {blockedReason}
+          {/* The one thing that can block a game the engines otherwise carry: bonuses a saved
+              format brought along. Offer the way out here rather than sending anyone hunting. */}
+          {(!junkIsOff(junkValues) || customBonuses.length > 0) && (
+            <>
+              {' '}
+              <button
+                type="button"
+                onClick={() => { setJunkValues({ ...ZERO_JUNK_VALUES }); setCustomBonuses([]); }}
+                className="font-medium text-amber-900 underline hover:text-amber-950"
+              >
+                Drop the bonuses
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

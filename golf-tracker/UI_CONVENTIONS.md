@@ -121,12 +121,16 @@ scorecard defers to it (`getMoneyStrokesOnHole`), so dots always match payouts.
 The worst offenders in the audit were words, not pixels. A 2v2 game is not a
 "foursome," and calling it one makes a golfer distrust the whole screen.
 
-| Concept | Classic pool | Single-group game |
-|---|---|---|
-| The unit that competes | **foursome** / team | **side** (2v2) or **player** |
-| Collection heading | "Foursomes" | "Players" |
-| Subtitle | `Pool Money Game · N foursomes` | `{mode.name} · N players` |
-| Standings column | "Player" | "Side" for 2v2, "Player" otherwise |
+| Concept | Classic pool | Shared-foursome team game | Solo game |
+|---|---|---|---|
+| The unit that competes | **team** (one per foursome) | **team** (pair/trio/single sharing foursomes) | **player** |
+| The tee group | **foursome** (only when it holds four) / group | "Group N" | "Group N" |
+| Collection heading | "Foursomes" | "Teams" (pairings) + "Players" (tee groups) | "Players" |
+| Game-kind label (every surface) | `gameKindLabel`: "2 teams of 4 · pot" | "4 pairs · $/point · 2 groups" | "Skins · 4 players" |
+| Standings column | "Player" | "Team" | "Player" |
+
+**"Side" is retired (§5.bm Q5, 2026-09-16).** Every money team is a *team*; the tee group is a
+*foursome* or *group*. `sides[]` survives only as an identifier in code.
 
 Rules:
 
@@ -154,10 +158,10 @@ const displayName = (n: string) => (isWithinGroup ? n : n.split(' ')[0]);
 
 - First names for **people** (space is scarce on a phone; surnames rarely
   disambiguate a foursome).
-- Full string for **side / team labels**. Never truncate a composed label.
+- Full string for **team labels**. Never truncate a composed label.
 - Custom name always wins, then a derived name, then a generic fallback:
-  `sideAName` → `"Craig & Jym"` → `"Side A"`. One helper: `sideNameFrom()`.
-- The same label must appear on **every** surface for that entity. A side named
+  `side.name` → `"Craig & Jym"` → `"Team A"`. One helper: `sideNameFrom()`.
+- The same label must appear on **every** surface for that entity. A team named
   "Craig & Jym" on the leaderboard cannot be "Team A" on the scorecard.
 
 **Captions must be derived from data, never hardcoded.** A 9-hole 2v2 collapses
@@ -259,9 +263,9 @@ stuck. Silent success is indistinguishable from failure.
 
 ## 6. Starting a game (`/pool/new`)
 
-- **The step list adapts to the game.** Individual games skip team-building
-  entirely; 2v2 replaces "Teams" with "Sides." Never show a step that can't
-  apply — see `StepIndicator`.
+- **The step list adapts to the game.** Solo games skip team-building
+  entirely; one "Teams" step builds every split (F-071). Never show a step that
+  can't apply — see `StepIndicator`.
 - **Options render generically from the mode's `FormatSetting[]` schema.** Adding
   a game must not require a bespoke settings screen. Honor `showIf` so only
   relevant options appear, and honor it *identically* in the editor and the
@@ -324,8 +328,8 @@ The most under-served phase, and the reason a group comes back:
 - [ ] Uses the shared `money()` helper; sign outside the `$`; zero is grey
 - [ ] Field size and hole count derived from the game, never literals
 - [ ] Captions/labels derived from data, not hardcoded strings
-- [ ] Side labels not first-name-truncated
-- [ ] Vocabulary matches the axis (foursome vs side vs player), pluralized
+- [ ] Team labels not first-name-truncated
+- [ ] Vocabulary matches the axis (team vs foursome/group vs player), pluralized; never "side"
 - [ ] Empty / not-started / partial states all say something useful
 - [ ] Works at 2, 3, and 4 players; on a front nine, a back nine, and 18
 - [ ] Any stated settlement rule is true for *this* mode
@@ -340,8 +344,8 @@ Guesses inferred from the code — correct these:
 1. **Green = winning, or green = money?** They coincide today. If a mode ever
    pays the loser, which wins?
 2. **Blue/red team identity vs red = losing.** Worth a distinct side palette?
-3. **Is "sides" the right word** for 2v2, or do golfers in your group say
-   "teams"? I standardized on *side* to reserve *team* for foursomes.
+3. ~~**Is "sides" the right word** for 2v2?~~ Settled §5.bm Q5: "team" everywhere;
+   "side" retired 2026-09-16.
 4. **Dark = live, light = setup** — deliberate, or accident? I've written it as
    deliberate because it reads well.
 5. **How much configurability belongs on the first screen** vs behind "more

@@ -154,6 +154,34 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: '2v2-junk-pot',
+    label: '2v2 best ball — junk POT with birdies (Phase 3)',
+    detail: '§5.bq: junk counted in points, paid as a junk pot (most points takes it). sp1 birdies 1–3, sp3 birdies 1.',
+    build: () => {
+      const ps = players([4, 12, 8, 16]);
+      const game = baseGame({
+        players: ps,
+        name: '2v2 Junk Pot',
+        gameMode: 'team-2v2',
+        subTeams: { a: ['sp1', 'sp2'], b: ['sp3', 'sp4'] },
+        modeSettings: {
+          format: 'best-ball', scoring: 'stableford', result: 'match',
+          moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 10,
+          junkEnabled: true, junkBirdie: 1, junkEagle: 2, junkAlbatross: 5, junkBasis: 'gross',
+          junkPayout: 'pot', junkPot: 20,
+        },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1' }],
+      });
+      saveGameScores('sm1', [
+        ...scores(['sp1'], [-1], [1, 2, 3]), ...scores(['sp1'], [0], [4, 5, 6, 7, 8, 9]),
+        ...scores(['sp2'], [1], [1, 2, 3, 4, 5, 6, 7, 8, 9]),
+        ...scores(['sp3'], [-1], [1]), ...scores(['sp3'], [1], [2, 3, 4, 5, 6, 7, 8, 9]),
+        ...scores(['sp4'], [2], [1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      ]);
+      return { game, goTo: (id) => `/pool/${id}` };
+    },
+  },
+  {
     key: 'three-sides',
     label: 'Three sides in one group (6 players)',
     detail: 'F-006 N sides: three pairs, pairwise round-robin money, to-par ranking, three side colours.',
@@ -368,6 +396,48 @@ const SCENARIOS: Scenario[] = [
       });
       saveGameScores('sm1', scores(ps.map((p) => p.id), [0, 1, 2, 1], ALL18));
       return { game, goTo: (id) => `/pool/${id}/teams` };
+    },
+  },
+  {
+    key: 'pairs-pot-slices',
+    label: 'Four pairs — POT sliced front / back / overall / junk (Phase 3 step 4)',
+    detail: 'Q-E golden: $20 a pair, four $20 slices. A wins front, overall and junk (two birdies + closest on 7); B and C tie the back; D has the eagle. Board must read A +40, B −10, C −10, D −20.',
+    build: () => {
+      const ps = players([0, 0, 0, 0, 0, 0, 0, 0]);
+      const cardOf = (id: string, off: Record<number, number>): GameScore[] =>
+        ALL18.map((h) => ({ playerId: id, hole: h, grossScore: PARS[h - 1] + (off[h] ?? 0) }));
+      const game = baseGame({
+        players: ps,
+        name: 'Pairs Pot, Sliced',
+        gameMode: 'team-2v2',
+        sides: [
+          { id: 'a', playerIds: ['sp1', 'sp2'] },
+          { id: 'b', playerIds: ['sp3', 'sp4'] },
+          { id: 'c', playerIds: ['sp5', 'sp6'] },
+          { id: 'd', playerIds: ['sp7', 'sp8'] },
+        ],
+        modeSettings: {
+          format: 'best-ball', scoring: 'stroke', result: 'total',
+          moneyModel: 'pot', sideBuyIn: 20, potSplit: '100',
+          potFront: 25, potBack: 25, potOverall: 25, potJunk: 25,
+          junkEnabled: true, junkBirdie: 1, junkEagle: 2, junkAlbatross: 5, junkCtp: 1, junkBasis: 'gross',
+          junkPayout: 'pot',
+        },
+        ctpWinners: { 7: 'sp1' },
+        teams: [
+          { id: 'st1', name: 'Group 1', playerIds: ['sp1', 'sp2', 'sp3', 'sp4'], matchupId: 'sm1' },
+          { id: 'st2', name: 'Group 2', playerIds: ['sp5', 'sp6', 'sp7', 'sp8'], matchupId: 'sm2' },
+        ],
+      });
+      saveGameScores('sm1', [
+        ...cardOf('sp1', { 1: -1, 4: -1, 10: 1 }), ...cardOf('sp2', { 10: 1 }),   // A: F −2 · B +1 · O −1
+        ...cardOf('sp3', { 5: -1, 6: 1 }), ...cardOf('sp4', { 6: 1 }),            // B: F 0 · B 0 · O 0
+      ]);
+      saveGameScores('sm2', [
+        ...cardOf('sp5', {}), ...cardOf('sp6', {}),                                                // C: all par
+        ...cardOf('sp7', { 13: -2, 14: 1, 15: 1, 16: 1 }), ...cardOf('sp8', { 14: 1, 15: 1, 16: 1 }), // D: eagle, back +1
+      ]);
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
     },
   },
   {
@@ -598,7 +668,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'ledger-season',
-    label: 'Season ledger — 5 completed games, 61-player roster',
+    label: 'Season ledger — 7 completed games (pools, a 2v2, skins), 61-player roster',
     detail: 'The "continuing" payoff surface. /home/stats was structurally dead until the completion fix, so its settle-up math and four lenses have never been seen with real data.',
     buildDomain: () => {
       signInAsOrganizer();

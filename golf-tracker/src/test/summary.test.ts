@@ -36,17 +36,21 @@ describe('gameSummary', () => {
   it('names a side game by its FORMAT, which is what changes the round', () => {
     // Best ball vs scramble are two completely different games; the registry name alone
     // ("Sides / Match") says neither.
-    expect(gameSummary(sides, { format: 'best-ball' })).toBe('Sides · best ball');
-    expect(gameSummary(sides, { format: 'scramble' })).toBe('Sides · scramble');
-    expect(gameSummary(sides, { format: 'alternate-shot' })).toBe('Sides · alternate shot');
-    expect(gameSummary(sides, { format: 'combined' })).toBe('Sides · combined');
+    expect(gameSummary(sides, { format: 'best-ball' })).toBe('Teams · best ball');
+    expect(gameSummary(sides, { format: 'scramble' })).toBe('Teams · scramble');
+    expect(gameSummary(sides, { format: 'alternate-shot' })).toBe('Teams · alternate shot');
+    expect(gameSummary(sides, { format: 'combined' })).toBe('Teams · combined');
+    // F-072: the two-ball formats score on the sides engine too.
+    expect(gameSummary(sides, { format: 'net-and-gross' })).toBe('Teams · best net + best gross');
+    expect(gameSummary(sides, { format: 'two-best-net' })).toBe('Teams · two best net');
+    expect(gameSummary(sides, { format: 'two-best-gross' })).toBe('Teams · two best gross');
   });
 
   it('calls out Stableford, because it changes what a hole score IS', () => {
     expect(gameSummary(sides, { format: 'best-ball', scoring: 'stableford' }))
-      .toBe('Sides · best ball · Stableford');
+      .toBe('Teams · best ball · Stableford');
     // Plain strokes is the default — saying so would be noise.
-    expect(gameSummary(sides, { format: 'best-ball', scoring: 'stroke' })).toBe('Sides · best ball');
+    expect(gameSummary(sides, { format: 'best-ball', scoring: 'stroke' })).toBe('Teams · best ball');
   });
 
   it('an individual game is just its name', () => {
@@ -55,12 +59,12 @@ describe('gameSummary', () => {
   });
 
   it('no mode is the classic team pool', () => {
-    expect(gameSummary(undefined, {})).toBe('Team pool');
+    expect(gameSummary(undefined, {})).toBe('Pool');
   });
 
   it('falls back to the raw value for an unknown format rather than dropping it', () => {
     // A format saved by a newer client must not silently vanish from the summary.
-    expect(gameSummary(sides, { format: 'six-six-six' })).toBe('Sides · six-six-six');
+    expect(gameSummary(sides, { format: 'six-six-six' })).toBe('Teams · six-six-six');
   });
 });
 
@@ -151,12 +155,12 @@ describe('formatSummaryLine', () => {
       { format: 'best-ball', scoring: 'stroke', result: 'total', moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20 },
       0,
       OFF_LOW,
-    )).toBe('Sides · best ball · $10 / $10 / $20 front·back·overall · off the low');
+    )).toBe('Teams · best ball · $10 / $10 / $20 front·back·overall · off the low');
   });
 
   it('drops an empty segment instead of leaving a gap', () => {
     const line = formatSummaryLine(sides, { moneyModel: 'legs', legFront: 0, legBack: 0, legOverall: 0 }, 0, FULL);
-    expect(line).toBe('Sides · best ball · full handicap');
+    expect(line).toBe('Teams · best ball · full handicap');
     expect(line).not.toContain('· ·');
   });
 

@@ -3,7 +3,10 @@ import type { PoolGame, PoolGameListItem, PoolResult } from '../pool-game';
 import { computePoolResult } from '../pool-game';
 import type { IndividualResult } from './types';
 import { getGameMode } from './index';
+import { boolSetting, numberSetting } from './settings';
+import { DEFAULT_JUNK_VALUES } from '../pool-game';
 import { buildGameModeContext } from './context';
+import { gameKindLabelFrom } from '../game-structure';
 
 // Unified result across both axes, discriminated by `kind`. The leaderboard (and
 // any other consumer) branches once: 'individual' → per-player standings;
@@ -25,6 +28,17 @@ export function computeGameResult(
   return { kind: 'team', ...computePoolResult(game, scoresByMatchup) };
 }
 
+// Does this game pay closest-to-pin? The ONE predicate every CTP surface (hub editor, scorer's
+// par-3 picker) reads, so a control never shows for a game whose engine won't pay it (F-090).
+// Classic pool: `junkValues.ctp` (absent = pre-setting game that played the classic defaults).
+// Mode game (Phase 3 step 2): junk on and `junkCtp` > 0.
+export function gameCountsCtp(game: PoolGame): boolean {
+  const mode = getGameMode(game.gameMode);
+  if (!mode) return (game.junkValues ?? DEFAULT_JUNK_VALUES).ctp > 0;
+  const bag = game.modeSettings ?? {};
+  return boolSetting(mode.settings, bag, 'junkEnabled') && numberSetting(mode.settings, bag, 'junkCtp') > 0;
+}
+
 export function isIndividualGame(game: PoolGame): boolean {
   return getGameMode(game.gameMode)?.category === 'individual';
 }
@@ -37,17 +51,8 @@ export function isSingleGroupGame(game: PoolGame): boolean {
   return c === 'individual' || c === 'team-within-group';
 }
 
-// The game-list card subtitle, mode-aware. A single-group game names its format
-// and counts players — its "teams" are playing groups, and printing them as
-// "N foursomes" broke §5.al ("say side in a side game, team in a pool"). The
-// classic pool keeps its foursome count, pluralized.
-export function gameListSubtitle(item: Pick<PoolGameListItem, 'gameMode' | 'teamCount' | 'playerCount'>): string {
-  const mode = getGameMode(item.gameMode);
-  const c = mode?.category;
-  const players = `${item.playerCount} player${item.playerCount === 1 ? '' : 's'}`;
-  if (mode && (c === 'individual' || c === 'team-within-group')) {
-    // Several tee times is worth confirming (F-019); one group is the norm and says nothing.
-    return `${mode.name} · ${players}` + (item.teamCount > 1 ? ` · ${item.teamCount} groups` : '');
-  }
-  return `Pool · ${item.teamCount} foursome${item.teamCount === 1 ? '' : 's'} · ${players}`;
+// The game-list card subtitle — the same label the hub and leaderboard headers print
+// (F-061, Phase 2): "2 teams of 4 · pot", "4 pairs · $/point · 2 groups", "Skins · 4 players".
+export function gameListSubtitle(item: Pick<PoolGameListItem, 'gameMode' | 'playerCount' | 'groupSizes' | 'sideSizes' | 'money'>): string {
+  return gameKindLabelFrom(item);
 }

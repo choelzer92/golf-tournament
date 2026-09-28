@@ -1,74 +1,248 @@
-# Next session: course-data correctness audit (+ optionally start the game-structure design doc)
+# Next session: the collapse branch is CODE-COMPLETE and GREEN (full gate rerun 2026-09-18, exit 0); next = Craig's phone walk, then merge on his word
+
+**UPDATE 2026-09-18 (eighth session, late): F-097 FIXED and the SIX OPTION PICKS BUILT (§5.bs).** After the
+Phase 3 steps 4–6 commits (974d0c2, 6723e1a): edbe3ec F-097 · ce439ac F-087 A + F-093 A · 0f0d6df F-091 A ·
+a78f0b3 F-092 A · 4baca75 F-096 A · a9352ac F-095 B · then the docs commit. Craig's words: *"ok, should we go
+ahead and fix F-097? at that point the branch would be basically ready, right?"* and *"recommendations on all
+six"*. **Process note (his speed remark, same day):** each of those seven commits was gated by tsc + unit +
+the touched specs; the ONE full gate at the end (`.claude/verify-2026-09-18-final.log`) was STOPPED by Claude Code for low system memory after tsc + build + 2138 unit passed and ~all 217 e2e had run — no `VERIFY_EXIT` line. **RERUN DONE (ninth session, 2026-09-18):** `.claude/verify-2026-09-18-rerun.log` — tsc, build, 2138 unit, 217 e2e (14.4 min), `VERIFY_EXIT=0`. The branch is GREEN at 64dee93.
+Earlier full gates: `…-p3s4b.log` (step 4), `…-p3s56.log` (steps 5–6), both exit 0.
+
+- **F-097** (P1 money, probe-proved): the wizard's ALIGNED flow never set `sides`, so a margin-money game saved
+  `sides: []` and `sidesForCompute` settled a default TWO-side split. Fixed both ends: the wizard hands the
+  router the tee groups as sides (captains included); `sidesForCompute` backstops to the tee groups when a
+  game stores none and has 2+ tee groups (one-foursome 2v2 keeps its default split). Golden
+  `f097-aligned-sides.test.ts` (2 failed first); e2e pin in `phase3-convergence.spec.ts`.
+- **The six:** money amounts follow the money question and junk-payout fields sit under the bonus grid
+  (`SIDES_STAKES_KEYS` / `SIDES_JUNK_KEYS` in create-step); hub "How it's played" is one column below `sm`;
+  junk footer names the pot winner; pot shares are one inline row ("Pot split (shares)"); under a sliced pot
+  the leg board carries dollars + winner per row and a Junk row (`PotSliceBoard` deleted). Pins retargeted in
+  `phase3-junk.spec.ts`, `phase3-pot-slices.spec.ts`.
+- **What's left before merge (Craig's, not mine):** his own walk of `/pool/new` on a phone (§5.y — the
+  screenshots are the fallback: `walk-*.png`, `phase3-*.png`, `f097-aligned-margin-hub.png`); merge timing
+  (§5.ab). Nothing on the branch is waiting on a decision.
+- **Open, not blocking:** BACKLOG "Verify speed + context" (his pick A/B/C/D); team-engine 8-player cap
+  (12 players on legs / margin money stay refused); F-069/F-070; the pre-existing obsolete snapshot
+  "team-2v2 / 4 players (playersMin)" in one-group-golden.
+
+**UPDATE 2026-09-18 (eighth session): PHASE 3 STEPS 4–6 ARE BUILT.** Commits on the branch after dda06c3:
+974d0c2 step 4 · 6723e1a steps 5–6. Verify logs `.claude/verify-2026-09-18-p3s4b.log`
+(step 4, 214 e2e) and `.claude/verify-2026-09-18-p3s56.log` (steps 5–6, 216 e2e) — both `VERIFY_EXIT=0`. The first
+step-4 run (`…-p3s4.log`) failed ONE e2e on a cold-compile `waitForURL` timeout and passed on a cold rerun
+of that spec and on the full rerun; nothing in the diff touched it.
+
+- **Step 4** pot SLICES on the team engine (§5.bq Q-E): `potFront` / `potBack` / `potOverall` / `potJunk` are
+  SHARES scaled to the pot (25/25/25/25 ≡ 1/1/1/1 ≡ $20 each); defaults 0 / 0 / 100 / 25 keep every saved pot
+  one prize on the overall. `potSplit` relabelled "Places paid (%)", applied per slice via the classic
+  `distributePot`. Under a buy-in pot the junk pot IS the junk slice (`junkPot` hidden + ignored there).
+  Per-slice eligibility = classic F-011 (only teams that played the nine; nobody started → even split).
+  `IndividualResult.potSlices` → `PotSliceBoard` (leaderboard, only when sliced). Router's `potLegs` deleted.
+  Goldens `phase3-pot-slices.test.ts` (11; 6 failed first; 3 mutations caught). Seed "Four pairs — POT sliced …".
+  **Judgement calls to surface (spec §3 "As built"):** shares not percents; defaults; junk-slice-replaces-junkPot.
+- **Step 5** `GameSide.captainId` — the teams step's captain for SHARED-foursome teams (4+2+2, pairs with
+  captains on) rides onto the side; `toLegacySubTeams` refuses a captained pair; hub Teams list marks "C";
+  a captain moved in the hub editor drops the role. Aligned teams keep their captain on the foursome card as
+  always. Hide-holes: the team leaderboard already applied `filterConcealedScores`; the hub editor now offers
+  the toggle to team games across 2+ foursomes (`HideHolesToggle`, one component, both containers).
+- **Step 6** `classicOnlyNeeds`, `joinNeeds`, `UNEXPRESSIBLE.needAligned/needTwoTeams/needPotOrLegs` and
+  `StructureDraft.captains/hideHolesUntilAllFinish` are GONE. Remaining refusals are golf (two-ball on a team
+  of one; one-ball apart) or the team engine's 8-player cap: **3 teams of 4 on legs / $/hole / $/point stay
+  refused** (classic holds two teams; `team-2v2` playersMax 8) — honest residue, BACKLOG "Team engine field
+  cap". Goldens `phase3-captains-hide.test.ts`; e2e `phase3-convergence.spec.ts`.
+- ~~F-097~~ fixed later the same session (see the top block).
+- New findings F-095 (sliced pot lists the legs twice), F-096 (share fields dense in the wizard) — his picks.
+- Craig, mid-session: the gate is too slow (19–25 min) and sessions burn context waiting → BACKLOG "Verify
+  speed + context" (options A parallel workers / B two-tier gate / C trim / D don't poll). His pick.
+- Residue: obsolete snapshot "team-2v2 / 4 players (playersMin)" in one-group-golden (pre-existing, harmless);
+  individual modes still edit junk via the settings editor; `junkGroupHug` team-only by design.
+
+**Trap learned the hard way:** `npm run verify` is `tsc && build && test && e2e` — writing a
+deliberately-failing golden while it runs fails the UNIT stage and skips e2e; and `cmd; echo
+VERIFY_EXIT=$?` makes the background task report exit 0. Always read `VERIFY_EXIT=` in the log.
+
+**UPDATE 2026-09-16 (sixth session): the HUB BATCH is BUILT — F-088 A / F-089 A / F-090 A** (§5.bp;
+asked outright first per §5.bo, Craig picked A on all three). Three commits after 9a5dc6f: 340cd60 F-088 ·
+c60ae11 F-089 · 3965d25 F-090 (+ `e2e/f088-f090-hub.spec.ts`, run against the pre-fix code first: 4/6
+failed). What changed: the hub's mode-settings panel is headed **"How it's played"** for every mode
+(classic "Pot" / "Head-to-Head Match" headers untouched); below `sm` the hub header stacks the five
+actions under the title; `CtpEditor` renders only when `getGameMode(game.gameMode)` is undefined —
+Phase 3 lifts that gate. New finding **F-091** (the settings grid crams "CompareMatch (hole by hole)"
+at 390px; opt A single-column rows on a phone) — Craig's pick, ASK. Verify log
+`.claude/verify-2026-09-16-hub.log` (check `VERIFY_EXIT=`).
+
+**Nothing actionable is left that doesn't need Craig:** Phase 3 needs his worked examples (asked in
+the sixth session's closing message — one game per shape: 4 foursomes + fixed legs + bonuses; pairs
++ CTP; 3 teams + pot with junk), F-091 and F-087 need his option, F-062 A/B/C still waits. If he
+answers with examples: pin each as a failing test first (§5.z), then build.
+
+**UPDATE 2026-09-16 (fifth session): PHASE 2 VOCABULARY IS BUILT (F-061 + F-081)** — commit b8f9c79 on the
+branch after 6db4c9c. Step 3 is DONE. What changed: `gameKindLabel(game)` / `gameKindLabelFrom(facts)`
+in `lib/game-structure.ts` is the ONE game-kind label — "2 teams of 4 · pot", "4 pairs · $/point ·
+2 groups", "1 v 1 · head-to-head", "Skins · 4 players" (`MONEY_WORD` maps the money model; structure
+first, money second, tee-time count only when 2+ groups). It prints on: list cards
+(`gameListSubtitle` IS it now — `PoolGameListItem` grew `groupSizes`/`sideSizes`/`money`), the hub
+header, the leaderboard header, the save-format modal, the wizard review line. `gameSummary` says
+"Teams · best ball" and "Pool". "Side" is gone from every user-visible string: registry hints/labels
+("Buy-in ($ / team)", "Pot (buy-in, best team wins)"), the mode `name` is **"Teams"** (a placeholder
+— see F-088 C), `defaultSideLabel` → "Team A", the settings editor ("Teams" section, "+ Add a team",
+"Remove team C", "Teams options"), money panels, printable sheet, scorecard header ("3 teams"),
+`side-names.tsx` ("Name the teams", label "Team A"), review ("Teams (2 vs 2)"). `structureOf` and the
+label read the tee groups as the teams when a team game stores no sides (the wizard writes sides
+only when partners share a foursome). **F-081:** the hub has a "Teams" section (row per team, custom
+name's members beneath, tee group at right — hidden with one group) above the tee-group cards; the
+money panel's developer paragraph is gone for team games. e2e pins retargeted in collapse-routing,
+verify-core, f006, f015-f018, f019, f020 (`getByText('Group 2').first()` where the Teams tag now
+repeats it; the editor's Teams heading is `getByRole('paragraph').filter({ hasText: /^Teams$/ })`
+because the hub's "Teams" sheet button and the mode option share the word). Unit: `gameKindLabel
+(F-061)` block in game-structure.test.ts, gameListSubtitle tests rewritten. Verify log:
+`.claude/verify-2026-09-16-phase2.log` (check `VERIFY_EXIT=`). Screenshots read:
+`f072-hub-pairs-net-gross.png`, `hub-2v2.png`, `2v2-leaderboard.png` → three new findings
+**F-088** (hub says "Teams" twice: money-panel header is the mode name; opt A "How it's played"),
+**F-089** (header wraps a 3-word name to 3 lines beside 5 actions, pre-existing), **F-090** (CTP
+editor renders on a legacy team game whose `junkValues.ctp > 0`; the team engine never pays it; opt A
+one-line gate). All three are Craig's pick (§5.bo) — ASK, don't build. NOT done (residue, in
+BACKLOG): `isSingleGroupGame` rename (AGENTS.md cites it), `teamBuild` container-neutral, sandbox
+seed labels still say "sides". UI_CONVENTIONS §vocabulary table rewritten for "team everywhere".
+
+**What to do next:** Phase 3 is money math → its first step is a CONVERSATION, not code: ask Craig
+for worked examples (who pays whom, one game per shape: 4 foursomes + fixed legs + bonuses; pairs +
+CTP; 3 teams + pot with junk), pin them as tests (§5.z: prove each can fail), then build. While
+waiting, the actionable small items are F-088/F-089/F-090 — each needs his option first.
+
+
+**UPDATE 2026-09-16 (fourth session): the SMALL WIZARD BATCH is BUILT** — ten commits after a89c980,
+one per finding (6728a25 F-073+F-075+F-082 · f55c550 F-076 A · b4b6461 F-080 · 2b7f5c8 F-084 ·
+9f606cc F-086 A · c7ae51d F-085 A · ec47f98 F-074 · f427809 F-083). Step 2 is DONE; start at
+**Step 3 (Phase 2 vocabulary)**. What changed, briefly: scoring buttons say "(stroke play)" /
+"(match play)"; the money row says "Head-to-head match"; `UNEXPRESSIBLE` engine-gap reasons read
+"Not built yet: …" (the singles branch that said "need teams of two or more" for CTP is gone — that
+line is kept for two-ball formats only); the money step shows each refusal reason once, grey;
+"+ Add bonuses" sets CTP 0 and also reveals the five hand-tracked buttons (now under the junk grid);
+head-to-head legs + junk/pt are inputs; an applied saved style hides the select behind "Start fresh ·
+Pick another style"; "Other split…" has a typed row (`parseTeamSizes`, radio value `custom`, aria
+"Team sizes"); the groups step clusters rows by team with a dashed rule; the locks panel hides when no
+team is bigger than 2. New helpers/exports: `parseTeamSizes`, `structureOptionLabel` (the teams-step
+subtitle uses it, so a typed shape is labelled too). Craig confirmed F-076 A, F-085 A, F-086 A afterwards
+(§5.bo) — and set the rule: **when an option is his to pick, ASK the question explicitly before
+building; don't build the recommendation and ask for a nod after.** New finding
+F-087 (bonus sections sit between the money question and its amounts, P3, opt A = reorder). Verify
+log: `.claude/verify-2026-09-16-batch.log` (check `VERIFY_EXIT=`). Screenshots read: walk-A money,
+walk-B teams/groups, walk-G format, `f074-typed-split.png` — all clean.
+
+
+**UPDATE 2026-09-16 (third session): F-072 is BUILT (§5.bn)** — one commit on the branch after
+2b7f480. Step 2 items 1 and 2 below are done; start at item 3 (the small wizard batch). What
+changed: `team-game.ts` no longer scores a side itself — it calls the pool's `teamValueOnHole`
+for every `TeamFormat`; the mode schema and hub summary list the three two-ball formats; the
+router's `classicOnlyNeeds` lost "Two-ball formats" and gained a guard refusing them for a team of
+ONE (`UNEXPRESSIBLE.needTeams('Two-ball formats')`). Goldens: `src/test/f072-two-ball-sides.test.ts`
+(164 hand-arithmetic cases, failed 164/164 on the old engine, three mutations caught 164/27/27);
+two-side / N-side / one-group goldens unmoved. e2e: `collapse-routing.spec.ts` F-072 row + two pins
+flipped from disabled to enabled (`option[value="two-best-net"]`, per-point on a 4+4 net-and-gross
+pot). Verify green: 1784 unit · 198 e2e. Screenshots `e2e/screenshots/f072-*.png` read clean.
+One thing noticed, not fixed: the hub header wraps a three-word game name to three lines beside
+five actions — pre-existing, worth a P3 finding if Craig sees it.
+
+**UPDATE 2026-09-16 (later session): F-071 A is BUILT, with F-078 and F-079** — one commit on the
+branch after 078a20c. Step 2 item 1 below is done. The new flow for
+shared-foursome teams is tees → Teams (the pool's method list, `mode="money-teams"`) → Groups (only
+when 2+ tee groups; shape buttons re-pack whole teams via `packTeamsIntoShape`) → Money; a 1 v 1
+goes tees → Money. `SubTeamsStep` is deleted. New e2e helper `buildTeams(page, 'even'|'deal'|'list')`
+— 'list' is deterministic (Craig+Jym, Dave+Rick, …) so use it when a test names who's paired.
+Retired pins: "Next: Sides", "How do the sides split?", "Name the sides" (wizard), "CHcp N" (wizard).
+Two judgement calls to surface to Craig (FINDINGS F-071 status): the teams step opens EMPTY until a
+method is tapped (like the pool), and captains default OFF for pairs. Two new P3 findings from my
+screenshot read, F-085 (groups rows don't show the pairs) and F-086 (locks panel on a pairs game),
+join the small batch. Everything else below still holds.
+
+---
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 ---
 
-Read `AGENTS.md` first. Delegate broad searches to subagents; grep DECISIONS_ARCHIVE.md
-by § and FINDINGS_ARCHIVE.md by F-0NN — don't read either whole.
+Read `AGENTS.md` first, then the HEADER of `.claude/plans/game-structure-collapse-plan.md` (the
+status block carries the §5.bm amendments; the body is the original plan — grep it by §, don't
+re-read it whole). `DECISIONS_ARCHIVE.md` §5.bm is the record of Craig's five answers.
 
-**State (2026-09-15):** the review session happened (§5.bj — read it): Craig adopted the
-recommendations in order. `review-session-2026-09-15` carries F-034 opt A, F-060 opt A
-(built live while Craig was stuck on it), the sandbox owner-GHIN fix, and harness round 2
-(pool/[id] `panels/` split, verify-fixes.spec split + `e2e/helpers.ts`, quiet verify,
-FINDINGS sweep #2). Check `git log main..review-session-2026-09-15` and whether Craig has
-merged it; **don't merge or push unbidden** (§5.ab). `NEXT_PUBLIC_OWNER_GHIN` is set in
-Vercel AND .env.local — F-059 is ACTIVE on live; the sandbox now always owner-is-1234567.
+**State (2026-09-16 end of the fourth session):** branch `ui-simplification-2026-09-15`, working
+tree CLEAN after the docs commit, verify run logged in `.claude/verify-2026-09-16-batch.log`
+(1787 unit · 200 e2e expected after the batch). Five new commits since the plan:
+dc88832 slice 1 (pure router + tests) · cc826da §5.bm docs · bd2db4d F-063 opt A · c6c45f2
+slices 2–4 (the wizard) · the docs groom. **Not merged to main; don't merge/push unbidden (§5.ab)**
+— the collapse changes every setup flow and Craig hasn't seen it on a phone yet. Course-data
+audit stays PARKED.
 
-## The promoted work: course-data correctness audit (M, §5.bj — Craig's #1 build pick)
+## The promoted work
 
-Craig, twice: "we really need to investigate the situation with having improper
-slope/course ratings to a tee for different courses." Extends F-023 (part A —
-`teeHasRating` honesty — is FIXED; this is part B+):
+**Step 1 — Craig walks the new wizard.** `NEXT_PUBLIC_SANDBOX=1 npx next dev --port 3200`, seed
+"Past games (for recent-course chips)" on /sandbox, then /pool/new. Walk at least: 8 players →
+Two teams of 4 → pot (the Warriors' game; must feel unchanged after step 2), 8 → Four pairs →
+legs, 4 → Everyone for themselves → skins, 2 → 1 v 1. The screenshots are
+`e2e/screenshots/collapse-*.png` if he'd rather read. His review questions are bug reports
+(§5.y) — log findings in FINDINGS.md with options, don't fix on sight. Known residue to point
+at honestly: the sides flow still says "Sides" (Phase 2), captains/CTP/manual bonuses are
+classic-only and the money step says so, a classic format applied to 2 players derives a 1 v 1.
 
-1. **Inventory** — read-only queries against live: every course in `pool_games` /
-   `tournaments`, which tees lack usable slope/rating/par, which games computed handicaps
-   off the index fallback. Read-only is authorized by precedent (F-027 pattern): say
-   what you're running, show the query, change nothing.
-2. **Harden the parse** — `scripts/fetch-course-payload.mjs` fetches any course's RAW
-   `GetCourseDetails` payload (Craig runs it with his GHIN creds; works for The Meadows
-   or anything else). Get payloads for the courses the inventory flags; widen the parse;
-   commit trimmed fixtures + unit tests against the REAL shapes.
-3. **A diagnostic surface** — somewhere an organizer can SEE what the app extracted for
-   a course/tee (slope, rating, par, per-hole SI) and whether handicaps are riding the
-   index fallback. Design small; propose before building (§2: more than one defensible answer).
-4. **The default-TEE question** (from F-038): should the default be tips? Ask Craig with
-   evidence from the inventory, don't guess.
+**Step 2 — Craig's walk findings, in this order (he asked for them 2026-09-16, see FINDINGS):**
+1. **F-071 one teams step for every split** (option A): `TeamsStep` builds pairs/triples with the
+   method list; shared-foursome teams become the sides on leaving it; `proposeTeeGroups` lays the
+   tee sheet; groups step only when 2+ groups; side names on the team cards; `SubTeamsStep`
+   retires. Grep the e2e pins first: "Sides (", "Next: Sides", A/B/C button flows in f015, f019,
+   f020, nsides-audit, collapse-routing.
+2. ~~**F-072 two-ball formats on the sides engine**~~ DONE 2026-09-16 (§5.bn) — see the update above.
+3. ~~**Small wizard-only batch**~~ DONE 2026-09-16 (ten commits) — see the update above.
+4. **F-081** rides with Phase 2: the sides hub shows the teams, not just tee groups.
 
-**Money warning:** anything that changes which slope/rating a handicap uses IS handicap
-math — stop and ask, worked example first (§2, §5.z).
+**Craig agreed this order 2026-09-16** ("yes, i agree"): items 1–2, then the small batch, then
+Phase 2 vocabulary. **Phase 3 — engine convergence** (closest-to-pin, hand-tracked bonuses and
+EVERY money option for every split, so nothing is ever greyed for an engine reason) comes next
+and is MONEY MATH: ask Craig for worked examples (who pays whom, one game per shape) before any
+code, pin them as tests, then build. His framing to hold onto: *"IT should be relatively easy to
+configure any type of game that users want, and not confusing. thats the point of the app."*
 
-## Also queued (Craig said "in order" — these follow, don't crowd out the audit)
+**Before handing anything to Craig:** re-run `npx playwright test e2e/collapse-walk.spec.ts`
+against a hand-started sandbox and READ every `walk-*.png` as a first-time golfer (memory:
+walk-the-ui-before-handoff). He found six findings in ten minutes that the screenshots already
+showed.
 
-- **Game-structure design doc** (§5.bj, L, design-first, runs in parallel): "a pool is
-  effectively just a 4v4 game" — structure-first wizard question, modes as shortcuts,
-  the §5g engine's UI framing. Absorbs F-037 (pairings), F-042 (money-toggle placement),
-  F-060 opt B (merge rival build triggers), F-005's defaults-as-confirmations. Deliverable:
-  design doc + mock walk, NO code.
-- F-060 hub parity (S); F-030 opt C for the live-scoring session; the S-sized
-  merge-audit polish items.
+~~**Step 3 — Phase 2 vocabulary (F-061)**~~ DONE 2026-09-16 (fifth session) — see the update at the top.
 
-## Waiting on Craig (raise gently, don't block on them)
+**Stop-and-ask lines:** F-063 opt C (per-cell rows) is persistence → its own session, ask first.
+F-069 residue (a non-`TeamFormat` string still defaults to best ball in `teamNetOnHole`, now the
+one place for both engines) touches scoring → refuse vs default is Craig's call, ask. F-062 A/B/C
+still waits.
 
-BACKLOG.md table: F-022 on-course stroke check vs GHIN app; the fetch-course-payload run
-(step 2 needs him once); §7 q4; sending the friend the F-033 answer-back (drafted in the
-2026-09-15 session wrap-up).
+## Waiting on Craig
+
+BACKLOG.md table: the phone walk above; F-022 on-course stroke check; §7 q4; F-033 answer to the
+friend; F-062 A/B/C.
 
 ## Traps that keep biting
 
-- **Do NOT edit app code while `npm run verify` runs.** (Markdown edits are safe.)
-- **Kill any hand-started dev server AND `rm -rf .next` before `npm run verify`**;
-  confirm 3200 free (TIME_WAIT fine). 3000 = Craig's.
-- Check `npm run verify`'s own exit code, not a tail of its log — and if it runs in the
-  background, capture `$?` INSIDE the command; the wrapper's exit code lies.
-- Editor diagnostics lag one edit behind — trust `npx tsc --noEmit`, not the squiggles.
-- Playwright strict mode: prefer `exact: true` when a label prefixes another
-  ("Save" vs "Save format").
-- Game-mode ids ≠ display names (`stableford-ind`, not `stableford`) — select by VALUE.
-- Sandbox seeds sign in as Craig (GHIN 1234567), and since 2026-09-15 the sandbox owner
-  is ALWAYS 1234567 regardless of `.env.local`'s real owner GHIN.
-- e2e specs share `e2e/helpers.ts` (BASE, PHONE, grantAndReset, seedCard,
-  seedAndOpenGame) — extend it, don't re-inline copies.
+- **Do NOT edit app code while `npm run verify` runs** (it hot-reloads the e2e server). Markdown is safe.
+- **Kill any hand-started dev server AND `rm -rf .next` before `npm run verify`**; confirm 3200
+  free. 3000 = Craig's. Kill on Windows: `netstat -ano | grep ":3200 .*LISTENING"` → `taskkill //PID <pid> //F //T`.
+- Check verify's own exit code; when backgrounded, `echo "VERIFY_EXIT=$?" >> log` inside the command.
+- Verify takes ~17 min now (198 e2e). Iterate on a spec subset against a hand-started server first.
+- **Python heredocs in Git Bash break on `$` and long bodies** — write the script to a file
+  (`.claude/tmp_*.py`), run it, delete it. `/tmp` in Python is NOT Git Bash's /tmp.
+- Editor diagnostics lag one edit behind — trust `npx tsc --noEmit`. The "Props must be
+  serializable" warnings on every step component are the Next.js plugin, not tsc.
+- Playwright strict mode: `exact: true` when a label prefixes another; `.first()` when a reason
+  string renders under two greyed options.
+- **New wizard helpers** (`e2e/helpers.ts`): `addPlayers`, `fieldToGameStep(page, players?)`,
+  `chooseStructure(page, 'teams:4+4' | label)` (expands "Other split…" itself),
+  `toScoringStep(page, structure?)` (names the game if empty — the step requires a name),
+  `chooseSolo(page, 'skins')`, `chooseMoney(page, 'per-point')`. Extend, don't re-inline.
+- Structure ids: `teams:4+4`, `teams:2+2+2+2`, `teams:2+2+1`, `teams:1+1`, `solo`. Even shapes
+  and the recommendation are primary; the rest sit under "Other split…".
+- Two players + a classic format → `structureForDefaults` derives 1 v 1 (there's no 2-player pool).
+  Use 8 players when a test means the Warriors' game.
+- Sandbox owner is ALWAYS GHIN 1234567. e2e failure screenshots land in `test-results/*/test-failed-1.png`.
+- The "CHcp" spelling is e2e-pinned (F-043) — renaming it is an F-061/F-062 decision.
+- **Write plans into the repo's `.claude/plans/`**, never `~/.claude/plans/`.
+- Delegated sweeps report doc status, not code status — verify "still open" against `git log`.
 
 ## End the session by grooming BACKLOG.md
 

@@ -1,0 +1,324 @@
+// §5.bk / §5.bm — the collapsed wizard: structure → scoring → … → money, routed by capability.
+//
+// One spec per routing row (plan §4.7): each builds a game through the NEW steps and asserts it
+// landed on the container the router promised — a positive assertion on something only that
+// container renders. Screenshots feed the UI critique loop (UI_CRITIQUE_PROCESS.md).
+
+import { test, expect, type Page } from '@playwright/test';
+import {
+  BASE, PHONE, EIGHT_PLAYERS, FOUR_PLAYERS, TWO_PLAYERS, resetBackend,
+  addPlayers, toScoringStep, chooseSolo, chooseMoney, buildTeams,
+} from './helpers';
+
+test.beforeEach(async ({ context, page }) => {
+  await page.setViewportSize(PHONE);
+  await resetBackend(context, page);
+  // A course to pick: the "Past games" seed gives the course step its recent-course chip.
+  const card = page.locator('div.bg-white', { hasText: 'Past games (for recent-course' });
+  await card.getByRole('button', { name: 'Seed' }).click();
+  await expect(card.getByText('Seeded ✓')).toBeVisible();
+  await page.goto(`${BASE}/pool/new`);
+  await page.waitForLoadState('networkidle');
+});
+
+async function startWizard(page: Page, players: [string, string][], name: string) {
+  await addPlayers(page, players);
+  await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+  await expect(page.getByText('How do you want to compete?')).toBeVisible();
+  await page.getByPlaceholder('e.g. Saturday Pool').fill(name);
+}
+
+async function courseAndTees(page: Page) {
+  await page.getByRole('button', { name: /Next: Select Course/ }).click();
+  await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+  await page.getByRole('button', { name: /Next: Set Tees/ }).click();
+}
+
+test('structure step: 8 players see the §6 mock — teams of 4 first and recommended, singles greyed', async ({ page }) => {
+  await startWizard(page, EIGHT_PLAYERS, 'Structure Walk');
+  const body = await page.locator('body').innerText();
+  expect(body).toContain('Two teams of 4');
+  expect(body).toContain('Four pairs');
+  expect(body).toContain('Everyone for themselves');
+  expect(body).toContain('needs 2–4 players');
+  expect(body).toContain('Other split…');
+  // The recommendation is pre-selected (§5.bk), never forced.
+  await expect(page.locator('input[name="structure"][value="teams:4+4"]')).toBeChecked();
+  // F-041: the scoring lives on for a field the individual modes can't hold.
+  expect(body).toMatch(/8 players can still score Stableford — as teams/);
+  await page.screenshot({ path: 'e2e/screenshots/collapse-01-structure-8.png', fullPage: true });
+
+  await page.getByRole('button', { name: /Other split/ }).click();
+  await expect(page.getByText('Three teams, 3 + 3 + 2')).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/collapse-02-structure-8-other.png', fullPage: true });
+});
+
+test('routing row: two teams of 4, pot → the classic pool (hub shows its foursomes and pot legs)', async ({ page }) => {
+  await startWizard(page, EIGHT_PLAYERS, 'Classic Pot');
+  await toScoringStep(page, 'teams:4+4');
+  // Today's pool by default: best net + best gross, strokes, 18-hole total.
+  await expect(page.getByLabel('Which scores count for the team?')).toHaveValue('net-and-gross');
+  await expect(page.getByRole('button', { name: 'Strokes' })).toHaveClass(/bg-green-600/);
+  await expect(page.getByRole('button', { name: '18-hole total' })).toHaveClass(/bg-green-600/);
+  // F-073: the words golfers use are on the buttons.
+  await expect(page.getByRole('button', { name: '18-hole total (stroke play)' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Hole by hole (match play)' })).toBeVisible();
+  await expect(page.getByText(/USGA suggests 85% for four-ball stroke play/)).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/collapse-03-scoring-teams.png', fullPage: true });
+
+  await courseAndTees(page);
+  await page.getByRole('button', { name: /Next: Teams/ }).click();
+  await expect(page.getByRole('heading', { name: 'Set Teams' })).toBeVisible();
+  // F-086 control: locks stay on teams of 4, where they add something (the pairs row hides them).
+  await expect(page.getByText('Keep players together (optional)')).toBeVisible();
+  await page.getByRole('button', { name: 'No captains' }).click();
+  await page.getByRole('button', { name: /Straight down the list/ }).click();
+  await page.getByRole('button', { name: /Next: Review/ }).click();
+
+  // The money step, routed: pot and head-to-head legs available, margin money greyed with WHY.
+  await expect(page.getByRole('heading', { name: "What's it worth?" })).toBeVisible();
+  await expect(page.locator('input[name="money-model"][value="pot"]')).toBeChecked();
+  await expect(page.locator('input[name="money-model"][value="legs"]')).toBeEnabled();
+  // F-073: the head-to-head row says "match".
+  await expect(page.getByLabel(/Head-to-head match — fixed \$ per front \/ back \/ overall/)).toBeVisible();
+  // F-072: best net + best gross is a two-ball format BOTH engines compute now, so margin money
+  // stays open here too (the sides engine would carry it); pot, the default, routes classic.
+  await expect(page.locator('input[name="money-model"][value="per-point"]')).toBeEnabled();
+  expect(await page.locator('body').innerText()).not.toContain('Two-ball formats');
+  await expect(page.getByText('Buy-in per player ($)')).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/collapse-04-money-classic.png', fullPage: true });
+
+  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  // Only the classic pool's hub says this.
+  await expect(page.getByText(/2 teams of 4 · pot/)).toBeVisible();
+});
+
+test('F-084: head-to-head leg amounts are editable on the money step and reach the hub', async ({ page }) => {
+  await startWizard(page, EIGHT_PLAYERS, 'Editable Legs');
+  await toScoringStep(page, 'teams:4+4');
+  await courseAndTees(page);
+  await page.getByRole('button', { name: /Next: Teams/ }).click();
+  await buildTeams(page, 'list');
+  await page.getByRole('button', { name: /Next: Review/ }).click();
+  await expect(page.getByRole('heading', { name: "What's it worth?" })).toBeVisible();
+  await chooseMoney(page, 'legs');
+  await expect(page.getByText('Match Payouts ($ / player)')).toBeVisible();
+  // Inputs, not read-only numbers (a saved format used to be the only way to change them).
+  const leg = (label: string) => page.locator(`xpath=//label[normalize-space()="${label}"]/following-sibling::input`);
+  await expect(leg('Front 9')).toHaveValue('10');
+  await leg('Front 9').fill('15');
+  await leg('Junk / pt').fill('2');
+  await page.screenshot({ path: 'e2e/screenshots/f084-legs-editable.png', fullPage: true });
+  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: 'Head-to-Head Match' })).toBeVisible();
+  const hub = await page.locator('body').innerText();
+  expect(hub).toContain('$15');
+  expect(hub).toContain('$2');
+});
+
+test('routing row: two teams of 4, $ per point → the sides engine even though teams are foursomes', async ({ page }) => {
+  await startWizard(page, EIGHT_PLAYERS, 'Aligned Margin');
+  await toScoringStep(page, 'teams:4+4');
+  // Best ball is a format both engines compute, so every money model stays open.
+  await page.getByLabel('Which scores count for the team?').selectOption('best-ball');
+  await courseAndTees(page);
+  await page.getByRole('button', { name: /Next: Teams/ }).click();
+  await page.getByRole('button', { name: 'No captains' }).click();
+  await page.getByRole('button', { name: /Straight down the list/ }).click();
+  await page.getByRole('button', { name: /Next: Review/ }).click();
+  await chooseMoney(page, 'per-point');
+  // The sides engine's stakes appear; the classic pot fields go.
+  await expect(page.getByText('$ per point', { exact: true })).toBeVisible();
+  await expect(page.getByText('Buy-in per player ($)')).toHaveCount(0);
+  await page.screenshot({ path: 'e2e/screenshots/collapse-05-money-aligned-per-point.png', fullPage: true });
+  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await expect(page.getByText(/2 teams of 4 · \$\/point/)).toBeVisible();
+});
+
+test('routing row: four pairs, fixed legs → the sides engine with two tee times, partners together', async ({ page }) => {
+  await startWizard(page, EIGHT_PLAYERS, 'Four Pairs');
+  await toScoringStep(page, 'teams:2+2+2+2');
+  // Shared-foursome defaults: best ball, Stableford, hole by hole. F-072: a pair has two balls,
+  // so the two-ball formats are open here too.
+  await expect(page.getByLabel('Which scores count for the team?')).toHaveValue('best-ball');
+  await expect(page.getByRole('button', { name: 'Hole by hole' })).toHaveClass(/bg-green-600/);
+  await expect(page.locator('option[value="two-best-net"]')).toBeEnabled();
+  expect(await page.locator('body').innerText()).not.toContain('not with this split');
+  await courseAndTees(page);
+  // F-071: the SAME teams step as the pool — the method list, not letter buttons — and the
+  // structure step's answer is not asked again (F-078: no shape chooser here).
+  await page.getByRole('button', { name: 'Next: Teams' }).click();
+  await expect(page.getByRole('heading', { name: 'Set Teams' })).toBeVisible();
+  await expect(page.getByText('Four pairs. Partners walk together — who tees off with whom comes next.')).toBeVisible();
+  expect(await page.locator('body').innerText()).not.toContain('How do the sides split?');
+  // No tee times on money teams — the tee sheet is the next step's question.
+  await expect(page.getByText('Tee time')).toHaveCount(0);
+  // F-086 (opt A): no pairing-locks panel on pairs — a lock there IS a team, which the cards say.
+  expect(await page.locator('body').innerText()).not.toContain('Keep players together');
+  await page.screenshot({ path: 'e2e/screenshots/collapse-06a-teams-four-pairs-before.png', fullPage: true });
+  await buildTeams(page, 'list');   // Craig+Jym, Dave+Rick, Sam+Tony, Will+Gary — deterministic
+  await expect(page.getByLabel('Team 4 name')).toBeVisible();
+  await expect(page.getByLabel('Team 5 name')).toHaveCount(0);
+  await page.screenshot({ path: 'e2e/screenshots/collapse-06b-teams-four-pairs-built.png', fullPage: true });
+  await page.getByRole('button', { name: 'Next: Groups' }).click();
+  // Partners walk together (§5.bm Q2): the first two pairs share group 1, whole.
+  await expect(page.getByRole('heading', { name: /playing together/ })).toBeVisible();
+  const group1 = page.locator('div.bg-white', { hasText: 'Group 1' }).first();
+  for (const nm of ['Craig', 'Jym', 'Dave', 'Rick']) await expect(group1.getByText(nm)).toBeVisible();
+  // F-085 (opt A): rows by TEAM, partners adjacent — Craig & Jym then Dave & Rick, not the
+  // handicap interleave (Craig 4, Dave 8, Jym 12, Rick 16) that hid the pairs.
+  const rows = await group1.locator('li button span:first-child').allInnerTexts();
+  expect(rows).toEqual(['Craig', 'Jym', 'Dave', 'Rick']);
+  const body = await page.locator('body').innerText();
+  expect(body).toContain('Group 2');
+  await page.screenshot({ path: 'e2e/screenshots/collapse-06-groups-four-pairs.png', fullPage: true });
+  await page.getByRole('button', { name: /Next: Review/ }).click();
+  await expect(page.getByText('Teams (2 vs 2 vs 2 vs 2)')).toBeVisible();
+  await expect(page.locator('input[name="money-model"][value="legs"]')).toBeChecked();
+  await expect(page.getByText(/Front 9 \(\$\)/)).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/collapse-07-money-sides.png', fullPage: true });
+  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await expect(page.getByText(/4 pairs · head-to-head · 2 groups/)).toBeVisible();
+});
+
+test('F-072: four pairs, best net + best gross → the sides engine scores two balls a side', async ({ page }) => {
+  await startWizard(page, EIGHT_PLAYERS, 'Pairs Net Gross');
+  await toScoringStep(page, 'teams:2+2+2+2');
+  // Craig: "why would best net and best gross not be possible with twosomes?" It is.
+  await page.getByLabel('Which scores count for the team?').selectOption('net-and-gross');
+  await expect(page.getByLabel('Which scores count for the team?')).toHaveValue('net-and-gross');
+  expect(await page.locator('body').innerText()).not.toContain('not with this split');
+  await expect(page.getByText(/USGA suggests 90% for four-ball match play/)).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/f072-scoring-pairs-net-gross.png', fullPage: true });
+  await courseAndTees(page);
+  await page.getByRole('button', { name: 'Next: Teams' }).click();
+  await buildTeams(page, 'list');
+  await page.getByRole('button', { name: 'Next: Groups' }).click();
+  await page.getByRole('button', { name: /Next: Review/ }).click();
+  await expect(page.getByText('How is the money played?')).toBeVisible();
+  // The summary line names the format the sides engine will score.
+  await expect(page.getByText(/Teams · best net \+ best gross/)).toBeVisible();
+  // Every sides money model is open — nothing greyed for an engine reason.
+  for (const m of ['legs', 'per-hole', 'per-point', 'pot']) {
+    await expect(page.locator(`input[name="money-model"][value="${m}"]`)).toBeEnabled();
+  }
+  await chooseMoney(page, 'per-point');
+  await page.screenshot({ path: 'e2e/screenshots/f072-money-pairs-net-gross.png', fullPage: true });
+  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await expect(page.getByText(/4 pairs · \$\/point · 2 groups/)).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/f072-hub-pairs-net-gross.png', fullPage: true });
+});
+
+test('routing row: four pairs get the bonus grid (Phase 3: closest-to-pin is junk on the sides engine too)', async ({ page }) => {
+  await startWizard(page, EIGHT_PLAYERS, 'Refused');
+  await toScoringStep(page, 'teams:2+2+2+2');
+  await courseAndTees(page);
+  await page.getByRole('button', { name: 'Next: Teams' }).click();
+  await buildTeams(page, 'even');
+  await page.getByRole('button', { name: 'Next: Groups' }).click();
+  await page.getByRole('button', { name: /Next: Review/ }).click();
+  // Phase 3 step 2 (§5.bq): shared-foursome teams see the SAME bonus grid as the classic pool,
+  // and nothing is "Not built yet" about it any more.
+  await page.getByRole('button', { name: /\+ Add bonuses/ }).click();
+  await expect(page.getByText('Bonus points for good holes')).toBeVisible();
+  await expect(page.getByText('Extra bonuses to track by hand')).toBeVisible();
+  expect(await page.locator('body').innerText()).not.toContain('Not built yet: closest-to-pin');
+  expect(await page.locator('body').innerText()).not.toContain('need each team in its own foursome');
+  await page.getByRole('button', { name: 'Remove bonuses' }).click();
+  // F-077: a per-side pot's summary quotes the per-side buy-in the stakes field shows ($20 default),
+  // never the classic per-player buy-in.
+  await chooseMoney(page, 'pot');
+  await expect(page.getByLabel('Buy-in ($ / team)')).toHaveValue('20');
+  expect(await page.locator('body').innerText()).toContain('$20 buy-in pot');
+});
+
+test('F-074: a typed split (4, 2, 2) is a real structure — three teams, the pairs share a foursome', async ({ page }) => {
+  await startWizard(page, EIGHT_PLAYERS, 'Four Two Two');
+  await page.getByRole('button', { name: /Other split/ }).click();
+  const sizes = page.getByLabel('Team sizes');
+  await sizes.fill('4, 2');
+  await expect(page.getByText('Team sizes must add up to 8')).toBeVisible();
+  await expect(page.locator('input[name="structure"][value="custom"]')).not.toBeChecked();
+  await sizes.fill('4, 2, 2');
+  await expect(page.locator('input[name="structure"][value="custom"]')).toBeChecked();
+  await expect(page.getByText('Three teams, 4 + 2 + 2')).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/f074-typed-split.png', fullPage: true });
+  await toScoringStep(page);
+  expect(await page.locator('body').innerText()).toContain('4 + 2 + 2');
+  await courseAndTees(page);
+  await page.getByRole('button', { name: 'Next: Teams' }).click();
+  await expect(page.getByText(/Three teams, 4 \+ 2 \+ 2\. Partners walk together/)).toBeVisible();
+  await buildTeams(page, 'list');
+  await expect(page.getByLabel('Team 3 name')).toBeVisible();
+  await expect(page.getByLabel('Team 4 name')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Next: Groups' }).click();
+  // The 4 walks as its own group; the two pairs share the other (§5.bm Q2).
+  await expect(page.getByRole('heading', { name: /playing together/ })).toBeVisible();
+  const group1 = page.locator('div.bg-white', { hasText: 'Group 1' }).first();
+  for (const nm of ['Craig', 'Jym', 'Dave', 'Rick']) await expect(group1.getByText(nm)).toBeVisible();
+  await page.getByRole('button', { name: /Next: Review/ }).click();
+  await expect(page.getByText('Teams (4 vs 2 vs 2)')).toBeVisible();
+  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+});
+
+test('routing row: everyone for themselves (4) → skins, the individual mode', async ({ page }) => {
+  await startWizard(page, FOUR_PLAYERS, 'Sunday Skins');
+  // Four players: two pairs is the usual; singles are one tap away.
+  await expect(page.locator('input[name="structure"][value="teams:2+2"]')).toBeChecked();
+  await page.screenshot({ path: 'e2e/screenshots/collapse-08-structure-4.png', fullPage: true });
+  await toScoringStep(page, 'solo');
+  await expect(page.getByText('Which game?')).toBeVisible();
+  const body = await page.locator('body').innerText();
+  expect(body).toMatch(/Skins\s*✓ 4 players/);
+  await chooseSolo(page, 'skins');
+  await expect(page.getByText('Skins options')).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/collapse-09-scoring-solo.png', fullPage: true });
+  await courseAndTees(page);
+  await page.getByRole('button', { name: /Next: Money/ }).click();
+  await expect(page.getByRole('heading', { name: /Review & create/ })).toBeVisible();
+  await expect(page.locator('input[name="money-model"]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await expect(page.getByText(/Skins · 4 players/)).toBeVisible();
+});
+
+test('routing row: 1 v 1 → a singles match on the sides engine, 100% allowance suggested (F-064)', async ({ page }) => {
+  await startWizard(page, TWO_PLAYERS, 'Craig v Jym');
+  await toScoringStep(page, 'teams:1+1');
+  // Singles: no team-format question; hole by hole; the USGA singles number.
+  await expect(page.getByLabel('Which scores count for the team?')).toHaveCount(0);
+  await expect(page.getByText(/USGA suggests 100% for singles match play/)).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/collapse-10-scoring-1v1.png', fullPage: true });
+  await courseAndTees(page);
+  // F-079: a 1 v 1 has nothing to build — the structure decided membership — so tees go
+  // straight to money, and the review still shows the two sides.
+  await expect(page.getByRole('button', { name: 'Next: Teams' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Next: Money' }).click();
+  await expect(page.getByRole('heading', { name: /Review & create/ })).toBeVisible();
+  // F-077: the summary must quote THIS game's money — the legs — not a skin value left over from
+  // the everyone-for-themselves pick two players default to.
+  const review = await page.locator('body').innerText();
+  expect(review).toContain('Teams (1 vs 1)');
+  expect(review).toContain('$10 / $10 / $10 front·back·overall');
+  expect(review).not.toMatch(/a skin/);
+  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await expect(page.getByText(/1 v 1 · head-to-head/)).toBeVisible();
+});
+
+test('structure step: 5 players are offered 3 + 2 (recommended), 2 + 2 + 1 and singles', async ({ page }) => {
+  await startWizard(page, [...FOUR_PLAYERS, ['Sam', '6']], 'Five');
+  await expect(page.locator('input[name="structure"][value="teams:3+2"]')).toBeChecked();
+  await page.getByRole('button', { name: /Other split/ }).click();
+  const body = await page.locator('body').innerText();
+  expect(body).toContain('Two teams, 3 + 2');
+  expect(body).toContain('Three teams, 2 + 2 + 1');
+  expect(body).toContain('Everyone for themselves');
+  await page.screenshot({ path: 'e2e/screenshots/collapse-11-structure-5.png', fullPage: true });
+});

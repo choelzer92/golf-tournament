@@ -2,49 +2,53 @@ import type { FormatSetting } from '../formats';
 import type { HoleData, PoolGame } from '../pool-game';
 import { distributePot, teamHandicapForFormat } from '../pool-game';
 import type { Player } from '../game-state';
-import { getMoneyStrokesOnHole } from '../money-games';
-import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding, TeamLegLine } from './types';
-import { numberSetting, parseVector, stringSetting, JUNK_SETTINGS, settleJunkForSides } from './settings';
+import type { GameModeContext, GameModeDescriptor, IndividualResult, PlayerStanding, PotSliceLine, TeamLegLine } from './types';
+import { boolSetting, numberSetting, parseVector, stringSetting, JUNK_SETTINGS, junkPayout, settleJunkForSides, tallyJunkForSides } from './settings';
 import {
-  defaultSideLabel, fromLegacySubTeams, settleRoundRobin, type GameSide,
+  defaultSideLabel, fromLegacySubTeams, settleRoundRobin, settleWinnerTakes, type GameSide,
 } from './sides';
-import { ballsPerHole, evenValueOnHole, type TeamFormat } from './team-scoring';
+import {
+  ballsPerHole, evenValueOnHole, isOneBall, teamValueOnHole, type ScoreBasis, type TeamFormat,
+} from './team-scoring';
 
 // 2-vs-2 within one foursome. The group's players are split into two SIDES
 // (ctx.subTeams). Each hole yields one team score per side by the chosen FORMAT;
 // the RESULT toggle decides hole-by-hole (match) vs 18-hole total; the leaderboard
 // also breaks the contest into Front 9 / Back 9 / Overall legs; MONEY settles
-// head-to-head. best-ball/combined use per-player gross entry; scramble/alt-shot
+// head-to-head. Every multi-ball format uses per-player gross entry; scramble/alt-shot
 // use one team ball per hole (same gross written to both members on the scorecard)
 // plus a team handicap.
-const SCALE = { albatrossOrBetter: 5, eagle: 4, birdie: 3, par: 2, bogey: 1, doubleOrWorse: 0 };
-function sfPts(net: number, par: number): number {
-  const diff = net - par;
-  if (diff <= -3) return SCALE.albatrossOrBetter;
-  if (diff === -2) return SCALE.eagle;
-  if (diff === -1) return SCALE.birdie;
-  if (diff === 0) return SCALE.par;
-  if (diff === 1) return SCALE.bogey;
-  return SCALE.doubleOrWorse;
-}
+//
+// HOLE SCORING IS NOT DONE HERE. Since F-072 a side's hole value comes from the shared
+// `teamValueOnHole` (team-scoring.ts), the same function the classic pool ranks and pays on.
+// This file used to carry its own best-ball / combined / one-ball arithmetic and silently
+// scored any OTHER format as best ball (F-069) — which is why the wizard had to grey
+// "Best net + best gross" for pairs. One engine, every format, both containers.
+
+// Settings that can only change a payout with THREE OR MORE teams (Phase 3 step 3). Every surface
+// that renders the schema hides them for a smaller game, so nobody is asked a question with no effect.
+export const MULTI_TEAM_ONLY_KEYS: ReadonlySet<string> = new Set(['legsPayout', 'pointsPayout']);
 
 const SETTINGS: FormatSetting[] = [
   {
     key: 'format', label: 'Team format', type: 'select',
     options: [
       { value: 'best-ball', label: 'Best ball (low net counts)' },
-      { value: 'combined', label: 'Combined (both scores added)' },
+      { value: 'net-and-gross', label: 'Best net + best gross (two balls, two players)' },
+      { value: 'two-best-net', label: 'Two best net scores added' },
+      { value: 'two-best-gross', label: 'Two best gross scores added' },
+      { value: 'combined', label: 'Combined (every score added)' },
       { value: 'scramble', label: 'Scramble (one ball, team handicap)' },
       { value: 'alternate-shot', label: 'Alternate shot (one ball)' },
     ],
     defaultValue: 'best-ball',
-    hint: 'How each side’s hole score is formed. Scramble/alt-shot enter one team score per hole.',
+    hint: 'How each team’s hole score is formed. Two-ball formats need two scores on the hole; scramble/alt-shot enter one team score per hole.',
   },
   {
     key: 'scoring', label: 'Hole score', type: 'select',
     options: [{ value: 'stableford', label: 'Points (Stableford)' }, { value: 'stroke', label: 'Net strokes' }],
     defaultValue: 'stableford',
-    hint: 'How each side’s hole score is expressed — Stableford points or net strokes. (Not the same as match vs total — see “Compare by”.)',
+    hint: 'How each team’s hole score is expressed — Stableford points or net strokes. (Not the same as match vs total — see “Compare by”.)',
   },
   {
     key: 'result', label: 'Compare by', type: 'select',
@@ -58,7 +62,7 @@ const SETTINGS: FormatSetting[] = [
       { value: 'per-hole', label: '$ per hole won' },
       { value: 'per-point', label: '$ per point of margin' },
       { value: 'legs', label: 'Fixed front / back / overall' },
-      { value: 'pot', label: 'Pot (buy-in, best side wins)' },
+      { value: 'pot', label: 'Pot (buy-in per team)' },
     ],
     defaultValue: 'legs',
   },
@@ -68,18 +72,66 @@ const SETTINGS: FormatSetting[] = [
   // equal shot at the pot whatever its size. At $20 a player an uneven game would let a solo side
   // risk $20 for the same prize a trio risked $60 for.
   {
-    key: 'sideBuyIn', label: 'Buy-in ($ / side)', type: 'number', defaultValue: 20,
-    hint: 'Each SIDE puts in this much, whatever its size. Best side wins the pot; ties split it.',
+    key: 'sideBuyIn', label: 'Buy-in ($ / team)', type: 'number', defaultValue: 20,
+    hint: 'Each TEAM puts in this much, whatever its size. The best team takes the pot — or each slice of it; ties split.',
+    showIf: { key: 'moneyModel', in: ['pot'] },
+  },
+  // POT SLICES (Phase 3 step 4, §5.bq Q-E): the classic pool's front / back / overall (/ junk)
+  // split, on this engine. The four are SHARES scaled to the pot — 25/25/25/25, 1/1/1/1 and
+  // $20/$20/$20/$20 all mean the same thing — so nobody has to make percentages add up. Defaults
+  // 0 / 0 / 100 keep every saved pot as it was: ONE prize on the overall. The junk share sits with
+  // the junk settings below (it only exists when junk pays as a pot).
+  {
+    key: 'potFront', label: 'Front 9 share of pot', type: 'number', defaultValue: 0,
+    hint: 'Shares are scaled to the pot: 25 / 25 / 50 and $20 / $20 / $40 split it the same way. Leave front and back at 0 for one prize on the overall.',
     showIf: { key: 'moneyModel', in: ['pot'] },
   },
   {
-    key: 'potSplit', label: 'Pot split (%)', type: 'text', defaultValue: '100',
-    hint: 'How the pot pays down the finishing order. "100" = winner takes all; "70,30" pays the top two.',
+    key: 'potBack', label: 'Back 9 share of pot', type: 'number', defaultValue: 0,
+    showIf: { key: 'moneyModel', in: ['pot'] },
+  },
+  {
+    key: 'potOverall', label: 'Overall share of pot', type: 'number', defaultValue: 100,
+    hint: 'On a 9-hole game the front and back shares fold into this one.',
+    showIf: { key: 'moneyModel', in: ['pot'] },
+  },
+  {
+    key: 'potSplit', label: 'Places paid (%)', type: 'text', defaultValue: '100',
+    hint: 'How each slice of the pot pays down its finishing order. "100" = winner takes it; "70,30" pays the top two. Ties split the places they span.',
     showIf: { key: 'moneyModel', in: ['pot'] },
   },
   { key: 'legFront', label: 'Front 9 ($)', type: 'number', defaultValue: 10, showIf: { key: 'moneyModel', in: ['legs'] } },
   { key: 'legBack', label: 'Back 9 ($)', type: 'number', defaultValue: 10, showIf: { key: 'moneyModel', in: ['legs'] } },
   { key: 'legOverall', label: 'Overall 18 ($)', type: 'number', defaultValue: 10, showIf: { key: 'moneyModel', in: ['legs'] } },
+  // HOW LOSERS PAY with three or more teams (Phase 3 step 3, DECISIONS.md §5.bq/§5.br). Both only
+  // matter at 3+ teams — at two the modes coincide — so the UI hides them for smaller games.
+  //   legs default WINNER TAKES ALL: "$10 per leg" never costs a team more than $10 (§5.br).
+  //   $/point default PAY EACH: the pairwise round robin every saved game already settles by (§5.ae).
+  {
+    key: 'legsPayout', label: 'With 3+ teams, a leg pays', type: 'select',
+    options: [
+      { value: 'winner-takes', label: 'Winner takes all — every other team pays the leg once; tied winners split it' },
+      { value: 'pay-each', label: 'Pay each team you lost to — every pair of teams settles the leg' },
+    ],
+    defaultValue: 'winner-takes',
+    hint: 'Winner takes all: lose the leg, pay it once. Pay each: lose to two teams, pay two teams.',
+    showIf: { key: 'moneyModel', in: ['legs'] },
+  },
+  {
+    key: 'pointsPayout', label: 'With 3+ teams, points pay', type: 'select',
+    options: [
+      { value: 'pay-each', label: 'Pay each team you lost to — your margin against each team' },
+      { value: 'winner-takes', label: 'Winner takes all — the leader collects its margin from each team' },
+    ],
+    defaultValue: 'pay-each',
+    hint: 'Pay each: second place can still be up, having beaten third. Winner takes all: only the leader is paid.',
+    showIf: { key: 'moneyModel', in: ['per-point'] },
+  },
+  {
+    key: 'carryover', label: 'Carry ties to the next hole', type: 'toggle', defaultValue: false,
+    hint: 'Skins-style: a halved hole’s money rolls onto the next hole won outright. A carry left after the last hole is dead.',
+    showIf: { key: 'moneyModel', in: ['per-hole'] },
+  },
   { key: 'altShotAllowance', label: 'Alt-shot allowance (%)', type: 'number', defaultValue: 50, hint: 'Alternate shot only: % of the 60/40 combined handicap. USGA default 50.', showIf: { key: 'format', in: ['alternate-shot'] } },
   // NOTE: side NAMES are deliberately NOT here (F-014). They used to be six static keys,
   // `sideAName`..`sideFName`, and a static schema cannot express "one field per side that
@@ -89,7 +141,23 @@ const SETTINGS: FormatSetting[] = [
   // A name now lives on the side itself (`GameSide.name`), edited where sides are assigned. Saved
   // games keep their names: `sidesOfGame` absorbs the legacy keys at the read boundary via
   // `hydrateLegacyNames`, so nothing needs migrating and there is one source of truth downstream.
-  ...JUNK_SETTINGS,
+  // Under a BUY-IN pot the junk pot is a SLICE of that pot (Phase 3 step 4, §5.bq Q-E), so the
+  // separately-anted `junkPot` is asked only under the other money models.
+  ...JUNK_SETTINGS.map((s) => (s.key === 'junkPot'
+    ? { ...s, showIf: [...(Array.isArray(s.showIf) ? s.showIf : s.showIf ? [s.showIf] : []), { key: 'moneyModel', in: ['legs', 'per-hole', 'per-point'] }] }
+    : s)),
+  {
+    key: 'potJunk', label: 'Junk share of pot', type: 'number', defaultValue: 25,
+    hint: 'The junk pot comes out of the buy-in. Scaled with the other shares (100 overall + 25 junk = four to one); the most junk points takes it, ties split.',
+    showIf: [{ key: 'moneyModel', in: ['pot'] }, { key: 'junkEnabled', in: ['true'] }, { key: 'junkPayout', in: ['pot'] }],
+  },
+  // Team-only junk (Phase 3 step 2): the classic pool's "all par" — every member of the team at
+  // par or better on a hole. Not in the shared JUNK_SETTINGS because it has no individual meaning.
+  {
+    key: 'junkGroupHug', label: 'All par (pts)', type: 'number', defaultValue: 0,
+    hint: 'Junk points when every player on the team makes par or better on a hole. 0 = not played.',
+    showIf: { key: 'junkEnabled', in: ['true'] },
+  },
 ];
 
 // The ONE place a side gets its display name. Custom name if set, else the side's players'
@@ -172,7 +240,7 @@ export function sideNamesForGame(
   const solo = allSidesAreSolo(sides);
   const nameAt = (idx: number) => {
     const side = sides[idx];
-    if (!side) return idx === 0 ? 'Side A' : 'Side B';
+    if (!side) return idx === 0 ? 'Team A' : 'Team B';
     return sideNameFrom(game.players, side.playerIds, side.id, side.name, solo);
   };
   return { A: nameAt(0), B: nameAt(1) };
@@ -192,6 +260,10 @@ function compute(ctx: GameModeContext): IndividualResult {
   };
   const altShotAllowance = numberSetting(SETTINGS, ctx.settings, 'altShotAllowance');
   const sideBuyIn = numberSetting(SETTINGS, ctx.settings, 'sideBuyIn');
+  // Phase 3 step 3 (§5.bq/§5.br): how losers pay with 3+ sides, and carry-ties for $/hole.
+  const legsPayout = stringSetting(SETTINGS, ctx.settings, 'legsPayout') === 'pay-each' ? 'pay-each' : 'winner-takes';
+  const pointsPayout = stringSetting(SETTINGS, ctx.settings, 'pointsPayout') === 'winner-takes' ? 'winner-takes' : 'pay-each';
+  const carryover = boolSetting(SETTINGS, ctx.settings, 'carryover');
   const potSplit = stringSetting(SETTINGS, ctx.settings, 'potSplit');
   const numHoles = ctx.holes.length || 18;
 
@@ -208,62 +280,37 @@ function compute(ctx: GameModeContext): IndividualResult {
   const nameFor = (idx: number): string =>
     sideNameFrom(ctx.players, sideIds(idx), sides[idx]?.id ?? '?', sides[idx]?.name, soloSides);
 
-  // Team handicap for the single-ball formats (0 for best-ball/combined), per side.
-  const isSingleBall = format === 'scramble' || format === 'alternate-shot';
+  // The format as the shared engine spells it. An unknown string (a hand-edited settings bag)
+  // scores as best ball, exactly as `teamNetOnHole`'s default arm does — the F-069 fallback,
+  // now in one place instead of two.
+  const teamFormat = format as TeamFormat;
+  const basis: ScoreBasis = scoring === 'stableford' ? 'stableford' : 'stroke';
+
+  // Team handicap for the single-ball formats (0 for every multi-ball format), per side.
   const teamHcap: number[] = sides.map((_, idx) => {
-    if (!isSingleBall) return 0;
+    if (!isOneBall(teamFormat)) return 0;
     const raws = sideIds(idx).map((id) => ctx.rawCourseHcap(id));
     return teamHandicapForFormat(
       raws,
-      format as 'scramble' | 'alternate-shot',
-      format === 'scramble' ? undefined : altShotAllowance,
+      teamFormat as 'scramble' | 'alternate-shot',
+      teamFormat === 'scramble' ? undefined : altShotAllowance,
     );
   });
 
-  // One side's team NET on a hole (lower better). null if not scored.
-  function sideNet(side: number, hole: HoleData): number | null {
-    const ids = sideIds(side);
-    if (isSingleBall) {
-      // ONE BALL MEANS ONE SCORE (DECISIONS.md §5.ac). The members share an identical gross —
-      // the scorecard writes the same value to every member of the side.
-      //
-      // This used to read the FIRST member with a score, which made the side's score, and the
-      // payout, depend on the ORDER of subTeams[side]: the same round settled $0 or -$54 after
-      // swapping two ids. The pool half of F-006 fixed exactly this in team-scoring.ts and
-      // missed this file, which has its own one-ball read. Taking the minimum is
-      // order-independent, and in the correct case (all members share the ball) min of equal
-      // values IS that value, so nothing changes for a well-formed game.
-      //
-      // Divergence is PREVENTED upstream — the scorecard enters one shared score, and the hub
-      // refuses to switch a scored game to a one-ball format. This is the backstop.
-      let gross: number | null = null;
-      for (const id of ids) {
-        const g = ctx.grossOnHole(id, hole);
-        if (g !== null && (gross === null || g < gross)) gross = g;
-      }
-      if (gross === null) return null;
-      return gross - getMoneyStrokesOnHole(teamHcap[side], hole.handicap, numHoles);
-    }
-    const nets: number[] = [];
-    for (const id of ids) { const n = ctx.netOnHole(id, hole); if (n !== null) nets.push(n); }
-    if (nets.length === 0) return null;
-    return format === 'combined' ? nets.reduce((s, n) => s + n, 0) : Math.min(...nets);
-  }
-
-  // One side's Stableford points on a hole. Combined = sum of members' points;
-  // everything else = points of the team net.
-  function sidePts(side: number, hole: HoleData): number | null {
-    if (format === 'combined') {
-      let total = 0, any = false;
-      for (const id of sideIds(side)) { const n = ctx.netOnHole(id, hole); if (n === null) continue; any = true; total += sfPts(n, hole.par); }
-      return any ? total : null;
-    }
-    const net = sideNet(side, hole);
-    return net === null ? null : sfPts(net, hole.par);
-  }
-
+  // One side's hole value — net strokes (lower better) or Stableford points (higher better),
+  // null until the format has the scores it needs (a two-ball format waits for two cards; a
+  // one-ball format reads the side's shared ball, order-independently — §5.ac's backstop lives
+  // in `teamNetOnHole`). SAME function as the classic pool, so the two containers can't drift.
   const metric = (side: number, hole: HoleData): number | null =>
-    scoring === 'stableford' ? sidePts(side, hole) : sideNet(side, hole);
+    teamValueOnHole({
+      playerIds: sideIds(side),
+      hole,
+      format: teamFormat,
+      grossOnHole: (id) => ctx.grossOnHole(id, hole),
+      netOnHole: (id) => ctx.netOnHole(id, hole),
+      teamHandicap: teamHcap[side],
+      numHoles,
+    }, basis);
 
   // Higher-is-better under Stableford, lower-is-better under strokes. ONE definition, so no
   // consumer re-derives the comparison — four places deriving it separately is how the
@@ -322,6 +369,9 @@ function compute(ctx: GameModeContext): IndividualResult {
   // PlayerStanding.perHole, which under match scoring holds the 1 / 0.5 / 0 match POINTS and so
   // cannot draw a card row.
   const holeValues: (number | null)[][] = sides.map(() => ctx.holes.map(() => null));
+  // Per hole: the outright winner's side index, null = contested but halved, undefined = not yet
+  // contested (some side unscored).
+  const holeWinner: (number | null | undefined)[] = ctx.holes.map(() => undefined);
 
   ctx.holes.forEach((hole, hIdx) => {
     const ms = sides.map((_, idx) => metric(idx, hole));
@@ -337,8 +387,8 @@ function compute(ctx: GameModeContext): IndividualResult {
     // uneven (a 3-player side playing combined contributes three balls).
     const holeToPar = ms.map((m, idx) => {
       if (m === null) return null;
-      const sideBalls = ballsPerHole(format as TeamFormat, sideIds(idx).length);
-      return m - evenValueOnHole(hole, scoring === 'stableford' ? 'stableford' : 'stroke', sideBalls);
+      const sideBalls = ballsPerHole(teamFormat, sideIds(idx).length);
+      return m - evenValueOnHole(hole, basis, sideBalls);
     });
 
     ms.forEach((m, idx) => {
@@ -365,6 +415,9 @@ function compute(ctx: GameModeContext): IndividualResult {
     scored.forEach((_, idx) => {
       if (winners[idx] && outright) legHolesWon[leg][idx]++;
     });
+    // Who won the hole outright (side index), or null for a halved hole — the carry-over money
+    // model walks these in order (Phase 3 step 3).
+    holeWinner[hIdx] = outright ? winners.indexOf(true) : null;
 
     if (result === 'match') {
       // Match points: 1 for an outright hole win, 0.5 shared when tied at the top, 0 otherwise.
@@ -411,6 +464,17 @@ function compute(ctx: GameModeContext): IndividualResult {
     return key === 'front' ? front : key === 'back' ? back : front + back;
   };
   const voided = new Set(ctx.voidedLegs ?? []);
+  // Holes-won is always higher-is-better; a summed metric follows the scoring basis.
+  const legBetter = result === 'match' ? (x: number, y: number) => x > y : better;
+  // The leg's per-side figure: holes won under match, score to par under total (not the raw summed
+  // metric — a side thru fewer holes must not lead a leg on that basis alone). Under 'total' this
+  // reads the CONTESTED-hole figures (F-016), so every side's number covers the same holes.
+  const legValues = (key: 'front' | 'back' | 'overall'): number[] => sides.map((_, idx) =>
+    result === 'match'
+      ? (key === 'overall' ? legHolesWon.front[idx] + legHolesWon.back[idx] : legHolesWon[key][idx])
+      : (key === 'overall'
+        ? contestedToPar.front[idx] + contestedToPar.back[idx]
+        : contestedToPar[key][idx]));
   const legLine = (key: 'front' | 'back' | 'overall'): TeamLegLine => {
     const thru = key === 'overall' ? legThru.front + legThru.back : legThru[key];
     const holes = legHoleCount(key);
@@ -426,14 +490,7 @@ function compute(ctx: GameModeContext): IndividualResult {
     // the same holes. `legToPar`/`toPar` count each side's own holes, which is right for the
     // standings ("thru 12, +2") but wrong for a head-to-head leg — comparing 9 holes against 3
     // paid a side that walked in. Holes-won was already contested-only, so 'match' needs nothing.
-    const values = sides.map((_, idx) =>
-      result === 'match'
-        ? (key === 'overall' ? legHolesWon.front[idx] + legHolesWon.back[idx] : legHolesWon[key][idx])
-        : (key === 'overall'
-          ? contestedToPar.front[idx] + contestedToPar.back[idx]
-          : contestedToPar[key][idx]));
-    // Holes-won is always higher-is-better; a summed metric follows the scoring basis.
-    const legBetter = result === 'match' ? (x: number, y: number) => x > y : better;
+    const values = legValues(key);
     const best = values.reduce((b, v) => (legBetter(v, b) ? v : b), values[0]);
     const leaders = values.map((v, idx) => ({ v, idx })).filter((e) => e.v === best);
     const winner = leaders.length === 1 ? sides[leaders[0].idx].id : null;
@@ -491,16 +548,39 @@ function compute(ctx: GameModeContext): IndividualResult {
   // is zero-sum at any side count AND reduces to today's head-to-head margin at two sides — so
   // every existing 2v2 game settles unchanged (held to that by two-side-golden.test.ts).
   const money = zeros();
+  // Each side's junk POINTS, tallied up front: the pot's junk slice ranks them (Phase 3 step 4).
+  // Null when the junk layer is off. Settlement (per point, or a separate junk pot) happens below.
+  const junkTally = tallyJunkForSides(SETTINGS, ctx.settings, ctx, sides);
+  const potSlices: PotSliceLine[] = [];
   const add = (amounts: number[]) => amounts.forEach((v, idx) => { money[idx] += v; });
 
   if (moneyModel === 'per-hole') {
-    // $ per hole of margin, against each opponent separately.
-    const won = sides.map((_, idx) => legHolesWon.front[idx] + legHolesWon.back[idx]);
-    add(settleRoundRobin(
-      sides.map((_, idx) => (stand[idx].thru > 0 ? won[idx] : null)),
-      (v) => v,
-      (mine, theirs) => (mine - theirs) * dollarsPerHole,
-    ));
+    if (carryover) {
+      // CARRY TIES (Phase 3 step 3, §5.bq Q-F/Q-G): walk the contested holes in order. An outright
+      // winner collects $ per hole × (1 + holes carried) from EVERY other side; a halved hole adds
+      // itself to the carry; a carry still standing after the last contested hole is dead.
+      // With no halved holes this is exactly the round robin below (each outright win collects
+      // from every other side), so the toggle changes nothing until a hole is actually halved.
+      let carried = 0;
+      const n = sides.length;
+      holeWinner.forEach((w) => {
+        if (w === undefined) return;
+        if (w === null) { carried += 1; return; }
+        const units = dollarsPerHole * (1 + carried);
+        carried = 0;
+        sides.forEach((_, idx) => { money[idx] += idx === w ? units * (n - 1) : -units; });
+      });
+    } else {
+      // $ per hole of margin, against each opponent separately. (Identical to "winner takes from
+      // everyone": an outright hole win is a +1 only for the winner, so the pairwise margin sum is
+      // the winner collecting from each other side — there is no second mode to offer here.)
+      const won = sides.map((_, idx) => legHolesWon.front[idx] + legHolesWon.back[idx]);
+      add(settleRoundRobin(
+        sides.map((_, idx) => (stand[idx].thru > 0 ? won[idx] : null)),
+        (v) => v,
+        (mine, theirs) => (mine - theirs) * dollarsPerHole,
+      ));
+    }
   } else if (moneyModel === 'per-point') {
     // Match: margin in match points. Total: margin in SCORE TO PAR, not raw totals — paying on
     // raw totals handed money to whichever side had played fewer holes. Oriented so being
@@ -509,8 +589,16 @@ function compute(ctx: GameModeContext): IndividualResult {
       ? (result === 'match' ? stand[idx].points : toPar[idx])
       : null));
     const higherIsBetter = result === 'match' || scoring === 'stableford';
-    add(settleRoundRobin(values, (v) => v,
-      (mine, theirs) => (higherIsBetter ? mine - theirs : theirs - mine) * dollarsPerPoint));
+    if (pointsPayout === 'winner-takes') {
+      // WINNER TAKES ALL (Phase 3 step 3, §5.bq): only the leader(s) are paid. Each side behind pays
+      // its margin to the top ONCE; tied leaders split what each loser pays (§5.br). At two sides
+      // this is the head-to-head margin, same as the round robin.
+      add(settleWinnerTakes(values, higherIsBetter, (top, v) => Math.abs(top - v) * dollarsPerPoint));
+    } else {
+      // PAY EACH TEAM YOU LOST TO — pairwise round robin (§5.ae), the default.
+      add(settleRoundRobin(values, (v) => v,
+        (mine, theirs) => (higherIsBetter ? mine - theirs : theirs - mine) * dollarsPerPoint));
+    }
   } else if (moneyModel === 'pot') {
     // POT (DECISIONS.md §5.ag): every SIDE antes the same buy-in whatever its size, and the pot
     // pays down the finishing order by `potSplit` — "100" winner-take-all, "70,30" top two.
@@ -527,22 +615,75 @@ function compute(ctx: GameModeContext): IndividualResult {
     const potSides = sides.filter((_, idx) => inPot[idx]);
     if (potSides.length > 0 && sideBuyIn > 0) {
       const pot = sideBuyIn * potSides.length;
-      // distributePot wants a lower-is-better metric, pre-sorted best-first.
-      const rankOf = (idx: number) => {
-        const v = rankValue(idx);
-        // 'match' points and Stableford are higher-is-better; negate for one direction, exactly
-        // as computePoolResult does with rankMetric.
-        return (result === 'match' || scoring === 'stableford') ? -v : v;
+      const places = parseVector(potSplit);
+      // 'match' points and Stableford are higher-is-better; negate for distributePot's one
+      // lower-is-better direction, exactly as computePoolResult does with rankMetric.
+      const orient = (v: number) => ((result === 'match' || scoring === 'stableford') ? -v : v);
+
+      // SLICES (Phase 3 step 4, §5.bq Q-E): the pot is divided front / back / overall (/ junk) by
+      // the share settings, scaled to add up. A 9-hole game has one leg, so front and back fold into
+      // the overall. The junk share is a slice only when junk pays as a pot — that pot then comes
+      // out of the buy-in and `junkPot` is not anted separately. All-zero shares = one prize on the
+      // overall (today's pot, and every saved game's).
+      const junkSliced = junkTally !== null && junkPayout(SETTINGS, ctx.settings) === 'pot';
+      const shares = {
+        front: nineOnly ? 0 : Math.max(0, numberSetting(SETTINGS, ctx.settings, 'potFront')),
+        back: nineOnly ? 0 : Math.max(0, numberSetting(SETTINGS, ctx.settings, 'potBack')),
+        overall: Math.max(0, numberSetting(SETTINGS, ctx.settings, 'potOverall'))
+          + (nineOnly ? Math.max(0, numberSetting(SETTINGS, ctx.settings, 'potFront')) + Math.max(0, numberSetting(SETTINGS, ctx.settings, 'potBack')) : 0),
+        junk: junkSliced ? Math.max(0, numberSetting(SETTINGS, ctx.settings, 'potJunk')) : 0,
       };
-      const ranked = sides
-        .map((s, idx) => ({ teamId: s.id, metric: rankOf(idx) }))
-        .filter((_, idx) => inPot[idx])
-        .sort((a, b) => a.metric - b.metric);
-      const payouts = distributePot(ranked, pot, parseVector(potSplit));
-      sides.forEach((s, idx) => {
-        if (!inPot[idx]) return;
-        money[idx] += (payouts[s.id] ?? 0) - sideBuyIn;
-      });
+      const shareTotal = shares.front + shares.back + shares.overall + shares.junk;
+      const dollarsOf = (k: keyof typeof shares) => (shareTotal > 0 ? (pot * shares[k]) / shareTotal : k === 'overall' ? pot : 0);
+
+      // Pay one slice: rank the ELIGIBLE sides on `metricOf` (lower is better) and hand the slice
+      // to distributePot — places by `potSplit`, tied sides share the SUM of the places they span,
+      // all of it distributed. Eligible = in the pot AND has played the slice's holes: once anyone
+      // has started a leg, a side still on the other nine can't be tied for it (the classic pool's
+      // F-011 rule). A slice NOBODY has started (the back nine at the turn), or whose leg the group
+      // voided, is a dead heat: it splits evenly among the sides in the pot, so every ante comes
+      // back on it and a mid-round board never shows phantom losses.
+      const paySlice = (
+        key: 'front' | 'back' | 'overall' | 'junk', label: string, dollars: number,
+        eligible: (idx: number) => boolean, metricOf: (idx: number) => number,
+      ) => {
+        if (dollars <= 0) return;
+        const entries = sides.map((s, idx) => ({ teamId: s.id, idx })).filter((e) => inPot[e.idx]);
+        const contenders = entries.filter((e) => eligible(e.idx));
+        const started = contenders.length > 0;
+        const ranked = (started ? contenders : entries)
+          .map((e) => ({ teamId: e.teamId, metric: started ? metricOf(e.idx) : 0 }))
+          .sort((a, b) => a.metric - b.metric);
+        const paid = distributePot(ranked, dollars, places);
+        entries.forEach((e) => { money[e.idx] += paid[e.teamId] ?? 0; });
+        const payouts = Object.fromEntries(Object.entries(paid).filter(([, v]) => v > 0));
+        const top = Math.max(0, ...Object.values(payouts));
+        const winnerNames = started && top > 0
+          ? entries.filter((e) => payouts[e.teamId] === top).map((e) => nameFor(e.idx))
+          : [];
+        potSlices.push({ key, label, dollars, payouts, winnerNames, split: !started });
+      };
+      // A side's holes played on a nine (its OWN holes, not only contested ones — a pot ranks each
+      // side on its own score to par, §5.af, exactly as the overall does).
+      const inLeg = (key: 'front' | 'back', h: HoleData) => (key === 'front' ? h.number <= 9 : h.number > 9);
+      const sideLegThru = (key: 'front' | 'back', idx: number) =>
+        ctx.holes.reduce((n, h, hIdx) => n + (inLeg(key, h) && holeValues[idx][hIdx] !== null ? 1 : 0), 0);
+      const legVoided = (key: 'front' | 'back') => !!teamLegs.find((l) => l.key === key)?.voided;
+      const legMetric = (key: 'front' | 'back') => (idx: number) =>
+        orient(result === 'match' ? legHolesWon[key][idx] : legToPar[key][idx]);
+      if (!nineOnly) {
+        for (const key of ['front', 'back'] as const) {
+          paySlice(key, legLabel(key), dollarsOf(key), (idx) => !legVoided(key) && sideLegThru(key, idx) > 0, legMetric(key));
+        }
+      }
+      // The overall slice ranks exactly as the standings do (assignPlaces on `rankValue`), so the
+      // board's finishing order and the money always agree — this is the old one-prize pot.
+      paySlice('overall', nineOnly ? teamLegs[0].label : legLabel('overall'), dollarsOf('overall'), () => true, (idx) => orient(rankValue(idx)));
+      if (junkSliced) {
+        const pts = junkTally!.sides;
+        paySlice('junk', 'Junk', dollarsOf('junk'), () => true, (idx) => -(pts.find((p) => p.id === sides[idx].id)?.points ?? 0));
+      }
+      sides.forEach((_, idx) => { if (inPot[idx]) money[idx] -= sideBuyIn; });
     }
   } else {
     // legs: each leg's winner collects that leg's dollars FROM EACH other side. At two sides
@@ -568,7 +709,16 @@ function compute(ctx: GameModeContext): IndividualResult {
     //
     // At ONE leader this is arithmetically identical to the old code, so no existing game moves —
     // held by n-side-golden.test.ts's "a clear leg winner collects from each side behind".
-    const payLeg = (leg: TeamLegLine, dollars: number) => {
+    //
+    // PHASE 3 STEP 3 (§5.bq/§5.br) split this into two NAMED modes, because the goldens showed the
+    // code above was neither: it paid only the LEADERS (winner-take-all shape) but charged a loser
+    // once per tied leader (per-opponent shape) — F-094.
+    //   'winner-takes' (DEFAULT, §5.br — "$10 per leg" never costs a team more than $10): every side
+    //     behind pays the leg ONCE; the leader(s) share what is paid. Distinct places pay exactly
+    //     what the old code paid; a tie at the top now costs last place $10, not $20.
+    //   'pay-each' (§5.aj's words): every pair of sides settles the leg between themselves — lose
+    //     to two sides, owe two sides; second place collects from third.
+    const payLeg = (leg: TeamLegLine, key: 'front' | 'back' | 'overall', dollars: number) => {
       // A leg the group voided at close-out pays nothing (F-016b). It still shows its margin on
       // the board — those holes were played — but no money changes hands over it.
       if (leg.voided) return;
@@ -576,36 +726,42 @@ function compute(ctx: GameModeContext): IndividualResult {
       // Only sides that have played are in the leg — an unscored side neither pays nor collects,
       // matching settleRoundRobin's treatment of a null value.
       const inLeg = sides.map((_, idx) => stand[idx].thru > 0);
+      if (legsPayout === 'pay-each') {
+        const values = legValues(key);
+        add(settleRoundRobin(
+          sides.map((_, idx) => (inLeg[idx] ? values[idx] : null)),
+          (v) => v,
+          (mine, theirs) => (legBetter(mine, theirs) ? dollars : legBetter(theirs, mine) ? -dollars : 0),
+        ));
+        return;
+      }
       const isLeader = sides.map((s) => leg.leaders.includes(s.id));
       const leaderCount = isLeader.filter((v, idx) => v && inLeg[idx]).length;
       const behind = inLeg.filter((v, idx) => v && !isLeader[idx]).length;
       // A leg where EVERY side tied has nobody behind, so nothing changes hands — which is also
       // what two tied sides have always done ("All square" pushes).
-      //
-      // The `behind === 0` half of this guard is DEFENSIVE, not load-bearing: with every side a
-      // leader, `dollars * behind` is already 0 and the loop is a no-op. Removing it passes all
-      // 209 tests. Kept because it states the intent, but noted so nobody mistakes it for the
-      // thing making dead heats push — that's the arithmetic.
       if (leaderCount === 0 || behind === 0) return;
       sides.forEach((_, idx) => {
         if (!inLeg[idx]) return;
-        if (isLeader[idx]) money[idx] += dollars * behind;      // collects from each side behind
-        else money[idx] -= dollars * leaderCount;               // pays each side ahead
+        if (isLeader[idx]) money[idx] += (dollars * behind) / leaderCount;   // share of what the losers pay
+        else money[idx] -= dollars;                                          // pays the leg once
       });
     };
     if (nineOnly) {
-      payLeg(teamLegs[0], legDollars.overall);
+      payLeg(teamLegs[0], 'overall', legDollars.overall);
     } else {
-      payLeg(teamLegs[0], legDollars.front);
-      payLeg(teamLegs[1], legDollars.back);
-      payLeg(teamLegs[2], legDollars.overall);
+      payLeg(teamLegs[0], 'front', legDollars.front);
+      payLeg(teamLegs[1], 'back', legDollars.back);
+      payLeg(teamLegs[2], 'overall', legDollars.overall);
     }
   }
   money.forEach((v, idx) => { stand[idx].moneyNet = v; });
 
   // Birdie/eagle bonuses. Earned by individuals but settled between SIDES, since this game's
   // money is between sides, not a free-for-all among the players.
-  const junkLines = settleJunkForSides(SETTINGS, ctx.settings, ctx, stand, sides);
+  // Under a buy-in pot the junk pot was paid as a SLICE above, so the settlement only tallies here.
+  const junk = settleJunkForSides(SETTINGS, ctx.settings, ctx, stand, sides, { junkPotInBuyIn: moneyModel === 'pot' });
+  const junkLines = junk?.lines;
 
   // One side's ready-to-show status for the SCORECARD: its rank, plus the margin in the unit the
   // game actually counts (DECISIONS.md §5.ah). Craig's correction: "what if it isnt a score to
@@ -658,6 +814,8 @@ function compute(ctx: GameModeContext): IndividualResult {
       status: sideStatus(idx),
     })),
     junkLines: junkLines ?? undefined,
+    potSlices: potSlices.length > 0 ? potSlices : undefined,
+    junkSides: junk ? junk.sides.map((s) => ({ ...s, name: names[sides.findIndex((x) => x.id === s.id)] ?? s.id })) : undefined,
   };
 }
 
@@ -693,8 +851,10 @@ export const teamGame: GameModeDescriptor = {
   // NOT "Sides (within group)" any more. F-019 gave this mode real playing groups, so it spans
   // several tee times and "within group" described a limit that no longer exists (§5.at). At two
   // players it read worse still: a 1v1 has no "group" to be within.
-  name: 'Sides / Match',
-  description: 'Pick sides and play them off against each other — 1v1 up to four-a-side, best ball, combined, scramble, or alternate shot. Front, back and overall settle separately.',
+  // Phase 2 (§5.bm Q5): "team" everywhere — the game-kind label users see comes from
+  // `gameKindLabel` (structure · money), so this name only shows where a MODE is picked by name.
+  name: 'Teams',
+  description: 'Teams that share foursomes — 1 v 1 up to four-a-side, any team format — play each other. Front, back and overall settle separately.',
   category: 'team-within-group',
   inputType: 'gross',
   // TWO, so a singles match is reachable (Craig, 2026-08-27). The engine always handled it — one

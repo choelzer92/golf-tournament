@@ -4,7 +4,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed } from './helpers';
+import { BASE, resetBackend, seed, toScoringStep, buildTeams } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -120,8 +120,8 @@ test.describe('F-015: a read-only summary prints no empty rows', () => {
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
     // The disclosure opens ITSELF when a side already has a name, so an existing game's names
     // are never hidden from whoever is editing them.
-    await expect(page.getByLabel('Side A')).toHaveValue('The Hogs');
-    await expect(page.getByLabel('Side B')).toHaveValue('The Dawgs');
+    await expect(page.getByLabel('Team A')).toHaveValue('The Hogs');
+    await expect(page.getByLabel('Team B')).toHaveValue('The Dawgs');
 
     // The old settings rows are gone from the read-only panel entirely.
     for (const letter of ['A', 'B', 'C', 'D', 'E', 'F']) {
@@ -156,33 +156,27 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Review Test');
-    // Select by VALUE, not label: F-020 appends a fit badge to option labels once a field
-    // exists, so a label match is fragile even where it happens to work today.
-    await page.locator('select').first().selectOption('team-2v2');
+    // §5.bk: the STRUCTURE says the sides — two pairs, or three pairs for six.
+    await toScoringStep(page, opts.thirdSide ? 'teams:2+2+2' : 'teams:2+2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
     await page.getByRole('button', { name: /Next: Set Tees/ }).click();
-    // F-019: a side game with MORE THAN FOUR players picks its playing groups first (they
-    // can't all walk together), so the path to the Sides step runs through the Groups step.
-    // At four or fewer it goes straight there. §5.al: a side game says "Sides"/"Groups" on
-    // the way, never "Teams".
-    const viaGroups = opts.players.length > 4;
-    await page.getByRole('button', { name: viaGroups ? 'Next: Groups' : 'Next: Sides' }).click();
-    if (viaGroups) {
-      // Accept the proposed groups untouched — this helper is about the SIDES steps.
-      await page.getByRole('button', { name: 'Next: Sides' }).click();
-    }
+    // F-071: every split builds on ONE teams step (the pool's method list). A side game with
+    // MORE THAN FOUR players then picks its playing groups (they can't all walk together,
+    // F-019); at four or fewer it goes straight to money.
+    await page.getByRole('button', { name: 'Next: Teams' }).click();
+    await buildTeams(page, 'even');
+    // Three pairs build as three teams (the structure said so); nothing to add by hand.
     if (opts.thirdSide) {
-      await page.getByRole('button', { name: '+ Add a side' }).click();
-      for (const nm of [opts.players[4][0], opts.players[5][0]]) {
-        // The sides-step row is flex-wrap (F-043: the handicap chain panel wraps under it).
-        const row = page.locator('div.flex.flex-wrap.items-center', { hasText: nm }).first();
-        await row.getByRole('button', { name: 'C', exact: true }).click();
-      }
+      await expect(page.getByLabel('Team 3 name')).toBeVisible();
+      await expect(page.getByLabel('Team 4 name')).toHaveCount(0);
     }
-    if (opts.nameC) {
-      await page.getByRole('button', { name: /Name the sides/ }).click();
-      await page.getByLabel('Side C').fill(opts.nameC);
+    // F-014's payoff, now on the team card itself: the third team can be named in the wizard.
+    if (opts.nameC) await page.getByLabel('Team 3 name').fill(opts.nameC);
+    const viaGroups = opts.players.length > 4;
+    if (viaGroups) {
+      await page.getByRole('button', { name: 'Next: Groups' }).click();
+      // Accept the proposed groups untouched — this helper is about the review.
     }
     await page.getByRole('button', { name: /Next: Review/ }).click();
   }
@@ -192,7 +186,7 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
     await buildSideGame(page, { players: [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']] });
     const body = await page.locator('body').innerText();
 
-    expect(body).toContain('Sides (2 vs 2)');
+    expect(body).toContain('Teams (2 vs 2)');
     // Named exactly as the leaderboard will name them — same resolver.
     expect(body).toMatch(/Craig & \w+/);
     // The stakes in words, so the review confirms what's being played for.
@@ -213,12 +207,12 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
     });
     const body = await page.locator('body').innerText();
 
-    expect(body).toContain('Sides (2 vs 2 vs 2)');
+    expect(body).toContain('Teams (2 vs 2 vs 2)');
     // F-014's payoff: before, side C could never be named anywhere in the wizard.
     expect(body).toContain('The Cats');
     // At 3+ sides each leg is collected from EVERY side behind (§5.aj), which is not obvious
     // from the numbers alone — so the summary says it.
-    expect(body).toContain('every side behind');
+    expect(body).toContain('every team behind');
     await page.screenshot({ path: 'e2e/screenshots/f018-review-three-sides.png', fullPage: true });
   });
 });

@@ -5,7 +5,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed, goToGame, fieldToGameStep } from './helpers';
+import { BASE, resetBackend, seed, goToGame, fieldToGameStep, toScoringStep, EIGHT_PLAYERS } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -92,7 +92,8 @@ test.describe('F-006: choosing the team format in the wizard', () => {
   test('the picker offers the formats the classic pool could not express', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await fieldToGameStep(page);
+    await fieldToGameStep(page, EIGHT_PLAYERS);
+    await toScoringStep(page, 'teams:4+4');
     // Positive assertion that we're on the game step of the wizard, not some redirect.
     await expect(page.getByText('Which scores count for the team?')).toBeVisible();
 
@@ -112,7 +113,8 @@ test.describe('F-006: choosing the team format in the wizard', () => {
   test('picking a format explains it, and Stableford changes the scoring line', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await fieldToGameStep(page);
+    await fieldToGameStep(page, EIGHT_PLAYERS);
+    await toScoringStep(page, 'teams:4+4');
     const picker = page.locator('select').filter({ hasText: 'Two best net scores' }).first();
 
     // The hint names net or gross, because the FORMAT decides it (not a setting).
@@ -132,7 +134,8 @@ test.describe('F-006: choosing the team format in the wizard', () => {
   test('the USGA allowance recommendation follows the FORMAT', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await fieldToGameStep(page);
+    await fieldToGameStep(page, EIGHT_PLAYERS);
+    await toScoringStep(page, 'teams:4+4');
     const picker = page.locator('select').filter({ hasText: 'Two best net scores' }).first();
 
     // Four-ball stroke play for a two-ball format.
@@ -159,7 +162,8 @@ test.describe('F-006: what the wizard SAVES', () => {
   async function saveDraftAndRead(page: import('@playwright/test').Page, format: string, basis: 'stroke' | 'stableford') {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await fieldToGameStep(page);
+    await fieldToGameStep(page, EIGHT_PLAYERS);
+    await toScoringStep(page, 'teams:4+4');
     await expect(page.getByText('Which scores count for the team?')).toBeVisible();
     await page.locator('select').filter({ hasText: 'Two best net scores' }).first().selectOption(format);
     if (basis === 'stableford') await page.getByRole('button', { name: 'Stableford points' }).click();
@@ -194,7 +198,8 @@ test.describe('F-006: what the wizard SAVES', () => {
   test('the format survives a reload — a phone that slept mid-setup', async ({ page }) => {
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await fieldToGameStep(page);
+    await fieldToGameStep(page, EIGHT_PLAYERS);
+    await toScoringStep(page, 'teams:4+4');
     await page.locator('select').filter({ hasText: 'Two best net scores' }).first().selectOption('scramble');
     await page.getByRole('button', { name: 'Stableford points' }).click();
     await expect(page.getByText(/birdie 3, par 2, bogey 1/)).toBeVisible();
@@ -204,7 +209,8 @@ test.describe('F-006: what the wizard SAVES', () => {
     // restored), but the CONFIG survives — walk back to the game step and check.
     await page.reload();
     await page.waitForLoadState('networkidle');
-    await fieldToGameStep(page);
+    await fieldToGameStep(page, EIGHT_PLAYERS);
+    await toScoringStep(page, 'teams:4+4');
     await expect(page.locator('select').filter({ hasText: 'Scramble' }).first()).toHaveValue('scramble');
     await expect(page.getByText(/birdie 3, par 2, bogey 1/)).toBeVisible();
   });
@@ -378,7 +384,7 @@ test.describe('F-012: the same rule, in the 2v2 editor', () => {
 
     // Assert we're on the 2v2 editor, not the classic pool one — this page renders two
     // different settings panels and an early version of this test could pass on the wrong one.
-    await expect(page.getByText('Sides / Match options')).toBeVisible();
+    await expect(page.getByText('Teams options')).toBeVisible();
 
     const picker = page.locator('select').filter({ hasText: 'Best ball (low net counts)' }).first();
     await expect(picker).toBeVisible();
@@ -407,7 +413,8 @@ test.describe('F-012: the same rule, in the 2v2 editor', () => {
   test('re-tapping a side a player is already on changes nothing on screen', async ({ page }) => {
     await seed(page, '2v2 best ball — mid-round');
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
-    await expect(page.getByText('Sides', { exact: true })).toBeVisible();
+    // The editor's Teams section — not the hub's "Teams" sheet button or the mode option of that name.
+    await expect(page.getByRole('paragraph').filter({ hasText: /^Teams$/ })).toBeVisible();
 
     const before = await page.locator('body').innerText();
     // Craig is on side A already (subTeams.a = [sp1, sp2]); tap A again.
@@ -480,7 +487,7 @@ test.describe('F-006: three sides in one group', () => {
     const id = await seed(page, 'Three sides in one group');
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
-    await expect(page.getByText('Sides / Match options')).toBeVisible();
+    await expect(page.getByText('Teams options')).toBeVisible();
 
     // The names are no longer settings, so the settings editor must not offer them at all.
     for (const letter of ['A', 'B', 'C', 'D', 'E', 'F']) {
@@ -489,16 +496,16 @@ test.describe('F-006: three sides in one group', () => {
 
     // They live behind a disclosure in the Sides editor, closed by default — almost nobody
     // names their sides, so "just the usual game" never sees these fields.
-    await page.getByRole('button', { name: /Name the sides/ }).click();
+    await page.getByRole('button', { name: /Name the teams/ }).click();
     // Exactly three fields, for the three sides this game HAS. No box for a side that
     // doesn't exist, which is what the old six-static-keys arrangement couldn't express.
-    await expect(page.getByLabel('Side A')).toBeVisible();
-    await expect(page.getByLabel('Side C')).toBeVisible();
-    await expect(page.getByLabel('Side D')).toHaveCount(0);
+    await expect(page.getByLabel('Team A')).toBeVisible();
+    await expect(page.getByLabel('Team C')).toBeVisible();
+    await expect(page.getByLabel('Team D')).toHaveCount(0);
 
     // Naming side C actually reaches the leaderboard.
-    await page.getByLabel('Side C').fill('The Cats');
-    await page.getByLabel('Side C').blur();
+    await page.getByLabel('Team C').fill('The Cats');
+    await page.getByLabel('Team C').blur();
     await page.goto(`${BASE}/pool/${id}/leaderboard`);
     // Appears in BOTH the standings row and the player-details side tag — that consistency is
     // the point (a name that reached one surface and not the other is the F-006 "Team A" bug).
@@ -511,17 +518,17 @@ test.describe('F-006: three sides in one group', () => {
     const id = await seed(page, 'Three sides in one group');
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
-    await expect(page.getByText('Sides / Match options')).toBeVisible();
+    await expect(page.getByText('Teams options')).toBeVisible();
 
     // Three side buttons per player row, and the controls to change that.
-    await expect(page.getByRole('button', { name: 'Remove side C' })).toBeVisible();
-    await expect(page.getByRole('button', { name: '+ Add a side' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove team C' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '+ Add a team' })).toBeVisible();
 
     await page.screenshot({ path: 'e2e/screenshots/three-sides-hub.png', fullPage: true });
 
     // Adding a fourth side gives every player a D button to tap.
-    await page.getByRole('button', { name: '+ Add a side' }).click();
-    await expect(page.getByRole('button', { name: 'Remove side D' })).toBeVisible();
+    await page.getByRole('button', { name: '+ Add a team' }).click();
+    await expect(page.getByRole('button', { name: 'Remove team D' })).toBeVisible();
   });
 });
 
@@ -547,14 +554,14 @@ test.describe('F-006: a side game can play a POT', () => {
     const id = await seed(page, 'Three sides playing a POT');
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
-    await expect(page.getByLabel('Buy-in ($ / side)')).toBeVisible();
-    await expect(page.getByLabel('Pot split (%)')).toBeVisible();
+    await expect(page.getByLabel('Buy-in ($ / team)')).toBeVisible();
+    await expect(page.getByLabel('Places paid (%)')).toBeVisible();
     // The margin models' fields are hidden while a pot is selected.
     await expect(page.getByLabel('$ per point')).toHaveCount(0);
 
     // Switching to a margin model hides the pot fields again (showIf, both directions).
     await page.getByLabel('Money', { exact: true }).selectOption('per-point');
-    await expect(page.getByLabel('Buy-in ($ / side)')).toHaveCount(0);
+    await expect(page.getByLabel('Buy-in ($ / team)')).toHaveCount(0);
     await expect(page.getByLabel('$ per point')).toBeVisible();
   });
 });
@@ -580,7 +587,7 @@ test.describe('F-013: the scorecard with three sides', () => {
     expect(body).not.toMatch(/\d+ UP/);
     // And the header says how many sides are playing — it read "Stroke Play · Best Ball · Full
     // Handicap" for a three-side game, true but silent about the surprising part.
-    expect(body).toContain('3 sides');
+    expect(body).toContain('3 teams');
 
     await page.screenshot({ path: 'e2e/screenshots/three-sides-scorecard.png', fullPage: true });
   });

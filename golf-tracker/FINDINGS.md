@@ -218,7 +218,13 @@ panel against any future setting rather than just this one. Craig asked what the
 worth noting the finding was only legible once he saw the screenshot, not the description.
 
 The naming model itself (option A) was chosen separately under F-014, so both halves are going in
-— but as two commits, since C fixes a screen and A changes a schema. Not yet built.
+— but as two commits, since C fixes a screen and A changes a schema.
+
+**Status: BOTH HALVES BUILT — log was stale** (caught in the 2026-09-15 simplification batch).
+Option C landed as 270f257 ("a read-only summary never prints a row with no value" — the generic
+blank-value filter in `MoneySummary`, now `panels/money-panels.tsx`, with e2e
+`verify-f015-f018-review.spec.ts`); option A landed under F-014 (archived, FIXED + VERIFIED).
+Nothing left here — archive in the next sweep.
 
 ---
 
@@ -662,10 +668,828 @@ nobody at all" line describes an interaction that doesn't exist** (assignment is
 scroll to the built teams; the used card shows "✓ Built these teams" (demotes to
 "(hand-adjusted since)" after a manual move); touch pressed-state on the cards; copy now
 says "Or build nothing — put each player on a team by hand with the 'Move to' menus
-below." e2e `F-060` at phone width. STILL OPEN: opt B (merge the rival green
-"Build balanced teams around captains" trigger into the method list) — feeds the
-game-structure design; and hub edit-teams parity (its buttons sit next to their result,
-so the confusion is milder there).
+below." e2e `F-060` at phone width. **Opt B BUILT 2026-09-15** (877c9ea): the captains
+panel only picks captains ("then build the teams with a method below"); the rival green
+trigger is gone; the hub's Build & adjust buttons wear the same ✓-built state. (This
+status line was stale until the collapse-planning session verified the code, 2026-09-15.)
+Remaining: nothing — the method list is the one place teams get built; the collapse plan
+keeps it as the teams step for any N × K.
+
+---
+
+### F-061 — The same game kind is labelled up to FOUR different ways across surfaces  [P2] [start]
+
+**Where (survey 2026-09-15, delegated code sweep):** the team-2v2 game renders as
+"Sides / Match" (lists via `gameListSubtitle`, `result.ts:50`; leaderboard header
+`leaderboard/page.tsx:961`; save-format modal; settings editor), "Sides · {format}"
+(wizard summary, `summary.ts:53`), and the raw name ungrouped among individual modes in
+the picker (`details-step.tsx:247`). The classic pool renders as "Pool"
+(`result.ts:52`), "Team pool" (`summary.ts:49`), "Pool (pot split)" (formats page :155,
+share-panel :21), and "Pool (foursomes vs foursomes)" (picker :235). There is no
+`categoryLabel` anywhere — every surface improvises (§5.al's rule enforced the
+side/team WORDS but nothing pinned the game-kind NAMES).
+
+**Why it matters:** vocabulary is the confusion Craig keeps hitting (F-037: he couldn't
+map "2v2" to "Sides / Match"). Four names for one thing means users can never build the
+mapping.
+
+**Options**
+- **A. One shared `gameKindLabel()` helper** in `lib/game-modes`, used by every list,
+  header, and modal — mechanical, but it must PICK the canonical names, which is
+  exactly what the game-structure design (GAME_STRUCTURE_DESIGN.md) is deciding.
+- **B. Fold into the structure design (recommended):** the design's step-2 vocabulary
+  ("Two teams of 4", "Foursome vs foursome") becomes the canonical labels, and the
+  helper lands as part of Phase 1 with names Craig has already reacted to.
+- **C. Leave it.**
+
+**Recommendation:** B — naming twice (once now, once after the design) would date one
+set of strings immediately (§5.at).
+
+**Status:** FIXED 2026-09-16, commit b8f9c79 (Phase 2, §5.bm Q5) — option B as decided by the collapse plan. One
+helper, `gameKindLabel(game)` in `lib/game-structure.ts` ("2 teams of 4 · pot", "4 pairs · $/point
+· 2 groups", "1 v 1 · head-to-head", "Skins · 4 players"), prints on the list cards (`gameListSubtitle`
+is now that helper; the list item carries `groupSizes`/`sideSizes`/`money`), the hub header, the
+leaderboard header, the save-format modal and the wizard review; `gameSummary` says "Teams · best
+ball" / "Pool". "Side" is gone from every user-visible string (registry hints and labels, the
+editor, the money panels, the printable sheet, the scorecard header, the name fields — "Team A" is
+the fallback label now). Two judgement calls for Craig: the `team-2v2` mode's own `name` is
+**"Teams"** (it still shows in the settings editor's game select and the "Teams options" heading —
+one line to rename), and the sandbox seed labels still say "sides" (dev-only, e2e look them up).
+Residue NOT done: `isSingleGroupGame` keeps its name (AGENTS.md's one rule names it), `teamBuild`
+stays classic-only.
+
+---
+
+### F-062 — Course handicap renders in 7 styles — and THREE surfaces use different MATH  [P1] [track]
+
+**Where (survey 2026-09-15, delegated code sweep):** pool surfaces show `Course HCP: 8`
+(field list chip), `CHcp 8` (sides chips — e2e-pinned spelling), bare `8`/`(8)` (tees,
+groups, review, captains dropdown), `combined HCP 24` (team cards) — all
+`Math.round(getPoolPlayingHandicap(...))`, so DISPLAY-only drift. But three legacy
+surfaces compute their own numbers:
+- `game/play/page.tsx:944-5` — "CH: 8.4" / "Plays: 8.40" (unrounded, 1–2 decimals,
+  parallel `calcCourseHandicap` math, not `getPoolPlayingHandicap`).
+- `tournament/[id]/page.tsx:816-825` — "CH: 8.4" unrounded with **no allowance applied**.
+- `dashboard/page.tsx:495` — its own formula, no allowance.
+Also `tournament/[id]/money/page.tsx:641` mixes an unrounded "Course" column with
+rounded Nassau/Skins columns in one table.
+
+**Why P1:** the display drift is P2 noise, but the parallel math is trust surface — the
+same player can read two different handicaps in one app (F-022/F-043's whole point was
+one pinned chain). NOTE §2: unifying the MATH is handicap math — Craig must call it, with
+a worked example, and the GHIN app as reference (§5.ba).
+
+**Done now (safe slice):** the FieldLowBanner used both spellings in one file — unified
+to "Course HCP".
+
+**Options**
+- **A. Display pass only:** one spelling + the F-043 `HandicapChip` on every pool
+  surface that shows a labelled CH; legacy surfaces untouched. No number changes.
+- **B. A + retire the parallel math:** point game/play, tournament, dashboard at
+  `getPoolPlayingHandicap`/`explainPlayingHandicap`. Changes displayed numbers on
+  legacy surfaces (allowance applied where it wasn't; rounding where it wasn't) —
+  needs Craig's call + on-screen comparison before/after.
+- **C. Leave legacy pages; A only where friends actually play (pool).**
+
+**Recommendation:** A now (or C — same work), B as its own decision with screenshots of
+the numbers that would change.
+
+**Status:** open — safe slice done; A/B/C needs Craig.
+
+---
+
+### F-063 — Two phones scoring ONE foursome silently overwrite each other; the last tap before leaving the card is dropped  [P1] [continue]
+
+**Where (code trace 2026-09-15, delegated sweep for the §5.bk plan, verified against
+`tournament-state.ts:273-302` and `game/play/page.tsx:108-236`):** a pool game's scores
+are one `game_scores` row per tee group (`matchupId`), and every save is a whole-row
+upsert with no version check and no error handler. The scorer's own group is loaded once
+at mount and never re-read (no subscribe or poll for the own matchup — only for the other
+groups and the leaderboard). So when two phones open the same team from the share link:
+each holds its own full array, each 400ms-debounced upsert replaces the whole row, holes
+the other phone entered vanish, and the two never reconverge — the leaderboard flips
+between the two versions on every write. Separately, the debounce timer is cleared on
+unmount without flushing, so a tap within 400ms of leaving the card is lost (the solo
+round page flushes on `pagehide`; the pool card does not). There is no offline queue:
+a failed write is swallowed and a reload loses anything unpersisted.
+
+**Violates:** north star "continuing" (state surviving a sleeping phone / a partner
+picking up the scoring); §5.bl (live scoring in the best possible shape, not the easiest).
+§5l's "partitioned by matchup, safe by design" is true only for ONE scorer per group;
+nothing enforces that.
+
+**Not a regression** — this is how it was built. It has not been reported from the
+course, which fits: one phone per foursome is the habit. It bites exactly when a second
+phone "helps".
+
+**Options** (full comparison in `.claude/plans/game-structure-collapse-plan.md` §5):
+- **A. Interim, no schema (S):** flush the pending write on `pagehide`; subscribe to the
+  own group's row and merge per cell (a local pending cell wins, otherwise take remote).
+  Fixes the dropped tap; turns divergence into eventual convergence most of the time.
+  Does NOT fix the race where one phone's whole-row write drops cells it hasn't received.
+- **B. Owner-merge RPC (exists — the tournament path):** correct only if each phone
+  declares which players it scores. That setup step is the trouble Craig remembers; not
+  recommended.
+- **C. Per-cell score rows (M, new table + dual-read):** `(matchup_id, player_id, hole)`
+  rows, idempotent upserts, an outbox in localStorage for cart-path wifi, refetch on
+  reconnect. Correct for any number of scorers with no setup; compute layer untouched
+  (assemble `GameScore[]` at the boundary); `score_audit` is already per-cell.
+  **Recommended best case.**
+
+**Status:** **Option A BUILT 2026-09-16** (approved by Craig, §5.bm Q4): `lib/score-merge.ts`
+(pure per-cell reconcile: dirty local cell wins, else remote, never drop a local cell;
+7 unit tests) + `game/play/page.tsx` (pagehide/visibilitychange flush of the pending write;
+pool card subscribes to its OWN group row + 15s poll + resume refetch, merging per cell and
+updating state only on real change so two phones settle, not ping-pong; the mount fetch
+merges instead of replacing). e2e `f063-live-scoring.spec.ts` proves a tap made right before
+leaving the card survives a full reload — verified to FAIL with the fix stashed. The two-phone
+convergence itself can't be driven end-to-end (the sandbox fake is one tab's sessionStorage);
+it's covered by the unit tests. **Still open:** the whole-row race (opt C, own session).
+
+---
+
+### F-064 — A 1v1 match showed 90% handicap with no recommendation; singles match play is 100%  [P2] [start]
+
+**Source:** Craig, real 1v1 Sides / Match round 2026-09-15: *"wouldn't it be 100%? it
+recommended 90%."*
+
+**Where:** `details-step.tsx:157-182` `usgaRec` — for any `team-within-group` mode it
+returns `null` ("stay silent rather than guess"), so a Sides / Match game gets NO
+recommendation line. The 90 on screen was therefore a **prefill** (group default / saved
+format / the classic pool's four-ball-match 90 surviving a mode switch in the draft —
+`page.tsx:212,309` restore it verbatim), rendered in the same box a recommendation would
+be. Craig read it as advice. The USGA table (Rules of Handicapping Appendix C): singles
+match play **100%**, four-ball match play 90%, four-ball stroke play 85%, individual
+stroke play 95%. `formats.ts:65,73` carries 90 for the four-ball entries only.
+
+**Violates:** §4 (labels must state what changes for the players); §5.ba spirit — the
+app knows a rule and spent it on silence.
+
+**Options:**
+- **A (recommended, S):** give `team-within-group` a real recommendation keyed on the
+  structure: all sides of one → 100% (singles); 2-a-side best ball + match → 90%; 2-a-side
+  best ball + total → 85%; combined/scramble/alt-shot → the format's own figure or
+  silent. Same "✓ USGA suggests … / Use N%" UI as the classic. The collapse plan's
+  scoring step already keys allowance on (format, compare-by), so this is the same rule.
+- **B:** when a prefilled allowance differs from the recommendation, say where it came
+  from ("90% — from JY Classic Pool") so a carried-over number never reads as advice.
+- **C:** A + B.
+
+**Status:** open — later session (Craig: "handle this later"). Do NOT change stored
+games' allowances; wizard-only.
+
+---
+
+### F-065 — 1v1 scorecard repeats each name (side header = player) and gross/net rows aren't labelled  [P3] [track]
+
+**Source:** Craig, same round: *"the scorecard showed each person's name twice (maybe
+because I didn't name teams) … the layout was a little weird. Gross on top, net on
+bottom — could be more obvious."*
+
+**Where:** `sideNameFrom` (`team-game.ts:101`) names an unnamed side after its players'
+first names — correct for "Craig & Jym", but in a 1v1 the side is one player, so the
+side header on the card says "Craig" directly above the player row "Craig". `applySideNames`
+(`play/page.tsx:80`) feeds those into the card's two team slots. The gross/net stacking
+on each cell has no row label; regulars know, a guest doesn't.
+
+**Options:**
+- **A (S):** when every side is solo (`allSidesAreSolo`), drop the side header on the
+  card (the player row IS the side) and keep the vs line ("Craig vs Jym") once at the top.
+- **B (S):** a one-time legend on the card ("gross / net") or a tiny G/N gutter label on
+  the first column; ties into F-031's card-superscript question.
+- **C:** A + B.
+
+**Status:** open — later session.
+
+---
+
+### F-066 — After closing out, the app sometimes lands on an unexpected page  [P3] [continue]
+
+**Source:** Craig: *"after closing out games, it takes me back to the original home page,
+or sends me around to different pages which just feel a little odd."* Not reproduced
+yet.
+
+**What the code does:** Finish on the card → `router.push('/pool/{id}')` (the hub,
+`play/page.tsx:2106`). The hub bounces to `/dashboard` (the ORIGINAL home) if the game
+fetch returns null and there's no cache (`pool/[id]/page.tsx:56`) — a transient fetch
+miss right after a write would do exactly what Craig describes. The close-out panel on
+the hub itself doesn't navigate. Also `/home` vs `/dashboard` are two "homes" (F-003
+history), so any bounce to `/dashboard` feels like the wrong place.
+
+**Options (after reproducing):**
+- **A:** hub never redirects on a transient miss — retry once, then show "couldn't load"
+  in place. Finish always lands on the hub's recap (Who pays whom, F-032).
+- **B:** retire the `/dashboard` fallback in favour of `/home`.
+- **C:** walk the close-out path in the sandbox at phone width and record every
+  navigation (`e2e` capture) before choosing.
+
+**Status:** open — needs a repro walk (C first); later session.
+
+---
+
+### F-067 — On a finished card, the Out view's last column shows the BACK-nine total (and vice versa)  [P3] [track]
+
+**Source:** Craig, same round: *"if I click Out (1–9) it shows in the last column the In
+column of the back nine, and vice versa."*
+
+**Where:** `play/page.tsx:1328-1336, 1578, 1613-1760`. The card renders ONE nine at a
+time (`visibleHoles`), and to keep "Tot" honest it adds a single column for the OTHER
+nine's subtotal (`otherHoles`), labelled `In` when viewing the front and `Out` when
+viewing the back. So next to holes 1–9 the reader sees "In 41 · Tot 82": correct
+arithmetic, but a column named "In" beside the front nine reads as the wrong number. A
+paper card shows Out after hole 9, In after 18, then Tot — both subtotals, in order.
+
+**Not a data bug** — Tot is right, the subtotal is right; it's the column's name and
+position.
+
+**Options:**
+- **A (S, recommended):** show BOTH subtotals every time — the visible nine's subtotal
+  first (Out when viewing the front, In when viewing the back), then the other nine's,
+  then Tot. Two narrow columns instead of one; matches the paper card and F-030's
+  "captain glancing" habit.
+- **B (S):** keep one column but name it by what it is: "Back 9" / "Front 9" instead of
+  In/Out, so it can't be read as this nine's total.
+- **C:** during the round, hide the other-nine column until that nine has any score
+  (today it shows "–"); on a finished card show A.
+
+**Status:** open — later session (batch with F-064/065/066).
+
+---
+
+### F-068 — Sides and individual games settle to $0 in Stats & money; the hub recap attributes a whole side's money to one first name  [P1] [continue]
+
+**Source:** Craig, completed 1v1 Sides / Match round 2026-09-15: *"I completed the game,
+but it doesn't properly show the money owed."*
+
+**Verified by probe (vitest, throwaway, removed):** a completed 1v1 legs game with
+p2 one stroke worse per hole → engine standings `A: +$40, B: −$40`, zero-sum, correct.
+Then:
+
+1. **Season ledger uses the WRONG ENGINE for every non-classic game.**
+   `stats-ledger.ts:88` `poolGameLedger` calls `computePoolResult` (the classic pool
+   engine) unconditionally — it never looks at `gameMode`. A sides or individual game
+   has one `teams[]` entry ("Group") holding everyone, so the classic engine hands the
+   pot to that single team: every player nets 0, `hasMoney: false`, and the game
+   **drops out of Stats & money entirely** — 1v1, 2v2, 3 sides, skins, Stableford,
+   quota, Nines, Wolf, all of them. The right function is one import away
+   (`computeGameResult`, already imported at `:23` and used by `gameRollups` at `:329`).
+   The sandbox `ledger-season` seed (`fixtures-domain.ts` `completedPool`) is classic-only,
+   so F-007's "ledger balances" e2e never exercised this.
+
+2. **Hub "Who pays whom" is keyed by SIDE, not player.** `gameRollups` (`:329-333`) maps
+   `IndividualResult.standings` straight to player rollups, but the sides engine's
+   standings rows are per SIDE: `playerId = 'A'|'B'…`, `playerName` = side name
+   (`team-game.ts:275-277`). Probe output for a 2v2: `{"playerId":"A","playerName":
+   "Player1 & Player2","net":40}` → the recap renders `fromName.split(' ')[0]` =
+   **"Player3 pays Player1 $40"** — one name, the whole side's money, unsplit. In a 1v1
+   it reads correctly only by coincidence (side name = the player's first name). For
+   genuinely individual modes (skins etc.) standings ARE per player, so those recaps are
+   right; the ledger (item 1) still zeroes them.
+
+**Violates:** north star "continuing" (the season-long money ledger is the named
+example); §5.h (money is group-scoped — but only if it's recorded); F-007's invariant.
+
+**Options:**
+- **A (recommended, S, money-adjacent → Craig approves):** `poolGameLedger` → use
+  `computeGameResult`; for `kind:'individual'` results, split each SIDE's `moneyNet`
+  evenly across `sidesOfGame(game)` members (per-person convention, same as the
+  classic per-team split); per-player standings (skins…) map 1:1. Make `gameRollups`
+  share that one reducer so hub recap and ledger cannot drift. Tests: 1v1, 2v2, 3 sides
+  uneven (2/2/1 — the solo side's member takes the whole side net), skins; each
+  zero-sum; prove failable (§5.z) by re-introducing the classic call.
+- **B:** move the per-side → per-player split INTO the sides engine (emit per-player
+  `moneyNet` rows alongside side rows). Touches engine output shape that the
+  leaderboard reads → bigger blast radius; not recommended.
+- Either way: add a `team-2v2` and a `skins` completed game to the `ledger-season` seed
+  so F-007 covers all three engines.
+
+**Stored data is fine** — scores and games are intact; only the derived ledger is
+wrong, so the fix is retroactive with no backfill.
+
+**Status: opt A BUILT 2026-09-16** (Craig: "if that is an easy fix, should we just do it
+now?" → yes). `perPlayerNets(game, scoresByMatchup)` in `stats-ledger.ts` is THE per-player
+reducer: classic → team net ÷ members; sides engine → side net ÷ members via the engine's
+own side rule (`sidesForCompute`, newly exported from `game-modes/context.ts` so the ledger
+resolves exactly the sides the engine settled on); individual → 1:1. `poolGameLedger` and
+`gameRollups` both call it, so Stats and the hub recap cannot drift. Tests (4, pinned
+FIRST and watched fail on ids 'A'/'B' — §5.z): 1v1 ±$40 on player ids; 2v2 $20 a head;
+uneven 2/2/1 solo carries the side; skins untouched. Season seed gained a Warriors 2v2
+(`lg-6`) and a Tuesday skins game (`lg-7`) so F-007's e2e balances across all three
+engines. Derived-only: no stored data changed; every past sides/individual game now
+appears in Stats retroactively. Verify: see session note.
+
+---
+
+### F-069 — The sides engine scores any unknown team format as best ball  [P3] [track]
+
+**Where (found building the §5.bk router, 2026-09-16):** `game-modes/team-game.ts` forms a
+side's hole score as `combined` → sum of nets, `scramble`/`alternate-shot` → one ball, and
+EVERYTHING ELSE → the lowest net (best ball). Its settings schema offers only those four, so
+no UI ever wrote `two-best-net` / `two-best-gross` / `net-and-gross` into a sides game — but
+a game that did would silently settle as best ball with no error.
+
+**Mitigation shipped:** the router treats two-ball formats as a classic-only capability
+(`UNEXPRESSIBLE.needAligned('Two-ball formats')`), so the wizard greys them for teams that
+share foursomes and says why. **Still open:** the engine itself should refuse (or compute)
+an unrecognised format rather than default it — a Phase 3 convergence item, alongside the
+sides engine gaining the two-best formats.
+
+**Update 2026-09-16 (F-072):** the sides engine now computes EVERY `TeamFormat` through the
+shared `teamValueOnHole`, so the three two-ball formats are no longer "unknown" and the router
+no longer greys them. What remains is narrower: a string that is not a `TeamFormat` at all (a
+hand-edited settings bag) still falls to `teamNetOnHole`'s `default` arm = best ball — now in
+ONE place for both containers instead of two. Refuse-vs-default is still Craig's call
+(stop-and-ask, NEXT_SESSION_PROMPT).
+
+---
+
+### F-070 — The sandbox fake backend has no `.in()`, so the leaderboard's audit viewer throws in e2e  [P3] [track]
+
+**Where:** `fetchScoreAudit` (`tournament-state.ts` ~l.319) queries `score_audit … .in('matchup_id', …)`;
+`src/test/fake-supabase.ts` implements no `in`, so opening the score history in the sandbox
+logs an unhandled rejection (`.in is not a function`) during `npm run verify`. Pre-existing
+since the audit viewer landed (6d07b8d); tests still pass because the viewer swallows the
+empty result. Cosmetic in the logs, but it means the audit history is never SEEN in e2e.
+
+**Fix (S):** add `in()` (and `order`/`limit` pass-throughs) to the fake's query builder, then a
+screenshot of the history panel joins the sandbox scenarios.
+
+---
+
+### F-071 — Teams that share foursomes get a DIFFERENT teams screen (letter buttons) than teams that are their own foursomes (method list)  [P1] [start]
+
+**Where (Craig walking the collapsed wizard, 2026-09-16):** after tees, a split whose teams are
+their own tee groups (2 × 4, 3 + 3 + 2) gets the pool's `TeamsStep` — "How should teams be
+built?" with even-them-out / captains' deal / down the list, captains and locks. A split whose
+teams share foursomes (four pairs, 2v2 in one group, 1 v 1) gets the old `SubTeamsStep`: sides
+dealt silently (balanced by handicap), a row of A/B/C/D buttons per player, a shape chooser and
+side names. Craig: *"how are the sides determined? i think this is rather confusing not being
+the same as pools."*
+
+**Violates:** §5.bk (one structure, one flow); §5.aq (reuse the logic); the collapse plan's own
+mock (§6: "Set teams (N × K)" with the method list for any split). Deferred as the slice-3
+remainder and it should not have been.
+
+**Options:**
+- **A (recommended):** ONE teams step. `TeamsStep` takes the structure's sizes (already does)
+  and builds pairs/triples with the same three methods; captains panel appears when K ≥ 3 or on
+  request. On leaving it, shared-foursome teams become the sides, and `proposeTeeGroups` lays
+  the tee sheet (partners together, §5.bm Q2); the F-019 groups step then only asks about tee
+  times / drags when there are 2+ groups. `SubTeamsStep` retires. Side names move to the teams
+  step (a name per team card). M, no engine change.
+- **B:** keep both screens but give the sides editor the method list too. Two screens, one
+  vocabulary — half the fix.
+
+**Status:** FIXED 2026-09-16 (option A). `TeamsStep` gained `mode: 'money-teams'` (no tee times /
+send-out order, every team must have someone, blank names with the board's name as placeholder);
+the wizard routes EVERY split through it — tees → Teams → [Groups when 2+ tee groups] → Money.
+Leaving the step derives `sides` (ids a, b, c… by position; typed names kept) and lays the tee sheet
+with `proposeTeeGroups` (partners together); the groups step's shape buttons re-pack whole teams
+(`packTeamsIntoShape`, falling back to a balanced deal when no packing fits — four pairs into
+3 + 3 + 2). `SubTeamsStep` deleted. Two judgement calls, Craig's to reverse: (1) the step opens
+EMPTY until a method is tapped, exactly like the pool — one tap more than the old pre-dealt sides for
+the usual 2v2, in exchange for one screen; (2) captains default OFF for pairs, ON for triples, toggle
+on the step (`sideCaptains`, separate from the pool's `useCaptains` so a saved format's choice is
+never clobbered). F-078 and F-079 fell out of it. Pinned: `collapse-routing` (four pairs: method
+list, no shape chooser, no tee times, partners share Group 1, review "Sides (2 vs 2 vs 2 vs 2)"),
+`verify-f019-groups` (F-071 reshape keeps partners whole), `verify-f020-picker` (F-036 rewritten
+for the new flow; F-020 "asked ONCE"), `nsides-audit`, `verify-f015-f018-review`, `verify-f025-f046`.
+Retired pins: "Next: Sides", "How do the sides split?", "Name the sides" (wizard), "CHcp N" (wizard —
+the chip on the shared step shows the bare number; the hub editor keeps the disclosure and spelling).
+
+---
+
+### F-072 — The format list says "best ball" only for shared-foursome teams; best net + best gross is golf, not a limit  [P1] [FIXED 2026-09-16]
+
+**Where:** the scoring step disables two best net / two best gross / best net + best gross with
+"not with this split" for pairs and 2v2, because the sides engine (`team-game.ts`) scores a side
+as combined → sum, one-ball → one score, anything else → lowest net (F-069). Craig: *"why would
+best net and best gross not be possible with twosomes? technically it would, right?"* — yes: a
+pair has two balls.
+
+**Fix (S–M, SCORING MATH → Craig approved in conversation 2026-09-16, tests pinned first §5.z):**
+route the sides engine's per-hole side score through the shared `teamValueOnHole`
+(`team-scoring.ts`), which already computes every `TeamFormat` for the pool; add the two-ball
+formats to the mode's `format` options; remove "Two-ball formats" from the router's
+classic-only list. Guard: the two-side and N-side golden snapshots must not move for best ball /
+combined / scramble / alt-shot; new zero-sum cases for the two-ball formats at 2-, 3- and
+4-player sides.
+
+**Status:** FIXED 2026-09-16, goldens first (§5.z). `src/test/f072-two-ball-sides.test.ts` — 164
+independent-oracle cases (hand values per hole from raw gross + TEST_PARS; 2-, 3- and 4-a-side;
+three two-ball formats × strokes/Stableford × total/match × four money models; a partial-hole
+null case; three pairs on legs) — written against the OLD engine: all 164 failed (every cell a
+$0 dead heat, because everything scored as best ball). Then `team-game.ts` dropped its own
+`sideNet`/`sidePts` and calls the pool's `teamValueOnHole`; the two-side, N-side and one-group
+goldens did not move. Mutations after: best-ball fed to the engine → 164 fail; two-best-gross
+sorting nets → 27; net-and-gross letting one player supply both halves → 27. Router:
+"Two-ball formats" left `classicOnlyNeeds`; a NEW guard refuses a two-ball format for any team of
+one (`UNEXPRESSIBLE.needTeams('Two-ball formats')`), because a saved Warriors format applied to 2
+players derives a 1 v 1. Mode schema + hub summary gained the three formats; description shortened
+to "any team format". e2e: `collapse-routing.spec.ts` F-072 row (four pairs → best net + best
+gross → every money model open → hub) + two pins flipped from disabled to enabled. Read the
+screenshots (`f072-*.png`) as a first-timer: clean.
+
+---
+
+### F-073 — The word "match" appears nowhere in the wizard  [P2] [start]
+
+**Where:** match play is "Decide by: Hole by hole" on the scoring step and "Head-to-head — fixed
+$ per front / back / overall" on the money step. Craig: *"where is the match play option?"* The
+F-042 toggle was removed for saying too little; its replacement says it without the word golfers
+use.
+
+**Fix (S, labels only):** "Hole by hole (match play)" / "18-hole total (stroke play)"; money row
+"Head-to-head match — fixed $ per front / back / overall". Helper text can say "a Nassau".
+
+**Status:** FIXED 2026-09-16 (6728a25) — '18-hole total (stroke play)' / 'Hole by hole (match play)', the hint names a Nassau, money row 'Head-to-head match — fixed $ per front / back / overall'. Pinned in `collapse-routing` (4+4 row).
+
+---
+
+### F-074 — Uneven splits are only the balanced ones; 4 v 2 v 2 can't be chosen  [P2] [start]
+
+**Where:** the structure step's "Other split…" comes from `groupShapesFor`, which only produces
+shapes whose sizes differ by at most one (3 + 3 + 2 yes, 4 + 2 + 2 no). Craig asked for
+2 v 2 v 4. §5.bm Q3 said "make uneven teams work"; this half does.
+
+**Fix (S, wizard only):** a free-form row under "Other split…" — type the sizes ("4, 2, 2"),
+validated to sum to the field; routes like any other shape (`defaultTeeSheetFacts` handles it: a
+4 is its own group, the 2s share one → shared-foursome flow). Also the money settles fine — a
+team of 2 simply has fewer balls to pick from.
+
+**Status:** FIXED 2026-09-16 (ec47f98) — a free-form row under 'Other split…' takes the sizes (any separator), validated to add up to the field and to 2+ teams; `parseTeamSizes` + `structureOptionLabel` unit-tested; routes like any shape (4 + 2 + 2 → the 4 walks alone, the pairs share). Pinned in `collapse-routing` F-074 row to 'Sides (4 vs 2 vs 2)'.
+
+---
+
+### F-075 — The router's refusal reads as a golf rule ("need each team in its own foursome") when it is a code gap  [P2] [start]
+
+**Where:** money step, shared-foursome teams: "$ per hole / $ per point" greyed with "Closest-to-pin
+… need each team in its own foursome"; the stakes note says the same. Craig: *"why would that need
+to be a foursome? then when i removed it it allowed me."* CTP is a par-3 bonus; nothing in golf
+ties it to foursomes. The sides engine simply has no CTP / manual-bonus settlement written yet
+(only the classic pool engine has). The router is right to refuse; the sentence lies about why.
+
+**Fix (S, strings in `UNEXPRESSIBLE`):** say the true thing — "Closest-to-pin isn't built for
+teams that share foursomes yet" / "…can't ride on $ per hole or $ per point yet" (the "yet" is
+honest: Phase 3 closes it). Never phrase an engine gap as a rule (§5.at spirit).
+
+**Status:** FIXED 2026-09-16 (6728a25) — `UNEXPRESSIBLE` engine-gap strings read 'Not built yet: <needs> for teams that share a foursome / on head-to-head with more than two teams / on $ per hole or $ per point'; singles with a classic-only need get the shared-foursome reason (the 'teams of two or more' line is kept for two-ball formats only, where it IS the golf). Sides stakes note reworded the same way. Pinned in `collapse-routing` (refused row) and `f045`.
+
+---
+
+### F-076 — "+ Add bonuses" silently includes closest-to-pin (and then blocks margin money)  [P2] [start]
+
+**Where:** the classic money step's "+ Add bonuses" applies `DEFAULT_JUNK_VALUES` — birdie 1,
+eagle 2, albatross 3, all-par 1, CTP 1 — in one tap (F-045 / §5.bg: the Warriors' set as the
+one-tap usual). Craig, walking a pot game: *"it also auto included closest to the pin."* With
+CTP on, the router then greys $ per hole / $ per point for the reason in F-075; removing CTP
+unblocks them.
+
+**Options:** **A** add bonuses with CTP at 0 (birdie/eagle/albatross/all-par only) and let the
+Warriors' saved format carry its CTP 1, which it does. **B** individual toggles per bonus instead
+of one grid fill. A is one constant; B is the §5.j-shaped answer. Recommend A now, B with Phase 3.
+
+**Status:** FIXED 2026-09-16 (f55c550) on **option A — confirmed by Craig 2026-09-16 (§5.bo)**: the tap sets birdie 1 / eagle 2 / albatross 3 / all-par 1 / CTP 0; the seeded Warriors' format still restores CTP 1. Pinned in `f045` (Closest = 0, margin money open until CTP typed). Option B (per-bonus toggles) stays for Phase 3.
+
+---
+
+### F-077 — The F-021 summary line quoted the WRONG money for shared-foursome games (skin value in a 1 v 1; player buy-in for a per-side pot)  [P1 money] [FIXED same session]
+
+**Where (my own walk, 2026-09-16, `e2e/collapse-walk.spec.ts` flows B and D):** a 1 v 1 on fixed
+legs summarised as "Sides · best ball · **$5 a skin**"; four pairs on a per-side pot summarised as
+"**$25 buy-in pot**" while the stakes field below read $20 per side. Two causes, both in the new
+wizard: (1) switching structure kept the previous pick's `modeSettings` (two players default to
+everyone-for-themselves → skins → `skinValue 5`, which `stakesSummary` reads first); (2) the
+sides bag was passed to the summary WITHOUT the engine's defaults, so a missing `sideBuyIn` fell
+back to the classic per-player buy-in.
+
+**Fix (shipped, wizard only):** a structure pick resets `modeSettings` to the sides engine's
+defaults; the summary/settings bag is `{...defaults, ...modeSettings, format, scoring, result,
+moneyModel}`. Pinned in `collapse-routing.spec.ts` (1 v 1 review says legs and never "a skin";
+pairs pot review says "$20 buy-in pot" and the field shows 20). Money text that disagrees with the
+field beside it reads as a bug even when the math is right (UI_CRITIQUE_PROCESS) — this WAS a bug.
+
+---
+
+### F-078 — The sides step re-asks "How do the sides split?" after the structure step already answered it  [P1] [start]
+
+**Where (walk flows B, F):** four pairs chosen on step 2; the Sides step offers 4 v 4 · 3 v 3 v 2 ·
+2 v 2 v 2 v 2 · … · 1 v 1 × 8 — seven shapes — with "2 v 2 v 2 v 2" highlighted. Picking another
+one silently diverges from the structure the router routed on. Same question asked twice, the
+second time with more noise. **Fix:** part of F-071 option A (the sides step retires); until then,
+hide the shape chooser whenever a structure exists (S).
+
+**Status:** FIXED 2026-09-16 with F-071 A — the sides step is gone; the structure step is the only
+place the split is asked. Pinned in `collapse-routing` and `verify-f020-picker` ("asked ONCE").
+
+---
+
+### F-079 — A 1 v 1 gets a "Sides" step with nothing to decide  [P2] [start]
+
+**Where (walk flow D):** two players → "Sides (1 vs 1) — Assign each player to a side", two rows,
+A/B buttons, "+ Add a side" greyed. Every answer is forced. **Fix:** skip the teams/sides step when
+the structure fully determines membership (every team of one); go tees → money. S, wizard only.
+Also covered by F-071 A (the unified step can skip itself the same way).
+
+**Status:** FIXED 2026-09-16 with F-071 A — every-team-of-one structures set the sides from the
+players on leaving tees and the button says "Next: Money"; the step indicator drops "Teams". Pinned
+in `collapse-routing` (1 v 1 row) and `verify-f020-picker` (1v1 test).
+
+---
+
+### F-080 — With a saved format applied, the structure step shows the format TWICE  [P3] [start]
+
+**Where (walk flow G):** the F-021 card "Your saved game style — Saturday Nassau" and, directly
+under it, the select "Or play a saved game style" reading "Saturday Nassau". **Fix (S):** when a
+format is applied, the select collapses to a "Start fresh / pick another style" link under the
+card; the card is the confirmation.
+
+**Status:** FIXED 2026-09-16 (b4b6461) — with a style applied the select hides; the card gains 'Everything is already set — change anything below to fork it. Start fresh · Pick another style'. Pinned in `verify-f020-picker` (no select + Start fresh after applying; §5.aw row re-pointed).
+
+---
+
+### F-081 — The sides hub shows tee groups under "Players" but never the TEAMS  [P2] [start]
+
+**Where (walk flows B, D hubs):** "Four Pairs — Sides / Match · 8 players · 2 groups"; then a
+"Sides / Match" panel of settings (with the mode's developer paragraph "Pick sides and play them
+off against each other — 1v1 up to four-a-side…"), then "Players: Group 1 / Group 2". Who is
+paired with whom — the one thing the organizer wants confirmed — appears nowhere on the hub; the
+classic hub shows its teams. **Fix:** Phase 2 (F-061): the hub's team panel keyed on
+`structureOf(game)`, showing the pairs (with their tee group beside each), and the developer
+paragraph replaced by `structureLabel`. M, hub only, no engine change.
+
+**Status:** FIXED 2026-09-16 with F-061 (b8f9c79). The hub gets a **Teams** section above the tee-group cards
+for any shared-foursome game that stores sides: one row per team (player-derived or custom name,
+members under a custom name) with its tee group at the right — hidden when there is only one tee
+group, because every tag would read the same. The money panel's developer paragraph is gone for
+team games (the header already says "4 pairs · $/point · 2 groups"); solo modes keep their rules
+line. Screenshot: `e2e/screenshots/f072-hub-pairs-net-gross.png`. Left in its wake: F-088.
+
+---
+
+### F-097 — An aligned team game on margin money settles on two INVENTED sides, not the teams shown  [P1] [track] [money]
+
+**Where (probe, 2026-09-18, Phase 3 step 6 walk):** build 8 players → 3 + 3 + 2 (each team its own
+tee group, so the wizard uses the foursome builder and never sets `sides`) → money "$ per point"
+(margin money routes to the team engine). `createPoolGame` passes `teamIds = (sides ?? [])` → the
+saved game has `sides: []`. The engine's `sidesForCompute` sees no sides and falls back to
+`defaultSubTeams` — a handicap-balanced TWO-side split of the whole field. Probe: the leaderboard
+standings are "Player2 & Player4" vs "Player1 & Player3" while the hub header says "3 + 3 + 2 ·
+$/point · 3 groups" and its foursome cards show three teams. Same for two teams of four on $/hole or
+$/point (the collapse-routing e2e only checks the hub label, so it passed). Pre-existing since the
+Phase 1 routing (2026-09-15); not on `main`; no live game is shaped like this (the friends play the
+classic pot).
+
+**Options:** **A** the wizard hands the router the TEE GROUPS as the sides whenever the aligned flow
+built the teams (`teamIds`/`opts.sides` fall back to `teams`, captains included) — the engine then
+settles exactly the teams on screen, and the hub's Teams list appears for them too. **B** engine
+backstop: `sidesForCompute` falls back to the tee groups (not `defaultSubTeams`) when the game has 2+
+tee groups — a one-group 2v2 with no sides keeps today's default. **C** both. Recommend **C**: A is
+the fix, B stops any future writer recreating the bug. Golden first (§5.z): the probe above, expecting
+three standings named for the tee groups.
+
+**Status:** FIXED 2026-09-18 (option C, Craig's go — §5.bs). `sidesForCompute` backstops to the tee
+groups (captains carried) when a game stores no sides and has 2+ tee groups; the wizard hands the
+router the tee groups as the sides in the aligned flow. Golden `f097-aligned-sides.test.ts` (2 failed
+first: two invented sides, not three); e2e pin in `phase3-convergence.spec.ts` (hub lists the three
+teams with captains). One-foursome 2v2 games keep their default split (one-group goldens unmoved).
+
+---
+
+### F-096 — The team money step stacks the pot's three share fields as full-width rows  [P3] [start]
+
+**Where (`walk-B-pairs-10-money-pot.png`, 2026-09-18, Phase 3 step 4):** picking "Pot" for four pairs
+now shows "Front 9 share of pot", "Back 9 share of pot", "Overall share of pot" and "Places paid (%)"
+as four full-width inputs, each with a hint — a screen and a half of Stakes on a phone before the
+bonuses. The classic pot's money step shows the same idea as ONE row of small dollar boxes
+(front / back / overall / junk) that add up.
+
+**Options:** **A** render the three (four with junk) shares as one inline row of small inputs, hints
+collapsed to one line under the row — the classic pot-dollars layout, reused. **B** keep the generic
+schema rows (what the hub editor shows too). Recommend A for the wizard only; the hub editor is
+read-mostly and its two-column grid already fits.
+
+**Status:** FIXED 2026-09-18 (opt A, §5.bs, commit 4baca75) — one inline row "Pot split (shares)" under the stakes; `potJunk` sits with the junk-payout fields.
+
+---
+
+### F-095 — On a sliced team pot the leaderboard lists the same legs twice  [P3] [track]
+
+**Where (`phase3-pot-slices-leaderboard.png`, 2026-09-18, Phase 3 step 4):** the "Front · Back ·
+Overall" leg board shows each leg's margin ("Craig & Jym by 2"); directly beneath it the new "Pot"
+board shows the same three legs again with their dollars and winner, plus a Junk row. Two boards,
+three shared rows, one story.
+
+**Options:** **A** under a sliced pot, the leg board grows a "$20 pot" sub-line and the Pot board
+shows only what the leg board can't — the Junk slice and the total; **B** merge fully: one board with
+margin AND dollars per row, Junk as a fourth row; **C** keep both (as built). Recommend B — one row
+per thing that pays, like the classic pool's leg board.
+
+**Status:** FIXED 2026-09-18 (opt B, §5.bs, commit a9352ac) — one leg board: margin and dollars per row, Junk as a fourth row; the separate Pot board is gone.
+
+---
+
+### F-094 — Under `legs` with 3+ teams the SECOND team pays the leader but never collects from the third  [P2] [track] [money]
+
+**Where (`team-game.ts` `payLeg`, found 2026-09-17 by the Phase 3 step 3 goldens):** A beats B beats C
+on a $10 front. Today pays **A +20, B −10, C −10**: every side behind pays each LEADER; a non-leader
+collects from nobody. §5.aj's stated principle ("you owe every side you lost to … lose to two sides,
+owe two sides") and §5.ae's worked example ("2nd owes only 1st, and collects from 3rd") both say B
+should collect $10 from C → **A +20, B 0, C −20**. The tie cases pinned by F-017 (A = B, C pays both)
+come out the same under either reading, which is why this was never caught; the "MUST NOT MOVE"
+N-side snapshots pin B at −10.
+
+**What it means for Phase 3 step 3 (§5.bq):** today's `legs` is neither of the two chosen modes —
+it is *winner-takes* for distinct places and *pay-each* for ties. The step introduces both modes
+explicitly; the open question is which one `legs` DEFAULTS to (Craig's call, asked 2026-09-17).
+
+**Options:** **A** default `legs` to *pay each team you lost to* (matches §5.ae/§5.aj's words and Q-B;
+a saved 3+-team legs game moves: B −10 → 0, C −10 → −20). **B** default `legs` to *winner takes from
+everyone* (saved games' distinct-place payouts stay; their tie-at-top payouts change from C −20 to
+C −10 per Q-C). **C** default `legs` per money model as today's hybrid and offer both modes only as
+explicit choices (nothing saved moves; the hybrid stays a third, unnamed behaviour).
+
+**Status:** DECIDED 2026-09-17 (§5.br) — option B: `legs` default to winner-take-all (today's distinct-place
+numbers stay), a winner-take-all tie splits (C −10, A +5, B +5 — moves the F-017 tie pins); pay-each is
+the explicit alternative and keeps §5.aj's "owe both" tie. Built as Phase 3 step 3.
+
+---
+
+### F-093 — On a team game's money step, "Junk pays" comes before the bonus grid it depends on  [P3] [start]
+
+**Where (`phase3-pairs-ctp-money.png`, 2026-09-17):** for a shared-foursome team the Stakes block
+(legs, then "Junk pays", "$ per junk point", "Bonuses count") renders ABOVE "Bonus points for good
+holes" and the hand-tracked buttons — so a first-time user is asked how junk pays before choosing
+any junk. Same shape as F-087 (classic: bonus sections between the money question and its amounts).
+
+**Options:** **A** move the junk-payout fields (`junkPayout`, `junkPerPoint`, `junkPot`,
+`junkBasis`) under the bonus grid, so the order is money model → stakes → bonuses → how bonuses pay.
+**B** fold them into the bonus grid's block as its footer. Recommend A; resolve with F-087 in one
+pass so both containers read the same order.
+
+**Status:** FIXED 2026-09-18 (opt A, §5.bs, commit ce439ac) — "How the bonuses pay" block renders under the bonus grid.
+
+---
+
+### F-092 — The junk bonus board under a junk POT doesn't say who took the pot  [P3] [track]
+
+**Where (`phase3-junk-pot-leaderboard.png`, 2026-09-17):** with `junkPayout: 'pot'` the board lists
+each player's points and the footer says "Junk pot $20 — the most points takes it, ties split.
+Already included in the money column." The reader has to add the pairs up and compare to see that
+Craig & Jym took it. The standings' $ column carries the answer, but not labelled as junk.
+
+**Options:** **A** footer names the winner(s): "Junk pot $20 → Craig & Jym (3 pts)". **B** a
+per-team points row above the player rows. Recommend A — one line, no new table.
+
+**Status:** FIXED 2026-09-18 (opt A, §5.bs, commit a78f0b3) — footer reads "Junk pot $20 → Craig & Jym (3 pts)"; ties named and split.
+
+---
+
+### F-091 — The "How it's played" grid crams label and value together on a phone  [P3] [track]
+
+**Where (`f089-hub-header-phone.png`, 390px, 2026-09-16):** the mode-settings panel is a two-column
+key/value grid. At phone width the label column is too narrow, so "Compare by" and "Match (hole by
+hole)" render as "CompareMatch (hole by hole)" with no gap, and "Team format" / "Birdie / eagle
+bonuses" wrap onto two lines each. Readable on a desktop; a squint on the course. Pre-existing —
+the F-089 fix only moved the header above it.
+
+**Options:** **A** below `sm` each setting is one row, label above value (single column). **B** give
+the label column a fixed minimum width and let the value wrap. **C** show fewer rows on a phone
+(hide settings still at their default). Recommend A — same information, no hidden rows.
+
+**Status:** FIXED 2026-09-18 (opt A, §5.bs, commit 0f0d6df) — one column, label over value, below `sm`.
+
+---
+
+### F-088 — The team-game hub now says "Teams" twice: the money panel's header AND the new section  [P3] [start]
+
+**Where (`f072-hub-pairs-net-gross.png`, `hub-2v2.png`, 2026-09-16):** the money summary panel's
+header is the mode's `name`, which Phase 2 made "Teams"; directly under it sits the F-081 section
+also headed "Teams". Two identical headings, two different things (settings vs pairings).
+
+**Options:** **A** the money panel's header reads the same for every mode — "How it's played" (or
+"Game settings") — since the hub header already names the game. **B** the header reads the format
+line (`gameSummary`: "Teams · best ball · Stableford"). **C** rename the mode itself (e.g.
+"Team match") — but that word also fronts the settings editor, so pick it once. Recommend A.
+
+**Status:** FIXED 2026-09-16 (340cd60) — opt A, Craig's pick (§5.bp). The mode panel's header is
+"How it's played" for every mode. The classic "Pot" / "Head-to-Head Match" headers are
+unchanged — they name the money model, not the mode, and nothing repeats there. Pinned in
+`e2e/f088-f090-hub.spec.ts` (2v2: one "Teams" heading; skins: same fixed header).
+
+---
+
+### F-089 — The hub header wraps a three-word game name to three lines beside five actions  [P3] [track]
+
+**Where (`f072-hub-pairs-net-gross.png`, phone width, 2026-09-16; noticed in the F-072 session too):**
+"Pairs Net Gross" stacks one word per line and the subtitle wraps to four, because the header row
+holds Feedback · Share · Save format · Edit · Dashboard on the same line. Pre-existing.
+
+**Options:** **A** actions drop below the title on narrow screens (two rows). **B** collapse the
+three secondary actions (Feedback, Save format, Dashboard) into a "…" menu on phones. **C** shorter
+labels. Recommend A — no new control, nothing hidden.
+
+**Status:** open.
+
+---
+
+### F-090 — A team game whose bonuses include CTP shows the Closest-to-the-Pin editor, but the team engine never pays it  [P3] [track]
+
+**Where (`hub-2v2.png`, 2026-09-16):** the sandbox 2v2 seed carries classic `junkValues` with
+`ctp > 0`, so `CtpEditor` (gated only on par-3s and `junkValues.ctp`) renders four "Hole N — None /
+Craig / Jym / …" rows under "Counts toward that team's junk total". `team-game.ts` settles junk
+through `settleJunkForSides` and never reads `ctpWinners`, so a pick changes nothing. Scope is
+narrow: the wizard turns bonuses off for team games and the router refuses CTP for them, so only
+seeded or legacy games hit it — but a legacy live game would show a control that lies.
+
+**Options:** **A** gate `CtpEditor` on the classic container (`!getGameMode(game.gameMode)`) — one
+line. **B** Phase 3 makes CTP pay on every engine and the editor becomes truthful. Recommend A now,
+B keeps it.
+
+**Status:** open.
+
+---
+
+### F-082 — The money step's greyed options repeat the same red sentence under each  [P3] [start]
+
+**Where (walk flow A money):** "$ per hole won" and "$ per point of margin" each carry the
+identical amber/red line. Twice the words, and red reads as an error. **Fix (S):** one line under
+the pair ("$ per hole / $ per point aren't built for … yet"), grey not red; goes with F-075's
+wording change.
+
+**Status:** FIXED 2026-09-16 (6728a25) — each distinct refusal reason renders ONCE under the money list, grey (`text-gray-500`). Pinned in `f045` (count 1, grey class, after typing CTP on a 4+4 pot).
+
+---
+
+### F-083 — Five hand-tracked bonus buttons are always on screen, even for a group that never plays them  [P3] [track]
+
+**Where (walk flow A money):** Sandie / Greenie / Barkie / Chip-in / Long drive render above the
+"+ Add bonuses" button on every classic money step. F-045 put the automatic bonuses behind a
+reveal for exactly this reason (§5.bg) and left the manual ones exposed. **Fix (S):** fold them
+under the same "+ Add bonuses" reveal; a saved format with manual bonuses restores them open.
+
+**Status:** FIXED 2026-09-16 (f427809) — the five hand-tracked buttons render under the junk grid only once bonuses are added (or a saved format restores manual bonuses). Pinned in `f045`. 'Remove bonuses' leaves chosen manual bonuses in place (non-destructive) — say if it should clear them too.
+
+---
+
+### F-084 — Head-to-head leg amounts are read-only in the wizard  [P2] [start]
+
+**Where (walk flow A, money → Head-to-head):** "Match Payouts ($ / player): $10 / $10 / $10 ·
+Junk / pt $5" with no inputs; the only way to change them is a saved format. Pre-existing (the
+wizard's `matchLegs` state has never had an editor since the money step moved), surfaced by the
+walk. **Fix (S):** inputs for the three legs and junk-per-point, mirroring the pot's split grid.
+
+**Status:** FIXED 2026-09-16 (2b7f5c8) — Front / Back / Overall + Junk / pt are inputs (a nine shows its one leg), bound to the wizard's existing `matchLegs` state. Pinned in `collapse-routing` (15 / 2 typed → hub shows $15 / $2).
+
+---
+
+### F-085 — The groups step lists a group's players by handicap, so you can't see the pairs in it  [P3] [start]
+
+**Where (my read of `walk-B-pairs-07-groups.png`, 2026-09-16, after F-071):** four pairs, Group 1
+reads "Gary 2 · Craig 4 · Tony 14 · Rick 16" — the pairs are Gary & Rick and Craig & Tony, and the
+screen that promises "partners walk together" gives no way to check it. Each group is sorted by
+handicap (`sortPlayerIdsByHcap`), which interleaves the pairs.
+
+**Options:** **A** order a group's rows by TEAM (partners adjacent), handicap within the team; a
+thin divider or the team's name as a sub-heading between pairs. **B** a small team tag on each row
+("Gary & Rick"). A is one sort key and reads as the claim it makes; B adds text to every row.
+Recommend A. Composes with F-081 (the hub's team panel should show the same pairing + tee group).
+
+**Status:** FIXED 2026-09-16 (c7ae51d) on **option A — confirmed by Craig 2026-09-16 (§5.bo)**: rows clustered by team, handicap order within, a dashed rule between teams; display only. Pinned in `collapse-routing` (group 1 reads Craig, Jym, Dave, Rick).
+
+---
+
+### F-086 — "Keep players together" appears on a pairs game, where a lock IS a team  [P3] [start]
+
+**Where (same read, `walk-B-pairs-05-teams-before.png`):** the teams step for four pairs shows the
+pool's pairing-locks panel ("Pick two players who should be on the same team… then tap the green
+button to build balanced teams that keep them together"). For teams of two the lock and the team
+are the same thing, so the panel is a second way to say "these two are partners", above a method
+list that says it a third way. Correct, not wrong — but a control whose whole effect is what the
+card below already does.
+
+**Options:** **A** hide the locks panel when every team size is 2 or less (a lock can only ever be
+one whole team). **B** reword it for pairs ("Fix a pair before balancing the rest"). A is the
+minimum-exposed-complexity answer and keeps locks for triples, where they do add something.
+
+**Status:** FIXED 2026-09-16 (9f606cc) on **option A — confirmed by Craig 2026-09-16 (§5.bo)**: the panel renders only when some team is larger than 2. Pinned in `collapse-routing` (gone on four pairs, present on two teams of 4). Note: `lockedGroups` state is shared across structures, so a lock set on a 4+4 before switching to pairs would still steer the balancer invisibly — edge case, not seen in practice.
+
+---
+
+### F-087 — On the money step the bonus sections sit between the money question and its amounts  [P3] [start]
+
+**Where (my read of `walk-A-pool-11-money-legs.png` and `-10-money-bonuses.png`, 2026-09-16, after
+F-083/F-084):** head-to-head: "How is the money played?" → Bonus points grid → Extra bonuses (five
+buttons) → **Match Payouts** (the legs). Pot: Buy-in → Who gets paid → bonuses → **Pot Split**. The
+amounts a game is actually about come last, below two optional sections, and on a phone that is a
+full screen of scrolling. Pre-existing order; F-083 made the bonus block taller when opened.
+
+**Options:** **A** move both bonus sections BELOW the money amounts (legs / pot split), so the money
+reads top-to-bottom: model → amounts → optional extras. **B** collapse the two bonus sections into one
+"Bonuses" block with the junk grid and the manual buttons side by side. A is a reorder only; B is a
+redesign. Recommend A.
+
+**Status:** FIXED 2026-09-18 (opt A, §5.bs, commit ce439ac) — the classic pot split and head-to-head legs render right after the money question, bonuses below.
 
 ---
 

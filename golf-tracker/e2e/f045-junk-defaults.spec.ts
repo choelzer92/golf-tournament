@@ -6,7 +6,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { BASE, PHONE } from './helpers';
+import { BASE, PHONE, addPlayers, EIGHT_PLAYERS } from './helpers';
 
 test.beforeEach(async ({ context, page }) => {
   await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
@@ -43,7 +43,8 @@ async function walkToClassicMoneyStep(page: Page) {
   }
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await page.getByPlaceholder('e.g. Saturday Pool').fill('No Bonus Pool');
-  // Classic pool is the default — no mode selection.
+  // §5.bk: two teams of 4 is the recommendation for eight — no structure tap needed.
+  await page.getByRole('button', { name: 'Next: Scoring' }).click();
   await page.getByRole('button', { name: /Next: Select Course/ }).click();
   await page.getByRole('button', { name: /Sandbox National/ }).first().click();
   await page.getByRole('button', { name: /Next: Set Tees/ }).click();
@@ -69,6 +70,8 @@ test.describe('F-045: bonuses are OFF on a fresh classic pool', () => {
     await expect(page.getByRole('button', { name: /\+ Add bonuses/ })).toBeVisible();
     let body = await page.locator('body').innerText();
     expect(body).not.toContain('Bonus points for good holes');
+    // F-083: the hand-tracked bonuses sit behind the same reveal.
+    expect(body).not.toContain('Extra bonuses to track by hand');
 
     // 2 foursomes: the standard table is 70/70/40/20 — junk's $20 folds into
     // Overall, front/back keep their weights, and the total still matches the pot.
@@ -82,11 +85,26 @@ test.describe('F-045: bonuses are OFF on a fresh classic pool', () => {
     // Adding bonuses reveals the grid with the classic values and unfolds the split.
     await page.getByRole('button', { name: /\+ Add bonuses/ }).click();
     await expect(page.getByText('Bonus points for good holes')).toBeVisible();
+    await expect(page.getByText('Extra bonuses to track by hand')).toBeVisible();
+    await expect(page.getByRole('button', { name: /Sandie/ })).toBeVisible();
     await expect(fieldInput(page, 'Birdie')).toHaveValue('1');
     await expect(fieldInput(page, 'Eagle')).toHaveValue('2');
     await expect(fieldInput(page, 'Overall')).toHaveValue('40');
     await expect(fieldInput(page, 'Junk')).toHaveValue('20');
+    // F-076 (opt A): the one tap does NOT include closest-to-pin, so margin money stays open.
+    await expect(fieldInput(page, 'Closest')).toHaveValue('0');
+    await expect(page.locator('input[name="money-model"][value="per-hole"]')).toBeEnabled();
+    await expect(page.locator('input[name="money-model"][value="per-point"]')).toBeEnabled();
     await page.screenshot({ path: 'e2e/screenshots/f045-money-step-bonuses-added.png', fullPage: true });
+
+    // Phase 3 step 2 (§5.bq): closest-to-pin no longer greys margin money — the sides engine pays it
+    // as junk. (Nothing greys margin money for a 4+4 any more; F-082's dedup of the reason line stays in code.)
+    await fieldInput(page, 'Closest').fill('1');
+    await expect(page.locator('input[name="money-model"][value="per-hole"]')).toBeEnabled();
+    await expect(page.locator('input[name="money-model"][value="per-point"]')).toBeEnabled();
+    expect(await page.locator('body').innerText()).not.toContain('Not built yet: closest-to-pin');
+    await page.screenshot({ path: 'e2e/screenshots/phase3-ctp-margin-money-open.png', fullPage: true });
+    await fieldInput(page, 'Closest').fill('0');
 
     // And removing them folds the split straight back.
     await page.getByRole('button', { name: 'Remove bonuses' }).click();
@@ -174,14 +192,13 @@ test.describe('F-045: a saved format keeps its junk', () => {
     await seedCard(page, 'Past games (for recent-course chips)');
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']] as const) {
-      await page.getByPlaceholder('Name', { exact: true }).fill(nm);
-      await page.getByPlaceholder('HCP').fill(hcp);
-      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
-    }
+    // Eight players: the Warriors' pool is two foursomes. (Two players would derive a 1 v 1 from
+    // this format — §5.bk — and its closest-to-pin bonus has no singles engine to land on.)
+    await addPlayers(page, EIGHT_PLAYERS);
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.locator('select').first().selectOption('format:f-classic-pool');
     await expect(page.getByLabel('Game style name')).toHaveValue('JY Classic Pool');
+    await page.getByRole('button', { name: 'Next: Scoring' }).click();
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();
     await page.getByRole('button', { name: /Next: Set Tees/ }).click();

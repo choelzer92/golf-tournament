@@ -36,6 +36,8 @@ code happens when asked.
 
 Stop and ask before anything that: changes money/handicap/scoring math; alters a rule
 mid-round; is irreversible or touches live data; or has more than one defensible answer.
+**When a finding's option is Craig's to choose, ask the question outright before building it
+(§5.bo)** — don't build the recommendation and ask for a nod afterwards.
 
 **Never commit or push unbidden.** Pushing is always Craig's call (the app is live).
 
@@ -169,6 +171,15 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.bh | Group management consolidates on /home (F-055 opt A; opt B = §5c, not chosen); sharing scales by ONE LINK KIND PER JOB, token on the game row — never add link kinds; F-056/57/58 queued on recommendations |
 | 5.bi | Ownership is IDENTITY, not the invite code (F-059 opt A): `isAppOwner()` = full access + owner GHIN; the code means MEMBER (own games/groups/ledger); access policy = game link for players, code for regulars, legacy link retired from circulation |
 | 5.bj | 2026-09-15 review: F-034 opt A built; F-031 opt B deferred; sharing arc → "Accounts/§5c hardening"; next build = course-data audit, game-structure runs design-first in parallel; harness round 2 (page/spec splits, quiet reporter, FINDINGS sweep) built; STATUS.md rejected |
+| 5.bk | Game structure: step 2 asks "How do you want to compete?" (fit-based pre-selection); pool vs sides COLLAPSE into "N teams of K" — money model + foursome-alignment route the machinery invisibly; DEEP PLANNING session before any code; F-061 naming waits for this design |
+| 5.bl | Best possible, not merely easiest (live scoring named first): plans must argue whether a subsystem's shape is the BEST one, not just that it works; §2 stop-and-ask still governs changes |
+| 5.bm | Collapse plan walked 2026-09-16: router picks the engine by CAPABILITY (never a user-facing choice; unexpressible combos greyed with reason until Phase 3); partners walk together, no tee-sheet question; uneven teams under "Other split…"; F-063 opt A approved now, opt C its own session; "team" everywhere |
+| 5.bn | F-072 (2026-09-16): every team format on every split — the sides engine scores through the pool's `teamValueOnHole`; a two-ball format is refused only where a team has one ball (a team of one); scoring-math change landed goldens-first (§5.z), 164 oracle cases, three mutations caught |
+| 5.bo | F-076 A / F-085 A / F-086 A (2026-09-16): recommended options stand as built; going forward, when an option is Craig's to pick, ASK the question outright before building |
+| 5.bp | F-088 A / F-089 A / F-090 A (2026-09-16): hub mode panel headed "How it's played"; phone header stacks actions under the title; CTP editor classic-only until Phase 3 pays CTP everywhere |
+| 5.bq | Phase 3 money rules (2026-09-17): CTP + hand-tracked bonuses are junk on every engine; with 3+ teams every money model gets ONE chosen setting — winner-takes-all vs pay-everyone-you-lost-to (hidden for 2 teams); pairs balance combined handicap → seed of the flight model |
+| 5.br | Phase 3 step 3 (2026-09-17): with 3+ teams `legs` default to WINNER-TAKE-ALL (a $10 leg never costs more than $10); a winner-take-all tie SPLITS the loser's payment (A +5, B +5, C −10); $/point stays pay-each; $/hole gains carry-ties (off by default). F-094 resolved |
+| 5.bs | 2026-09-18: F-097 fix approved (opt C — wizard passes tee groups as sides + engine backstop); recommendations on all six open picks: F-087 A, F-093 A, F-091 A, F-092 A, F-095 B, F-096 A; branch code-complete after, Craig's walk still wanted before merge |
 
 ---
 

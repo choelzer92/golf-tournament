@@ -18,8 +18,10 @@ import {
   getGameHoles,
 } from '@/lib/pool-game';
 import { getGameMode, type IndividualResult } from '@/lib/game-modes';
+import { gameKindLabel } from '@/lib/game-structure';
 import type { TeamFormat } from '@/lib/game-modes/team-scoring';
-import type { WolfHoleLine, NassauLegLine, JunkLine } from '@/lib/game-modes/types';
+import type { WolfHoleLine, NassauLegLine, JunkLine, PotSliceLine, SettingsBag } from '@/lib/game-modes/types';
+import { JUNK_SETTINGS, junkPayout, numberSetting } from '@/lib/game-modes/settings';
 import { computeGameResult, isSingleGroupGame } from '@/lib/game-modes/result';
 import { defaultSideLabel, sideOfPlayer, sidesOfGame } from '@/lib/game-modes/sides';
 import { CardBoardToggle } from '@/components/card-board-toggle';
@@ -958,7 +960,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
           <div>
             <h1 className="text-lg font-bold">{game.name}</h1>
             <p className="text-xs text-gray-400">
-              {mode?.name}{result && result.thruHole > 0 ? ` · thru hole ${result.thruHole}` : ''}
+              {gameKindLabel(game)}{result && result.thruHole > 0 ? ` · thru hole ${result.thruHole}` : ''}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -983,7 +985,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
                 <thead>
                   <tr className="text-gray-500 border-b border-gray-700/50 text-xs">
                     <th className="text-left px-3 py-1.5 font-medium">#</th>
-                    <th className="text-left px-2 py-1.5 font-medium">{isWithinGroup ? 'Side' : 'Player'}</th>
+                    <th className="text-left px-2 py-1.5 font-medium">{isWithinGroup ? 'Team' : 'Player'}</th>
                     <th className="text-center px-2 py-1.5 font-medium">{result.metricLabel}</th>
                     {/* The figure the board is RANKED and PAID on, when it isn't the metric
                         itself (DECISIONS.md §5.af). A raw total can't be compared across
@@ -1090,8 +1092,11 @@ function IndividualLeaderboard({ id }: { id: string }) {
 
             {/* Birdie / eagle bonus breakdown (any mode with the junk layer on).
                 Already settled into moneyNet above — this shows who earned what. */}
-            {result.junkLines && result.junkLines.some((l) => l.birdies || l.eagles || l.albatrosses) && (
-              <JunkBonusBoard lines={result.junkLines} bySide={isWithinGroup} />
+            {result.junkLines && (result.junkLines.some((l) => l.points > 0) || result.junkSides?.some((s) => s.groupHugs > 0)) && (
+              <JunkBonusBoard
+                lines={result.junkLines} bySide={isWithinGroup} settings={game.modeSettings ?? {}} sides={result.junkSides}
+                junkSlice={result.potSlices?.find((s) => s.key === 'junk')}
+              />
             )}
 
             {/* Wolf hole-by-hole matchup breakdown — who was Wolf, their call,
@@ -1103,18 +1108,38 @@ function IndividualLeaderboard({ id }: { id: string }) {
             {/* Front / Back / Overall breakdown (2v2 team games) — Nassau-style.
                 A 9-hole game collapses to ONE leg (team-game.ts), so derive the
                 caption from the legs actually present instead of hardcoding
-                "Front · Back · Overall" above a lone "Back 9" row. */}
-            {result.teamLegs && result.teamLegs.length > 0 && (
+                "Front · Back · Overall" above a lone "Back 9" row.
+                F-095 B (§5.bs): under a SLICED pot (Phase 3 step 4) this same board carries each
+                leg's dollars and who took them, plus a Junk row — one row per thing that pays,
+                like the classic pool's leg board, instead of a second board repeating the legs. */}
+            {result.teamLegs && result.teamLegs.length > 0 && (() => {
+              const slices = result.potSlices && result.potSlices.length > 1 ? result.potSlices : [];
+              const sliceOf = (key: string) => slices.find((s) => s.key === key);
+              const junkSlice = sliceOf('junk');
+              const potTotal = slices.reduce((s, x) => s + x.dollars, 0);
+              const sliceLine = (s: PotSliceLine) => {
+                const d = `$${Math.round(s.dollars)}`;
+                if (s.split) return `${d} — not started, split`;
+                if (s.winnerNames.length > 1) return `${d} → ${s.winnerNames.join(', ')} tied — split`;
+                return `${d} → ${s.winnerNames[0] ?? '—'}`;
+              };
+              const junkTop = (result.junkSides ?? []).reduce((m, x) => Math.max(m, x.points), 0);
+              const junkLeaders = (result.junkSides ?? []).filter((x) => x.points === junkTop && junkTop > 0);
+              return (
               <div className="bg-gray-800 rounded-xl overflow-hidden">
-                <div className="px-4 py-2 border-b border-gray-700">
+                <div className="px-4 py-2 border-b border-gray-700 flex items-baseline justify-between">
                   <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">
                     {result.teamLegs.length === 1
                       ? result.teamLegs[0].label
                       : result.teamLegs.map((l) => l.label.replace(/ (9|18)$/, '')).join(' · ')}
+                    {junkSlice ? ' · Junk' : ''}
                   </p>
+                  {slices.length > 0 && <p className="text-[10px] text-gray-500">${Math.round(potTotal)} pot</p>}
                 </div>
                 <div className="divide-y divide-gray-700/30">
-                  {result.teamLegs.map((leg) => (
+                  {result.teamLegs.map((leg) => {
+                    const slice = sliceOf(leg.key);
+                    return (
                     <div key={leg.key} className="px-4 py-2.5 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-200">{leg.label}</p>
@@ -1122,23 +1147,45 @@ function IndividualLeaderboard({ id }: { id: string }) {
                         {leg.thru > 0 && (
                           <p className="text-[10px] text-gray-500">{leg.thru} of {segmentHoles(leg.key, holesInPlay)} holes</p>
                         )}
+                        {slice && <p className="text-[10px] text-gray-500">${Math.round(slice.dollars)} pot</p>}
                         {/* A voided leg (F-016b) still shows its margin, so say WHY it paid
                             nothing — otherwise the board contradicts the money beside it. */}
                         {leg.voided && (
                           <p className="text-[10px] text-amber-500">pays nothing — unfinished</p>
                         )}
                       </div>
-                      <span className={`text-sm font-medium ${
-                        leg.voided ? 'text-gray-500 line-through'
-                          : leg.winner ? sideTone(leg.winner, sideOrder) : 'text-gray-400'
-                      }`}>
-                        {leg.status}
-                      </span>
+                      <div className="text-right">
+                        <span className={`text-sm font-medium ${
+                          leg.voided ? 'text-gray-500 line-through'
+                            : leg.winner ? sideTone(leg.winner, sideOrder) : 'text-gray-400'
+                        }`}>
+                          {leg.status}
+                        </span>
+                        {slice && <p className="text-[10px] text-gray-400">{sliceLine(slice)}</p>}
+                      </div>
                     </div>
-                  ))}
+                    );
+                  })}
+                  {junkSlice && (
+                    <div className="px-4 py-2.5 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-200">Junk</p>
+                        <p className="text-[10px] text-gray-500">${Math.round(junkSlice.dollars)} pot</p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-sm font-medium ${junkLeaders.length === 1 ? sideTone(junkLeaders[0].id, sideOrder) : 'text-gray-400'}`}>
+                          {junkLeaders.length === 0 ? 'No points yet'
+                            : junkLeaders.length === 1 ? `${junkLeaders[0].name} · ${junkTop} pts`
+                              : `${junkLeaders.map((x) => x.name).join(', ')} tied · ${junkTop} pts`}
+                        </span>
+                        <p className="text-[10px] text-gray-400">{sliceLine(junkSlice)}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {/* Per-player scorecard (reuses the same grid + strokes box as the team view).
                 F-028: in a game PLAYED in points (Stableford/quota/Nines/Wolf) the grid shows
@@ -1464,11 +1511,44 @@ function countAtScore(teamScores: Record<string, number | null>, score: number |
 // `bySide` = a 2v2 game, where junk settles SIDE vs SIDE (settleJunkForSides nets
 // each side's total and moves only the difference), not earner-vs-group. The
 // footer said the latter for both, telling 2v2 players the wrong rule.
-function JunkBonusBoard({ lines, bySide = false }: { lines: JunkLine[]; bySide?: boolean }) {
+// Phase 3 (§5.bq): junk is counted in POINTS everywhere. Under `junkPayout: 'per-point'` the board
+// also shows what the points earned; under a junk POT there is no per-point price, so the board
+// shows points and names the pot — the money column already carries who won it.
+function JunkBonusBoard({ lines, bySide = false, settings, sides, junkSlice }: {
+  lines: JunkLine[]; bySide?: boolean; settings: SettingsBag;
+  sides?: { id: string; name: string; points: number; groupHugs: number }[];
+  // Phase 3 step 4: under a buy-in pot the junk pot is a SLICE of it — its dollars come from the
+  // engine, not from the (hidden) `junkPot` setting.
+  junkSlice?: PotSliceLine;
+}) {
+  const payout = junkPayout(JUNK_SETTINGS, settings);
+  const pot = junkSlice ? Math.round(junkSlice.dollars) : numberSetting(JUNK_SETTINGS, settings, 'junkPot');
   const rows = [...lines]
-    .filter((l) => l.birdies || l.eagles || l.albatrosses)
-    .sort((a, b) => b.dollars - a.dollars);
-  if (rows.length === 0) return null;
+    .filter((l) => l.birdies || l.eagles || l.albatrosses || l.ctps || l.custom)
+    .sort((a, b) => b.points - a.points);
+  // Phase 3 step 2: closest-to-pin and hand-tracked bonus columns only when someone has one, and a
+  // team's all-par holes as a line below (no single player earns those).
+  const showCtp = rows.some((l) => l.ctps > 0);
+  const showCustom = rows.some((l) => l.custom > 0);
+  const hugSides = (sides ?? []).filter((s) => s.groupHugs > 0);
+  if (rows.length === 0 && hugSides.length === 0) return null;
+  // F-092 A (§5.bs): say WHO took the junk pot. Teams' points when junk settles by side, else each
+  // player's; a tie names everyone tied and says it split; all-zero = nobody has a point yet.
+  const contenders: { name: string; points: number }[] = bySide && sides
+    ? sides.map((s) => ({ name: s.name, points: s.points }))
+    : lines.map((l) => ({ name: l.playerName.split(' ')[0], points: l.points }));
+  const top = Math.max(0, ...contenders.map((c) => c.points));
+  const winners = top > 0 ? contenders.filter((c) => c.points === top) : [];
+  const potGoesTo = winners.length === 0
+    ? 'no points yet'
+    : winners.length === 1
+      ? `→ ${winners[0].name} (${top} pts)`
+      : `→ ${winners.map((w) => w.name).join(' & ')} tied at ${top} pts — split`;
+  const footer = payout === 'pot'
+    ? `Junk pot $${pot}${junkSlice ? ' (a slice of the buy-in)' : ''} ${potGoesTo}. Most points takes it, ties split. Already included in the money column.`
+    : bySide
+      ? 'Already included in the money column — the teams are netted, so only the difference changes hands.'
+      : 'Already included in the money column — each earner collects from the rest of the group.';
   return (
     <div className="bg-gray-800 rounded-xl overflow-hidden">
       <div className="px-4 py-2 border-b border-gray-700">
@@ -1482,7 +1562,10 @@ function JunkBonusBoard({ lines, bySide = false }: { lines: JunkLine[]; bySide?:
               <th className="text-center px-2 py-1.5 font-medium">Bird</th>
               <th className="text-center px-2 py-1.5 font-medium">Eagle</th>
               <th className="text-center px-2 py-1.5 font-medium">Alb</th>
-              <th className="text-center px-3 py-1.5 font-bold text-gray-400">Earned</th>
+              {showCtp && <th className="text-center px-2 py-1.5 font-medium">CTP</th>}
+              {showCustom && <th className="text-center px-2 py-1.5 font-medium">Bonus</th>}
+              <th className="text-center px-2 py-1.5 font-bold text-gray-400">Pts</th>
+              {payout === 'per-point' && <th className="text-center px-3 py-1.5 font-bold text-gray-400">Earned</th>}
             </tr>
           </thead>
           <tbody>
@@ -1492,17 +1575,21 @@ function JunkBonusBoard({ lines, bySide = false }: { lines: JunkLine[]; bySide?:
                 <td className="text-center px-2 py-1.5 text-gray-300">{l.birdies || '-'}</td>
                 <td className="text-center px-2 py-1.5 text-gray-300">{l.eagles || '-'}</td>
                 <td className="text-center px-2 py-1.5 text-gray-300">{l.albatrosses || '-'}</td>
-                <td className="text-center px-3 py-1.5 font-bold text-green-300">${l.dollars}</td>
+                {showCtp && <td className="text-center px-2 py-1.5 text-gray-300">{l.ctps || '-'}</td>}
+                {showCustom && <td className="text-center px-2 py-1.5 text-gray-300">{l.custom || '-'}</td>}
+                <td className="text-center px-2 py-1.5 font-bold text-gray-200">{l.points}</td>
+                {payout === 'per-point' && <td className="text-center px-3 py-1.5 font-bold text-green-300">${l.dollars}</td>}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="px-3 py-1.5 text-[10px] text-gray-500 border-t border-gray-700">
-        {bySide
-          ? 'Already included in the money column — the two sides are netted, so only the difference changes hands.'
-          : 'Already included in the money column — each earner collects from the rest of the group.'}
-      </p>
+      {hugSides.length > 0 && (
+        <p className="px-3 py-1.5 text-xs text-gray-300 border-t border-gray-700">
+          All par: {hugSides.map((s) => `${s.name} ${s.groupHugs} ${s.groupHugs === 1 ? 'hole' : 'holes'}`).join(' · ')}
+        </p>
+      )}
+      <p className="px-3 py-1.5 text-[10px] text-gray-500 border-t border-gray-700">{footer}</p>
     </div>
   );
 }

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { type Player } from '@/lib/game-state';
 import { type PoolGame, type PoolJunkValues, type PoolMoneyMode, getPar3Holes, defaultSubTeams, DEFAULT_MATCH_CONFIG, DEFAULT_MATCH_POINTS, DEFAULT_JUNK_VALUES, poolSplitDollarsForTeams, dollarsToPotSplit } from '@/lib/pool-game';
+import { gameCountsCtp } from '@/lib/game-modes/result';
+import { MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
 import { formatOfGame, isOneBall, persistedTeamScoring, TEAM_FORMAT_OPTIONS, type ScoreBasis, type TeamFormat } from '@/lib/game-modes/team-scoring';
 import { LEGACY_SIDE_NAME_KEYS, fromLegacySubTeams, nextSideId, persistedSides, sideMembers, sideOfPlayer, sidesOfGame, type GameSide } from '@/lib/game-modes/sides';
 import { fetchGameScores } from '@/lib/tournament-state';
@@ -119,7 +121,7 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
     // screen is the drift this project's audit exists to catch. Wording matches the pool's.
     const lockModeNote = (settingKey: string): string | null =>
       lockModeOption(settingKey, 'scramble')
-        ? 'Scramble and alternate shot enter ONE score for the side. This game already has '
+        ? 'Scramble and alternate shot enter ONE score for the team. This game already has '
           + 'scores entered per player, so switching now would leave two different numbers on '
           + 'a hole that can only have one. Start a new game to play a scramble.'
         : null;
@@ -165,6 +167,8 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
         playerIds: side.id === sideId
           ? [...side.playerIds.filter((x) => x !== pid), pid]
           : side.playerIds.filter((x) => x !== pid),
+        // A captain who leaves takes the role with them; the side is simply uncaptained after.
+        ...(side.captainId === pid && side.id !== sideId ? { captainId: undefined } : {}),
       })));
     };
     const addSide = () => saveSides([...sides, { id: nextSideId(sides), playerIds: [] }]);
@@ -256,14 +260,15 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
               onChangeAction={setModeSetting}
               lockOptionAction={lockModeOption}
               lockNoteAction={lockModeNote}
-              /* No hideKeys any more: side names left the settings schema (F-014), so there is
-                 nothing here to hide. That's the point — the old arrangement needed every
-                 consumer to remember, and one of three didn't. */
+              /* Side names left the settings schema (F-014), so they need no hiding here. The one
+                 thing hidden is structural, not a name: a 3+-team payout choice on a game with
+                 fewer teams (Phase 3 step 3) — the same rule the wizard and the money panel apply. */
+              hideKeys={sidesOfGame(game).length < 3 ? Array.from(MULTI_TEAM_ONLY_KEYS) : []}
             />
           </div>
           {isWithinGroup && (
             <div className="pt-2 border-t">
-              <p className="text-sm font-semibold text-gray-800 mb-2">Sides</p>
+              <p className="text-sm font-semibold text-gray-800 mb-2">Teams</p>
               <div className="divide-y divide-gray-100 rounded-md border border-gray-200">
                 {game.players.map((p) => {
                   const s = sideOfPlayer(sides, p.id)?.id ?? null;
@@ -297,7 +302,7 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
                   disabled={sides.length >= game.players.length}
                   className="text-xs font-medium text-green-700 hover:text-green-900 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  + Add a side
+                  + Add a team
                 </button>
                 {sides.length > 2 && (
                   <button
@@ -305,14 +310,14 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
                     onClick={() => removeSide(sides[sides.length - 1].id)}
                     className="text-xs font-medium text-gray-500 hover:text-gray-800"
                   >
-                    Remove side {sides[sides.length - 1].id.toUpperCase()}
+                    Remove team {sides[sides.length - 1].id.toUpperCase()}
                   </button>
                 )}
               </div>
               {game.players.some((p) => !sideOfPlayer(sides, p.id)) && (
                 <p className="text-xs text-amber-700 mt-1">
                   {game.players.filter((p) => !sideOfPlayer(sides, p.id)).map((p) => p.name.split(' ')[0]).join(', ')} not
-                  on a side — their scores won&apos;t count toward any side until you assign them.
+                  on a team — their scores won&apos;t count toward any team until you assign them.
                 </p>
               )}
               {/* Optional custom names, one field per side that exists (F-014). Same component
@@ -321,6 +326,10 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
               <SideNames sides={sides} players={game.players} onChangeAction={saveSides} idPrefix="hub-side-name" />
             </div>
           )}
+          {/* Phase 3 step 5: a team game across two or more foursomes can hide holes until every
+              group has finished them — the team leaderboard already honours the flag. One foursome
+              has nobody to hide from, so the toggle stays off-screen there. */}
+          {game.teams.length > 1 && <HideHolesToggle game={game} onSave={onSave} />}
         </div>
       </section>
     );
@@ -544,22 +553,31 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
           </div>
         </div>
 
-        <div className="border-t pt-3">
-          <label className="flex items-start gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-              checked={!!game.hideHolesUntilAllFinish}
-              onChange={(e) => onSave({ ...game, hideHolesUntilAllFinish: e.target.checked })}
-            />
-            <span>
-              <span className="block text-sm font-medium text-gray-800">Hide holes until all groups finish</span>
-              <span className="block text-xs text-gray-500">The leaderboard reveals a hole only after every foursome has completed it — so a later group can&apos;t see the standings before they play. Scorecards are unaffected.</span>
-            </span>
-          </label>
-        </div>
+        <HideHolesToggle game={game} onSave={onSave} />
       </div>
     </section>
+  );
+}
+
+// Anti-sandbagging: reveal a hole on the shared leaderboard only once every foursome has played it.
+// One control for both containers (the classic pool always had it; the team engine's leaderboard
+// applies the same `filterConcealedScores`, Phase 3 step 5).
+function HideHolesToggle({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
+  return (
+    <div className="border-t pt-3">
+      <label className="flex items-start gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+          checked={!!game.hideHolesUntilAllFinish}
+          onChange={(e) => onSave({ ...game, hideHolesUntilAllFinish: e.target.checked })}
+        />
+        <span>
+          <span className="block text-sm font-medium text-gray-800">Hide holes until all groups finish</span>
+          <span className="block text-xs text-gray-500">The leaderboard reveals a hole only after every foursome has completed it — so a later group can&apos;t see the standings before they play. Scorecards are unaffected.</span>
+        </span>
+      </label>
+    </div>
   );
 }
 
@@ -600,9 +618,9 @@ export function PotSplitEditor({ game, onSave }: { game: PoolGame; onSave: (g: P
 export function CtpEditor({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
   const par3Holes = getPar3Holes(game.course);
   if (par3Holes.length === 0) return null;
-  // F-045: CTP surfaces only when it's part of this game's bonuses. Absent
-  // junkValues = pre-setting game that played the classic defaults (CTP on).
-  if ((game.junkValues ?? DEFAULT_JUNK_VALUES).ctp === 0) return null;
+  // F-045 / F-090 / Phase 3: CTP surfaces only when THIS game's engine pays it — the classic
+  // pool's junkValues.ctp, or a mode game's junkCtp. One predicate, shared with the scorer.
+  if (!gameCountsCtp(game)) return null;
 
   function setWinner(hole: number, playerId: string | null) {
     const updated: PoolGame = {

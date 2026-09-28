@@ -10,7 +10,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { BASE, PHONE } from './helpers';
+import { BASE, PHONE, chooseStructure, buildTeams } from './helpers';
 
 test.beforeEach(async ({ context, page }) => {
   await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
@@ -101,16 +101,18 @@ test.describe('the ORDINARY 2v2 — two guys against two guys, best ball, usual 
       await page.getByPlaceholder('e.g. Saturday Pool').fill('Saturday 2v2');
     });
 
-    // Pick the side game. This is the mode that was renamed from "2 vs 2 (within
-    // group)" to "Sides (within group)" to "Sides / Match" (F-019 + 1v1). Select by VALUE so a
-    // future rename can't break this, and because F-020 appends a fit badge to the labels.
-    const gamePicker = page.locator('select').first();
-    console.log(`\nGAME PICKER OPTIONS: ${(await gamePicker.locator('option').allInnerTexts()).join(' | ')}\n`);
-    await tap('choose the side game', async () => {
-      await gamePicker.selectOption('team-2v2');
+    // §5.bk: the STRUCTURE step. Four players' usual is two pairs — the 2v2 — pre-selected.
+    // Select by VALUE so a relabel can't break this.
+    const structures = await page.locator('input[name="structure"]').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
+    console.log(`\nSTRUCTURE OPTIONS: ${structures.join(' | ')}\n`);
+    await tap('choose two pairs', async () => {
+      await chooseStructure(page, 'teams:2+2');
+    });
+    await tap('Next: Scoring', async () => {
+      await page.getByRole('button', { name: 'Next: Scoring' }).click();
     });
 
-    // --- Step 2: Game, AFTER picking the side game ------------------------------
+    // --- Step 3: Scoring for the side game ---------------------------------------
     // This is the F-014 measurement: how many controls does an ordinary 2v2 show?
     const details = await countScreen(page, '04-game-side-game');
 
@@ -137,31 +139,28 @@ test.describe('the ORDINARY 2v2 — two guys against two guys, best ball, usual 
 
     // --- Step 4: Tees ----------------------------------------------------------
     await countScreen(page, '07-tees');
-    // §5.al: in a SIDE game this button says "Sides", matching the step it leads to.
-    await tap('Next: Sides', async () => {
-      await page.getByRole('button', { name: 'Next: Sides' }).click();
+    // F-071 (§5.bm Q5: "team" everywhere): the 2v2 builds its teams on the SAME step the pool
+    // uses, so this button says "Teams" like every other split's.
+    await tap('Next: Teams', async () => {
+      await page.getByRole('button', { name: 'Next: Teams' }).click();
     });
 
-    // --- Step 5: Sides ---------------------------------------------------------
-    // The step the N-sides work changed: it gained "+ Add a side", and F-014 moved the name
-    // fields here behind a closed disclosure.
-    const sides = await countScreen(page, '08-sides');
-    const sidesHeading = await page.getByRole('heading', { level: 2 }).innerText();
-    console.log(`\nSIDES STEP heading says: ${sidesHeading}\n`);
-    expect(sidesHeading).toMatch(/Sides/);
-
-    // Names are available but CLOSED, so an ordinary 2v2 never sees a name field. That's the
-    // "minimum exposed complexity" half of the north star: the capability costs nothing until
-    // it's asked for.
-    await expect(page.getByRole('button', { name: /Name the sides/ })).toBeVisible();
-    await expect(page.getByLabel('Side A')).toHaveCount(0);
-    await page.getByRole('button', { name: /Name the sides/ }).click();
-    // Opened: exactly two fields for a two-side game, not six.
-    await expect(page.getByLabel('Side A')).toBeVisible();
-    await expect(page.getByLabel('Side B')).toBeVisible();
-    await expect(page.getByLabel('Side C')).toHaveCount(0);
-    await countScreen(page, '08b-sides-names-open');
-    await page.getByRole('button', { name: /Name the sides/ }).click();   // close again
+    // --- Step 5: Teams ---------------------------------------------------------
+    // Was the N-sides "Sides" editor (letter buttons, "+ Add a side", names behind a disclosure).
+    // F-071 retired it: the pool's method list builds the pairs, and each team card carries its
+    // own name box — exactly two for a two-team game, not six (F-014's claim, kept).
+    const sides = await countScreen(page, '08-teams');
+    const teamsHeading = await page.getByRole('heading', { level: 2 }).innerText();
+    console.log(`\nTEAMS STEP heading says: ${teamsHeading}\n`);
+    expect(teamsHeading).toMatch(/Set Teams/);
+    expect(await page.locator('body').innerText()).not.toContain('How do the sides split?');
+    await buildTeams(page, 'even');
+    await expect(page.getByLabel('Team 1 name')).toBeVisible();
+    await expect(page.getByLabel('Team 2 name')).toBeVisible();
+    await expect(page.getByLabel('Team 3 name')).toHaveCount(0);
+    // The boxes are EMPTY: the board names a team after its players unless someone types.
+    await expect(page.getByLabel('Team 1 name')).toHaveValue('');
+    await countScreen(page, '08b-teams-built');
 
     await tap('Next: Review & Create', async () => {
       await page.getByRole('button', { name: /Next: Review/ }).click();

@@ -49,13 +49,13 @@ export function SideNames({
         onClick={() => setOpen((o) => !o)}
         className="text-sm font-medium text-green-700 hover:text-green-900"
       >
-        {open ? '▾' : '▸'} Name the sides
+        {open ? '▾' : '▸'} Name the teams
         {!open && anyNamed && <span className="ml-1 text-xs text-gray-500">(set)</span>}
       </button>
       {open && (
         <div className="mt-2 space-y-2">
           <p className="text-xs text-gray-500">
-            Optional. Leave blank and a side is named after its players.
+            Optional. Leave blank and a team is named after its players.
           </p>
           {sides.map((side) => {
             const fieldId = `${idPrefix}-${side.id}`;
@@ -67,7 +67,7 @@ export function SideNames({
             return (
               <div key={side.id} className="flex items-center gap-2">
                 <label htmlFor={fieldId} className="w-14 shrink-0 text-sm font-medium text-gray-700">
-                  Side {side.id.toUpperCase()}
+                  Team {side.id.toUpperCase()}
                 </label>
                 <input
                   id={fieldId}

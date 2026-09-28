@@ -9,6 +9,8 @@ import { fromLegacySubTeams, sideOfPlayer, sidesOfGame } from '@/lib/game-modes/
 import { getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorName } from '@/lib/pool-identity';
 import { getGameMode } from '@/lib/game-modes';
+import { gameKindLabel } from '@/lib/game-structure';
+import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 import { FeedbackButton } from '@/components/feedback-box';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
 import { upsertRosterPlayer } from '@/lib/roster';
@@ -274,28 +276,28 @@ export default function PoolHubPage() {
 
   const pot = game.players.length * game.entryPerPlayer;
 
-  // A single-group game (2v2 / skins / Wolf / …) is ONE foursome named "Group",
-  // so the classic "Pool Money Game · N foursomes" subtitle read
-  // "Pool Money Game · 1 foursomes" — mislabeled AND unpluralized. Name the game
-  // mode instead, and pluralize the foursome count for the real pool. ("Pool"
-  // here is the FORMAT name, like Skins or Wolf — §5.az.)
+  // One game-kind label for every surface (F-061, Phase 2): "2 teams of 4 · pot",
+  // "4 pairs · $/point · 2 groups", "Skins · 4 players" — the list card, this header and the
+  // leaderboard header all print `gameKindLabel`, so the same game never reads two ways.
   const hubMode = getGameMode(game.gameMode);
   const isSingleGroupHub = hubMode
     ? hubMode.category === 'individual' || hubMode.category === 'team-within-group'
     : false;
-  const teamCount = game.teams.length;
-  const hubSubtitle = isSingleGroupHub
-    ? `${hubMode!.name} · ${game.players.length} player${game.players.length === 1 ? '' : 's'}`
-      // F-019: a side game can now tee off in several groups, and how many tee times there are is
-      // the first thing an organizer wants confirmed. Only added when there's more than one, so
-      // the ordinary 2v2 subtitle is untouched.
-      + (teamCount > 1 ? ` · ${teamCount} groups` : '')
-    : `Pool · ${teamCount} foursome${teamCount === 1 ? '' : 's'}`;
+  const hubSubtitle = gameKindLabel(game);
+  // F-081: a team game whose teams share foursomes shows WHO IS PAIRED, with each team's tee
+  // group beside it — the one thing the organizer opens the hub to confirm. The classic pool's
+  // teams are its foursome cards below, so this list is for the shared-foursome game only.
+  const hubTeams = hubMode?.category === 'team-within-group' ? sidesOfGame(game) : [];
+  const hubTeamsSolo = allSidesAreSolo(hubTeams);
+  const groupNameOf = (playerId: string) => game.teams.find((t) => t.playerIds.includes(playerId))?.name;
 
   return (
     <div className="min-h-full bg-gray-50">
       <header className="bg-green-800 text-white shadow">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+        {/* F-089 A: on a phone the five actions share the row with the title and squeeze a
+            three-word name to one word per line. Below `sm` the actions drop to their own row
+            under the title; from `sm` up the layout is unchanged. */}
+        <div className="max-w-3xl mx-auto px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl font-bold">{game.name}</h1>
             <p className="text-xs text-green-200">{hubSubtitle}</p>
@@ -316,7 +318,7 @@ export default function PoolHubPage() {
               What they must not do is CHANGE it for everyone else: Edit rebuilds
               teams, Close out ends the round for all four foursomes, GHIN refresh
               needs a token they don't have. Those are hidden. */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
             {/* Feedback is for EVERYONE in the game — the share-link friend
                 using the app mid-round is exactly who we want to hear from. */}
             <FeedbackButton gameId={game.id} />
@@ -399,6 +401,47 @@ export default function PoolHubPage() {
         {/* Money summary — becomes an editor while in edit mode */}
         {editing ? <GameSettingsEditor game={game} onSave={persist} /> : <MoneySummary game={game} pot={pot} />}
 
+        {hubTeams.length > 0 && !editing && (
+          <section>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">Teams</h2>
+            <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
+              {hubTeams.map((side) => {
+                const members = side.playerIds.map((id) => game.players.find((p) => p.id === id)).filter((p): p is Player => !!p);
+                const label = sideNameFrom(game.players, side.playerIds, side.id, side.name, hubTeamsSolo);
+                // One tee group means every tag would read the same — say nothing (F-081).
+                const groups = game.teams.length > 1
+                  ? [...new Set(members.map((p) => groupNameOf(p.id)).filter((g): g is string => !!g))]
+                  : [];
+                return (
+                  <div key={side.id} className="px-4 py-2 flex items-center justify-between gap-3 text-sm">
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 truncate">{label}</p>
+                      {/* Members line when the team has a custom name (the label doesn't say who) or a
+                          captain (Phase 3 step 5 — the role is worth a "C", as on the foursome cards). */}
+                      {(side.name || side.captainId) && members.length > 0 && (
+                        <p className="text-xs text-gray-500 truncate">
+                          {members.map((p, i) => (
+                            <span key={p.id}>
+                              {i > 0 && ', '}
+                              {p.name}
+                              {side.captainId === p.id && (
+                                <span className="ml-1 inline-block rounded-full bg-green-700 text-white text-[9px] font-bold px-1 leading-4 align-middle" title="Captain">C</span>
+                              )}
+                            </span>
+                          ))}
+                        </p>
+                      )}
+                    </div>
+                    {groups.length > 0 && (
+                      <span className="shrink-0 text-xs text-gray-500">{groups.join(' · ')}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {/* Foursome cards — a single-group game has just the one "Group" card, so
             "Foursomes" over it reads wrong. */}
         <section>
@@ -445,7 +488,9 @@ export default function PoolHubPage() {
             {/* Wolf rotation editor — only for Wolf games. */}
             {game.gameMode === 'wolf' && <WolfRotationEditor game={game} onSave={persist} />}
 
-            {/* CTP editor / finalize surface */}
+            {/* CTP editor / finalize surface. F-090 gated this to the classic pool; Phase 3 step 2
+                made CTP junk on every engine, so the editor now decides for itself via
+                gameCountsCtp — a legacy team game with junkCtp 0 still shows nothing. */}
             <CtpEditor game={game} onSave={persist} />
 
             {/* Close out / reopen — the explicit lifecycle control. */}

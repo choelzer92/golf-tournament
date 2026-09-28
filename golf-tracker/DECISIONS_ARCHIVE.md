@@ -1604,6 +1604,116 @@ when a conflict forces a choice, correctness work (course data) outranks design 
 
 ---
 
+## 5.bk Game structure: one question, collapsed containers (2026-09-15)
+
+Craig answered the four GAME_STRUCTURE_DESIGN.md questions (asked one by one, his
+request):
+
+1. Step 2 asks **"How do you want to compete?"** right after the field.
+2. Fresh games get a **fit-based pre-selection** (8+ → foursome-vs-foursome shape,
+   4–7 → two teams, 2–3 → solo); every fitting option stays listed; a saved
+   format/group default skips the step as a confirmation.
+3. **Pool vs sides COLLAPSE into one structure.** The deciding exchange: shown the
+   real differences (teams=foursomes + pot vs independent teams + head-to-head
+   margins), Craig: *"I really don't understand the difference. what is different
+   about pool 4 v 4 v 4 v 4 for example, vs sides 4 v 4 v 4 v 4?"* — the owner not
+   being able to tell them apart IS the finding. Structure says "N teams of K"; the
+   money model (pot vs head-to-head) and the tee-sheet question (teams aligned with
+   foursomes or not) route to the right machinery invisibly.
+4. **Deep planning before code.** Craig: *"I think we need to collapse, but at the
+   same time, it is a risk. We need to deeply plan how this works, and make sure
+   there arent any other issues that come out of it."* No interim two-option step
+   (§5.at — don't teach vocabulary that will change).
+
+**How to apply.** The next structure session is a PLANNING session, document-first:
+inventory every container branch site (UI_MODE_AUDIT probes), map PoolGame classic vs
+sides data models field by field, define routing rules from (money model × team/foursome
+alignment) → machinery, list risks (live scoring partitioning §5l, both money engines
+§5.ad/§5.ae, leaderboard axes), and produce screen mocks. Money engines do not change;
+they get ROUTED TO. F-061's canonical naming comes from this design's step-2 vocabulary
+— don't unify labels before it.
+
+---
+
+## 5.bl Best possible, not merely easiest (2026-09-15)
+
+Craig, while settling the structure collapse: *"we need to make sure we make sure the
+live scoring and other portions of the app are performing or set up in the best
+possible way, not just the easiest way."*
+
+**What this settles.** A standing quality bar, named live scoring first. When a design
+or plan touches a subsystem, "it already works" is not a pass — the plan must state
+whether the current shape is the BEST one (latency, resilience, offline behavior,
+correctness under concurrent scorers) or just the one that was easiest to build, and
+propose the better shape where they differ.
+
+Craig, same conversation, sharpening the live-scoring half: *"currently, pool live
+scoring works pretty well. we tried something else with merge rpc, but we should be
+diligent and understand what the real best case is for multiple scorers for multiple
+foursomes tracking scores."*
+
+**How to apply.**
+- The §5.bk collapse plan must EVALUATE the live-scoring architecture (§5l matchup
+  partitioning, the 15s poll + self-healing subscribe, close-out flow) as part of the
+  seam inventory — routing to existing machinery is the floor, not the goal.
+- The live-scoring evaluation is a genuine RESEARCH question, not a defense of the
+  incumbent: history is merge-RPC (tournament path, caused real trouble) → matchup
+  partitioning (pool, works well). The plan should compare the design space for
+  multiple scorers × multiple foursomes — per-matchup row (today: what happens when
+  TWO scorers share one foursome?), per-hole/per-cell rows, server-merge RPC,
+  last-write-wins vs merge semantics — against concurrent edits, refresh latency,
+  offline/cart-path wifi, and recovery, and name the real best case with evidence.
+- The live-scoring experience pass (§6 item 3, never had its session) inherits this
+  bar explicitly: measure (taps, refresh latency, offline behavior on cart-path wifi)
+  before and after.
+- This is not license to rewrite working money math unprompted — §2's stop-and-ask
+  lines still govern; the bar changes what PLANS must argue, not what gets changed
+  without Craig.
+
+---
+
+## 5.bm The collapse plan walked: capability routing, partners together, "team" everywhere (2026-09-16)
+
+Craig walked `.claude/plans/game-structure-collapse-plan.md` §8, one question at a time.
+
+1. **Overlap row → route by CAPABILITY, not preference.** Asked whether the aligned
+   2-team fixed-legs game should go to the classic pool or the sides engine, Craig
+   rejected the premise: *"I wonder that both of these are supposed to be configurable.
+   what if they dont use nassau? what if they have different bonuses? can this extend to
+   4 foursomes? … I thought the point was to make this collapsible?"* The user never
+   sees a container. The router picks whichever engine can express EVERYTHING the user
+   configured: only classic can (junk/CTP/manual bonuses, captains, hideHoles) → classic;
+   only sides can (N>2 head-to-head, $/hole, $/point) → sides; both can → classic;
+   neither can → the money step greys the option and says why, and Phase 3 closes the
+   gap. Named gap: 4 foursomes + fixed legs + bonuses is not expressible until Phase 3.
+2. **Tee sheet: partners walk together, no question.** When teams are smaller than a
+   foursome the tee sheet auto-builds with whole teams in one group; the existing groups
+   step still lets anyone drag players to mix. Craig's framing to preserve: *"typically
+   one player is entering scores per playing group … we dont need multiple people
+   entering scores for the same tee group."* One scorer per tee group stays the rule and
+   nothing in the collapse changes it.
+3. **Uneven teams live on the structure step under "Other split…"** (they change N).
+   Craig: *"lets make uneven teams work for now, and in the future we can figure out
+   other game recommendations for people with uneven teams"* — a fairness adjustment
+   (strokes/allowance for uneven sides) is an Idea, probably unnecessary.
+4. **Live scoring (F-063): option A now, C scheduled.** Craig asked *"doesnt pool
+   scoring work?"* — verified in code (§5.y): it works in the normal case; the debounced
+   write is cleared on unmount with no flush (`game/play/page.tsx` ~l.232), the upsert is
+   whole-row last-write-wins, no offline queue. Approved: pagehide flush + own-group
+   subscribe with client cell-merge, as its own small commit after slice 1. Per-cell rows
+   (opt C) get their own session, sandbox fake first. Bar: *"keeping the standard of live
+   scoring actually working with minimal bugs."*
+5. **Vocabulary: "team" everywhere.** "Side" retires; §5.al's split was a symptom of two
+   containers. Tee groups stay "foursome"/"group". F-061 has one answer; Phase 2 threads
+   it.
+
+**How to apply.** `routeContainer(draft)` takes the configured capabilities (bonuses on?
+captains? hideHoles? N, money model) and returns the engine that can carry them all, or
+`unexpressible` with the reason string the money step shows. Slice 1 is approved: the
+pure `game-structure.ts` + table tests, then slices 2–5 per plan §7.
+
+---
+
 ## 5.ab Branch discipline while friends are using the live app (2026-08-13)
 
 Craig: *"I have friends using the app today, so I can keep working but i wont merge the branch
@@ -1617,6 +1727,33 @@ never sees `.env.local` credentials.
 
 ---
 
+## 5.bn Every team format on every split; the sides engine scores through the pool's engine (F-072, 2026-09-16)
+
+**Decision.** Craig, on the scoring step greying "Best net + best gross" for pairs: *"why would
+best net and best gross not be possible with twosomes? technically it would, right?"* Yes — a pair
+has two balls. So the sides engine (`team-game.ts`) no longer forms a side's hole score itself; it
+calls `teamValueOnHole` (team-scoring.ts), the SAME function the classic pool ranks and pays on,
+for every `TeamFormat` under both bases. "Two-ball formats" left the router's classic-only list.
+The only refusal left is golf, not code: a two-ball format on a team of ONE
+(`UNEXPRESSIBLE.needTeams('Two-ball formats')`) — reachable because a saved Warriors format
+applied to two players derives a 1 v 1.
+
+**Why it was approved in conversation and built without a worked-example round:** the arithmetic
+already existed and was already pinned for the pool (F-006); this moved it, not invented it. What
+§5.z demanded instead was proof: `src/test/f072-two-ball-sides.test.ts` — 164 independent-oracle
+cases whose expected numbers are hand arithmetic from raw gross + par, on a fixture where the
+three formats DISAGREE about the winner — was written first and failed 164/164 on the old engine
+(every cell a $0 dead heat, because everything scored as best ball). After the reroute the
+two-side, N-side and one-group goldens did not move; three one-line mutations (best-ball forced;
+two-best-gross sorting nets; net-and-gross allowing one player both halves) failed 164 / 27 / 27.
+
+**What it is NOT:** Phase 3 convergence. Closest-to-pin, hand-tracked bonuses, captains and
+front/back/overall pot splits are still classic-only and still grey with the router's reason;
+those are MONEY MATH and wait for Craig's worked examples. F-069's residue (a string that is not a
+`TeamFormat` at all still defaults to best ball, now in one place) is his call: refuse or default.
+
+---
+
 ## 6. Focus areas Craig has named
 
 Requested, in his stated order of interest:
@@ -1625,6 +1762,149 @@ Requested, in his stated order of interest:
 3. **Live scoring experience**
 4. **Offline / PWA resilience** — `sw.js` exists with no offline caching, which is
    a real gap for a "continuing"-focused product on cart-path wifi
+
+---
+
+## 5.bo Recommended options stand unless the question is asked outright (F-076 A / F-085 A / F-086 A, 2026-09-16)
+
+**What happened:** the small wizard batch built three findings on the option I had recommended
+(F-076 A — "+ Add bonuses" leaves CTP at 0; F-085 A — groups step lists a group's rows by team;
+F-086 A — no pairing-locks panel when no team is bigger than two) without Craig picking, and flagged
+them for his nod afterwards.
+
+**Craig:** *"ok, lets just go with the recommendations I guess, unless in the next session I would be
+explicitly asked the question."*
+
+**Decision:** the three options are SETTLED as built. Working rule going forward: when a finding's
+option is his to choose and the work is about to be built, ASK THE QUESTION EXPLICITLY at that point
+(AskUserQuestion / a direct line in the handoff), rather than building on the recommendation and
+asking for a nod after. A recommendation is a proposal, not a pick — "chosen: X" in FINDINGS comes
+from him. Small mechanical items with one defensible answer still don't need the check-in (§2).
+
+---
+
+## 5.bp Hub batch after Phase 2: F-088 A / F-089 A / F-090 A (2026-09-16)
+
+**Asked outright (§5.bo) at the start of the sixth 2026-09-16 session**, before any code. Craig
+picked the recommendation on all three:
+
+- **F-088 A** — the mode-settings panel on the hub is headed **"How it's played"** for every mode,
+  never the mode's `name` (which Phase 2 made "Teams", so a team game read "Teams" twice — the
+  panel, then the F-081 pairings list). Options B (format line as header) and C (rename the mode)
+  not taken; the `team-2v2` mode `name` "Teams" stays a placeholder.
+- **F-089 A** — on a phone the hub header's five actions (Feedback · Share · Save format · Edit ·
+  Dashboard) drop to their own row under the title. Nothing collapses into a menu, no label
+  shortens. Desktop layout unchanged.
+- **F-090 A** — `CtpEditor` renders only on the classic pool container. The team engine
+  (`team-game.ts`) never reads `ctpWinners`, so a legacy/seeded team game carrying `junkValues.ctp
+  > 0` was showing a control that changed nothing. **Phase 3** (CTP paying on every engine) lifts
+  the gate — it is a stopgap, not the shape.
+
+Each pinned in `e2e/f088-f090-hub.spec.ts`; the pins were run against the pre-fix code first and
+four of six failed (the two "still there" controls passed, as they should).
+
+---
+
+## 5.bq Phase 3 money rules: bonuses are junk; multi-team settlement is a chosen setting (2026-09-17)
+
+**Asked** (sixth session, after the hub batch) as five rule questions, because Phase 3 makes the
+combinations the router refuses today pay money, and nothing in code or seeds says what they should
+pay. Craig's answers, verbatim where it matters:
+
+1. **CTP and hand-tracked bonuses on a team game:** *"yes, exactly the same, if junk is included,
+   bonuses can count as junk points, and payment can vary based on the money settings."* → CTP and
+   the five hand-tracked bonuses add to the team's junk total exactly like a birdie; the game's
+   money settings then settle junk as they already do.
+2. **Pot legs with three or more teams:** *"this all depends on the pot split, if winner take all,
+   then winner takes the whole pot. if not, then either a split, or could be every team pays every
+   team they lost to. Should be a choosable setting."*
+3. **$/hole and $/point with three or more teams:** *"this also should be a setting that is chosen.
+   could be either."* (winner takes from everyone vs every team pays every team it lost to.)
+4. **A classic multi-foursome game on $/hole or $/point:** *"same answer … could be a winner take all
+   situation, or could be you pay based on which holes you lost to how many teams for example. It is
+   confusing in thought but not in practice in my opinion."*
+5. **Captains for pairs:** *"agreed … captains for pairs makes sense, but also the goal in my opinion
+   should be that each pair has a similar combined handicap (which this calculation would likely
+   feed into our flight model which should be a long term goal in the backlog)."*
+
+**Addendum (same day), junk payout:** *"For the warriors … you accumulate junk points per round, and
+then whichever foursome has the most junk points receives the junk pot. For another group I play
+with … each junk point is worth 5 dollars, where birdie is 1 point, eagle would be 2, etc."* → junk is
+counted in POINTS everywhere; how the points pay is its own choice — a junk POT (most points wins,
+ties split) or $ PER POINT (differential / round robin). Both already exist in classic, welded to
+the money mode; Phase 3 makes the choice explicit and available on every engine.
+
+**Confirmed outright 2026-09-17 (AskUserQuestion):** Q-A junk in points, paid as junk pot OR $/pt,
+default from the money model — yes. Q-B `multiTeamPayout` defaults to "pay each team you lost to" —
+yes. Q-C winner-takes-from-everyone with a tie at the top: the loser pays ONCE and the tied winners
+split it (A +5, B +5, C −10) — yes. Q-D pots keep "places paid" as their only split control — yes.
+Q-F winner-takes $/hole pays only the outright low team — *"yes, and this is similar to a skins
+situation, so I believe there should be an option to rollover for these types of games"* → the skins
+mode's "Carry ties to next hole" toggle (default on) applies to WTA $/hole.
+Q-E pot by legs on pairs = one buy-in per pair cut into slices (A +40, B −10, C −10, D −20) — yes.
+Q-G a carry unclaimed after the last hole is dead — yes. Spec: `.claude/plans/phase3-money-convergence.md`.
+
+**Decision:** for every money model on a game with 3+ teams there is ONE new setting — how the
+losers pay — with two values: **winner takes all** (the leg/hole/point winner collects from every
+other team; ties split) and **pay everyone you lost to** (round robin: each team settles against each
+other team). It has a sane default and is hidden (`showIf`) with two teams, where both values
+coincide. Bonuses are junk on every engine. Pair-building balances combined handicap; that balance
+routine is the seed of the flight model (BACKLOG, long term). Worked numeric examples are drafted by
+me from these rules and CONFIRMED by Craig before they become the Phase 3 goldens (§5.z).
+
+---
+
+## 5.br Phase 3 step 3: legs default to winner-take-all; a winner-take-all tie splits (2026-09-17)
+
+**What the goldens found (F-094):** under `legs` with three teams the engine paid A +20, B −10,
+C −10 — only the leader collects — while §5.ae/§5.aj SAY "you owe every side you lost to" (A +20,
+B 0, C −20). Today's `legs` was a hybrid: winner-take-all for distinct places, pay-each for ties.
+My Phase 3 spec had asserted the opposite without running it; the goldens-first rule (§5.z) caught it.
+
+**Asked with numbers, Craig answered:**
+- Default for `legs` with 3+ teams: **winner take all** (A +20, B −10, C −10). *"a user who sees
+  10$ per leg is going to be confused when they end up owing more than 10. so this could be
+  explained if the setting is changed, but default maybe its just winner take all."* `$ per point`
+  keeps its pay-each default (§5.ae, Q-B). `$ per hole` is the same under both modes (an outright
+  hole win already collects from every other team); its only new option is **carry ties** (Q-F).
+- Winner-take-all, A and B tie for first, C third, $10 leg: **C pays $10 total, split — A +5,
+  B +5, C −10**. *"in a winner take all situation, i think option 2 makes sense."* Under
+  pay-each C still pays both (−20), which is where §5.aj's per-opponent reasoning now lives.
+
+**Consequence, stated plainly:** a saved 3+-team legs game whose leg TIED at the top moves from
+C −20 to C −10 (the F-017 goldens are re-pinned with this § as the reason); a saved game with
+distinct places does not move. Two-team games never move. Carry-ties defaults OFF so no saved
+$/hole game moves (my assumption — Craig asked for the option, not a default).
+
+**Settings shape:** `legsPayout` (winner-takes | pay-each, default winner-takes, shown for legs),
+`pointsPayout` (pay-each | winner-takes, default pay-each, shown for $/point), `carryover` (toggle,
+shown for $/hole). All three only matter with 3+ teams (carry with 2 too) and are hidden by the UI
+when they can't change anything.
+
+
+### 5.bs — F-097 fix approved; recommendations on all six open picks (2026-09-18)
+
+**Context:** Phase 3 steps 4–6 built; the step-6 walk found F-097 (an aligned team game on margin
+money saves `sides: []` and the engine settles a default two-side split, not the teams shown) and
+two new P3 findings (F-095, F-096). Asked whether to fix F-097 and whether the branch is then ready.
+
+**Craig:** *"ok, should we go ahead and fix F-097? at that point the branch would be basically
+ready, right?"* — then, shown the six open option picks with a recommendation each:
+*"recommendations on all six"*.
+
+**Decisions:**
+- **F-097 fix = option C**: the wizard hands the router the tee groups as the sides whenever the
+  aligned flow built the teams (captains included), AND `sidesForCompute` backstops to the tee
+  groups when a game stores no sides and has two or more tee groups. A one-group 2v2 keeps its
+  default split. Golden first (§5.z).
+- **F-087 A** money question → its amounts → bonuses below. **F-093 A** junk-payout fields under the
+  bonus grid (with F-087). **F-091 A** hub "How it's played" single-column below phone width.
+  **F-092 A** junk-board footer names the pot winner(s). **F-095 B** one merged leg board: margin
+  and dollars per row, Junk as a fourth row, under a sliced pot. **F-096 A** the wizard's pot shares
+  as one inline row of small boxes (the classic pot-dollars layout).
+- **Readiness:** after F-097 and this batch the branch is code-complete for Phases 1–3. Craig's own
+  walk of the wizard remains wanted before merge (§5.y); the screenshots are the fallback. Merge
+  timing stays his (§5.ab).
 
 ---
 

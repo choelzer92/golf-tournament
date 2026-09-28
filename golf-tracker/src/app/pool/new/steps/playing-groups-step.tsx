@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import type { CourseSelection, Player } from '@/lib/game-state';
 import { type PoolTeam, getPoolPlayingHandicap, sortPlayerIdsByHcap, groupShapesFor, groupShapeLabel, dealBalancedIntoShape, TEE_GROUP_SHAPE_OPTS } from '@/lib/pool-game';
+import { packTeamsIntoShape } from '@/lib/game-structure';
 import { proposePlayingGroups } from './shared';
 
 export function PlayingGroupsStep({
   course, players, teams, setTeams, handicapAllowance, handicapBasis, nine, onNext, onBack,
+  partnerTeams, nextLabel = 'Next: Review & Create',
 }: {
   course: CourseSelection | null;
   players: Player[];
@@ -15,6 +17,10 @@ export function PlayingGroupsStep({
   handicapBasis: 'course' | 'index';
   nine: 'front9' | 'back9' | null;
   onNext: () => void; onBack: () => void;
+  /** F-071: the money teams already built. A shape button re-packs WHOLE teams (§5.bm Q2: partners
+   *  walk together) and only falls back to a balanced deal when no packing of that shape exists. */
+  partnerTeams?: string[][];
+  nextLabel?: string;
 }) {
   // The player being moved. Tap a player, then tap the group to move them to — the same
   // two-tap idiom the sides step already uses, so there's one gesture to learn.
@@ -37,7 +43,14 @@ export function PlayingGroupsStep({
     // proposePlayingGroups always returns the FIRST shape; re-deal for a different group count
     // using the same balanced dealer, so every shape on this screen is balanced the same way.
     const ids = sortPlayerIdsByHcap(players.map((p) => p.id), players, course, handicapAllowance, handicapBasis);
-    setTeams(dealBalancedIntoShape(ids, shape).map((playerIds, i) => ({
+    // Partners first (F-071): pack the built teams whole into this shape; a shape no packing fits
+    // (four pairs into 3 + 3 + 2) falls back to the balanced deal, and the tee-sheet facts the
+    // router reads will say so.
+    const packed = partnerTeams && partnerTeams.length > 0 ? packTeamsIntoShape(partnerTeams, shape) : null;
+    const groups = packed
+      ? packed.map((g) => sortPlayerIdsByHcap(g, players, course, handicapAllowance, handicapBasis))
+      : dealBalancedIntoShape(ids, shape);
+    setTeams(groups.map((playerIds, i) => ({
       id: rebuilt[i]?.id ?? crypto.randomUUID(),
       name: `Group ${i + 1}`,
       playerIds,
@@ -64,6 +77,19 @@ export function PlayingGroupsStep({
     setTeams(teams.map((t) => (t.id === teamId ? { ...t, teeTime } : t)));
   }
 
+  // F-085 (opt A): a group's rows are shown by TEAM — partners adjacent, in the group's handicap
+  // order within a team, a rule between teams — so the screen that promises "partners walk
+  // together" lets you check it at a glance. Display only; the stored order stays by handicap.
+  function clustersOf(ids: string[]): string[][] {
+    if (!partnerTeams || partnerTeams.length === 0) return [ids];
+    const byTeam = new Map<number, string[]>();
+    for (const id of ids) {
+      const k = partnerTeams.findIndex((t) => t.includes(id));
+      byTeam.set(k, [...(byTeam.get(k) ?? []), id]);
+    }
+    return [...byTeam.entries()].sort((a, b) => a[0] - b[0]).map(([, members]) => members);
+  }
+
   // Nobody may be left out: a player in no group has no scorecard to be on.
   const assigned = new Set(teams.flatMap((t) => t.playerIds));
   const unassigned = players.filter((p) => !assigned.has(p.id));
@@ -75,8 +101,14 @@ export function PlayingGroupsStep({
       <h2 className="text-lg font-semibold text-gray-900 mb-1">Who&apos;s playing together?</h2>
       <p className="text-sm text-gray-600 mb-4">
         {players.length} players can&apos;t walk as one group, so they tee off separately — each group
-        gets its own tee time and scorecard. <span className="text-gray-500">Your sides come next, and
-        a partner can be in the other group.</span>
+        gets its own tee time and scorecard.{' '}
+        {/* F-071: teams are built BEFORE this step now, so the independence reads the other way
+            round — partners are together by default, and mixing is the organizer's move. */}
+        <span className="text-gray-500">
+          {partnerTeams && partnerTeams.length > 0
+            ? 'Partners walk together to start — move anyone to mix the groups; a partner can be in the other group.'
+            : 'Your teams come next, and a partner can be in the other group.'}
+        </span>
       </p>
 
       {/* The shape choice. Only shown when there IS one — at 4 or 7 players exactly one shape
@@ -85,7 +117,9 @@ export function PlayingGroupsStep({
         <div className="bg-white rounded-lg shadow p-4 mb-4">
           <p className="text-sm font-medium text-gray-800 mb-1">How do they split?</p>
           <p className="text-xs text-gray-500 mb-3">
-            Balanced by handicap either way — you can still move anyone by hand below.
+            {partnerTeams && partnerTeams.length > 0
+              ? 'Partners stay together where the shape allows — you can still move anyone by hand below.'
+              : 'Balanced by handicap either way — you can still move anyone by hand below.'}
           </p>
           <div className="flex flex-wrap gap-2">
             {shapes.map((shape) => {
@@ -128,9 +162,9 @@ export function PlayingGroupsStep({
                 />
               </label>
             </div>
-            <ul className="divide-y divide-gray-100">
-              {team.playerIds.map((pid) => (
-                <li key={pid}>
+            <ul>
+              {clustersOf(team.playerIds).map((cluster, ci) => cluster.map((pid, pi) => (
+                <li key={pid} className={ci > 0 && pi === 0 ? 'border-t-2 border-dashed border-gray-200 mt-1 pt-1' : pi > 0 ? 'border-t border-gray-100' : ''}>
                   <button
                     type="button"
                     onClick={() => setMoving(moving === pid ? null : pid)}
@@ -144,7 +178,7 @@ export function PlayingGroupsStep({
                     </span>
                   </button>
                 </li>
-              ))}
+              )))}
               {team.playerIds.length === 0 && (
                 <li className="px-2 py-2 text-xs text-gray-400">Nobody in this group yet.</li>
               )}
@@ -177,7 +211,7 @@ export function PlayingGroupsStep({
         disabled={!canProceed}
         className="w-full mt-4 rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800 disabled:opacity-50"
       >
-        Next: Sides
+        {nextLabel}
       </button>
     </div>
   );

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { type PoolGame, DEFAULT_MATCH_CONFIG, isPoolGameFullyScored } from '@/lib/pool-game';
-import { incompleteLegsForCloseOut, persistedSides, type IncompleteLeg } from '@/lib/game-modes/sides';
+import { incompleteLegsForCloseOut, persistedSides, sidesOfGame, type IncompleteLeg } from '@/lib/game-modes/sides';
+import { MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
 import { type GameScore } from '@/lib/game-state';
 import { fetchGameScores } from '@/lib/tournament-state';
 import { getGameMode, buildGameModeContext, settingValue } from '@/lib/game-modes';
@@ -16,7 +17,10 @@ export function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
     // Honor each setting's showIf so only relevant options appear (e.g. "$ per
     // point" only in the per-point money model, alt-shot % only for alt-shot) —
     // same predicate the editor uses, so create and view stay consistent.
+    const fewTeams = sidesOfGame(game).length < 3;
     const rows = indMode.settings.filter((s) => {
+      // Phase 3 step 3: a 3+-team payout choice says nothing about a two-team game.
+      if (fewTeams && MULTI_TEAM_ONLY_KEYS.has(s.key)) return false;
       if (!s.showIf) return true;
       const conds = Array.isArray(s.showIf) ? s.showIf : [s.showIf];
       return conds.every((c) => c.in.includes(String(settingValue(indMode.settings, settings, c.key))));
@@ -40,14 +44,24 @@ export function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
       <section>
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="px-4 py-3 bg-gray-100 border-b flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">{indMode.name}</h2>
+            {/* F-088 A: the hub header already names the game and its kind, and the F-081 Teams
+                list sits right below — so this heading is NOT the mode name (which read "Teams"
+                twice in a row on a team game). One fixed label for every mode. */}
+            <h2 className="font-semibold text-gray-900">How it&apos;s played</h2>
             <span className="text-sm text-gray-600">{game.players.length} players · {game.handicapAllowance}% hcap</span>
           </div>
-          <p className="px-4 pt-2 text-xs text-gray-500">{indMode.description}</p>
-          <div className="px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-1">
+          {/* F-081: a team game's structure is already the hub header ("4 pairs · $/point · 2 groups")
+              and its pairings are the Teams list below, so the mode's developer prose goes; a solo
+              mode's rules are still worth a line. */}
+          {indMode.category !== 'team-within-group' && (
+            <p className="px-4 pt-2 text-xs text-gray-500">{indMode.description}</p>
+          )}
+          {/* F-091 A (§5.bs): below `sm` one column, label OVER value — the two-column key/value grid
+              ran "Compare by" into "Match (hole by hole)" at 390px. From `sm` up, unchanged. */}
+          <div className="px-4 py-3 grid grid-cols-1 gap-y-2 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-1">
             {rows.map((r) => (
-              <div key={r.label} className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">{r.label}</span>
+              <div key={r.label} className="flex flex-col text-sm sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-xs text-gray-500 sm:text-sm">{r.label}</span>
                 <span className="font-medium text-gray-800">{r.display}</span>
               </div>
             ))}
@@ -262,7 +276,7 @@ export function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: Poo
         {isDone && (game.voidedLegs?.length ?? 0) > 0 && (
           <p className="text-xs text-amber-700 mt-1">
             {game.voidedLegs!.length === 1 ? 'One leg pays' : `${game.voidedLegs!.length} legs pay`} nothing —
-            not every side finished {game.voidedLegs!.length === 1 ? 'it' : 'them'}.
+            not every team finished {game.voidedLegs!.length === 1 ? 'it' : 'them'}.
           </p>
         )}
       </div>
@@ -282,8 +296,8 @@ export function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: Poo
         <div className="p-4 border-b bg-amber-50">
           <p className="text-sm font-semibold text-amber-900">
             {shortLegs.length === 1
-              ? 'One leg wasn’t finished by every side.'
-              : 'Some legs weren’t finished by every side.'}
+              ? 'One leg wasn’t finished by every team.'
+              : 'Some legs weren’t finished by every team.'}
           </p>
           <p className="text-xs text-amber-800 mt-1">
             Untick a leg to pay it on the holes everyone played. Leave it ticked and it pays nothing.
@@ -308,7 +322,7 @@ export function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: Poo
                       {leg.label} — ${Math.round(leg.dollars)} pays nothing
                     </span>
                     <span className="block text-xs text-gray-600">
-                      {leg.thru} of {leg.holes} holes played by every side
+                      {leg.thru} of {leg.holes} holes played by every team
                     </span>
                   </span>
                 </label>
@@ -358,4 +372,4 @@ export function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: Poo
     </section>
   );
 }
-
+
