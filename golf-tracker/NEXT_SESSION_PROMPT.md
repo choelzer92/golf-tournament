@@ -1,88 +1,91 @@
-# Next session: the collapse is LIVE on main — now (1) make the gate fast, (2) design the Event spine, (3) small items
+# Next session: build Event spine slice 1 (goldens first), then Craig's open picks
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
-**State (2026-09-27):** `ui-simplification-2026-09-15` MERGED to `main` (f163242, 50 commits, §5.bk–§5.bs)
-and pushed on Craig's word (§5.bt) after a green full gate (`.claude/verify-2026-09-18-rerun.log`: 2138 unit,
-217 e2e, 14.4 min, exit 0). The friends are on the new wizard now. **Start a NEW feature branch for this
-session's work** (§5.ab still stands: never merge/push unbidden). Read `AGENTS.md` first, then `DECISIONS.md`
-whole; grep the archive by § only when needed.
+**State (2026-09-28):** branch `gate-speed-2026-09-27` (NOT merged, NOT pushed; §5.ab: never merge or push
+unbidden). The branch carries:
+- the gate speed-up: 2 Playwright workers and `verify:quick` (§5.bu);
+- the Phase 2 residue (f3321da), F-070 (9e1e9ae) and F-062 A (9c70565);
+- F-098, plus handicaps in every engine (6509439, §5.bv);
+- **the team field cap removed** (41d3987): 32 players / 8 foursomes / 16 teams, zero-sum pinned in
+  `team-field-32.test.ts`;
+- F-099, the compact phone step bar.
 
-**Craig's order for this session (his words: "lets try to do steps 1 and 2, and then the smaller items"):**
+**FIRST: run the full gate once.** The 2026-09-28 run was killed for low system memory partway through e2e; tsc, build and 2179 unit tests had passed (`.claude/verify-2026-09-28-final.log`). Each commit passed its own checks (verify:quick 220/220 for the cap; the F-099 spec 2/2). Run it with `PW_WORKERS=1`. Whether to merge is Craig's call. Read
+`AGENTS.md` first, then `DECISIONS.md` whole.
 
-## Step 1 — Verify speed + context (A + B + D)
+**Craig's standing direction (§5.bv):** get the back end and the app working properly first. A full UI
+revamp comes later, since the UI is what will attract users; until then UI work is fixes and consistency only.
 
-BACKLOG row "Verify speed + context" has the facts and options. Build A + B + D; C is not chosen.
-- **A parallel Playwright workers.** FIRST verify how `src/test/fake-supabase.ts` scopes its store (its comment
-  says one shared in-memory store per server). If per-server, tests that seed on /sandbox would collide across
-  workers → either one dev server per worker on ports 3200+N, or scope the store per browser context. Prove the
-  choice with a deliberately colliding pair before trusting a green run.
-- **B two-tier gate.** `npm run verify:quick` = tsc + unit + the specs touching changed files (git diff against
-  the branch base); `npm run verify` stays the full gate, run ONCE before handoff. Update AGENTS.md's loop and
-  the traps below to say which tier when.
-- **D context.** Never poll a running gate; end the turn and let the completion notification re-invoke. Already
-  the practice as of the ninth session — write it into AGENTS.md so it survives.
-- Done when: full gate exits 0 with the new config, wall time recorded in the BACKLOG row (target well under
-  10 min), and a flaky-collision check passed.
+## Step 1 — Event spine slice 1 (APPROVED §5.bu, `.claude/plans/event-spine.md` §3)
 
-## Step 2 — Home screen & Event model: P3, the shared Event spine (DESIGN, then plan)
+Two parts, both approved:
+- a tournament owner, writers first;
+- a pure N-way read adapter, `teamsOf`/`computeStandingsN`.
 
-**Correction on record (§5.bt):** P1 (`/home` hub) and P2 (`/home/stats` money ledger + settle-up) were BUILT
-2026-08-05 and `HOME_V2` is ON since 2026-08-12. The old plan file is gone; the durable record is the session
-memory `project_home-screen-and-event-model` and archive §5.bt. What's left is **P3**: make Pool "an Event with
-one round" over the shared `game_scores` table, take `Tournament.teams` + `computeStandings` N-way, add owner
-to tournaments, converge the two scoring engines on `game-modes/`. It's the hinge that also unlocks >2-team
-tournaments, flights (P4, the course/club workflow Craig doesn't want forgotten) and multi-day pool.
+It changes no stored shape and no UI, and Pool is untouched. Legacy owner-less tournaments stay visible to
+everyone (plan §4 option A).
 
-This is architecture and touches persistence and scoring → **conversation first, no code.** Read the two data
-shapes (`PoolGame` in `lib/pool-game.ts`, `Tournament` in `lib/tournament-state.ts`), the five persistence
-files, and `game-modes/`. Then bring Craig: (a) the smallest first slice that's reversible (e.g. tournament
-owner field + N-way `teams` behind a flag, no Pool change yet), (b) what the migration story is for the live
-rows, (c) which of the pool-only pieces (roster, groups, formats) go app-wide. Write the plan into the repo's
-`.claude/plans/event-spine.md` and ask him to approve before building anything.
+**Goldens first (§5.z):** pin today's 2-team `computeStandings` output before writing the adapter, then
+prove the adapter reproduces it exactly and handles 3+ teams zero-sum. Persistence stays inside
+`tournament-state.ts`. The sandbox fake must round-trip the owner field. Nothing writes to live data.
 
-## Step 3 — the small items (each S; ask where marked)
+## Step 2 — ask Craig outright (§5.bo), build what he picks
 
-- Team-engine 8-player cap: 3 teams of 4 on legs / $ per hole / $ per point still refused (`team-2v2`
-  playersMax 8; classic holds two teams). BACKLOG "Team engine field cap".
-- Phase 2 residue: rename `isSingleGroupGame` for what it means now AND update AGENTS.md's one rule together;
-  sandbox seed labels still say "sides"; obsolete snapshot "team-2v2 / 4 players (playersMin)" in
-  one-group-golden.
-- F-062 A/B/C — ASK Craig for the pick first (§5.bo). F-069 refuse-vs-default — ASK (scoring). F-070 sandbox
-  fake gains `.in()`/`.order()`/`.limit()`.
+The options are in FINDINGS:
+- **F-101 a** [P1] (scorecard team rows): a 2-team card whose teams span groups computes its team rows
+  from its own foursome only. Rec A: use the engine's rows.
+- **F-101 b**: a player added on the hub mid-round joins no team. Rec A: ask which team.
+- **F-101 c** (scoring rule): a hole counts only once every team has posted it, so staggered groups wait
+  on the last. Rec A: keep the rule and label it.
+- **F-101 d**: should individual modes (skins, Stableford, stroke play) go past 4 players for tournament
+  fields?
+- **F-100**: the iPhone keypad has no "+". Rec A: a ± toggle.
+- **F-069** (scoring): refuse or default a non-`TeamFormat` string.
 
-**Also:** friends' feedback on the new wizard is the walk Craig waived — log anything he relays as findings
-with options, and a money bug jumps the queue.
+## Step 3 — slack
+
+The F-101 e polish list; the merge-audit polish rows in BACKLOG.
 
 ## Waiting on Craig
 
-F-022 on-course stroke check vs the GHIN app; F-033 answer to the friend; §7 q4; F-062 A/B/C; F-069.
+- F-022, the on-course stroke check against the GHIN app; include a plus-handicap player now (F-098).
+- F-033, the answer to the friend.
+- §7 q4.
+- The picks above.
+- Merging this branch.
 
 ## Traps that keep biting
 
-- **Do NOT edit app code while `npm run verify` runs** (it hot-reloads the e2e server). Markdown is safe.
-- **Kill any hand-started dev server AND `rm -rf .next` before `npm run verify`**; confirm 3200
-  free. 3000 = Craig's. Kill on Windows: `netstat -ano | grep ":3200 .*LISTENING"` → `taskkill //PID <pid> //F //T`.
-- Check verify's own exit code; when backgrounded, `echo "VERIFY_EXIT=$?" >> log` inside the command.
-- Verify takes ~15 min (217 e2e, one worker) — step 1 of this session is fixing that. Iterate on a spec subset against a hand-started server first.
-- **Python heredocs in Git Bash break on `$` and long bodies** — write the script to a file
-  (`.claude/tmp_*.py`), run it, delete it. `/tmp` in Python is NOT Git Bash's /tmp.
-- Editor diagnostics lag one edit behind — trust `npx tsc --noEmit`. The "Props must be
-  serializable" warnings on every step component are the Next.js plugin, not tsc.
-- Playwright strict mode: `exact: true` when a label prefixes another; `.first()` when a reason
-  string renders under two greyed options.
-- **New wizard helpers** (`e2e/helpers.ts`): `addPlayers`, `fieldToGameStep(page, players?)`,
-  `chooseStructure(page, 'teams:4+4' | label)` (expands "Other split…" itself),
-  `toScoringStep(page, structure?)` (names the game if empty — the step requires a name),
-  `chooseSolo(page, 'skins')`, `chooseMoney(page, 'per-point')`. Extend, don't re-inline.
-- Structure ids: `teams:4+4`, `teams:2+2+2+2`, `teams:2+2+1`, `teams:1+1`, `solo`. Even shapes
-  and the recommendation are primary; the rest sit under "Other split…".
-- Two players + a classic format → `structureForDefaults` derives 1 v 1 (there's no 2-player pool).
-  Use 8 players when a test means the Warriors' game.
-- Sandbox owner is ALWAYS GHIN 1234567. e2e failure screenshots land in `test-results/*/test-failed-1.png`.
-- The "CHcp" spelling is e2e-pinned (F-043) — renaming it is an F-061/F-062 decision.
-- **Write plans into the repo's `.claude/plans/`**, never `~/.claude/plans/`.
-- Delegated sweeps report doc status, not code status — verify "still open" against `git log`.
+- **Two gate tiers.** `npm run verify:quick` per commit: `VQ_BASE=HEAD` picks only uncommitted
+  changes, `-- e2e/x.spec.ts` adds specs, `-- --list` shows the pick. `npm run verify` is the full gate,
+  run ONCE before handoff.
+- **Never poll a gate.** Background it with `; echo "VERIFY_EXIT=$?" >> log`, end the turn, and read the
+  tail when notified.
+- **Use `PW_WORKERS=1`** when the machine is busy. Windows once killed a full gate for low memory. The
+  full gate takes ~17–20 min on 1 worker (222 e2e), and verify:quick often picks ~200 specs anyway.
+- **Do NOT edit app code while a gate runs** (the e2e server hot-reloads). Markdown is safe.
+- **Before a gate, kill hand-started dev servers AND `rm -rf .next`.** Port 3000 is Craig's; kill 3200
+  by PID (`netstat -ano | grep ":3200 .*LISTENING"` → `taskkill //PID <pid> //F //T`), not by
+  `//IM node.exe`.
+- **The git root is one level up:** paths in `git add` are relative to golf-tracker/. CRLF warnings are
+  harmless.
+- **Python edits:** write the script to `.claude/tmp_*.py`, run it, delete it. Matches on comments that
+  wrap across lines fail, so use the Edit tool then. A "�" in a traceback is console-only.
+- **Editor diagnostics lag behind edits.** Trust `npx tsc --noEmit`.
+- **Uncapped modes:** `playersMax` can be `Infinity`. Use `testFieldMax(mode)` in tests and
+  `playerRangeText` in copy, never `Array(playersMax)`.
+- **Side ids** go through `sideIdAt(i)` (a…z, then s27…), not `String.fromCharCode(97 + i)`.
+- **Test cards must differ between partners.** A pattern repeating every 4 players gave partners 8 apart
+  identical cards (`% 5` fixes it).
+- **Playwright strict mode:** use `exact: true` when one label prefixes another, and `.first()` for
+  repeated text. On phones the full step bar is hidden (F-099), so assert the step with
+  "Step N of M · Name".
+- **Wizard helpers** in `e2e/helpers.ts`: `addPlayers`, `toScoringStep(page, 'teams:4+4+4')`,
+  `chooseSolo`, `chooseMoney`. An all-singles teams structure exists only for n=2; bigger singles fields
+  are `solo`, which caps at 4.
+- Sandbox owner is always GHIN 1234567. The big-field seed is "§5.bv: 32 players, 8 foursomes, 16 pairs".
+- Plans go in the repo's `.claude/plans/`.
 
 ## End the session by grooming BACKLOG.md
 

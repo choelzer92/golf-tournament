@@ -1335,7 +1335,7 @@ the course's own name, so a long name makes it worse.
 
 **Recommendation:** C, which reads best on the phones the friends use; A is the one-line stopgap.
 
-**Status:** DECIDED 2026-09-28 — **C** (§5.bv). Build queued.
+**Status:** DONE 2026-09-28 — **C** (§5.bv). Below `sm:` the bar is "Step 5 of 7 · Tees" plus a thin progress bar; the full bar is back from `sm:` up. `e2e/f099-step-bar.spec.ts` checks for no horizontal overflow at 390px; screenshots `f099-phone-step.png`, `f099-desktop-step.png`.
 
 ---
 
