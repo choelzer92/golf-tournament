@@ -48,7 +48,7 @@ test.describe('F-025/F-026: skins review step', () => {
     expect(body).not.toContain('Foursomes');
     // The single playing group's card (named "Group") and its combined handicap must be gone;
     // each player's own course handicap remains on their row.
-    expect(body).not.toMatch(/CHcp \d/);
+    expect(body).not.toMatch(/(CHcp|combined HCP) \d/);   // F-062 respelled CHcp
     await page.screenshot({ path: 'e2e/screenshots/f025-skins-review.png', fullPage: true });
   });
 

@@ -2,6 +2,7 @@
 
 import type { Player, CourseSelection } from '@/lib/game-state';
 import { getPoolPlayingHandicap, rankPlayersForCaptain } from '@/lib/pool-game';
+import { HandicapChip } from './handicap-chain';
 
 // Captains panel — one captain slot per team, shown prominently above team
 // building. By default the captains are the lowest course handicaps in the field
@@ -90,8 +91,9 @@ export function CaptainsPanel({
       <div className="grid gap-2 sm:grid-cols-2">
         {slots.map((capId, i) => {
           const chcp = capId ? chcpOf(capId) : null;
+          const capPlayer = capId ? players.find((x) => x.id === capId) : undefined;
           return (
-            <label key={i} className="flex items-center gap-2 rounded-md bg-white border border-gray-200 px-2 py-1.5">
+            <label key={i} className="flex flex-wrap items-center gap-2 rounded-md bg-white border border-gray-200 px-2 py-1.5">
               <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-green-700 text-[11px] font-bold text-white" title="Captain">
                 C{i + 1}
               </span>
@@ -110,10 +112,9 @@ export function CaptainsPanel({
                   );
                 })}
               </select>
-              {chcp !== null && (
-                <span className="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums" title="Course handicap">
-                  {chcp}
-                </span>
+              {chcp !== null && capPlayer && (
+                <HandicapChip player={capPlayer} course={course} allowance={handicapAllowance} basis={handicapBasis} nine={nine}
+                  chipClassName="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums" />
               )}
             </label>
           );

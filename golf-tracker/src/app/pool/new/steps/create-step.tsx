@@ -19,6 +19,7 @@ import type { GameSide } from '@/lib/game-modes/sides';
 import { getGameMode, fitExplanation, formatSummaryLine, type SettingsBag } from '@/lib/game-modes';
 import { sideNameFrom, allSidesAreSolo, MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
+import { HandicapChip } from '@/components/handicap-chain';
 import { MONEY_WORD, structureLabel, type Container, type MoneyModel, type MoneyModelOption } from '@/lib/game-structure';
 import { type PotDollars, foldJunkStrings, legDollarsToStrings, potDollarsTotal } from './shared';
 
@@ -686,12 +687,11 @@ export function CreateStep({
                       ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine))
                       : null;
                     return (
-                      <div key={pid} className="flex items-center gap-2 text-sm text-gray-600 py-0.5">
+                      <div key={pid} className="flex flex-wrap items-center gap-2 text-sm text-gray-600 py-0.5">
                         <span className="truncate min-w-0 flex-1">{p.name}</span>
                         {chcp !== null && (
-                          <span className="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums" title="Course handicap on this tee">
-                            {chcp}
-                          </span>
+                          <HandicapChip player={p} course={course} allowance={handicapAllowance} basis={handicapBasis} nine={nine}
+                            chipClassName="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums" />
                         )}
                       </div>
                     );
@@ -730,13 +730,12 @@ export function CreateStep({
                 const chcp = course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine)) : null;
                 const tee = teeNameOf(p);
                 return (
-                  <div key={pid} className="flex items-center gap-2 text-sm text-gray-600 py-0.5">
+                  <div key={pid} className="flex flex-wrap items-center gap-2 text-sm text-gray-600 py-0.5">
                     <span className="truncate min-w-0 flex-1">{p.name}</span>
                     {tee && <span className="flex-shrink-0 text-xs text-gray-400">{tee}</span>}
                     {chcp !== null && (
-                      <span className="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums" title="Course handicap on this tee">
-                        {chcp}
-                      </span>
+                      <HandicapChip player={p} course={course} allowance={handicapAllowance} basis={handicapBasis} nine={nine}
+                        chipClassName="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums" />
                     )}
                   </div>
                 );
@@ -773,7 +772,7 @@ export function CreateStep({
                       {team.name}
                       {team.teeTime ? <span className="ml-2 text-xs text-gray-500">{team.teeTime}</span> : null}
                     </p>
-                    {course && <span className="text-xs text-gray-500">CHcp {Math.round(combined)}</span>}
+                    {course && <span className="text-xs text-gray-500">combined HCP {Math.round(combined)}</span>}
                   </div>
                   {team.playerIds.map((pid) => {
                     const p = playerById.get(pid);
@@ -781,13 +780,12 @@ export function CreateStep({
                     const chcp = course ? Math.round(getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine)) : null;
                     const tee = teeNameOf(p);
                     return (
-                      <div key={pid} className="flex items-center gap-2 text-sm text-gray-600 py-0.5">
+                      <div key={pid} className="flex flex-wrap items-center gap-2 text-sm text-gray-600 py-0.5">
                         <span className="truncate min-w-0 flex-1">{p.name}</span>
                         {tee && <span className="flex-shrink-0 text-xs text-gray-400">{tee}</span>}
                         {chcp !== null && (
-                          <span className="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums" title="Course handicap on this tee">
-                            {chcp}
-                          </span>
+                          <HandicapChip player={p} course={course} allowance={handicapAllowance} basis={handicapBasis} nine={nine}
+                            chipClassName="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums" />
                         )}
                       </div>
                     );
