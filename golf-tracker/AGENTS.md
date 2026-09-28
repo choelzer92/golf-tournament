@@ -89,8 +89,23 @@ don't need a check-in — just mention them.
 
 ## Working through the todo list
 
-`npm run verify` is the gate: unit tests → typecheck → production build → e2e, all
-unattended. **A todo is not done until it exits 0.**
+The gate has two tiers:
+
+- **`npm run verify:quick`** — per commit. tsc → unit → only the e2e specs that touch
+  the branch's diff (changed specs, plus every spec naming a route the changed files
+  reach through imports; see `scripts/verify-quick.mjs`). No `next build`. Add specs by
+  hand with `npm run verify:quick -- e2e/foo.spec.ts`; `-- --list` shows the pick.
+- **`npm run verify`** — the FULL gate: tsc → production build → unit → every e2e spec
+  on 2 parallel workers (`PW_WORKERS=1` on a low-memory day). Run it ONCE, before
+  handoff or merge. **Work is not handed off until it exits 0.**
+
+Parallel workers are safe because the sandbox store lives in each browser tab, not on
+the server — `e2e/parallel-isolation.spec.ts` proves it; keep it passing.
+
+**Never poll a running gate.** Start it in the background with its exit code appended
+(`npm run verify > log 2>&1; echo "VERIFY_EXIT=$?" >> log`), end the turn or do
+markdown-only work, and let the completion notification re-invoke you. Then read the
+tail of the log, not the whole thing — or delegate reading a failure to a subagent.
 
 The loop per todo:
 
@@ -99,7 +114,7 @@ The loop per todo:
    approach, so you don't re-derive them.
 3. Implement, following the working rules below (ask before money/handicap/scoring
    math, or where more than one answer is defensible).
-4. `npm run verify`.
+4. `npm run verify:quick` (the full `npm run verify` once, before handoff).
 5. Add an e2e assertion for anything user-visible, tagged with the finding id where
    there is one (`test('F-012: …')`).
 6. Commit — one focused commit per todo, so any single change is revertible.

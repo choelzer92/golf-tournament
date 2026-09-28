@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "dev:sandbox": "next dev",
     "e2e": "playwright test",
+    "verify:quick": "node scripts/verify-quick.mjs",
     "verify": "tsc --noEmit && next build && npm run test && playwright test --reporter=dot"
   },
   "dependencies": {
