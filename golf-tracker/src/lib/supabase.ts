@@ -15,8 +15,14 @@ import { createFakeSupabase } from '../test/fake-supabase';
 // src/test/sandbox-seam.test.ts's sibling npm script — see AGENTS.md).
 //
 // The production path (createClient) is byte-for-byte what it was before.
+//
+// The e2e gate's SANDBOX BUILD (§5.bz) is the one production-mode build allowed through: it is
+// opted into at build time with SANDBOX_BUILD=1, and next.config.ts writes it to
+// `.next-sandbox`, never the `.next` that deploys. Without that variable a production build is
+// still a compile-time false here.
 const useSandbox =
-  process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_SANDBOX === '1';
+  (process.env.NODE_ENV !== 'production' || process.env.SANDBOX_BUILD === '1') &&
+  process.env.NEXT_PUBLIC_SANDBOX === '1';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;

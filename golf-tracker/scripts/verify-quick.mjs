@@ -25,9 +25,9 @@ import { join, relative, sep, basename, extname, dirname } from 'node:path';
 const sh = (cmd) => execSync(cmd, { encoding: 'utf8' }).trim();
 const posix = (p) => p.split(sep).join('/');
 
-function run(label, cmd, args) {
+function run(label, cmd, args, env = {}) {
   console.log(`\n▶ ${label}: ${cmd} ${args.join(' ')}`);
-  const r = spawnSync(cmd, args, { stdio: 'inherit', shell: true });
+  const r = spawnSync(cmd, args, { stdio: 'inherit', shell: true, env: { ...process.env, ...env } });
   if (r.status !== 0) {
     console.error(`\n✘ verify:quick failed at ${label} (exit ${r.status})`);
     process.exit(r.status ?? 1);
@@ -109,6 +109,8 @@ for (const f of changed) {
 }
 
 // ── the gate ──
+// Past this many specs the one-time sandbox build pays for itself (§5.bz).
+const PROD_PICK = 25;
 if (listOnly) {
   console.log([...picked].sort().join('\n') || '(no specs)');
   if (unmapped.length) console.log('unmapped:\n   ' + unmapped.join('\n   '));
@@ -125,5 +127,10 @@ if (picked.size === 0) {
   process.exit(0);
 }
 console.log(`\n${picked.size} spec(s):\n   ${[...picked].sort().join('\n   ')}`);
-run('e2e', 'npx', ['playwright', 'test', '--reporter=dot', ...[...picked].sort()]);
+// §5.bz: a big pick (a shared lib changed, so most specs run) pays one sandbox build and runs on
+// the production-mode server with 3 workers; a small pick stays on `next dev`, which compiles
+// only the routes it visits. PW_SERVER set by hand wins.
+const server = process.env.PW_SERVER ?? (picked.size > PROD_PICK ? 'prod' : 'dev');
+console.log(`e2e server: ${server}${server === 'prod' ? ' (sandbox build, 3 workers)' : ' (next dev)'}`);
+run('e2e', 'npx', ['playwright', 'test', ...[...picked].sort()], { PW_SERVER: server, PW_REPORTER: 'dot' });
 console.log('\n✓ verify:quick green');

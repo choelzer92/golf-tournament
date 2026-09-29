@@ -2093,6 +2093,23 @@ toggle any format we have to gross?" Asked outright (§5.bo), he picked the reco
 - It is not a new format. "Two best gross" and "best net + best gross" stay as they are; under Gross,
   their net halves simply equal gross.
 
+### 5.bz — Gross hides a mode's own basis; test speed first (2026-09-29)
+
+**F-102 k, option A.** With the §5.by switch on Gross, a mode's own net/gross basis (Skins "Score
+basis", Low Total "net or gross") is hidden: under Gross it can only mean gross. On Net it stays, so
+"net handicaps, gross skins" is still expressible. Money is unaffected either way (0% makes net =
+gross); this is a screen decision.
+
+Also found building §5.by, and told to Craig: one-ball formats (scramble, alternate shot) took their
+team handicap from raw course handicaps and ignored the allowance, so a gross scramble still gave
+team strokes. At 0% the team handicap is now 0 (310fd48); every other percentage is unchanged.
+
+**Test-process speed-up goes before F-101.** Craig: "this is taking a long time still … the idea of
+it is great, but it seems like it could be improved." Picked the recommendation to do it now: per-test
+timing to a file, e2e against a production sandbox build (own distDir, `next start`, 3–4 workers),
+and `maxFailures` so a broken shared helper stops a run in minutes (a helper break cost a 50-minute
+run on 2026-09-28).
+
 ## 7. Open questions
 
 Awaiting Craig's call. Inferred answers are marked as guesses.

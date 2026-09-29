@@ -12,7 +12,8 @@
     "dev:sandbox": "next dev",
     "e2e": "playwright test",
     "verify:quick": "node scripts/verify-quick.mjs",
-    "verify": "tsc --noEmit && next build && npm run test && playwright test --reporter=dot"
+    "verify": "tsc --noEmit && next build && npm run test && node scripts/e2e-prod.mjs",
+    "e2e:slowest": "node scripts/e2e-slowest.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.107.0",

@@ -95,10 +95,21 @@ The gate has two tiers:
 - **`npm run verify:quick`** — per commit. tsc → unit → only the e2e specs that touch
   the branch's diff (changed specs, plus every spec naming a route the changed files
   reach through imports; see `scripts/verify-quick.mjs`). No `next build`. Add specs by
-  hand with `npm run verify:quick -- e2e/foo.spec.ts`; `-- --list` shows the pick.
+  hand with `npm run verify:quick -- e2e/foo.spec.ts`; `-- --list` shows the pick. A pick
+  over 25 specs (a shared lib changed) runs on the sandbox build below; smaller picks stay
+  on `next dev`.
 - **`npm run verify`** — the FULL gate: tsc → production build → unit → every e2e spec
-  on 2 parallel workers (`PW_WORKERS=1` on a low-memory day). Run it ONCE, before
-  handoff or merge. **Work is not handed off until it exits 0.**
+  against a production-mode SANDBOX build (`SANDBOX_BUILD=1` → `.next-sandbox`, `next
+  start` on 3201, 3 workers; ~5.6 min e2e vs 10.3 on `next dev`). `PW_WORKERS=1` on a
+  low-memory day. Run it ONCE, before handoff or merge. **Work is not handed off until it
+  exits 0.**
+
+Every run stops after 10 failures (`PW_MAX_FAILURES=0` for all), so a broken shared
+helper costs minutes, not an hour. `npm run e2e:slowest` lists the last run's slowest
+tests. The sandbox build is walled off from the deployed one: its own dist dir, refuses
+to build without the fake backend, and `SANDBOX_BUILD` is always inlined so the real
+build dead-code-eliminates the fake (`sandbox-seam.test.ts`, `no-sandbox-in-build.test.ts`
+— the latter caught the leak when it wasn't).
 
 Parallel workers are safe because the sandbox store lives in each browser tab, not on
 the server — `e2e/parallel-isolation.spec.ts` proves it; keep it passing.

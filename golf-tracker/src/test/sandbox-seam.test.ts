@@ -74,11 +74,61 @@ describe('sandbox seam', () => {
     expect((mod.supabase as unknown as { __real?: boolean }).__real).toBe(true);
   });
 
+  // §5.bz: the e2e gate's sandbox build is production-mode, opted in at BUILD time.
+  it('the sandbox BUILD (both flags) runs on the fake in production mode', async () => {
+    process.env.NEXT_PUBLIC_SANDBOX = '1';
+    process.env.SANDBOX_BUILD = '1';
+    vi.stubEnv('NODE_ENV', 'production');
+    const mod = await loadSeam();
+    expect(mod.IS_SANDBOX).toBe(true);
+    expect(createClientCalls).toBe(0);
+  });
+
+  it('the sandbox-build flag alone never selects the fake', async () => {
+    delete process.env.NEXT_PUBLIC_SANDBOX;
+    process.env.SANDBOX_BUILD = '1';
+    vi.stubEnv('NODE_ENV', 'production');
+    const mod = await loadSeam();
+    expect(mod.IS_SANDBOX).toBe(false);
+    expect(createClientCalls).toBe(1);
+  });
+
   it('ignores a flag value other than "1"', async () => {
     process.env.NEXT_PUBLIC_SANDBOX = 'true';
     vi.stubEnv('NODE_ENV', 'development');
     const mod = await loadSeam();
     expect(mod.IS_SANDBOX).toBe(false);
     expect(createClientCalls).toBe(1);
+  });
+});
+
+// §5.bz: the sandbox build can never be the `.next` that deploys.
+describe('next.config: the sandbox build is walled off', () => {
+  const loadConfig = async () => (await import('../../next.config')).default;
+
+  it('a normal production build: no sandbox pages, the usual .next', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    delete process.env.SANDBOX_BUILD;
+    delete process.env.NEXT_PUBLIC_SANDBOX;
+    const cfg = await loadConfig();
+    expect(cfg.pageExtensions).not.toContain('sandbox.tsx');
+    expect(cfg.distDir).toBeUndefined();
+    expect(cfg.env?.SANDBOX_BUILD).toBe('0');   // defined, so it inlines as a constant
+  });
+
+  it('the sandbox build writes to .next-sandbox, never .next', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    process.env.SANDBOX_BUILD = '1';
+    process.env.NEXT_PUBLIC_SANDBOX = '1';
+    const cfg = await loadConfig();
+    expect(cfg.pageExtensions).toContain('sandbox.tsx');
+    expect(cfg.distDir).toBe('.next-sandbox');
+  });
+
+  it('refuses a sandbox build that would talk to the real backend', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    process.env.SANDBOX_BUILD = '1';
+    delete process.env.NEXT_PUBLIC_SANDBOX;
+    await expect(loadConfig()).rejects.toThrow(/requires NEXT_PUBLIC_SANDBOX=1/);
   });
 });

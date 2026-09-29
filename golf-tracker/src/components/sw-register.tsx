@@ -15,8 +15,9 @@ export function ServiceWorkerRegistrar() {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
     // Dev registers a different SW story (and Next's dev assets aren't hashed
     // the same way) — only register in production to avoid confusing caching
-    // while working locally.
-    if (process.env.NODE_ENV !== 'production') return;
+    // while working locally. The e2e sandbox build (§5.bz) is production-mode but a harness: no
+    // SW there either, so every test sees the page the server just built.
+    if (process.env.NODE_ENV !== 'production' || process.env.SANDBOX_BUILD === '1') return;
 
     const register = () => {
       navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
