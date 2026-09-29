@@ -1016,6 +1016,8 @@ hand-edited settings bag) still falls to `teamNetOnHole`'s `default` arm = best 
 ONE place for both containers instead of two. Refuse-vs-default is still Craig's call
 (stop-and-ask, NEXT_SESSION_PROMPT).
 
+**Status:** DECIDED 2026-09-28 (§5.bw): keep the best-ball DEFAULT. No UI path writes an unknown format, so the fallback only catches old or hand-edited data. Next: a unit pin that every format the wizard or hub offers is computed by the engine.
+
 ---
 
 ### F-070 — The sandbox fake backend has no `.in()`, so the leaderboard's audit viewer throws in e2e  [P3] [track]
@@ -1294,7 +1296,7 @@ These are what the sweep found around the edges. Each is Craig's call or deliber
 - the hub team editor switches from circles to a list past 4 teams;
 - side ids continue `s27`, `s28`, … past 26 teams (`sideIdAt`).
 
-**Status:** OPEN. Items a–d need Craig's call; e is backlog.
+**Status:** DECIDED 2026-09-28 (§5.bw): a → A, b → A, c → A (and hide-holes stays OFF when teams span foursomes; it's anti-cheating for teams that ARE their foursome), d → YES (individual modes go past 4 across tee groups; Wolf and Nines keep their caps). Build queued (NEXT_SESSION_PROMPT). e is backlog.
 
 ---
 
@@ -1313,7 +1315,7 @@ field editor) use `inputMode="decimal"`. iOS shows a digits-and-point pad with n
 - **C. Rely on GHIN import:** plus players almost always have a GHIN number. Document it
   and change nothing.
 
-**Recommendation:** A. **Status:** open — Craig's pick.
+**Recommendation:** A. **Status:** DECIDED 2026-09-28: **A**, a ± toggle (§5.bw). It rides with a full plus-handicap sweep (next session).
 
 ---
 

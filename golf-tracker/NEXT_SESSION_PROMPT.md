@@ -1,4 +1,4 @@
-# Next session: build Event spine slice 1 (goldens first), then Craig's open picks
+# Next session: plus handicaps everywhere, then big fields (F-101), then individual modes past 4
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
@@ -9,50 +9,83 @@ unbidden). The branch carries:
 - F-098, plus handicaps in every engine (6509439, §5.bv);
 - **the team field cap removed** (41d3987): 32 players / 8 foursomes / 16 teams, zero-sum pinned in
   `team-field-32.test.ts`;
-- F-099, the compact phone step bar.
+- F-099, the compact phone step bar (6228d82).
 
-**FIRST: run the full gate once.** The 2026-09-28 run was killed for low system memory partway through e2e; tsc, build and 2179 unit tests had passed (`.claude/verify-2026-09-28-final.log`). Each commit passed its own checks (verify:quick 220/220 for the cap; the F-099 spec 2/2). Run it with `PW_WORKERS=1`. Whether to merge is Craig's call. Read
-`AGENTS.md` first, then `DECISIONS.md` whole.
+Read `AGENTS.md` first, then `DECISIONS.md` whole, then archive **§5.bv and §5.bw** in full. They are
+this session's brief: Craig's answers in his own words.
 
-**Craig's standing direction (§5.bv):** get the back end and the app working properly first. A full UI
-revamp comes later, since the UI is what will attract users; until then UI work is fixes and consistency only.
+**Craig's direction:**
+- **Configurable to whatever the organizer wants, within reason.** Teams spread across foursomes are
+  first-class. The reference is how the old Hogs v Dawgs tournaments were set up (the `Tournament`
+  shape in `lib/tournament-state.ts`; the hype page names them).
+- **Scale target: a member-guest**, 72 teams of 2 = 144 players, about 36 foursomes, eventually cut into
+  flights. Test big-field work at 144 as well as 32. Keep flights in view (a flight = a subset of sides
+  with its own standings) but don't build them yet.
+- **Back end first.** A full UI revamp comes later; until then UI work is fixes and consistency only.
 
-## Step 1 — Event spine slice 1 (APPROVED §5.bu, `.claude/plans/event-spine.md` §3)
+## Step 0 — the full gate, once
 
-Two parts, both approved:
-- a tournament owner, writers first;
-- a pure N-way read adapter, `teamsOf`/`computeStandingsN`.
+The 2026-09-28 run was killed for low system memory partway through e2e. tsc, build and 2179 unit tests
+had passed (`.claude/verify-2026-09-28-final.log`), and each commit passed its own checks. Close other
+apps, kill the 3200 server by PID, `rm -rf .next`, and run `PW_WORKERS=1 npm run verify` in the
+background. If it's green, the branch is ready for Craig's merge call.
 
-It changes no stored shape and no UI, and Pool is untouched. Legacy owner-less tournaments stay visible to
-everyone (plan §4 option A).
+## Step 1 — plus handicaps, every situation (§5.bw 6; Craig: "lets make sure we figure out + handicap situations")
 
-**Goldens first (§5.z):** pin today's 2-team `computeStandings` output before writing the adapter, then
-prove the adapter reproduces it exactly and handles 3+ teams zero-sum. Persistence stays inside
-`tournament-state.ts`. The sandbox fake must round-trip the owner field. Nothing writes to live data.
+Start with a read-only sweep (delegate it) of every place a plus index is:
+- entered: the add-player box, hub field editor, roster, GHIN import;
+- stored and shown: "+2.1", never "-2.1" or "2.1", on chips, cards, the leaderboard, prints;
+- allowed: 90% of +3 and similar, unrounded-first (§5.bb);
+- split: off-the-low with a plus LOW player, where everyone gains strokes (§5.bv 1);
+- based on 9 holes: both handicap bases;
+- fed into team formulas: scramble and alt-shot with a plus member, combined HCP, the balancer and
+  captains;
+- used for targets: a quota or Chicago target of 36/39 − (−2) = 38/41;
+- given back in each engine: pool, sides, individual modes, the legacy tournament (F-098 "Left" list:
+  its pages still hide give-back dots).
 
-## Step 2 — ask Craig outright (§5.bo), build what he picks
+Write the gaps into F-098 or a new finding; fix what's mechanical. Anything that changes the MATH
+beyond §5.bv is stop-and-ask. Then build **F-100 A**, a ± toggle beside the handicap box (the iPhone
+keypad has no "+"). Pin every case in unit tests, add e2e for the toggle, and use the sandbox seed
+`pool-plus-handicap`.
 
-The options are in FINDINGS:
-- **F-101 a** [P1] (scorecard team rows): a 2-team card whose teams span groups computes its team rows
-  from its own foursome only. Rec A: use the engine's rows.
-- **F-101 b**: a player added on the hub mid-round joins no team. Rec A: ask which team.
-- **F-101 c** (scoring rule): a hole counts only once every team has posted it, so staggered groups wait
-  on the last. Rec A: keep the rule and label it.
-- **F-101 d**: should individual modes (skins, Stableford, stroke play) go past 4 players for tournament
-  fields?
-- **F-100**: the iPhone keypad has no "+". Rec A: a ± toggle.
-- **F-069** (scoring): refuse or default a non-`TeamFormat` string.
+## Step 2 — F-101 a/b/c + F-069 (all DECIDED §5.bw)
 
-## Step 3 — slack
+- **a [P1]:** a card on a team game whose teams span foursomes shows the whole team's rows from the
+  engine (`sideBreakdown`), not this foursome's recompute (`game/play/page.tsx` ~1392). This changes how
+  the scorecard computes team rows, and Craig has approved it. Pin the agreement between card and engine.
+- **b:** a player added on the hub mid-round is asked which team they join (`field-editor.tsx`
+  `addPlayer`).
+- **c:** keep the all-teams-posted rule for legs and per-hole results, and label it "waiting on
+  Group N". Hide-holes stays OFF when teams span foursomes: it's anti-cheating for teams that ARE their
+  foursome. Check that nothing defaults it on or nudges toward it for spread teams.
+- **F-069:** keep the best-ball default. Add a unit pin that every format the wizard or hub offers is
+  computed.
 
-The F-101 e polish list; the merge-audit polish rows in BACKLOG.
+## Step 3 — F-101 d: individual modes past 4 (DECIDED YES §5.bw 5)
+
+Skins, Stableford, low total and quota take a whole field across tee groups, the way `team-2v2` does.
+Wolf and Nines keep their caps. Today `buildGameModeContext` reads only the first matchup for
+individual modes, and `structureOptionsFor` offers solo only at ≤4. Write a short plan in
+`.claude/plans/` first, then build goldens first: 4-player results unchanged, zero-sum at 32 and 144.
+Walk the leaderboard at 144 players.
+
+## Then — Event spine slice 1 (APPROVED §5.bu, `.claude/plans/event-spine.md` §3)
+
+Tournament owner (writers first) plus the pure N-way `teamsOf`/`computeStandingsN`. Goldens of today's
+2-team standings go first. No stored shape changes and no UI. Keep Hogs v Dawgs and flights in mind for
+the N-way shape.
+
+## Slack
+
+The F-101 e polish list, starting with the scale risks at 144 (`scoreAt`, the balancer deadline,
+rendering); the merge-audit polish rows.
 
 ## Waiting on Craig
 
-- F-022, the on-course stroke check against the GHIN app; include a plus-handicap player now (F-098).
+- F-022, the on-course stroke check against the GHIN app; include a plus-handicap player.
 - F-033, the answer to the friend.
 - §7 q4.
-- The picks above.
 - Merging this branch.
 
 ## Traps that keep biting

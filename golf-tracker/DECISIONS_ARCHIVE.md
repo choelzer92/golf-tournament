@@ -1987,6 +1987,58 @@ Craig's answers (2026-09-28) on F-098, F-099 and the team field cap:
    sides engine must take any field the pool takes (32 players = 8 foursomes), not stop at 8
    (`SIDES_MAX_PLAYERS`). No new cap in its place.
 
+
+### 5.bw — Big fields are the point: teams across foursomes, live boards, individual modes past 4; plus handicaps get a full sweep (2026-09-28)
+
+Craig's answers (2026-09-28) on F-100, F-101 and F-069. He agreed with every recommendation,
+with these additions in his own words:
+
+1. **Configurability is the goal.** "The point of this app is to eventually let it be
+   configured to whatever the organizer wants within reason, so teams being spread across
+   foursomes would be a definite plausibility. Think about how the tournaments were set up in
+   the past for hogs v dawgs." Teams that span foursomes are a first-class shape, not an edge
+   case. Legacy Hogs v Dawgs tournaments are the reference; read how they're stored before the
+   Event spine goes N-way.
+2. **F-101 a: option A.** A card on a team game whose teams span foursomes shows the WHOLE
+   team's rows from the engine (`sideBreakdown`), never a this-foursome-only recompute. The
+   card must agree with the money.
+3. **F-101 b: option A.** A player added mid-round is asked which team they join.
+4. **F-101 c: option A**, plus Craig's rule for the hide-holes box. "Staggered start times for
+   displaying holes primarily is used when teams are playing as foursomes, and there is no
+   other team to check them from cheating in their foursome. So for situations like 8 groups,
+   if the teams are not foursomes, we would be unchecking the box so we could utilize live
+   scoring."
+   - `hideHolesUntilAllFinish` is anti-sandbagging for teams that ARE their foursome.
+   - When teams span foursomes, each group holds players from several teams (they police each
+     other), so the board stays LIVE. The box already defaults off (`pool-game.ts:179`); keep
+     it off for teams across foursomes and don't nudge organizers to turn it on.
+   - The all-teams-posted rule for legs and per-hole results stays, labelled "waiting on
+     Group N" so a live board never looks stuck.
+5. **F-101 d: YES, lift it.** "I want to make sure we are setting it up so that a large amount
+   of players can be tracked, so F-101 d would be important to have more than 4 players."
+   Individual modes (skins, Stableford, stroke play/low total, quota) take a whole field
+   across tee groups, the way `team-2v2` already does. Modes whose rules are inherently one
+   foursome (Wolf, Nines/Split Sixes) keep their caps.
+6. **F-100: option A** (a ± toggle beside the handicap box). Also: "let's make sure we figure
+   out + handicap situations." A full plus-handicap sweep is next-session work: every place a
+   plus index is entered, stored, allowed, split, displayed and settled.
+7. **F-069: default to best ball** (keep today's behaviour). Craig asked how a format could be
+   unrecognised at all if the game offers it. It can't from the UI: the wizard and hub only
+   offer the formats the engine computes. The only ways in are a game or saved format written
+   by an older build under a name since changed, a hand-edited settings bag, or a future
+   format added to a list before the engine learns it. Best ball is a sane fallback. A unit
+   test pins that every offered format is computed, so the fallback never silently catches a
+   real option.
+8. **Keep flight mode in view: the scale target is a member-guest.** Craig: "lets keep in mind
+   eventual flight mode since this is relevant to the many teams/players. for example i played
+   in a member guest that had 72 total teams of 2."
+   - That's **144 players, about 36 foursomes** (or a shotgun), usually cut into handicap
+     flights that each compete separately (often as matches within the flight).
+   - Design every big-field change so a flight is just a subset of sides with its own standings,
+     not a special case (BACKLOG "Flight mode", Event spine P4). Don't build flights yet.
+   - Test big-field work at 144 as well as 32. The linear `scoreAt`, the balancer's 800 ms
+     deadline and leaderboard/card rendering are the known scale risks (F-101 e).
+
 ---
 
 ## 7. Open questions
