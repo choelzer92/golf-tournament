@@ -1418,13 +1418,18 @@ export default function PlayGamePage() {
           // Side colours, matching the leaderboard's palette so one game reads the same on both
           // screens. Blue/red stay first, so a two-side game is unchanged.
           const SIDE_ROW_COLORS = ['text-blue-700', 'text-red-700', 'text-amber-700', 'text-emerald-700', 'text-fuchsia-700', 'text-cyan-700'];
+          // F-101 a (§5.bw): with a team that isn't wholly in this group (8 v 8 over four foursomes,
+          // Hogs v Dawgs), the local A/B rows would add up only this group's members and disagree
+          // with the money. Any such game takes its rows from the engine too, even at two teams.
+          const here = new Set(setup.players.map((p) => p.id));
+          const teamsSpanGroups = !!sideBreakdown && !!poolGame
+            && sidesForCompute(poolGame).some((s) => !s.playerIds.every((id) => here.has(id)));
           const engineSideRows = (() => {
-            if (!sideBreakdown || sideBreakdown.length <= 2) return null;
+            if (!sideBreakdown || (sideBreakdown.length <= 2 && !teamsSpanGroups)) return null;
             // A big field (§5.bv: 32 players can be 16 teams) would put every team on every card.
             // Past six — the palette — a card lists only the teams with someone in THIS group; the
             // rest are one tap away on the standings. Rank and colour still come from the whole board.
             if (sideBreakdown.length <= SIDE_ROW_COLORS.length || !poolGame) return sideBreakdown;
-            const here = new Set(setup.players.map((p) => p.id));
             const mine = new Set(sidesForCompute(poolGame).filter((s) => s.playerIds.some((id) => here.has(id))).map((s) => s.id));
             return sideBreakdown.filter((s) => mine.has(s.id));
           })();
@@ -1757,7 +1762,7 @@ export default function PlayGamePage() {
                     );
                   })}
                   {/* Team net/stableford rows */}
-                  {teamRowSides.map(({ players: tp, label, color, team }) => {
+                  {!engineSideRows && teamRowSides.map(({ players: tp, label, color, team }) => {
                     const getHoleValue = isStablefordFormat ? (h: typeof holes[0]) => getTeamStableford(tp, h) : (h: typeof holes[0]) => getTeamNet(tp, h);
                     const visTotal = visibleHoles.reduce((s, h) => s + (getHoleValue(h) ?? 0), 0);
                     const otherTotal = hasOtherSide ? otherHoles.reduce((s, h) => s + (getHoleValue(h) ?? 0), 0) : 0;
@@ -1796,8 +1801,9 @@ export default function PlayGamePage() {
                       </tr>
                     );
                   })}
-                  {/* THREE OR MORE SIDES: rows straight from the engine, so the card can't
-                      disagree with the money (§5.ah). One row per side, in board order. */}
+                  {/* THREE OR MORE SIDES, or teams across groups (F-101 a): rows straight from the
+                      engine, so the card can't disagree with the money (§5.ah). One row per side,
+                      in board order. */}
                   {engineSideRows?.map((side) => {
                     const boardIdx = sideBreakdown!.findIndex((s) => s.id === side.id);
                     const color = SIDE_ROW_COLORS[boardIdx % SIDE_ROW_COLORS.length];

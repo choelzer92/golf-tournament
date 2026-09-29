@@ -220,6 +220,31 @@ const SCENARIOS: Scenario[] = [
   // about. These three seed what a real day of golf looks like — separate tee times, separate
   // scorecards, and sides whose members SPAN them.
   {
+    key: 'hogs-v-dawgs-two-groups',
+    label: 'F-101 a: Hogs v Dawgs, 4 v 4 across two foursomes',
+    detail: 'TWO teams, each split over both tee groups (§5.bw reference). The Dawgs’ low ball is in group 2, so a card reading only group 1 shows a different Dawgs total than the board.',
+    build: () => {
+      const ps = players([0, 0, 0, 0, 0, 0, 0, 0]);
+      const game = baseGame({
+        players: ps,
+        name: 'Hogs v Dawgs',
+        gameMode: 'team-2v2',
+        sides: [
+          { id: 'a', name: 'The Hogs', playerIds: ['sp1', 'sp2', 'sp5', 'sp6'] },
+          { id: 'b', name: 'The Dawgs', playerIds: ['sp3', 'sp4', 'sp7', 'sp8'] },
+        ],
+        modeSettings: { format: 'best-ball', scoring: 'stroke', result: 'total', moneyModel: 'per-point', dollarsPerPoint: 1 },
+        teams: [
+          { id: 'st1', name: 'Group 1', playerIds: ['sp1', 'sp2', 'sp3', 'sp4'], matchupId: 'sm1', teeTime: '8:10' },
+          { id: 'st2', name: 'Group 2', playerIds: ['sp5', 'sp6', 'sp7', 'sp8'], matchupId: 'sm2', teeTime: '8:20' },
+        ],
+      });
+      saveGameScores('sm1', scores(['sp1', 'sp2', 'sp3', 'sp4'], [0, 1, 2, 3], ALL18));
+      saveGameScores('sm2', scores(['sp5', 'sp6', 'sp7', 'sp8'], [3, 3, 1, 2], ALL18));
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+  {
     key: 'two-groups-four-sides',
     label: 'F-019: 8 players, TWO tee times, four teams',
     detail: 'The headline case. Two foursomes at 8:10 and 8:20, four sides that CROSS the two groups (your partner is in the other foursome). Check the Teams sheet and Scorecards — today they claim "1 foursome" of eight.',
