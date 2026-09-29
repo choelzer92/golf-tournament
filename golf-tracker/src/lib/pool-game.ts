@@ -1072,6 +1072,11 @@ function balanceUnitsIntoTeams(
   const curSeats = [...initSeats];
   const curTeams: number[][] = Array.from({ length: nt }, () => []);
   let bailed = false;
+  // A team's sum can still FALL by every negative handicap left to place (a plus player, or a
+  // scratch off an easy tee), so the bound adds them back. Without this it pruned the optimum
+  // whenever a plus player came later (F-102 c, §5.bx). With no negatives this is 0: unchanged.
+  const negLeft = new Array<number>(n + 1).fill(0);
+  for (let k = n - 1; k >= 0; k--) negLeft[k] = negLeft[k + 1] + Math.min(0, h[k]);
 
   function rec(i: number) {
     if (bailed || bestSpread === 0) return;
@@ -1081,13 +1086,16 @@ function balanceUnitsIntoTeams(
       if (sp < bestSpread) { bestSpread = sp; bestAssign = curTeams.map((t) => [...t]); }
       return;
     }
-    if (Math.max(...curSums) - avg >= bestSpread) return;
+    if (Math.max(...curSums) + negLeft[i] - avg >= bestSpread) return;
     const seen = new Set<string>();
     const order = [...Array(nt).keys()].sort((x, y) => curSums[x] - curSums[y]);
     for (const t of order) {
       if (curSeats[t] + sz[i] > caps[t]) continue;
-      const key = `${curSums[t]}:${curSeats[t]}`;
-      if (seen.has(key)) continue; // symmetry prune: identical (load, seats) teams
+      // Symmetry prune: teams with identical (load, seats, cap) are interchangeable. The cap
+      // matters: with an odd field the first team has a seat more, and without it the heaviest
+      // player could never be tried on a smaller team (F-102 c).
+      const key = `${curSums[t]}:${curSeats[t]}:${caps[t]}`;
+      if (seen.has(key)) continue;
       seen.add(key);
       curSums[t] += h[i]; curSeats[t] += sz[i]; curTeams[t].push(i);
       rec(i + 1);
