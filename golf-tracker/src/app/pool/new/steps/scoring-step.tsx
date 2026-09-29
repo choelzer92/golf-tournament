@@ -8,6 +8,7 @@ import {
 } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { type CompareBy, type StructureShape, structureLabel } from '@/lib/game-structure';
+import { NetGrossSwitch, isGross, netAllowance, parseAllowance } from '@/components/net-gross-switch';
 
 // Step 3 of the wizard — "How is it scored?" (plan §3.2).
 //
@@ -57,6 +58,15 @@ export function ScoringStep({
   const [openedHandicaps, setOpenedHandicaps] = useState(false);
   const showGame = !appliedFormat || openedGame;
   const showHandicaps = !appliedFormat || openedHandicaps;
+  // Gross = a 0% allowance (§5.by); Net goes back to the last net percentage.
+  const allowancePct = parseAllowance(handicapAllowance);
+  const gross = isGross(allowancePct);
+  const [lastNet, setLastNet] = useState<number | null>(null);
+  function setGross(on: boolean) {
+    onFormatEdited();
+    if (on) { setLastNet(allowancePct); setHandicapAllowance('0'); }
+    else setHandicapAllowance(String(netAllowance(lastNet)));
+  }
 
   function pickMode(id: string) {
     const mode = getGameMode(id);
@@ -271,6 +281,13 @@ export function ScoringStep({
 
         {showHandicaps && (
           <div className="pt-2 border-t">
+            <label className="block text-sm font-medium text-gray-800 mb-1">Net or gross?</label>
+            <NetGrossSwitch gross={gross} onChange={setGross} />
+          </div>
+        )}
+
+        {showHandicaps && !gross && (
+          <div>
             <label className="block text-sm font-medium text-gray-800 mb-1">How much handicap counts?</label>
             <input
               type="number"
@@ -307,7 +324,7 @@ export function ScoringStep({
           </div>
         )}
 
-        {showHandicaps && (
+        {showHandicaps && !gross && (
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1">Who gets strokes?</label>
             <div className="flex gap-2">
@@ -328,7 +345,7 @@ export function ScoringStep({
           </div>
         )}
 
-        {showHandicaps && (
+        {showHandicaps && !gross && (
           <div className="pt-2 border-t">
             <label className="block text-sm font-medium text-gray-800 mb-1">How many strokes change hands?</label>
             <div className="flex gap-2">

@@ -1312,7 +1312,21 @@ every engine (subtracts the negative low, no clamp), 9-hole halving, quota/Chica
 (36/39 − (−2) = 38/41, clamp only above 36), captains and snake/deal sorts (a plus player sorts
 lowest), give-back in pool, sides, every individual mode and the tournament player path.
 
-**Status:** OPEN 2026-09-28 — b, c, d mechanical, being built; e resolved by the Rules (pinned); a, g, i DECIDED (§5.bx: fix all three); h waits for F-022.
+**j. A 0% allowance saves as 100%** (found while building d). `pool/new/page.tsx` reads the allowance
+as `parseFloat(handicapAllowance) || 100` at ten sites, so a typed 0 (a gross game) silently becomes
+full handicap. Options: A, treat 0 as a real value (gross: nobody gets strokes); B, reject 0 in the box
+and point to a gross format instead. **DECIDED 2026-09-28 (§5.by):** a Net | Gross switch on every format; Gross = 0%, and the fallback is fixed with it.
+
+**Also noted, not built:** the play page's handicap detail picks the nine by the CURRENT view
+(`isBackNine`), not per hole. It's display-only, and the engine takes the hole number since a. The
+legacy tournament pages still hide give-back dots (the F-098 "Left" list, LOW).
+
+**Status:** 2026-09-28 — **a, b, c, d, g, i BUILT** (a44bc8d, c986125, 4118045, 581408a, bd5e190,
+c945cb7), and e is resolved by the Rules. All are pinned in `whs-plus-rules.test.ts`,
+`balancer-plus.test.ts` and `plus-index-entry.test.ts`, with e2e in `f098-plus-handicap.spec.ts`.
+c turned out to be two bugs. One was the plus-handicap bound. The other was a symmetry prune that
+ignored seat caps, so an odd field's heaviest player was never tried on the smaller team; that one hit
+all-positive fields too. h waits for F-022; j is DECIDED (§5.by), build queued.
 
 ---
 
@@ -1381,7 +1395,7 @@ field editor) use `inputMode="decimal"`. iOS shows a digits-and-point pad with n
 - **C. Rely on GHIN import:** plus players almost always have a GHIN number. Document it
   and change nothing.
 
-**Recommendation:** A. **Status:** DECIDED 2026-09-28: **A**, a ± toggle (§5.bw). It rides with a full plus-handicap sweep (next session).
+**Recommendation:** A. **Status:** BUILT 2026-09-28 (c986125): **A**, a "+" chip beside every handicap-index box (`components/handicap-index-input.tsx`). The sweep is F-102.
 
 ---
 

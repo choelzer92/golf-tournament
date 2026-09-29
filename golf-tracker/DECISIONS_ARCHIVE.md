@@ -2074,6 +2074,25 @@ Craig's direction during the F-102 plus-handicap sweep:
 
 ---
 
+### 5.by — A gross game is a Net | Gross switch on any format (2026-09-28)
+
+**Craig:** "0% allowance is just gross, so if we want a gross match, shouldnt we be able to just
+toggle any format we have to gross?" Asked outright (§5.bo), he picked the recommendation:
+
+- A **Net | Gross** switch sits at the top of the handicap section, in the wizard and on the hub, for
+  every format (team formats, individual modes, match or total, strokes or Stableford).
+- **Gross stores `handicapAllowance: 0`.** The engine already treats 0% as nobody receiving
+  strokes, so no scoring math changes. The switch hides the three settings that only decide
+  how many strokes someone gets, which mean nothing at 0%: the allowance %, **Handicap strokes** (full
+  handicap vs off the low; `strokeMethod` in code) and the handicap basis (course vs index). **Scoring
+  stays:** stroke play vs match play, strokes vs Stableford and the team format are all still chosen,
+  because gross match play, gross stroke play and gross Stableford are different games (Craig,
+  2026-09-28). **Net** restores the last percentage (default 100).
+- The wizard's `parseFloat(handicapAllowance) || 100` fallback (F-102 j) is fixed at the same time,
+  so a typed 0 is gross too, never silently full handicap.
+- It is not a new format. "Two best gross" and "best net + best gross" stay as they are; under Gross,
+  their net halves simply equal gross.
+
 ## 7. Open questions
 
 Awaiting Craig's call. Inferred answers are marked as guesses.

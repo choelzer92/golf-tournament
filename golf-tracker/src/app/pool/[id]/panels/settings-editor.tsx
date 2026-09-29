@@ -12,6 +12,7 @@ import { getGameMode, GAME_MODES, defaultSettings, type SettingsBag, type Settin
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { SideNames } from '@/components/side-names';
 import { NumberField } from './shared';
+import { NetGrossSwitch, isGross, netAllowance } from '@/components/net-gross-switch';
 
 // Edit an EXISTING game's settings in place (no rebuild). Mirrors the wizard's
 // Details step, gated by money mode, and saves every change straight onto the
@@ -230,28 +231,7 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
             </select>
             <p className="text-xs text-gray-500 mt-1">Change the game any time — scores already entered carry over and recompute. Money resets to the new game&apos;s usual setup, so double-check it.</p>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-800 mb-1">Handicap allowance (%)</label>
-              <NumberField className={inputCls} value={game.handicapAllowance} fallback={100}
-                onCommit={(n) => onSave({ ...game, handicapAllowance: n })} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-800 mb-1">Handicap strokes</label>
-              <select className={inputCls} value={game.strokeMethod ?? 'full'} onChange={(e) => onSave({ ...game, strokeMethod: e.target.value as 'full' | 'off-the-low' })}>
-                <option value="full">Full handicap</option>
-                <option value="off-the-low">Off the low</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1">Handicap basis</label>
-            <select className={inputCls} value={game.handicapBasis ?? 'course'} onChange={(e) => onSave({ ...game, handicapBasis: e.target.value as 'course' | 'index' })}>
-              <option value="course">Course handicap (off the tee)</option>
-              <option value="index">Player handicap index</option>
-            </select>
-          </div>
-          <NineBasisField game={game} onSave={onSave} />
+          <HandicapFields game={game} onSave={onSave} />
           <div className="pt-2 border-t">
             <p className="text-sm font-semibold text-gray-800 mb-2">{indMode.name} options</p>
             <ModeSettingsEditor
@@ -438,35 +418,7 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
           </select>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1">Handicap allowance (%)</label>
-            <NumberField className={inputCls} value={game.handicapAllowance} fallback={100}
-              onCommit={(n) => onSave({ ...game, handicapAllowance: n })} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1">Handicap strokes</label>
-            <select className={inputCls} value={game.strokeMethod ?? 'full'} onChange={(e) => onSave({ ...game, strokeMethod: e.target.value as 'full' | 'off-the-low' })}>
-              <option value="full">Full handicap</option>
-              <option value="off-the-low">Off the low</option>
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-800 mb-1">Handicap basis</label>
-          <select className={inputCls} value={game.handicapBasis ?? 'course'} onChange={(e) => onSave({ ...game, handicapBasis: e.target.value as 'course' | 'index' })}>
-            <option value="course">Course handicap (off the tee)</option>
-            <option value="index">Player handicap index</option>
-          </select>
-          <p className="text-xs text-gray-500 mt-1">
-            {(game.handicapBasis ?? 'course') === 'index'
-              ? 'Strokes come straight from each player’s handicap index × allowance (no slope/rating conversion).'
-              : 'Strokes use each player’s course handicap off their tee (slope/rating adjusted).'}
-          </p>
-        </div>
-
-        <NineBasisField game={game} onSave={onSave} />
+        <HandicapFields game={game} onSave={onSave} />
 
         {isMatch ? (
           <div className="border-t pt-3">
@@ -695,5 +647,59 @@ export function CtpEditor({ game, onSave }: { game: PoolGame; onSave: (g: PoolGa
         })}
       </div>
     </section>
+  );
+}
+
+// The hub's handicap settings, one copy for both engines. Net | Gross first (§5.by): Gross is a
+// 0% allowance and hides what only decides how many strokes someone gets; Net restores the last
+// net percentage (full handicap after a reload).
+function HandicapFields({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
+  const [lastNet, setLastNet] = useState<number | null>(null);
+  const gross = isGross(game.handicapAllowance);
+  const inputCls = 'w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500';
+  return (
+    <>
+      <div>
+        <label className="block text-sm font-medium text-gray-800 mb-1">Net or gross</label>
+        <NetGrossSwitch
+          gross={gross}
+          onChange={(on) => {
+            if (on) { setLastNet(game.handicapAllowance); onSave({ ...game, handicapAllowance: 0 }); }
+            else onSave({ ...game, handicapAllowance: netAllowance(lastNet) });
+          }}
+        />
+      </div>
+      {!gross && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-800 mb-1">Handicap allowance (%)</label>
+              <NumberField className={inputCls} value={game.handicapAllowance} fallback={100}
+                onCommit={(n) => onSave({ ...game, handicapAllowance: n })} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-800 mb-1">Handicap strokes</label>
+              <select className={inputCls} value={game.strokeMethod ?? 'full'} onChange={(e) => onSave({ ...game, strokeMethod: e.target.value as 'full' | 'off-the-low' })}>
+                <option value="full">Full handicap</option>
+                <option value="off-the-low">Off the low</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-800 mb-1">Handicap basis</label>
+            <select className={inputCls} value={game.handicapBasis ?? 'course'} onChange={(e) => onSave({ ...game, handicapBasis: e.target.value as 'course' | 'index' })}>
+              <option value="course">Course handicap (off the tee)</option>
+              <option value="index">Player handicap index</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              {(game.handicapBasis ?? 'course') === 'index'
+                ? 'Strokes come straight from each player’s handicap index × allowance (no slope/rating conversion).'
+                : 'Strokes use each player’s course handicap off their tee (slope/rating adjusted).'}
+            </p>
+          </div>
+          <NineBasisField game={game} onSave={onSave} />
+        </>
+      )}
+    </>
   );
 }

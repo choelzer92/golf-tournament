@@ -64,7 +64,8 @@ export function HandicapRefresh({ game, onRefresh, onRebalance, onNeedsLogin }: 
 
 export function FieldLowBanner({ game }: { game: PoolGame }) {
   const low = getFieldLow(game);
-  if (!low) return null;
+  // A gross game (§5.by) has no low man: nobody plays off anyone.
+  if (!low || game.handicapAllowance === 0) return null;
 
   if (low.applies) {
     return (

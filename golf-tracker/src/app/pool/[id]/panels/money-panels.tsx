@@ -48,7 +48,7 @@ export function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
                 list sits right below — so this heading is NOT the mode name (which read "Teams"
                 twice in a row on a team game). One fixed label for every mode. */}
             <h2 className="font-semibold text-gray-900">How it&apos;s played</h2>
-            <span className="text-sm text-gray-600">{game.players.length} players · {game.handicapAllowance}% hcap</span>
+            <span className="text-sm text-gray-600">{game.players.length} players · {game.handicapAllowance === 0 ? 'gross' : `${game.handicapAllowance}% hcap`}</span>
           </div>
           {/* F-081: a team game's structure is already the hub header ("4 pairs · $/point · 2 groups")
               and its pairings are the Teams list below, so the mode's developer prose goes; a solo
@@ -96,7 +96,7 @@ export function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
           </div>
           <div className="px-4 py-2 text-xs text-gray-400 border-t">
             {twoTeams
-              ? <>Each leg is head-to-head · loser pays the junk difference · {game.handicapAllowance}% handicap</>
+              ? <>Each leg is head-to-head · loser pays the junk difference · {game.handicapAllowance === 0 ? 'gross' : `${game.handicapAllowance}% handicap`}</>
               : <span className="text-amber-600">Head-to-head needs exactly two foursomes — this game has {game.teams.length}. Payouts show $0 until it&apos;s two teams.</span>}
           </div>
         </div>
@@ -131,7 +131,7 @@ export function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
           ))}
         </div>
         <div className="px-4 py-2 text-xs text-gray-400 border-t">
-          Winner-take-all per pot · lowest team total wins · {game.handicapAllowance}% handicap
+          Winner-take-all per pot · lowest team total wins · {game.handicapAllowance === 0 ? 'gross' : `${game.handicapAllowance}% handicap`}
         </div>
       </div>
     </section>

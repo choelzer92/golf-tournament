@@ -143,6 +143,7 @@ export function stakesSummary(mode: GameModeDescriptor | undefined, settings: Se
  * default is a summary nobody reads.
  */
 export function handicapSummary(h: HandicapSummaryInput): string {
+  if (h.allowance === 0) return 'gross';   // §5.by: nobody gets strokes, so nothing else applies
   const parts: string[] = [];
   parts.push(h.strokeMethod === 'off-the-low' ? 'off the low' : 'full handicap');
   if (h.allowance !== 100) parts.push(`${h.allowance}%`);

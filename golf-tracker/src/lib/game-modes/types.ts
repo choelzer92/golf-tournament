@@ -71,6 +71,9 @@ export interface GameModeContext {
   // team-handicap formulas need (scramble/alt-shot, Phase B). Distinct from
   // playingHcap, which is allowance-adjusted, off-the-low-adjusted, and rounded.
   rawCourseHcap(playerId: string): number;
+  // A gross game (§5.by: allowance 0). Nobody receives strokes, and that includes the one-ball
+  // team handicaps, which are built from rawCourseHcap and would otherwise still give strokes.
+  gross: boolean;
   // Decision-input games only (Wolf): per-hole decisions from game.wolfDecisions.
   wolfDecisions?: Record<number, WolfHoleDecision>;
   // Wolf only: the rotation order (player ids). Absent = use ctx.players order.

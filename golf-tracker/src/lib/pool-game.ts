@@ -1824,7 +1824,8 @@ function teamHoleScore(
   // teamFormat and falls through to the legacy call below, whose exact output is pinned
   // by golden snapshots.
   if (game.teamFormat) {
-    const teamHcap = isOneBall(game.teamFormat)
+    // A gross game (§5.by, allowance 0) gives no team strokes either.
+    const teamHcap = isOneBall(game.teamFormat) && game.handicapAllowance !== 0
       ? teamHandicapForFormat(
           team.playerIds.map((pid) => {
             const p = game.players.find((x) => x.id === pid);

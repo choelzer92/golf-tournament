@@ -76,6 +76,7 @@ import { TeesStep } from './steps/tees-step';
 import { PlayingGroupsStep } from './steps/playing-groups-step';
 import { TeamsStep } from './steps/teams-step';
 import { CreateStep } from './steps/create-step';
+import { parseAllowance } from '@/components/net-gross-switch';
 
 const WIZARD_KEY = 'pool_wizard_draft';
 // Set by the Format Library's "Start a game" to preconfigure the wizard once.
@@ -300,7 +301,7 @@ export default function NewPoolGamePage() {
     getGameMode(savedGameMode),
     savedModeSettings ?? modeSettings,
     parseFloat(entryPerPlayer) || 0,
-    { allowance: parseFloat(handicapAllowance) || 100, strokeMethod, handicapBasis },
+    { allowance: parseAllowance(handicapAllowance), strokeMethod, handicapBasis },
   );
 
   // Pick a structure. A USER pick resets scoring + money to the shape's defaults (today's pool for
@@ -448,7 +449,7 @@ export default function NewPoolGamePage() {
       entryPerPlayer: parseFloat(entryPerPlayer) || 0,
       positionSplitText,
       matchConfig: buildMatchConfig(),
-      handicapAllowance: parseFloat(handicapAllowance) || 100,
+      handicapAllowance: parseAllowance(handicapAllowance),
       strokeMethod,
       handicapBasis,
       // Save the format the same way a game stores it: an ordinary stroke game keeps only
@@ -593,7 +594,7 @@ export default function NewPoolGamePage() {
       customBonuses: customBonuses.length > 0 ? customBonuses : undefined,
       entryPerPlayer: parseFloat(entryPerPlayer) || 0,
       ...persistedTeamScoring(teamFormat, teamScoreBasis),
-      handicapAllowance: parseFloat(handicapAllowance) || 100,
+      handicapAllowance: parseAllowance(handicapAllowance),
       strokeMethod,
       handicapBasis,
       matchConfig: moneyMode === 'match' ? buildMatchConfig() : undefined,
@@ -648,7 +649,7 @@ export default function NewPoolGamePage() {
       // Only carry match config when the game IS a classic match, so pot games stay clean.
       matchConfig: container === 'classic' && moneyMode === 'match' ? buildMatchConfig() : undefined,
       entryPerPlayer: parseFloat(entryPerPlayer) || 0,
-      handicapAllowance: parseFloat(handicapAllowance) || 100,
+      handicapAllowance: parseAllowance(handicapAllowance),
       strokeMethod,
       handicapBasis,
       potSplit: dollarsToPotSplit(effectiveDollars),
@@ -790,7 +791,7 @@ export default function NewPoolGamePage() {
             course={course}
             players={players}
             setPlayers={setPlayers}
-            handicapAllowance={parseFloat(handicapAllowance) || 100}
+            handicapAllowance={parseAllowance(handicapAllowance)}
             handicapBasis={handicapBasis}
             nine={wizardNine}
             getGroupDefaults={currentGroupDefaults}
@@ -821,7 +822,7 @@ export default function NewPoolGamePage() {
             course={course}
             players={players}
             setPlayers={setPlayers}
-            handicapAllowance={parseFloat(handicapAllowance) || 100}
+            handicapAllowance={parseAllowance(handicapAllowance)}
             handicapBasis={handicapBasis}
             nine={wizardNine}
             // An INDIVIDUAL game skips team-building entirely and goes straight to money, so the
@@ -908,7 +909,7 @@ export default function NewPoolGamePage() {
               allSidesAreSolo(sideTeams.map((t, j) => ({ id: sideIdAt(j), playerIds: t.playerIds }))),
             )}
             nextLabel={needsPlayingGroups ? 'Next: Groups' : 'Next: Review & Create'}
-            handicapAllowance={parseFloat(handicapAllowance) || 100}
+            handicapAllowance={parseAllowance(handicapAllowance)}
             handicapBasis={handicapBasis}
             nine={wizardNine}
             onBack={() => setStep('tees')}
@@ -934,7 +935,7 @@ export default function NewPoolGamePage() {
                   ? proposeTeeGroups(built.map((t) => t.playerIds)).map((playerIds, i) => ({
                     id: crypto.randomUUID(),
                     name: `Group ${i + 1}`,
-                    playerIds: sortPlayerIdsByHcap(playerIds, players, course, parseFloat(handicapAllowance) || 100, handicapBasis),
+                    playerIds: sortPlayerIdsByHcap(playerIds, players, course, parseAllowance(handicapAllowance), handicapBasis),
                     matchupId: crypto.randomUUID(),
                     teeTime: '',
                   }))
@@ -958,7 +959,7 @@ export default function NewPoolGamePage() {
             teams={teams}
             setTeams={setTeams}
             partnerTeams={(sides ?? []).map((s) => s.playerIds)}
-            handicapAllowance={parseFloat(handicapAllowance) || 100}
+            handicapAllowance={parseAllowance(handicapAllowance)}
             handicapBasis={handicapBasis}
             nine={wizardNine}
             onNext={() => setStep('create')}
@@ -985,7 +986,7 @@ export default function NewPoolGamePage() {
             setTeamBuild={setTeamBuild}
             // The structure's shape (2 × 4, 3 + 3 + 2): team count and sizes come from step 2.
             teamSizes={shapeNow.teamSizes}
-            handicapAllowance={parseFloat(handicapAllowance) || 100}
+            handicapAllowance={parseAllowance(handicapAllowance)}
             handicapBasis={handicapBasis}
             nine={wizardNine}
             onNext={() => setStep('create')}
@@ -1000,7 +1001,7 @@ export default function NewPoolGamePage() {
             players={players}
             teams={teams}
             course={course}
-            handicapAllowance={parseFloat(handicapAllowance) || 100}
+            handicapAllowance={parseAllowance(handicapAllowance)}
             potDollars={potDollars}
             setPotDollars={setPotDollars}
             potEdited={potEdited}

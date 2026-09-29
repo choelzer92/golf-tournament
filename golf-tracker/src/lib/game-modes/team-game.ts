@@ -288,7 +288,7 @@ function compute(ctx: GameModeContext): IndividualResult {
 
   // Team handicap for the single-ball formats (0 for every multi-ball format), per side.
   const teamHcap: number[] = sides.map((_, idx) => {
-    if (!isOneBall(teamFormat)) return 0;
+    if (!isOneBall(teamFormat) || ctx.gross) return 0;
     const raws = sideIds(idx).map((id) => ctx.rawCourseHcap(id));
     return teamHandicapForFormat(
       raws,
