@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { CourseSelection, Player } from '@/lib/game-state';
 import { getPoolPlayingHandicap } from '@/lib/pool-game';
 import { upsertRosterPlayer } from '@/lib/roster';
+import { formatHandicap } from '@/lib/game-state';
 
 export function TeesStep({
   course, players, setPlayers, handicapAllowance, handicapBasis, nine, nextLabel, onNext, onBack,
@@ -77,7 +78,7 @@ export function TeesStep({
                         <span className="text-sm text-gray-900 truncate">
                           {p.name}
                           <span className={`ml-1 text-xs ${g === 'F' ? 'text-pink-500' : 'text-blue-500'}`}>{g}</span>
-                          {hcap !== null && <span className="ml-1 text-xs text-gray-500">({hcap})</span>}
+                          {hcap !== null && <span className="ml-1 text-xs text-gray-500">({formatHandicap(hcap)})</span>}
                         </span>
                         <span className="text-xs text-gray-400">{editingId === p.id ? '▾' : 'change'}</span>
                       </button>

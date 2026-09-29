@@ -12,6 +12,7 @@ import type { LiveMatchStatus } from '@/lib/live-scoring';
 import { resolveStablefordScale } from '@/lib/formats';
 import { computeSideGameResult, computeSideGamePlayerDetails } from '@/lib/side-game';
 import type { SideGameResult, SideGameTeamDetail, SideGameHoleResult } from '@/lib/side-game';
+import { formatHandicap } from '@/lib/game-state';
 
 export default function ScoreboardPage() {
   const router = useRouter();
@@ -1506,7 +1507,7 @@ function SideGamePanel({ tournament }: { tournament: Tournament }) {
                             <tr key={player.playerId}>
                               <td className="px-1 py-1 text-gray-300 font-medium whitespace-nowrap sticky left-0 bg-gray-800">
                                 {player.playerName.split(' ')[0]}
-                                <span className="text-[10px] text-gray-500 ml-0.5">({Math.round(player.playingHcap)})</span>
+                                <span className="text-[10px] text-gray-500 ml-0.5">({formatHandicap(Math.round(player.playingHcap))})</span>
                               </td>
                               {player.holes.filter((h) => h.holeNumber <= 9).map((h) => (
                                 <td key={h.holeNumber} className={`text-center px-1 py-1 ${h.isBestNet ? 'font-bold text-green-400' : 'text-gray-300'}`}>

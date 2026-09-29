@@ -1,6 +1,6 @@
 'use client';
 
-import { formatHandicapIndex } from '@/lib/game-state';
+import { formatHandicapIndex, formatHandicap } from '@/lib/game-state';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { Tournament } from '@/lib/tournament-state';
@@ -125,7 +125,7 @@ function SettlementTable({ ledger, tournament }: { ledger: MoneyLedger; tourname
                       {p.playerName.split(' ')[0]}
                     </span>
                     {p.moneyHandicap != null && (
-                      <span className="text-xs text-gray-400 ml-1">({Math.round(p.moneyHandicap)})</span>
+                      <span className="text-xs text-gray-400 ml-1">({formatHandicap(Math.round(p.moneyHandicap))})</span>
                     )}
                   </td>
                   <td className="text-right px-3 py-2 text-gray-500">{p.roundsPlayed}</td>
@@ -355,7 +355,7 @@ function RoundScorecardGrid({ details, tournament }: { details: RoundPlayerDetai
       <tr className="border-t border-gray-700/50">
         <td className={`px-2 py-1 text-xs font-medium ${teamColor} whitespace-nowrap sticky left-0 bg-gray-800`}>
           {player.playerName.split(' ')[0]}
-          <span className="text-gray-500 ml-1 text-[10px]">({Math.round(player.playingHcap)})</span>
+          <span className="text-gray-500 ml-1 text-[10px]">({formatHandicap(Math.round(player.playingHcap))})</span>
         </td>
         {player.holes.map((h) => {
           const isBest = h.isBestNet;

@@ -19,6 +19,7 @@ import { PairingLocks } from '@/components/pairing-locks';
 import { CaptainsPanel } from '@/components/captains-panel';
 import { TeeTimePicker } from '@/components/tee-time-picker';
 import { HandicapChip } from '@/components/handicap-chain';
+import { formatHandicap } from '@/lib/game-state';
 
 function makeTeam(index: number, playerIds: string[], captainId?: string, blankName = false): PoolTeam {
   return {
@@ -535,7 +536,7 @@ export function TeamsStep({
 
               <p className="text-xs text-gray-500 mb-2">
                 {team.playerIds.length} player{team.playerIds.length === 1 ? '' : 's'}
-                {course ? ` · combined HCP ${Math.round(teamCombinedHcap(team))}` : ''}
+                {course ? ` · combined HCP ${formatHandicap(Math.round(teamCombinedHcap(team)))}` : ''}
               </p>
 
               <ul className="space-y-1">

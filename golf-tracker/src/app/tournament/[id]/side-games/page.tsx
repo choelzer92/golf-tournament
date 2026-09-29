@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { Tournament, SideGame } from '@/lib/tournament-state';
 import type { GameScore, Player } from '@/lib/game-state';
-import { parseGhinIndex } from '@/lib/game-state';
+import { parseGhinIndex, formatHandicap } from '@/lib/game-state';
 import { loadTournament, loadGameScores, fetchTournament, fetchGameScores, subscribeToTournament, subscribeToScores, saveTournament, saveGameScores } from '@/lib/tournament-state';
 import { computeSideGameResult, computeSideGamePlayerDetails } from '@/lib/side-game';
 import type { SideGameResult, SideGameTeamDetail, SideGameHoleResult } from '@/lib/side-game';
@@ -417,7 +417,7 @@ function NassauBreakdown({ result, sideGame, teamDetails }: { result: SideGameRe
                                         <tr key={player.playerId}>
                                           <td className="px-1 py-1 text-gray-800 font-medium whitespace-nowrap">
                                             {player.playerName.split(' ')[0]}
-                                            <span className="text-[10px] text-gray-400 ml-0.5">({Math.round(player.playingHcap)})</span>
+                                            <span className="text-[10px] text-gray-400 ml-0.5">({formatHandicap(Math.round(player.playingHcap))})</span>
                                           </td>
                                           {playerHoles.map((h) => (
                                             <td key={h.holeNumber} className={`text-center px-1 py-1 ${h.isBestNet ? 'font-bold text-green-700' : 'text-gray-700'}`}>

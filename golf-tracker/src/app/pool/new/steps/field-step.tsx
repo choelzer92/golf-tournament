@@ -1,6 +1,6 @@
 'use client';
 
-import { formatHandicapIndex } from '@/lib/game-state';
+import { formatHandicapIndex, formatHandicap } from '@/lib/game-state';
 import { useState, useEffect, useRef } from 'react';
 import type { CourseSelection, Player } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
@@ -507,7 +507,7 @@ export function FieldStep({
                             nine={nine}
                             chipClassName="ml-2 text-green-700"
                           >
-                            Course HCP: {courseHcap}
+                            Course HCP: {formatHandicap(courseHcap)}
                           </HandicapChip>
                         ) : (
                           <HandicapChip
@@ -518,7 +518,7 @@ export function FieldStep({
                             nine={nine}
                             chipClassName="ml-2 text-amber-700 text-left"
                           >
-                            no slope/rating on this tee — using index ({courseHcap})
+                            no slope/rating on this tee — using index ({formatHandicap(courseHcap)})
                           </HandicapChip>
                         ))}
                       </p>

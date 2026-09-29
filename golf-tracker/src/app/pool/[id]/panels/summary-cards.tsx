@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { type Player, formatHandicapIndex } from '@/lib/game-state';
+import { type Player, formatHandicapIndex, formatHandicap } from '@/lib/game-state';
 import { type PoolGame, type PoolTeam, type PoolTeamDetail, getFieldLow, distinctRankingsForPlayers, summarizeTeamBuild } from '@/lib/pool-game';
 import { timeAgo } from './shared';
 
@@ -71,7 +71,7 @@ export function FieldLowBanner({ game }: { game: PoolGame }) {
       <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
         <p className="text-sm text-green-900">
           <span className="font-semibold">Off the low:</span> {low.playerName.split(' ')[0]} plays to scratch
-          (Course HCP {low.courseHandicap}) — everyone else plays the difference.
+          (Course HCP {formatHandicap(low.courseHandicap)}) — everyone else plays the difference.
         </p>
       </div>
     );
@@ -81,7 +81,7 @@ export function FieldLowBanner({ game }: { game: PoolGame }) {
     <div className="rounded-lg border border-gray-200 bg-white px-4 py-2.5">
       <p className="text-xs text-gray-500">
         {/* Same banner as the off-the-low variant above — same spelling (F-062). */}
-        Full handicap — low man: <span className="font-medium text-gray-700">{low.playerName.split(' ')[0]}</span> (Course HCP {low.courseHandicap})
+        Full handicap — low man: <span className="font-medium text-gray-700">{low.playerName.split(' ')[0]}</span> (Course HCP {formatHandicap(low.courseHandicap)})
       </p>
     </div>
   );

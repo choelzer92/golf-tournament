@@ -1,6 +1,6 @@
 import type { Player, GameScore, CourseSelection, TeeSetOption } from './game-state';
 import type { TwoBestBallsVariant } from './formats';
-import { calcCourseHandicap, applyAllowance, nineHoleIndex } from './game-state';
+import { calcCourseHandicap, applyAllowance, nineHoleIndex, formatHandicap } from './game-state';
 import { getMoneyStrokesOnHole } from './money-games';
 import { bestBallTeamHoleScore } from './live-scoring';
 import { supabase } from './supabase';
@@ -674,7 +674,7 @@ export function explainPlayingHandicap(
 ): HandicapChain {
   const fmt = (n: number): string => {
     const r = Math.round(n * 10) / 10;
-    return Number.isInteger(r) ? String(r) : r.toFixed(1);
+    return formatHandicap(r, Number.isInteger(r) ? undefined : 1);
   };
   const steps: HandicapChainStep[] = [];
   const done = (value: number, note?: string): HandicapChain =>

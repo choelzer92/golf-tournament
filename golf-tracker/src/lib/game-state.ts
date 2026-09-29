@@ -153,6 +153,13 @@ export function parseGhinIndex(raw: unknown): number | null {
 
 // The inverse, for display: a plus index is stored negative (see parseGhinIndex) but golfers
 // and GHIN write it "+2.1". Everything else prints as it always has.
+/** Any handicap (course, playing, a team's combined) as golfers write it: a plus handicap is
+ *  "+N", never "-N" (§5.bx). `digits` fixes the decimals; a value that rounds to 0 shows "0". */
+export function formatHandicap(n: number, digits?: number): string {
+  const s = digits === undefined ? String(Math.abs(n)) : Math.abs(n).toFixed(digits);
+  return n < 0 && Number(s) !== 0 ? `+${s}` : s;
+}
+
 export function formatHandicapIndex(index: number | null | undefined, empty = '—'): string {
   if (index === null || index === undefined || Number.isNaN(index)) return empty;
   return index < 0 ? `+${-index}` : String(index);

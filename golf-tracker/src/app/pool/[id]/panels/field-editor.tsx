@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { type Player, type TeeSetOption, parseGhinIndex, type GameScore, formatHandicapIndex } from '@/lib/game-state';
+import { type Player, type TeeSetOption, parseGhinIndex, type GameScore, formatHandicapIndex, formatHandicap } from '@/lib/game-state';
 import { type PoolGame, type PoolTeam, getPoolPlayingHandicap, gameNineBasis, balanceTeamsWithCaptains, captainsDealTeams, balanceTeamsWithLocks, pickCaptains, sortPlayerIdsByHcap, groupShapesFor, groupShapeLabel, dealBalancedIntoShape, TEE_GROUP_SHAPE_OPTS, orderPlayerIdsWithCaptain, teeOptionsForPlayer, playerTeeGenderMismatch, rankSwapCandidates, teamHandicapSpread, poolStrokeMap } from '@/lib/pool-game';
 import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
 import { isAppOwner } from '@/lib/invite-gate';
@@ -536,7 +536,7 @@ export function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; on
                     )}
                     <span className="text-sm font-medium text-gray-900 truncate min-w-0 flex-1">
                       {p.name}
-                      {chcp !== null && <span className="ml-1 text-xs font-normal text-gray-500" title="Strokes received in this game">({chcp})</span>}
+                      {chcp !== null && <span className="ml-1 text-xs font-normal text-gray-500" title={chcp < 0 ? `Gives ${-chcp} back in this game` : 'Strokes received in this game'}>({formatHandicap(chcp)})</span>}
                       {mismatch && <span className="ml-1 text-xs text-red-600 font-medium" title="This tee doesn't match the player's gender — fix it to correct their handicap">⚠ tee</span>}
                     </span>
                     <button
@@ -860,7 +860,7 @@ export function SwapPanel({ game, onSwap }: { game: PoolGame; onSwap: (a: string
           {game.teams.map((t) => (
             <optgroup key={t.id} label={t.name}>
               {t.playerIds.map((pid) => (
-                <option key={pid} value={pid}>{nameOf(pid)} ({strokesOf(pid)})</option>
+                <option key={pid} value={pid}>{nameOf(pid)} ({formatHandicap(strokesOf(pid))})</option>
               ))}
             </optgroup>
           ))}
@@ -885,7 +885,7 @@ export function SwapPanel({ game, onSwap }: { game: PoolGame; onSwap: (a: string
                   >
                     <span className="flex-1 truncate">
                       <span className="font-medium text-gray-900">{nameOf(c.playerId)}</span>
-                      <span className="text-gray-500"> ({strokesOf(c.playerId)}) · {c.teamName}</span>
+                      <span className="text-gray-500"> ({formatHandicap(strokesOf(c.playerId))}) · {c.teamName}</span>
                     </span>
                     <span className={`text-xs flex-shrink-0 ${tag.cls}`}>
                       {tag.text} · spread {Math.round(c.resultingSpread)}
@@ -912,13 +912,13 @@ export function SwapPanel({ game, onSwap }: { game: PoolGame; onSwap: (a: string
               return (
                 <div key={team!.id} className="rounded border border-gray-200 bg-white p-2">
                   <p className="text-xs font-semibold text-gray-800 truncate">{team!.name}
-                    <span className="ml-1 font-normal text-gray-400">Σ{total}</span>
+                    <span className="ml-1 font-normal text-gray-400">Σ{formatHandicap(total)}</span>
                   </p>
                   <ul className="mt-1 space-y-0.5">
                     {sortPlayerIdsByHcap(ids, game.players, game.course, game.handicapAllowance).map((id) => (
                       <li key={id} className={`text-xs flex justify-between gap-1 ${id === inId ? 'text-green-700 font-semibold' : 'text-gray-700'}`}>
                         <span className="truncate">{id === inId ? '+ ' : ''}{nameOf(id)}</span>
-                        <span className="tabular-nums text-gray-400">{strokesOf(id)}</span>
+                        <span className="tabular-nums text-gray-400">{formatHandicap(strokesOf(id))}</span>
                       </li>
                     ))}
                   </ul>

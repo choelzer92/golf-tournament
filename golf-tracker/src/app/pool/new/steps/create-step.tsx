@@ -22,6 +22,7 @@ import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { HandicapChip } from '@/components/handicap-chain';
 import { MONEY_WORD, structureLabel, type Container, type MoneyModel, type MoneyModelOption } from '@/lib/game-structure';
 import { type PotDollars, foldJunkStrings, legDollarsToStrings, potDollarsTotal } from './shared';
+import { formatHandicap } from '@/lib/game-state';
 
 // The sides engine's MONEY settings (plan §3.4). Everything else in its schema — format, hole
 // score, compare-by, side names — was answered on earlier steps or lives on the hub.
@@ -772,7 +773,7 @@ export function CreateStep({
                       {team.name}
                       {team.teeTime ? <span className="ml-2 text-xs text-gray-500">{team.teeTime}</span> : null}
                     </p>
-                    {course && <span className="text-xs text-gray-500">combined HCP {Math.round(combined)}</span>}
+                    {course && <span className="text-xs text-gray-500">combined HCP {formatHandicap(Math.round(combined))}</span>}
                   </div>
                   {team.playerIds.map((pid) => {
                     const p = playerById.get(pid);

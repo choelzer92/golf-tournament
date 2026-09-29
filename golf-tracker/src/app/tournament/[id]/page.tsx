@@ -1,6 +1,6 @@
 'use client';
 
-import { formatHandicapIndex, parseGhinIndex } from '@/lib/game-state';
+import { formatHandicapIndex, parseGhinIndex, formatHandicap } from '@/lib/game-state';
 import { HandicapIndexInput } from '@/components/handicap-index-input';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
@@ -815,14 +815,14 @@ function PlayerTeesPanel({ tournament, onSave }: { tournament: Tournament; onSav
   }
 
   function getPlayerCourseHcap(player: Player, round: TournamentRound): string {
-    if (!player.handicapIndex) return '–';
+    if (player.handicapIndex == null) return '–';
     const teeId = round.playerTeeOverrides?.[player.id] || round.defaultTeeId;
     const tee = round.course?.teeSets.find((t) => t.id === teeId) || round.course?.teeSets[0];
     if (!tee) return '–';
     const totalRating = tee.ratings?.find((r) => r.type === 'Total');
     if (!totalRating?.slopeRating || !totalRating?.courseRating) return '–';
     const ch = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, tee.totalPar);
-    return isNaN(ch) ? '–' : ch.toFixed(1);
+    return isNaN(ch) ? '–' : formatHandicap(ch, 1);
   }
 
   return (

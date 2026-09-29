@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import type { Player, CourseSelection } from '@/lib/game-state';
 import { explainPlayingHandicap } from '@/lib/pool-game';
+import { formatHandicap } from '@/lib/game-state';
 
 // F-043 — a handicap chip that shows its work. The number a golfer sees on the
 // teams/sides/field screens is the END of a chain (index → course handicap →
@@ -39,7 +40,7 @@ export function HandicapChip({
         title="How this number is calculated"
         className={chipClassName ?? 'flex-shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-xs font-semibold text-gray-700 tabular-nums'}
       >
-        {children ?? chain.playsOff}
+        {children ?? formatHandicap(chain.playsOff)}
       </button>
       {open && (
         <span className="block basis-full w-full min-w-56 max-w-[85vw] mt-1.5 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-left font-normal normal-case">
@@ -51,7 +52,7 @@ export function HandicapChip({
           ))}
           <span className="flex items-baseline justify-between gap-3 py-0.5 border-t border-gray-200 mt-0.5 pt-1">
             <span className="text-[11px] font-semibold text-gray-700">Plays off</span>
-            <span className="text-xs font-bold text-gray-900 tabular-nums">{chain.playsOff}</span>
+            <span className="text-xs font-bold text-gray-900 tabular-nums">{formatHandicap(chain.playsOff)}</span>
           </span>
           {chain.note && <span className="block text-[11px] text-amber-700 mt-1">{chain.note}</span>}
         </span>

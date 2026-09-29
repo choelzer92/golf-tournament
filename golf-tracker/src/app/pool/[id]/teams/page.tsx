@@ -7,6 +7,7 @@ import { loadPoolGame, fetchPoolGame, computePoolPlayerDetails } from '@/lib/poo
 import { getGameMode } from '@/lib/game-modes';
 import { sidesOfGame, sideOfPlayer } from '@/lib/game-modes/sides';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
+import { formatHandicap } from '@/lib/game-state';
 
 // A clean teams sheet the organizer can screenshot or print and send out —
 // replacing the spreadsheet he used to make by hand. Foursomes in their set
@@ -150,8 +151,8 @@ export default function PoolTeamsPage() {
                             )}
                           </span>
                           {tn && <span className="text-[9px] text-gray-400 flex-shrink-0">{tn}</span>}
-                          <span className="flex-shrink-0 text-xs font-semibold text-gray-700 tabular-nums" title="Strokes received this game">
-                            {strokes}
+                          <span className="flex-shrink-0 text-xs font-semibold text-gray-700 tabular-nums" title={strokes < 0 ? `Gives ${-strokes} back this game` : 'Strokes received this game'}>
+                            {formatHandicap(strokes)}
                           </span>
                         </li>
                       );

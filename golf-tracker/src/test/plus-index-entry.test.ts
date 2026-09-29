@@ -7,7 +7,9 @@ import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { isPlusText, toggleIndexSign } from '@/components/handicap-index-input';
-import { formatHandicapIndex, parseGhinIndex } from '@/lib/game-state';
+import { formatHandicap, formatHandicapIndex, parseGhinIndex } from '@/lib/game-state';
+import { explainPlayingHandicap } from '@/lib/pool-game';
+import { makeCourse, makePlayer } from './fixtures';
 
 describe('F-100: the "+" chip beside the handicap box', () => {
   it('flips the sign of what is typed, and reads back as a plus index', () => {
@@ -32,6 +34,27 @@ describe('F-100: the "+" chip beside the handicap box', () => {
   it('a stored plus index pre-fills as "+2.1" and saves back unchanged', () => {
     expect(parseGhinIndex(formatHandicapIndex(-2.1, ''))).toBe(-2.1);
     expect(isPlusText(formatHandicapIndex(-2.1, ''))).toBe(true);
+  });
+});
+
+describe('F-102 d: every handicap on screen is written "+N", never "-N"', () => {
+  it('formatHandicap spells course and playing handicaps the way golfers write them', () => {
+    expect(formatHandicap(-2)).toBe('+2');
+    expect(formatHandicap(14)).toBe('14');
+    expect(formatHandicap(0)).toBe('0');
+    expect(formatHandicap(-1.849, 1)).toBe('+1.8');
+    expect(formatHandicap(-0.001, 2)).toBe('0.00');   // rounds to scratch: no sign
+    expect(formatHandicap(3.456, 2)).toBe('3.46');
+  });
+
+  it('the "how this number is calculated" chain shows a plus player with "+" on every line', () => {
+    for (const allowance of [100, 90]) {
+      for (const nine of [null, 'front9'] as const) {
+        const chain = explainPlayingHandicap(makePlayer(1, -2.1), makeCourse(), allowance, 'course', nine);
+        for (const step of chain.steps) expect(step.value, step.label).not.toMatch(/-/);
+        expect(chain.steps[0].value).toBe('+2.1');
+      }
+    }
   });
 });
 

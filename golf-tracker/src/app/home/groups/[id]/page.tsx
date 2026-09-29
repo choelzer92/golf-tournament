@@ -531,7 +531,7 @@ export default function GroupDetailPage() {
                   <span className="min-w-0">
                     <span className="font-medium text-gray-900">{r.name}</span>
                     <span className="text-xs text-gray-500 ml-2">
-                      {r.handicapIndex != null ? r.handicapIndex : '—'}
+                      {formatHandicapIndex(r.handicapIndex)}
                     </span>
                   </span>
                   <span className="shrink-0 text-sm text-green-700 font-medium">+ Add</span>

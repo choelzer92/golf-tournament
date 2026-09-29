@@ -1,6 +1,6 @@
 'use client';
 
-import { formatHandicapIndex } from '@/lib/game-state';
+import { formatHandicapIndex, formatHandicap } from '@/lib/game-state';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FORMATS, TEAM_MODES, getTeamModeConfig, resolveAllowance, type GameFormat, type FormatSetting, type TeamMode } from '@/lib/formats';
@@ -492,7 +492,7 @@ function PlayersStep({
   }
 
   function getPlayerCourseHcap(player: Player): number | null {
-    if (!player.handicapIndex || !course) return null;
+    if (player.handicapIndex == null || !course) return null;
     const tee = course.teeSets.find((t) => t.id === player.teeSetId);
     if (!tee) return null;
     const totalRating = tee.ratings.find((r) => r.type === 'Total');
@@ -562,7 +562,7 @@ function PlayersStep({
                         Index: {formatHandicapIndex(player.handicapIndex, 'N/A')}
                         {getPlayerCourseHcap(player) !== null && (
                           <span className="ml-2 text-green-700">
-                            Course HCP: {getPlayerCourseHcap(player)}
+                            Course HCP: {formatHandicap(getPlayerCourseHcap(player) ?? 0)}
                           </span>
                         )}
                       </p>

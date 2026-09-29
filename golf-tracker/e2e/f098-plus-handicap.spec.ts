@@ -82,3 +82,19 @@ test('F-100: the hub field editor shows "+2" and the chip flips it, saved at onc
   await page.reload();
   await expect(page.getByText('(gives 2 back)')).toBeVisible();
 });
+
+test('F-102 d: the hub and the teams sheet write a plus handicap "+2", never "-2"', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  const id = await seed(page, 'F-098: a +2 player in a full-handicap pool (thru 6)');
+  await goToGame(page, id);
+  await expect(page.getByText('(gives 2 back)')).toBeVisible();
+  await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+  await expect(page.getByTitle('Gives 2 back in this game')).toHaveText('(+2)');
+  await expect(page.getByText(/\(-2\)|HCP -2/)).toHaveCount(0);
+  await page.screenshot({ path: 'e2e/screenshots/f102d-hub.png', fullPage: true });
+
+  await goToGame(page, id, '/teams');
+  await page.waitForURL(/\/teams/);
+  await expect(page.getByTitle('Gives 2 back this game')).toHaveText('+2');
+  await page.screenshot({ path: 'e2e/screenshots/f102d-teams.png', fullPage: true });
+});

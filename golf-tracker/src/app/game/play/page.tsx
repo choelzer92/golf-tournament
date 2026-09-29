@@ -1,6 +1,6 @@
 'use client';
 
-import { formatHandicapIndex } from '@/lib/game-state';
+import { formatHandicapIndex, formatHandicap } from '@/lib/game-state';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { GameSetup, GameScore, Player } from '@/lib/game-state';
@@ -980,17 +980,17 @@ export default function PlayGamePage() {
                       const usedRating = (is9 ? nineHoleRating : totalRating) || totalRating;
                       const usingFallback = is9 && !nineHoleRating;
                       const teamColor = player.team === 'A' ? 'text-blue-700' : player.team === 'B' ? 'text-red-700' : 'text-gray-800';
-                      const indexUsed = is9 ? (player.handicapIndex ?? 0) / 2 : player.handicapIndex;
+                      const indexUsed = is9 ? nineHoleIndex(player.handicapIndex ?? 0) : player.handicapIndex;
 
                       return (
                         <div key={player.id} className="text-[11px] text-gray-600 flex flex-wrap gap-x-3">
                           <span className={`font-medium ${teamColor}`}>{player.name.split(' ')[0]}</span>
-                          <span>Index: {formatHandicapIndex(player.handicapIndex, '–')}{is9 ? ` (÷2=${indexUsed?.toFixed(1)})` : ''}</span>
+                          <span>Index: {formatHandicapIndex(player.handicapIndex, '–')}{is9 ? ` (÷2=${formatHandicap(indexUsed ?? 0, 1)})` : ''}</span>
                           {usingFallback && <span className="text-amber-600">Using: 18-hole÷2</span>}
                           <span>Slope: {usedRating?.slopeRating ?? '–'}</span>
                           <span>CR: {usedRating?.courseRating ?? '–'}</span>
-                          <span>CH: {getPlayerEffectiveHcap(player).toFixed(1)}</span>
-                          <span className="font-bold">Plays: {getPlayingHandicap(player).toFixed(2)}</span>
+                          <span>CH: {formatHandicap(getPlayerEffectiveHcap(player), 1)}</span>
+                          <span className="font-bold">Plays: {formatHandicap(getPlayingHandicap(player), 2)}</span>
                         </div>
                       );
                     })}

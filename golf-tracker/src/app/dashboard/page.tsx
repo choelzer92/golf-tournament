@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTournamentList, importTournament, hydrateTournaments, type TournamentListItem } from '@/lib/tournament-state';
-import { parseGhinIndex } from '@/lib/game-state';
+import { parseGhinIndex, formatHandicap } from '@/lib/game-state';
 import { PoolShareButton } from '@/components/pool-share';
 import { getPoolGameList, getPoolGameListForGhin, hydratePoolGames, type PoolGameListItem } from '@/lib/pool-game';
 import { SOLO_ROUNDS } from '@/lib/flags';
@@ -556,7 +556,7 @@ function RatingBox({
       <p className="text-sm text-gray-600">Slope: {rating.SlopeRating}</p>
       {courseHcap !== null && (
         <p className="mt-1 text-xs text-green-700 font-medium">
-          Course HCP: {courseHcap}
+          Course HCP: {formatHandicap(courseHcap)}
         </p>
       )}
     </div>

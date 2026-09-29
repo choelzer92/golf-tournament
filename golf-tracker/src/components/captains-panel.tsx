@@ -1,6 +1,7 @@
 'use client';
 
 import type { Player, CourseSelection } from '@/lib/game-state';
+import { formatHandicap } from '@/lib/game-state';
 import { getPoolPlayingHandicap, rankPlayersForCaptain } from '@/lib/pool-game';
 import { HandicapChip } from './handicap-chain';
 
@@ -107,7 +108,7 @@ export function CaptainsPanel({
                   const h = chcpOf(p.id);
                   return (
                     <option key={p.id} value={p.id}>
-                      {p.name}{h !== null ? ` (${h})` : ''}
+                      {p.name}{h !== null ? ` (${formatHandicap(h)})` : ''}
                     </option>
                   );
                 })}
