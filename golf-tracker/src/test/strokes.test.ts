@@ -9,7 +9,7 @@ import { getMoneyStrokesOnHole } from '@/lib/money-games';
 import { buildHcapMap } from '@/lib/pool-game';
 import { GAME_MODES, getGameMode } from '@/lib/game-modes';
 import { buildGameModeContext } from '@/lib/game-modes/context';
-import { getPlayerStrokesForHole } from '@/lib/live-scoring';
+import { computeHoleWinners, getPlayerStrokesForHole } from '@/lib/live-scoring';
 import type { RoundMatchup, Tournament, TournamentRound } from '@/lib/tournament-state';
 import { allEighteen, makeCourse, makeGame, makePlayer, scoresFor, singleMatchup, TEST_PARS } from './fixtures';
 
@@ -135,5 +135,38 @@ describe('F-098 in the tournament engine (live-scoring)', () => {
   it('off-the-low: the plus player plays off 0 and the 10 gets 12', () => {
     expect(strokes('p1', 'off-the-low').every((x) => x === 0)).toBe(true);
     expect(strokes('p2', 'off-the-low').reduce((a, b) => a + b, 0)).toBe(12);
+  });
+});
+
+// F-102 a: a split round re-ranks each nine's stroke index 1–9 and halves the team handicap per
+// nine, so the team allocator must count 9 holes, as the player path already does. Counting 18,
+// a plus team's give-back rank (19 − SI) never came round and it played off scratch.
+describe('F-102 a: a plus scramble team gives back on each nine of a split round', () => {
+  const players = [makePlayer(1, -8), makePlayer(2, -8), makePlayer(3, 0), makePlayer(4, 0)];
+  const matchup = { id: 'mu1', gameId: 'g1', teamAPlayerIds: ['p1', 'p2'], teamBPlayerIds: ['p3', 'p4'] } as unknown as RoundMatchup;
+  const round = {
+    id: 'r1', name: 'R1', dayLabel: 'Day 1', formatId: 'scramble', teamMode: 'scramble',
+    course: makeCourse(), holesPlaying: '18', groupingMode: 'cross-team', scoringMethod: 'match-play',
+    pointsForWin: 1, pointsForTie: 0.5, pointsForLoss: 0, strokeMethod: 'full',
+    handicapBasis: 'index', defaultTeeId: null, bonuses: [], matchups: [matchup], status: 'in-progress', order: 0,
+    splitFormat: {
+      formatId: 'scramble', teamMode: 'scramble', scoringMethod: 'match-play',
+      pointsForWin: 1, pointsForTie: 0.5, pointsForLoss: 0, handicapAllowance: 100, strokeMethod: 'full',
+    },
+  } as unknown as TournamentRound;
+  const tournament = { players } as unknown as Tournament;
+  const scores = players.flatMap((p) => scoresFor(p.id, 4));
+
+  it('−8/−8 halve to −4 a nine; 35% + 15% = −2, given back on the two easiest holes of EACH nine', () => {
+    const winners = computeHoleWinners(scores, matchup, round, tournament);
+    const bWins = allEighteen().filter((h) => winners.get(h) === 'B');
+    expect(bWins).toEqual([8, 9, 17, 18]);
+    expect(allEighteen().filter((h) => winners.get(h) === 'tie')).toHaveLength(14);
+  });
+
+  it('a positive team is unchanged: +8/+8 receives on the two hardest of each nine', () => {
+    const pos = { players: [makePlayer(1, 8), makePlayer(2, 8), makePlayer(3, 0), makePlayer(4, 0)] } as unknown as Tournament;
+    const winners = computeHoleWinners(scores, matchup, round, pos);
+    expect(allEighteen().filter((h) => winners.get(h) === 'A')).toEqual([1, 2, 10, 11]);
   });
 });

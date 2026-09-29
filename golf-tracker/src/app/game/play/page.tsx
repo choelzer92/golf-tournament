@@ -630,8 +630,10 @@ export default function PlayGamePage() {
 
   function getTeamStrokesOnHole(teamPlayers: Player[], holeHandicap: number): number {
     const teamHcap = getTeamHandicapForFormat(teamPlayers);
-    // A plus team gives back on the easiest holes, as a plus player does (F-098).
-    return strokesOnHole(teamHcap, holeHandicap, holes.length);
+    // The team handicap is already a nine's on a split round (getPlayerRawCourseHandicap), and
+    // each nine is re-ranked 1–9, so it allocates over 9 holes (F-102 a). A plus team gives back
+    // on the easiest holes, as a plus player does (F-098).
+    return strokesOnHole(teamHcap, holeHandicap, setup!.splitFormat ? 9 : holes.length);
   }
 
   function getPlayingHandicap(player: Player, holeNumber?: number): number {

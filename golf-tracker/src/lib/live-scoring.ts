@@ -177,10 +177,12 @@ function getPlayerStrokesOnHole(player: Player, holeHandicap: number, round: Tou
   return strokesOnHole(rawHcap, holeHandicap, numHoles);
 }
 
-function getPlayerRawCourseHandicap(player: Player, round: TournamentRound): number {
+function getPlayerRawCourseHandicap(player: Player, round: TournamentRound, holeNumber?: number): number {
   // See getPlayerEffectiveHcap: only a null/NaN index means "unknown".
   if (player.handicapIndex == null || Number.isNaN(player.handicapIndex)) return 0;
-  const is9 = round.holesPlaying === 'front9' || round.holesPlaying === 'back9';
+  // A split round is two nines, each with its own 9-hole handicap, as the player path does
+  // (F-102 a, §5.bx). Counting it as 18 gave a team its full handicap on EACH nine.
+  const is9 = round.holesPlaying === 'front9' || round.holesPlaying === 'back9' || !!round.splitFormat;
 
   if (round.handicapBasis === 'index') {
     return is9 ? player.handicapIndex / 2 : player.handicapIndex;
@@ -190,7 +192,9 @@ function getPlayerRawCourseHandicap(player: Player, round: TournamentRound): num
   if (!playerTee) return 0;
 
   if (is9) {
-    const ratingType = round.holesPlaying === 'front9' ? 'Front' : 'Back';
+    const ratingType = round.splitFormat
+      ? ((holeNumber ? holeNumber > 9 : false) ? 'Back' : 'Front')
+      : (round.holesPlaying === 'front9' ? 'Front' : 'Back');
     const rating = playerTee.ratings?.find((r) => r.type === ratingType);
     if (rating && rating.slopeRating && rating.courseRating) {
       const par = (playerTee.holes || [])
@@ -211,10 +215,10 @@ function getPlayerRawCourseHandicap(player: Player, round: TournamentRound): num
   return isNaN(result) ? 0 : result;
 }
 
-function getTeamHandicapForFormat(teamPlayers: Player[], round: TournamentRound, teamMode: TeamMode): number {
+function getTeamHandicapForFormat(teamPlayers: Player[], round: TournamentRound, teamMode: TeamMode, holeNumber?: number): number {
   if (teamMode === 'scramble') {
     const courseHandicaps = teamPlayers
-      .map((p) => getPlayerRawCourseHandicap(p, round))
+      .map((p) => getPlayerRawCourseHandicap(p, round, holeNumber))
       .sort((a, b) => a - b);
 
     const allowance = round.handicapAllowance ?? -1;
@@ -231,7 +235,7 @@ function getTeamHandicapForFormat(teamPlayers: Player[], round: TournamentRound,
   }
   if (teamMode === 'alternate-shot') {
     const courseHandicaps = teamPlayers
-      .map((p) => getPlayerRawCourseHandicap(p, round))
+      .map((p) => getPlayerRawCourseHandicap(p, round, holeNumber))
       .sort((a, b) => a - b);
 
     const allowance = (round.handicapAllowance ?? 50) / 100;
@@ -242,10 +246,12 @@ function getTeamHandicapForFormat(teamPlayers: Player[], round: TournamentRound,
   return 0;
 }
 
-function getTeamStrokesOnHole(teamPlayers: Player[], holeHandicap: number, round: TournamentRound, holes: HoleData[], teamMode: TeamMode): number {
-  const teamHcap = getTeamHandicapForFormat(teamPlayers, round, teamMode);
-  // A plus team gives back on the easiest holes, as a plus player does (F-098).
-  return strokesOnHole(teamHcap, holeHandicap, holes.length);
+function getTeamStrokesOnHole(teamPlayers: Player[], holeHandicap: number, round: TournamentRound, holes: HoleData[], teamMode: TeamMode, holeNumber?: number): number {
+  const teamHcap = getTeamHandicapForFormat(teamPlayers, round, teamMode, holeNumber);
+  // A split round re-ranks each nine 1–9, so it allocates over 9 holes (F-102 a). A plus team
+  // gives back on the easiest holes, as a plus player does (F-098).
+  const numHoles = round.splitFormat ? 9 : holes.length;
+  return strokesOnHole(teamHcap, holeHandicap, numHoles);
 }
 
 function getScore(scores: GameScore[], playerId: string, holeNumber: number): number | null {
@@ -267,7 +273,7 @@ function getTeamNetForHole(
     const firstWithScore = teamPlayers.find((p) => getScore(scores, p.id, hole.number) !== null);
     if (!firstWithScore) return null;
     const gross = getScore(scores, firstWithScore.id, hole.number)!;
-    const strokes = getTeamStrokesOnHole(teamPlayers, hole.handicap, round, holes, teamMode);
+    const strokes = getTeamStrokesOnHole(teamPlayers, hole.handicap, round, holes, teamMode, hole.number);
     return gross - strokes;
   }
 
@@ -275,7 +281,7 @@ function getTeamNetForHole(
     const firstWithScore = teamPlayers.find((p) => getScore(scores, p.id, hole.number) !== null);
     if (!firstWithScore) return null;
     const gross = getScore(scores, firstWithScore.id, hole.number)!;
-    const strokes = getTeamStrokesOnHole(teamPlayers, hole.handicap, round, holes, teamMode);
+    const strokes = getTeamStrokesOnHole(teamPlayers, hole.handicap, round, holes, teamMode, hole.number);
     return gross - strokes;
   }
 
