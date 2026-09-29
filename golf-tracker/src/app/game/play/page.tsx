@@ -643,8 +643,10 @@ export default function PlayGamePage() {
     // Pool games pass a fixed field-low baseline so this scorecard matches the
     // pool leaderboard (which subtracts the low of the whole field, not just
     // the 4 players on this screen).
+    // Off the low rounds each Playing Handicap FIRST, then subtracts (WHS Appendix C; the pool's
+    // buildHcapMap; F-102 g, §5.bx).
     if (setup!.offTheLowBaseline !== undefined) {
-      return hcap - setup!.offTheLowBaseline;
+      return Math.round(hcap) - Math.round(setup!.offTheLowBaseline);
     }
 
     // Off the low: determine the comparison pool
@@ -658,9 +660,9 @@ export default function PlayGamePage() {
       }
     }
 
-    const allHcaps = pool.map((p) => getPlayerEffectiveHcap(p, holeNumber));
+    const allHcaps = pool.map((p) => Math.round(getPlayerEffectiveHcap(p, holeNumber)));
     const lowest = Math.min(...allHcaps);
-    return hcap - lowest;
+    return Math.round(hcap) - lowest;
   }
 
   function getPlayerStrokesOnHole(player: Player, holeHandicap: number, holeNumber?: number): number {

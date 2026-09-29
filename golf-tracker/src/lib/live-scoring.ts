@@ -163,10 +163,14 @@ function getPlayingHandicap(player: Player, round: TournamentRound, holes: HoleD
   const hcap = getPlayerEffectiveHcap(player, round, holes, holeNumber);
   if (getActiveStrokeMethod(round, holeNumber) === 'full') return hcap;
 
-  // Off the low: subtract the lowest in the matchup
-  const allHcaps = allMatchupPlayers.map((p) => getPlayerEffectiveHcap(p, round, holes, holeNumber));
+  // Off the low: each Playing Handicap is rounded FIRST, then the lowest is subtracted (WHS
+  // Appendix C: "the player with the lowest Playing Handicap plays off zero … the other(s)
+  // receive the difference"), exactly as the pool's buildHcapMap does. Subtracting the unrounded
+  // values could hand one extra stroke: CH 4.5 v 15.4 gave 11, the Rules give 15 − 5 = 10
+  // (F-102 g, §5.bx). A plus low counts in full, so everyone else gains.
+  const allHcaps = allMatchupPlayers.map((p) => Math.round(getPlayerEffectiveHcap(p, round, holes, holeNumber)));
   const lowest = Math.min(...allHcaps);
-  return hcap - lowest;
+  return Math.round(hcap) - lowest;
 }
 
 function getPlayerStrokesOnHole(player: Player, holeHandicap: number, round: TournamentRound, holes: HoleData[], allMatchupPlayers: Player[], holeNumber?: number): number {

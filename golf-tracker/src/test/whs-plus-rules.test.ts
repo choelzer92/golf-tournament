@@ -80,6 +80,31 @@ describe('WHS Appendix C/3: off the low with a plus player (90%)', () => {
   });
 });
 
+describe('WHS Appendix C: off the low subtracts ROUNDED Playing Handicaps (F-102 g)', () => {
+  // "the player with the lowest Playing Handicap plays off zero … the other player(s) receive(s)
+  // the difference": Playing Handicaps are whole numbers, so each is rounded before the
+  // subtraction. Rounding the difference instead handed one extra stroke.
+  const cases: [number, number, number][] = [[4.5, 15.4, 10], [-2.5, 10.4, 12], [-1.6, 12.3, 14]];
+  for (const [lo, hi, want] of cases) {
+    it(`CH ${formatHandicapIndex(lo)} v ${hi}: the higher receives ${want}, in both engines`, () => {
+      const game = makeGame({ strokeMethod: 'off-the-low', indexes: [lo, hi] });
+      expect(buildHcapMap(game).get('p2')).toBe(want);
+      const players = [makePlayer(1, lo), makePlayer(2, hi)];
+      const matchup = { id: 'mu1', gameId: 'g1', teamAPlayerIds: ['p1'], teamBPlayerIds: ['p2'] } as unknown as RoundMatchup;
+      const round = {
+        id: 'r1', name: 'R1', dayLabel: 'Day 1', formatId: 'singles', teamMode: 'individual',
+        course: makeCourse(), holesPlaying: '18', groupingMode: 'cross-team', scoringMethod: 'match-play',
+        pointsForWin: 1, pointsForTie: 0.5, pointsForLoss: 0, handicapAllowance: 100, strokeMethod: 'off-the-low',
+        handicapBasis: 'course', defaultTeeId: null, bonuses: [], matchups: [matchup], status: 'in-progress', order: 0,
+      } as unknown as TournamentRound;
+      const total = allEighteen()
+        .map((h) => getPlayerStrokesForHole('p2', h, h, matchup, round, { players } as unknown as Tournament))
+        .reduce((a, b) => a + b, 0);
+      expect(total).toBe(want);
+    });
+  }
+});
+
 describe('WHS Rule 5.2c: a plus index is written "+", stored negative, and survives a round trip', () => {
   // Craig 2026-09-28: −2 internally is the safeguard; "+" is only how it's written. Every value
   // shown through formatHandicapIndex must read back through parseGhinIndex to the same number,
