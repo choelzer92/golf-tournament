@@ -14,6 +14,7 @@ test('§5.by: the wizard\'s Gross hides the stroke settings, Net brings them bac
   await fieldToGameStep(page);
   await toScoringStep(page);
   await expect(page.getByText('How much handicap counts?')).toBeVisible();
+  await expect(page.getByText('Score basis')).toBeVisible();   // the default game, Skins
   const switcher = page.getByRole('radiogroup', { name: 'Net or gross' });
   await expect(switcher.getByRole('radio', { name: 'Net' })).toHaveAttribute('aria-checked', 'true');
 
@@ -21,12 +22,15 @@ test('§5.by: the wizard\'s Gross hides the stroke settings, Net brings them bac
   await expect(switcher.getByRole('radio', { name: 'Gross' })).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByText('How much handicap counts?')).toHaveCount(0);
   await expect(page.getByText('Who gets strokes?')).toHaveCount(0);
+  // F-102 k (§5.bz): the mode's own net/gross choice can only mean gross now.
+  await expect(page.getByText('Score basis')).toHaveCount(0);
   await expect(page.getByText(/Nobody gets strokes/)).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/gross-wizard.png', fullPage: true });
 
   await switcher.getByRole('radio', { name: 'Net' }).click();
   await expect(page.getByText('How much handicap counts?')).toBeVisible();
   await expect(page.getByText('Who gets strokes?')).toBeVisible();
+  await expect(page.getByText('Score basis')).toBeVisible();
 });
 
 test('§5.by: the hub\'s Gross saves 0%, reads "gross", and Net restores the percentage', async ({ page }) => {
@@ -60,4 +64,22 @@ test('§5.by: the hub\'s Gross saves 0%, reads "gross", and Net restores the per
   await expect(page.getByText('(gives 2 back)')).toBeVisible();
   await expect(page.getByText(/· 100% (hcap|handicap)/).first()).toBeVisible();
   await expect(page.getByText(/low man/)).toBeVisible();
+});
+
+test('F-102 k: on the hub, Gross hides a mode’s own Score basis; Net shows it again', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  const id = await seed(page, 'Skins — 2 players, complete');
+  await goToGame(page, id);
+  await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+  await expect(page.getByText(/Skins options/)).toBeVisible();
+  await expect(page.getByText('Score basis')).toBeVisible();
+
+  const switcher = page.getByRole('radiogroup', { name: 'Net or gross' });
+  await switcher.getByRole('radio', { name: 'Gross' }).click();
+  await expect(page.getByText('Score basis')).toHaveCount(0);
+  await expect(page.getByText(/Skins options/)).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/f102k-hub-skins-gross.png', fullPage: true });
+
+  await switcher.getByRole('radio', { name: 'Net' }).click();
+  await expect(page.getByText('Score basis')).toBeVisible();
 });

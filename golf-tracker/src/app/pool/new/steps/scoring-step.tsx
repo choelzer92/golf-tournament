@@ -8,7 +8,7 @@ import {
 } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { type CompareBy, type StructureShape, structureLabel } from '@/lib/game-structure';
-import { NetGrossSwitch, isGross, netAllowance, parseAllowance } from '@/components/net-gross-switch';
+import { GROSS_HIDES, NetGrossSwitch, isGross, netAllowance, parseAllowance } from '@/components/net-gross-switch';
 
 // Step 3 of the wizard — "How is it scored?" (plan §3.2).
 //
@@ -206,6 +206,7 @@ export function ScoringStep({
               schema={selectedMode.settings}
               values={modeSettings}
               onChangeAction={(key, value) => { onFormatEdited(); setModeSettings({ ...modeSettings, [key]: value }); }}
+              hideKeys={gross ? GROSS_HIDES : undefined}
             />
           </div>
         )}

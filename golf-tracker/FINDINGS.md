@@ -1330,7 +1330,8 @@ scoring step now shows two controls for one idea. They never disagree on the mon
 gross, and a mode set to Gross ignores strokes anyway. It's only the screen that's redundant. Options:
 A, when the switch is on Gross, hide the mode's basis (it can only mean gross); B, drive the mode's
 basis FROM the switch and drop the mode setting from the form (old games keep their saved value);
-C, leave both. **Craig's call.**
+C, leave both. **DECIDED 2026-09-29 (§5.bz): A, BUILT** — `GROSS_HIDES` (`scoreBasis`, and the
+junk `junkBasis` for the same reason) hidden on Gross in the wizard, the money step and the hub.
 
 **Status:** 2026-09-28 — **a, b, c, d, g, i BUILT** (a44bc8d, c986125, 4118045, 581408a, bd5e190,
 c945cb7), and e is resolved by the Rules. All are pinned in `whs-plus-rules.test.ts`,
@@ -1339,7 +1340,7 @@ c turned out to be two bugs. One was the plus-handicap bound. The other was a sy
 ignored seat caps, so an odd field's heaviest player was never tried on the smaller team; that one hit
 all-positive fields too. h waits for F-022. **j BUILT** (310fd48, §5.by). It includes one
 scoring correction: a gross scramble or alt-shot had still given team strokes, and now gives none.
-Pinned by `gross-game.test.ts` (8 cases fail without it) and `e2e/gross-switch.spec.ts`. k is Craig's call.
+Pinned by `gross-game.test.ts` (8 cases fail without it) and `e2e/gross-switch.spec.ts`. k BUILT (§5.bz A).
 
 ---
 

@@ -18,6 +18,7 @@ import {
 import type { GameSide } from '@/lib/game-modes/sides';
 import { getGameMode, fitExplanation, formatSummaryLine, playerRangeText, type SettingsBag } from '@/lib/game-modes';
 import { sideNameFrom, allSidesAreSolo, MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
+import { GROSS_HIDES, isGross } from '@/components/net-gross-switch';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { HandicapChip } from '@/components/handicap-chain';
 import { MONEY_WORD, structureLabel, type Container, type MoneyModel, type MoneyModelOption } from '@/lib/game-structure';
@@ -646,7 +647,8 @@ export function CreateStep({
             schema={mode.settings}
             values={{ ...modeSettings, junkEnabled: !junkIsOff(junkValues) }}
             onChangeAction={(key, value) => setModeSettings({ [key]: value })}
-            hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_JUNK_KEYS.has(k))}
+            hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_JUNK_KEYS.has(k)
+              || (isGross(handicapAllowance) && GROSS_HIDES.includes(k)))}
           />
         </div>
         )}

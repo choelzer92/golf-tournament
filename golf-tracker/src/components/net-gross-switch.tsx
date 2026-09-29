@@ -8,6 +8,10 @@ export function isGross(allowance: number): boolean {
   return allowance === 0;
 }
 
+/** A mode's own net/gross choices (F-102 k, §5.bz). Under Gross they can only mean gross, so they
+ *  are hidden; on Net they stay, so "net handicaps, gross skins" is still possible. */
+export const GROSS_HIDES: string[] = ['scoreBasis', 'junkBasis'];
+
 /** The allowance Net goes back to: the last net percentage, or full handicap. */
 export function netAllowance(lastNet: number | null | undefined): number {
   return lastNet && lastNet > 0 ? lastNet : 100;

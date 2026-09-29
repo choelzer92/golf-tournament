@@ -12,7 +12,7 @@ import { getGameMode, GAME_MODES, defaultSettings, type SettingsBag, type Settin
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { SideNames } from '@/components/side-names';
 import { NumberField } from './shared';
-import { NetGrossSwitch, isGross, netAllowance } from '@/components/net-gross-switch';
+import { GROSS_HIDES, NetGrossSwitch, isGross, netAllowance } from '@/components/net-gross-switch';
 
 // Edit an EXISTING game's settings in place (no rebuild). Mirrors the wizard's
 // Details step, gated by money mode, and saves every change straight onto the
@@ -243,7 +243,10 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
               /* Side names left the settings schema (F-014), so they need no hiding here. The one
                  thing hidden is structural, not a name: a 3+-team payout choice on a game with
                  fewer teams (Phase 3 step 3) — the same rule the wizard and the money panel apply. */
-              hideKeys={sidesOfGame(game).length < 3 ? Array.from(MULTI_TEAM_ONLY_KEYS) : []}
+              hideKeys={[
+                ...(sidesOfGame(game).length < 3 ? Array.from(MULTI_TEAM_ONLY_KEYS) : []),
+                ...(isGross(game.handicapAllowance) ? GROSS_HIDES : []),
+              ]}
             />
           </div>
           {isWithinGroup && (
