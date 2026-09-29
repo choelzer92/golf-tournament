@@ -2039,6 +2039,39 @@ with these additions in his own words:
    - Test big-field work at 144 as well as 32. The linear `scoreAt`, the balancer's 800 ms
      deadline and leaderboard/card rendering are the known scale risks (F-101 e).
 
+### 5.bx — Plus handicaps follow the Rules of Handicapping to the letter; −N is the stored truth, "+N" only its spelling (2026-09-28)
+
+Craig's direction during the F-102 plus-handicap sweep:
+
+1. **"We need to follow the exact usga ghin precedent here. Research and understand what the rules
+   of golf and handicaps say."** The Rules (USGA 2020 and 2024 PDFs) were read, not paraphrased;
+   the findings and quotes are in F-102. Where the Rules state an answer, that answer is the spec
+   and is pinned in `src/test/whs-plus-rules.test.ts` using the Rules' own worked examples as the
+   oracle (§5.z).
+   - **Rounding a plus half goes toward zero** (Rule 5.1c "upward towards 0"; Appendix C "moves up
+     towards zero including rounding"): +2.5 → +2, 2.5 → 3. JS `Math.round` already does this; no
+     change.
+2. **"I think we had -2 as a safeguard since it really is how it is considered, but written as a +.
+   we need to make sure this doesn't cause an issue anywhere. And make sure our result is
+   principled."** A plus index stays stored and computed as a NEGATIVE number everywhere. "+" exists
+   only at the edges: every display goes through one formatter, every typed or imported value
+   through `parseGhinIndex`. A round-trip test (format → parse = identity) guards the seam.
+3. **"we need to be careful at how it is attributed to percentages for allowances, and also in terms
+   of off the low vs not off the low. and which holes are considered."** Those three axes are the
+   checklist for any handicap change: allowance on the unrounded CH then round (Rule 6.2);
+   off-the-low = difference of ROUNDED Playing Handicaps, the plus player's counting in full
+   (Appendix C/3: +4, 16, 7, 26 at 90% → 0, 18, 10, 27); give-back from SI 18 (SI 9 on a nine).
+4. **Answers (all the recommendation):**
+   - **F-102 a: fix split-format team strokes like the player path**: halve the team handicap per
+     nine, allocate over 9 holes. A team 4 gets 2 a nine (today 4 a nine); a plus team gives back.
+   - **F-102 g: the tournament engine's off-the-low rounds first, like the pool**: round(each) −
+     round(low). Today it can hand one extra stroke (CH 4.5 v 15.4: 11 where the Rules give 10).
+   - **F-102 i: adopt 2024 Rule 6.1b in every engine**: the half index is rounded to a tenth before
+     a nine-hole Course Handicap (plus halves toward zero, per 5.1c).
+   - F-102 h (2024 team match play applies the allowance to the difference) is NOT adopted; it's an
+     allowance-order change and waits for the F-022 GHIN-app evidence (§5.ba).
+
+
 ---
 
 ## 7. Open questions

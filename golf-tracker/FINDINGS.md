@@ -1250,6 +1250,72 @@ line. Screenshot: `e2e/screenshots/f072-hub-pairs-net-gross.png`. Left in its wa
 
 ---
 
+### F-102 — The plus-handicap sweep: what F-098 left behind (§5.bw 6)  [P1–P3] [start] [track] [money]
+
+**Where (read-only sweep, 2026-09-28; every entry, display, allowance, split, basis, team formula,
+target and engine checked for a plus index):** F-098 fixed the allocator and the main entry boxes.
+The sweep found these:
+
+- **a. [P1, math, Craig's call] Scramble / alt-shot team strokes on a split-format round are wrong
+  both ways.** `live-scoring.ts` `getTeamStrokesOnHole` and the play page's tournament copy (~634)
+  take the FULL 18-hole team handicap (`getPlayerRawCourseHandicap` halves only for a 9-hole round,
+  not a split one) and allocate it against each nine's 1–9 re-ranking with `numHoles` 18. Golden
+  (`.claude/f102a-golden.snippet.ts`): a +8/+8 scramble team (team 4) RECEIVES 4 on each nine, 8 in
+  all, where 2 a nine is right; a plus team (−8/−8) never gives back (its rank 19 − SI is never
+  reached). The player path halves and passes 9 (`live-scoring.ts:93, 174`). **Fix:** halve the team
+  handicap per nine and count 9 holes on a split round, like the player path. This changes positive
+  teams' strokes too, so it is past §5.bv.
+- **b. [P2] Typed "+2.1" still loses its sign in two legacy boxes:** the money-game add box
+  (`money-game/page.tsx:582`, `Number()` on a `type="number"` input) and the tournament roster edit
+  (`tournament/[id]/page.tsx:519`, `parseFloat`; the box is pre-filled "-2.1"). **Fix:**
+  `parseGhinIndex` / `formatHandicapIndex`, a text box.
+- **c. [P2] The Optimal balancer can miss the most even split when a handicap is negative**
+  (`pool-game.ts` ~1084). Its branch-and-bound prune assumes every remaining handicap is ≥ 0, so a
+  plus player (or a scratch off an easy tee) can let it discard the optimum. **Fix:** shift every
+  handicap by the field's low before searching (the spread is unchanged by a shift). Team
+  composition only, no strokes.
+- **d. [P3] Displays still print a plus handicap as "-2"** (the pool leaderboard and summary cards
+  already print "+2"): the handicap chain chip and steps (`handicap-chain.tsx`, `pool-game.ts`
+  `explainPlayingHandicap`), tees step, field step "Course HCP", hub field editor "(chcp)", summary
+  cards "Course HCP", the teams page "Strokes received", group add-member list (index), play page
+  "(÷2=…)", dashboard / quick-game "Course HCP", combined HCP; and the legacy tournament pages. Two
+  screens hide a scratch (0) course handicap on a truthy check (`game/new/page.tsx:495`,
+  `tournament/[id]/page.tsx:818`). **Fix:** one `formatPlayingHcap` (+N when negative).
+- **e. [RESOLVED by the Rules] Rounding a plus HALF.** Craig: "follow the exact usga ghin
+  precedent". Rule 6.2 rounds to the nearest whole number "with .5 rounded upwards"; for a negative
+  value the Rules name the direction: Rule 5.1c "rounding is made upward towards 0", and Appendix C
+  "a player with a plus Playing Handicap moves up towards zero including rounding". So +2.5 plays as
+  +2 and 2.5 as 3, which is exactly JS `Math.round`. No change. Pinned in
+  `src/test/whs-plus-rules.test.ts` with the Rules' own examples (Rule 3.2 Note 2, Appendix C/3 at
+  85% and 90%, Appendix E); a mutation to round-away-from-zero turns it red.
+- **g. [P2, math, Craig's call] The tournament engine's off-the-low rounds AFTER subtracting.**
+  `live-scoring.ts:162` `getPlayingHandicap` returns `hcap − lowest` unrounded and the allocator
+  rounds the difference. Appendix C takes the difference of the ROUNDED Playing Handicaps, which the
+  pool does (`buildHcapMap`, the F-022 fix). Probe: CH 4.5 v 15.4 → pool 10 (Rules), tournament 11;
+  CH +2.5 v 10.4 → pool 12, tournament 13. The play page's tournament copy (~644) is the same code.
+  **Fix:** round each player first, then subtract, as the pool does.
+- **h. [note, pending F-022] 2024 team match play applies the allowance to the DIFFERENCE.**
+  Appendix C (2024): in team match play the percentage "is applied to the difference, rather than
+  to the individual". At 90%, CH 5 v 16: the difference rule gives round(11 × 0.9) = 10; the pool's
+  per-player rule gives round(14.4) − round(4.5) = 9. §5.ba forbids an allowance-order change
+  without GHIN-app evidence, so this rides with the F-022 on-course check.
+- **i. [P3, math, Craig's call] 2024 nine-hole Course Handicap rounds the half index to a tenth.**
+  Rule 6.1b (2024): "(Handicap Index ÷ 2 (rounded to the nearest tenth)) × (9-hole Slope ÷ 113) +
+  (9-hole CR − par)". The 2020 edition, and every engine here, uses the plain half (7.3 → 3.65, not
+  3.7). Rarely moves a stroke.
+- **f. [note, no change] The casual 18-hole basis on a nine** gives a +2's strokes back on SI 18 and
+  17, which may sit on the nine not being played, the mirror of how a positive handicap already
+  works on that basis. Left as designed.
+
+**Checked and right:** allowance on the unrounded course handicap (sign-correct), off-the-low in
+every engine (subtracts the negative low, no clamp), 9-hole halving, quota/Chicago targets
+(36/39 − (−2) = 38/41, clamp only above 36), captains and snake/deal sorts (a plus player sorts
+lowest), give-back in pool, sides, every individual mode and the tournament player path.
+
+**Status:** OPEN 2026-09-28 — b, c, d mechanical, being built; e resolved by the Rules (pinned); a, g, i DECIDED (§5.bx: fix all three); h waits for F-022.
+
+---
+
 ### F-101 — Big-field follow-ups after the team cap came off (§5.bv)  [P1–P3] [track] [continue]
 
 **Where (2026-09-28 sweep for the cap removal; walked in the sandbox with the new seed "§5.bv: 32
