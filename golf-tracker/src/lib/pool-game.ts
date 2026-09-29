@@ -1,6 +1,6 @@
 import type { Player, GameScore, CourseSelection, TeeSetOption } from './game-state';
 import type { TwoBestBallsVariant } from './formats';
-import { calcCourseHandicap, applyAllowance } from './game-state';
+import { calcCourseHandicap, applyAllowance, nineHoleIndex } from './game-state';
 import { getMoneyStrokesOnHole } from './money-games';
 import { bestBallTeamHoleScore } from './live-scoring';
 import { supabase } from './supabase';
@@ -607,26 +607,26 @@ export function getPoolPlayingHandicap(
     // 'index' basis intentionally skips the slope/rating conversion, so there is
     // no Course Handicap to round — the raw index IS the basis the organizer
     // asked for. Rounding it here would silently change that meaning.
-    const idx = nine ? player.handicapIndex / 2 : player.handicapIndex;
+    const idx = nine ? nineHoleIndex(player.handicapIndex) : player.handicapIndex;
     return idx * (allowance / 100);
   }
   const tee = getPlayerTee(player, course);
   if (!tee) return withAllowance(player.handicapIndex);
 
   if (nine) {
-    // 9-hole course handicap: (index/2) × (nineSlope/113) + (nineRating − ninePar).
+    // 9-hole course handicap: (index/2 to a tenth) × (nineSlope/113) + (nineRating − ninePar).
     const ratingType = nine === 'front9' ? 'Front' : 'Back';
     const nineRating = tee.ratings?.find((r) => r.type === ratingType);
     const ninePar = (tee.holes || [])
       .filter((h) => (nine === 'front9' ? h.number <= 9 : h.number > 9))
       .reduce((sum, h) => sum + h.par, 0) || Math.round(tee.totalPar / 2);
     if (nineRating?.slopeRating && nineRating?.courseRating) {
-      const ch = calcCourseHandicap(player.handicapIndex / 2, nineRating.slopeRating, nineRating.courseRating, ninePar);
+      const ch = calcCourseHandicap(nineHoleIndex(player.handicapIndex), nineRating.slopeRating, nineRating.courseRating, ninePar);
       return isNaN(ch) ? 0 : withAllowance(ch);
     }
     // No 9-hole rating on the tee: fall back to half the full-18 course handicap.
     const totalRating = tee.ratings?.find((r) => r.type === 'Total');
-    if (!totalRating?.slopeRating || !totalRating?.courseRating) return withAllowance(player.handicapIndex / 2);
+    if (!totalRating?.slopeRating || !totalRating?.courseRating) return withAllowance(nineHoleIndex(player.handicapIndex));
     const full = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, tee.totalPar);
     return isNaN(full) ? 0 : withAllowance(full / 2);
   }
@@ -696,7 +696,7 @@ export function explainPlayingHandicap(
   if (basis === 'index') {
     let base = idx;
     if (nine) {
-      base = idx / 2;
+      base = nineHoleIndex(idx);
       steps.push({ label: 'Halved for 9 holes', value: fmt(base) });
     }
     return done(allowanceLine(base), 'This game plays off the handicap index — no slope/rating conversion.');
@@ -713,7 +713,7 @@ export function explainPlayingHandicap(
       .filter((h) => (nine === 'front9' ? h.number <= 9 : h.number > 9))
       .reduce((sum, h) => sum + h.par, 0) || Math.round(tee.totalPar / 2);
     if (nineRating?.slopeRating && nineRating?.courseRating) {
-      const half = idx / 2;
+      const half = nineHoleIndex(idx);
       steps.push({ label: 'Halved for 9 holes', value: fmt(half) });
       const ch = calcCourseHandicap(half, nineRating.slopeRating, nineRating.courseRating, ninePar);
       if (Number.isNaN(ch)) return done(0, 'Course data incomplete — playing off 0.');
@@ -725,7 +725,7 @@ export function explainPlayingHandicap(
     }
     const totalRating = tee.ratings?.find((r) => r.type === 'Total');
     if (!totalRating?.slopeRating || !totalRating?.courseRating) {
-      const half = idx / 2;
+      const half = nineHoleIndex(idx);
       steps.push({ label: 'Halved for 9 holes', value: fmt(half) });
       return done(allowanceLine(half), `No slope/rating on ${teeName} — using the index.`);
     }

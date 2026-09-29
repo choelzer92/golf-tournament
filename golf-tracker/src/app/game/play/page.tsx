@@ -4,7 +4,7 @@ import { formatHandicapIndex } from '@/lib/game-state';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { GameSetup, GameScore, Player } from '@/lib/game-state';
-import { calcCourseHandicap, applyAllowance } from '@/lib/game-state';
+import { calcCourseHandicap, applyAllowance, nineHoleIndex } from '@/lib/game-state';
 import { isOneBallFormat, isTeamMode, resolveStablefordScale } from '@/lib/formats';
 import type { TournamentGameContext, Tournament } from '@/lib/tournament-state';
 import { loadTournament, saveTournament, saveGameScores, cacheGameScores, loadGameScores, fetchGameScores, fetchTournament, computeStandings, computeBonuses, computeProjectedBonuses, subscribeToScores, onVisibilityRefetch } from '@/lib/tournament-state';
@@ -507,7 +507,7 @@ export default function PlayGamePage() {
     const is9 = setup!.holesPlaying === 'front9' || setup!.holesPlaying === 'back9' || !!setup!.splitFormat;
 
     if (setup!.handicapBasis === 'index') {
-      const index = is9 ? player.handicapIndex / 2 : player.handicapIndex;
+      const index = is9 ? nineHoleIndex(player.handicapIndex) : player.handicapIndex;
       return index * (allowance / 100);
     }
 
@@ -527,7 +527,7 @@ export default function PlayGamePage() {
           .reduce((sum, h) => sum + h.par, 0) || Math.round(playerTee.totalPar / 2);
         // USGA/GHIN order: allowance on the unrounded Course Handicap (see applyAllowance).
         const result = applyAllowance(
-          calcCourseHandicap(player.handicapIndex / 2, rating.slopeRating, rating.courseRating, par),
+          calcCourseHandicap(nineHoleIndex(player.handicapIndex), rating.slopeRating, rating.courseRating, par),
           allowance,
         );
         return isNaN(result) ? 0 : result;
@@ -560,7 +560,7 @@ export default function PlayGamePage() {
     const is9 = setup!.holesPlaying === 'front9' || setup!.holesPlaying === 'back9' || !!setup!.splitFormat;
 
     if (setup!.handicapBasis === 'index') {
-      return is9 ? player.handicapIndex / 2 : player.handicapIndex;
+      return is9 ? nineHoleIndex(player.handicapIndex) : player.handicapIndex;
     }
 
     const playerTee = getPlayerTee(player);
@@ -575,7 +575,7 @@ export default function PlayGamePage() {
         const par = (playerTee.holes || [])
           .filter((h) => ratingType === 'Front' ? h.number <= 9 : h.number > 9)
           .reduce((sum, h) => sum + h.par, 0) || Math.round(playerTee.totalPar / 2);
-        const result = calcCourseHandicap(player.handicapIndex / 2, rating.slopeRating, rating.courseRating, par);
+        const result = calcCourseHandicap(nineHoleIndex(player.handicapIndex), rating.slopeRating, rating.courseRating, par);
         return isNaN(result) ? 0 : result;
       }
       const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');

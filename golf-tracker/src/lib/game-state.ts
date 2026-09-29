@@ -90,6 +90,14 @@ export interface GameState {
   status: 'setup' | 'playing' | 'finished';
 }
 
+// The Handicap Index a nine-hole Course Handicap starts from. WHS 2024 Rule 6.1b: "(Handicap
+// Index ÷ 2 (rounded to the nearest tenth))" (F-102 i, §5.bx). Worked in whole tenths, because
+// 7.3 / 2 × 10 is 36.4999… in floating point and would round the wrong way. A half-tenth rounds
+// up the number line, which on the plus side is toward zero (Rule 5.1c): 7.3 → 3.7, +7.3 → +3.6.
+export function nineHoleIndex(handicapIndex: number): number {
+  return Math.round(Math.round(handicapIndex * 10) / 2) / 10;
+}
+
 export function calcCourseHandicap(
   handicapIndex: number,
   slopeRating: number,

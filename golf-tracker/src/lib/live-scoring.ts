@@ -1,6 +1,6 @@
 import type { Player, GameScore, TeeSetOption } from './game-state';
 import type { TournamentRound, RoundMatchup, Tournament, SplitPairing } from './tournament-state';
-import { calcCourseHandicap, applyAllowance } from './game-state';
+import { calcCourseHandicap, applyAllowance, nineHoleIndex } from './game-state';
 import { strokesOnHole } from './strokes';
 import type { TeamMode, StablefordScale, TwoBestBallsVariant } from './formats';
 import { resolveStablefordScale, STABLEFORD_SCALES } from './formats';
@@ -93,7 +93,7 @@ function getPlayerEffectiveHcap(player: Player, round: TournamentRound, holes: H
   const is9 = round.holesPlaying === 'front9' || round.holesPlaying === 'back9' || !!round.splitFormat;
 
   if (round.handicapBasis === 'index') {
-    const index = is9 ? player.handicapIndex / 2 : player.handicapIndex;
+    const index = is9 ? nineHoleIndex(player.handicapIndex) : player.handicapIndex;
     return index * (allowance / 100);
   }
 
@@ -112,7 +112,7 @@ function getPlayerEffectiveHcap(player: Player, round: TournamentRound, holes: H
         .reduce((sum, h) => sum + h.par, 0) || Math.round(playerTee.totalPar / 2);
       // USGA/GHIN order: allowance on the unrounded Course Handicap (see applyAllowance).
       const result = applyAllowance(
-        calcCourseHandicap(player.handicapIndex / 2, rating.slopeRating, rating.courseRating, par),
+        calcCourseHandicap(nineHoleIndex(player.handicapIndex), rating.slopeRating, rating.courseRating, par),
         allowance,
       );
       return isNaN(result) ? 0 : result;
@@ -189,7 +189,7 @@ function getPlayerRawCourseHandicap(player: Player, round: TournamentRound, hole
   const is9 = round.holesPlaying === 'front9' || round.holesPlaying === 'back9' || !!round.splitFormat;
 
   if (round.handicapBasis === 'index') {
-    return is9 ? player.handicapIndex / 2 : player.handicapIndex;
+    return is9 ? nineHoleIndex(player.handicapIndex) : player.handicapIndex;
   }
 
   const playerTee = getPlayerTee(player, round);
@@ -204,7 +204,7 @@ function getPlayerRawCourseHandicap(player: Player, round: TournamentRound, hole
       const par = (playerTee.holes || [])
         .filter((h) => ratingType === 'Front' ? h.number <= 9 : h.number > 9)
         .reduce((sum, h) => sum + h.par, 0) || Math.round(playerTee.totalPar / 2);
-      const result = calcCourseHandicap(player.handicapIndex / 2, rating.slopeRating, rating.courseRating, par);
+      const result = calcCourseHandicap(nineHoleIndex(player.handicapIndex), rating.slopeRating, rating.courseRating, par);
       return isNaN(result) ? 0 : result;
     }
     const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');

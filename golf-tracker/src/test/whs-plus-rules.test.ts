@@ -12,7 +12,7 @@ import { strokesOnHole } from '@/lib/strokes';
 import { buildHcapMap } from '@/lib/pool-game';
 import { buildGameModeContext } from '@/lib/game-modes/context';
 import { getPlayerStrokesForHole } from '@/lib/live-scoring';
-import { formatHandicapIndex, parseGhinIndex } from '@/lib/game-state';
+import { formatHandicapIndex, nineHoleIndex, parseGhinIndex } from '@/lib/game-state';
 import type { RoundMatchup, Tournament, TournamentRound } from '@/lib/tournament-state';
 import { allEighteen, makeCourse, makeGame, makePlayer, singleMatchup } from './fixtures';
 
@@ -103,6 +103,28 @@ describe('WHS Appendix C: off the low subtracts ROUNDED Playing Handicaps (F-102
       expect(total).toBe(want);
     });
   }
+});
+
+describe('WHS 2024 Rule 6.1b: a nine-hole Course Handicap starts from half the index, to a tenth (F-102 i)', () => {
+  it('"Handicap Index ÷ 2 (rounded to the nearest tenth)"; a plus half-tenth rounds toward zero (Rule 5.1c)', () => {
+    expect(nineHoleIndex(7.3)).toBe(3.7);    // 3.65 → 3.7 (7.3 / 2 × 10 is 36.4999… in floating point)
+    expect(nineHoleIndex(12.4)).toBe(6.2);
+    expect(nineHoleIndex(0)).toBe(0);
+    expect(nineHoleIndex(-7.3)).toBe(-3.6);  // +3.65 → +3.6
+    expect(nineHoleIndex(-2)).toBe(-1);
+    for (let tenths = -80; tenths <= 540; tenths++) {
+      const half = nineHoleIndex(tenths / 10);
+      expect(Math.abs(half * 10 - Math.round(half * 10))).toBeLessThan(1e-9);   // always whole tenths
+      expect(Math.abs(half - tenths / 20)).toBeLessThanOrEqual(0.05 + 1e-9);
+    }
+  });
+
+  it('the pool reads a 9-hole index basis off the rounded half: 7.3 plays a nine off 3.7 → 4', () => {
+    // Plain halving gave 3.65; with slope 113 either rounds to 4, so pin the chain value itself.
+    const game = makeGame({ holesPlaying: 'front9', handicapBasis: 'index', nineHandicapBasis: '9', indexes: [7.3, 0] });
+    const map = buildHcapMap(game);
+    expect(map.get('p1')).toBeCloseTo(3.7, 9);
+  });
 });
 
 describe('WHS Rule 5.2c: a plus index is written "+", stored negative, and survives a round trip', () => {
