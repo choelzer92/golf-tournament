@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Player, CourseSelection, TeeSetOption, HandicapBasis } from '@/lib/game-state';
 import { parseGhinIndex } from '@/lib/game-state';
+import { HandicapIndexInput } from '@/components/handicap-index-input';
 import type { Tournament, TournamentRound, RoundBonus } from '@/lib/tournament-state';
 import { saveTournament } from '@/lib/tournament-state';
 import { DEFAULT_MONEY_CONFIG, type MoneyConfig } from '@/lib/money-game';
@@ -579,7 +580,7 @@ function PlayersStep({
     const newPlayer: Player = {
       id: crypto.randomUUID(),
       name: nameInput.trim(),
-      handicapIndex: handicapInput ? Number(handicapInput) : null,
+      handicapIndex: parseGhinIndex(handicapInput),   // "+2.1" is a plus index (F-102 b)
     };
     setPlayers([...players, newPlayer]);
     setNameInput('');
@@ -636,13 +637,11 @@ function PlayersStep({
           placeholder="Name"
           className="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
         />
-        <input
-          type="number"
-          step="0.1"
+        <HandicapIndexInput
           value={handicapInput}
-          onChange={(e) => setHandicapInput(e.target.value)}
+          onChange={setHandicapInput}
           placeholder="HI"
-          className="w-20 rounded-md border border-gray-300 px-3 py-2 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+          inputClassName="w-20 rounded-md border border-gray-300 px-3 py-2 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
         />
         <button
           type="submit"

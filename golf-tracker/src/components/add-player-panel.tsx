@@ -13,6 +13,7 @@
 
 import { useState } from 'react';
 import { parseGhinIndex } from '@/lib/game-state';
+import { HandicapIndexInput } from '@/components/handicap-index-input';
 
 export interface AddedPlayer {
   name: string;
@@ -265,15 +266,12 @@ export function AddPlayerPanel({
             value={nameInput}
             onChange={(e) => setNameInput(e.target.value)}
             placeholder="Name"
-            className={`flex-1 ${inputCls}`}
+            className={`min-w-0 flex-1 ${inputCls}`}
           />
-          <input
-            type="text"
-            inputMode="decimal"
+          <HandicapIndexInput
             value={handicapInput}
-            onChange={(e) => setHandicapInput(e.target.value)}
-            placeholder="HCP"
-            className={`w-16 ${inputCls}`}
+            onChange={setHandicapInput}
+            inputClassName={`w-16 ${inputCls}`}
           />
           {showGender && (
             <button

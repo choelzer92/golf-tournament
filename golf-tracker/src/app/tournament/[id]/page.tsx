@@ -1,6 +1,7 @@
 'use client';
 
-import { formatHandicapIndex } from '@/lib/game-state';
+import { formatHandicapIndex, parseGhinIndex } from '@/lib/game-state';
+import { HandicapIndexInput } from '@/components/handicap-index-input';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { FORMATS } from '@/lib/formats';
@@ -511,12 +512,12 @@ function RosterEditor({ tournament, onSave }: { tournament: Tournament; onSave: 
 
   function startEditHandicap(player: { id: string; handicapIndex: number | null }) {
     setEditingId(player.id);
-    setEditValue(player.handicapIndex != null ? String(player.handicapIndex) : '');
+    setEditValue(formatHandicapIndex(player.handicapIndex, ''));   // "+2.1", never "-2.1" (F-102 b)
   }
 
   function saveHandicap() {
     if (!editingId) return;
-    const newIndex = editValue.trim() === '' ? null : parseFloat(editValue);
+    const newIndex = parseGhinIndex(editValue);   // keeps a plus index's sign (F-102 b)
     const updated: Tournament = {
       ...tournament,
       players: tournament.players.map((p) =>
@@ -534,14 +535,13 @@ function RosterEditor({ tournament, onSave }: { tournament: Tournament; onSave: 
           {p.name}{' '}
           {editingId === p.id ? (
             <span className="inline-flex items-center gap-1">
-              <input
-                type="text"
-                inputMode="decimal"
+              <HandicapIndexInput
                 value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
+                onChange={setEditValue}
                 onKeyDown={(e) => { if (e.key === 'Enter') saveHandicap(); if (e.key === 'Escape') setEditingId(null); }}
                 autoFocus
-                className="w-14 text-xs border rounded px-1 py-0.5"
+                placeholder=""
+                inputClassName="w-14 text-xs border rounded px-1 py-0.5"
               />
               <button onClick={saveHandicap} className="text-xs text-green-700 font-medium">ok</button>
             </span>

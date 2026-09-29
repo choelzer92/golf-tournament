@@ -33,7 +33,52 @@ test('F-098: "+2.1" typed into the add-player box is a plus index, shown as +2.1
   await expect(page.getByText("Who's playing?")).toBeVisible();
   await page.getByPlaceholder('Name', { exact: true }).fill('Pat');
   await page.getByPlaceholder('HCP').fill('+2.1');
-  await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+  await manualRow(page).getByRole('button', { name: 'Add', exact: true }).click();
   await expect(page.getByText('Index: +2.1')).toBeVisible();
   await expect(page.getByText('Index: 2.1')).toHaveCount(0);
+});
+
+// The manual-add row: Name, the "+" chip, HCP, Add.
+const manualRow = (page: import('@playwright/test').Page) =>
+  page.locator('div.flex', { has: page.getByPlaceholder('Name', { exact: true }) }).last();
+
+test('F-100: the "+" chip makes a typed 2.1 a plus index (the iPhone keypad has no "+")', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await page.goto(`${BASE}/pool/new`);
+  await expect(page.getByText("Who's playing?")).toBeVisible();
+  await page.getByPlaceholder('Name', { exact: true }).fill('Pat');
+  await page.getByPlaceholder('HCP').fill('2.1');
+  const chip = manualRow(page).getByRole('button', { name: /Plus handicap/ });
+  await expect(chip).toHaveAttribute('aria-pressed', 'false');
+  await chip.click();
+  await expect(page.getByPlaceholder('HCP')).toHaveValue('+2.1');
+  await expect(chip).toHaveAttribute('aria-pressed', 'true');
+  // The whole row fits a phone: Add is on screen, and the page doesn't scroll sideways.
+  await expect(manualRow(page).getByRole('button', { name: 'Add', exact: true })).toBeInViewport({ ratio: 1 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(PHONE.width);
+  await page.screenshot({ path: 'e2e/screenshots/f100-add-chip.png' });
+  await manualRow(page).getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(page.getByText('Index: +2.1')).toBeVisible();
+});
+
+test('F-100: the hub field editor shows "+2" and the chip flips it, saved at once', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  const id = await seed(page, 'F-098: a +2 player in a full-handicap pool (thru 6)');
+  await goToGame(page, id);
+  await expect(page.getByText('(gives 2 back)')).toBeVisible();
+  await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+  const box = page.getByLabel('Handicap index').first();
+  await expect(box).toHaveValue('+2');
+  await page.screenshot({ path: 'e2e/screenshots/f100-hub-editor.png', fullPage: true });
+  // Flip it off: Craig becomes a 2, who receives strokes.
+  await page.getByRole('button', { name: /Plus handicap/ }).first().click();
+  await expect(box).toHaveValue('2');
+  await page.reload();
+  await expect(page.getByText('(gives 2 back)')).toHaveCount(0);
+  // And back on.
+  await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+  await expect(page.getByLabel('Handicap index').first()).toHaveValue('2');
+  await page.getByRole('button', { name: /Plus handicap/ }).first().click();
+  await page.reload();
+  await expect(page.getByText('(gives 2 back)')).toBeVisible();
 });

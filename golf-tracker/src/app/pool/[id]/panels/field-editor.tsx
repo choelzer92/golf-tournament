@@ -14,6 +14,7 @@ import { WolfDrawCtp } from '@/components/wolf-draw-ctp';
 import { type RosterPlayer, hydrateRoster, searchRoster, getRosterPlayerByGhin, upsertRosterPlayer } from '@/lib/roster';
 import { pickTeeForPlayer, teeRankInPool } from '@/lib/tee-pick';
 import { getToken } from './shared';
+import { HandicapIndexInput } from '@/components/handicap-index-input';
 
 export function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
   const course = game.course;
@@ -550,14 +551,9 @@ export function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; on
                   <div className="mt-1.5 flex items-end gap-2 flex-wrap">
                     <label className="flex flex-col gap-0.5">
                       <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Index</span>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        defaultValue={formatHandicapIndex(p.handicapIndex, '')}
-                        onBlur={(e) => { if (parseGhinIndex(e.target.value) !== p.handicapIndex) setPlayerHandicap(pid, e.target.value); }}
-                        placeholder="—"
-                        className="w-16 text-sm rounded-md border border-gray-300 px-2 py-1 shadow-sm focus:border-green-500 focus:outline-none bg-white"
-                        title="Handicap index — edit for a player entered by hand"
+                      <IndexBox
+                        index={p.handicapIndex}
+                        onCommit={(raw) => { if (parseGhinIndex(raw) !== p.handicapIndex) setPlayerHandicap(pid, raw); }}
                       />
                     </label>
                     {!isSingleGroup && useCaptains && !isCaptain && (
@@ -1217,3 +1213,18 @@ export function WolfRotationEditor({ game, onSave }: { game: PoolGame; onSave: (
   );
 }
 
+// The hub's index box saves as it goes: on blur, and the moment the "+" chip flips the sign
+// (F-100). It starts from the stored index written as golfers write it ("+2.1").
+function IndexBox({ index, onCommit }: { index: number | null; onCommit: (raw: string) => void }) {
+  const [draft, setDraft] = useState(() => formatHandicapIndex(index, ''));
+  return (
+    <HandicapIndexInput
+      value={draft}
+      onChange={setDraft}
+      onCommit={onCommit}
+      placeholder="—"
+      inputClassName="w-16 text-sm rounded-md border border-gray-300 px-2 py-1 shadow-sm focus:border-green-500 focus:outline-none bg-white"
+      title="Handicap index — edit for a player entered by hand"
+    />
+  );
+}
