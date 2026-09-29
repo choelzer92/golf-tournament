@@ -6,7 +6,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { BASE, PHONE, addPlayers, EIGHT_PLAYERS } from './helpers';
+import { BASE, PHONE, addPlayers, EIGHT_PLAYERS, manualAddButton } from './helpers';
 
 test.beforeEach(async ({ context, page }) => {
   await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
@@ -39,7 +39,7 @@ async function walkToClassicMoneyStep(page: Page) {
   for (const [nm, hcp] of eight) {
     await page.getByPlaceholder('Name', { exact: true }).fill(nm);
     await page.getByPlaceholder('HCP').fill(hcp);
-    await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    await manualAddButton(page).click();
   }
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await page.getByPlaceholder('e.g. Saturday Pool').fill('No Bonus Pool');

@@ -5,7 +5,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed, goToGame, toScoringStep, buildTeams } from './helpers';
+import { BASE, resetBackend, seed, goToGame, toScoringStep, buildTeams, manualAddButton } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -354,7 +354,7 @@ test.describe('F-019: the wizard builds real playing groups', () => {
     for (const [nm, hcp] of players) {
       await page.getByPlaceholder('Name', { exact: true }).fill(nm);
       await page.getByPlaceholder('HCP').fill(hcp);
-      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+      await manualAddButton(page).click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Groups Test');
@@ -451,7 +451,7 @@ test.describe('F-019: the wizard builds real playing groups', () => {
     for (const [nm, hcp] of EIGHT) {
       await page.getByPlaceholder('Name', { exact: true }).fill(nm);
       await page.getByPlaceholder('HCP').fill(hcp);
-      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+      await manualAddButton(page).click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Four Pairs');

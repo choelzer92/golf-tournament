@@ -8,7 +8,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { BASE, PHONE } from './helpers';
+import { BASE, PHONE, manualAddButton } from './helpers';
 
 test.beforeEach(async ({ context, page }) => {
   await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
@@ -68,7 +68,7 @@ async function assertPanelOrder(page: Page) {
 async function addManually(page: Page, name: string, hcp: string) {
   await page.getByPlaceholder('Name', { exact: true }).fill(name);
   await page.getByPlaceholder('HCP').fill(hcp);
-  await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+  await manualAddButton(page).click();
 }
 
 // Paste a list — two resolvable numbers, one bogus — and check the per-number report.

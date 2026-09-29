@@ -6,7 +6,7 @@
 
 import { expect, test } from '@playwright/test';
 
-import { BASE } from './helpers';
+import { BASE, manualAddButton } from './helpers';
 test.use({ viewport: { width: 390, height: 844 } });
 
 test('F-060: Captains’ deal marks its card as the one that built the teams', async ({ context, page }) => {
@@ -27,7 +27,7 @@ test('F-060: Captains’ deal marks its card as the one that built the teams', a
   for (const [nm, hcp] of eight) {
     await page.getByPlaceholder('Name', { exact: true }).fill(nm);
     await page.getByPlaceholder('HCP').fill(hcp);
-    await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    await manualAddButton(page).click();
   }
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await page.getByPlaceholder('e.g. Saturday Pool').fill('Deal Feedback Test');

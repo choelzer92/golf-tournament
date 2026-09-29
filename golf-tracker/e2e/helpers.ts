@@ -103,12 +103,19 @@ export const EIGHT_PLAYERS: [string, string][] = [
   ...FOUR_PLAYERS, ['Sam', '6'], ['Tony', '14'], ['Will', '10'], ['Gary', '2'],
 ];
 
+/** The manual-add row's Add button, found by its row, not by DOM position: the HCP box sits in a
+ *  wrapper beside its "+" chip (F-100), so an Add "sibling of the input" no longer exists. */
+export function manualAddButton(page: Page) {
+  return page.locator('div.flex', { has: page.getByPlaceholder('Name', { exact: true }) }).last()
+    .getByRole('button', { name: 'Add', exact: true });
+}
+
 /** Add players by hand on the field step (name + HCP + Add). */
 export async function addPlayers(page: Page, players: [string, string][]) {
   for (const [nm, hcp] of players) {
     await page.getByPlaceholder('Name', { exact: true }).fill(nm);
     await page.getByPlaceholder('HCP').fill(hcp);
-    await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    await manualAddButton(page).click();
   }
 }
 

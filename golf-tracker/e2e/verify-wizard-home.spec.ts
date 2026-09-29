@@ -5,7 +5,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed, toScoringStep } from './helpers';
+import { BASE, resetBackend, seed, toScoringStep, manualAddButton } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -194,7 +194,7 @@ test.describe('money moved to its own step', () => {
     for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']] as const) {
       await page.getByPlaceholder('Name', { exact: true }).fill(nm);
       await page.getByPlaceholder('HCP').fill(hcp);
-      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+      await manualAddButton(page).click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     // §5.bk: the structure step asks how to compete; scoring and handicaps are one step on.
@@ -255,7 +255,7 @@ test.describe('JY feedback: GHIN sign-in prompt arrives before the search', () =
     for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']] as const) {
       await page.getByPlaceholder('Name', { exact: true }).fill(nm);
       await page.getByPlaceholder('HCP').fill(hcp);
-      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+      await manualAddButton(page).click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.getByPlaceholder('e.g. Saturday Pool').fill('GHIN Timing Test');
@@ -290,7 +290,7 @@ test.describe('JY feedback: recent courses', () => {
     for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12']] as const) {
       await page.getByPlaceholder('Name', { exact: true }).fill(nm);
       await page.getByPlaceholder('HCP').fill(hcp);
-      await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+      await manualAddButton(page).click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await page.getByPlaceholder('e.g. Saturday Pool').fill('Recent Course Test');

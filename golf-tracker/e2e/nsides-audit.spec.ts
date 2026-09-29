@@ -10,7 +10,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { BASE, PHONE, chooseStructure, buildTeams } from './helpers';
+import { BASE, PHONE, chooseStructure, buildTeams, manualAddButton } from './helpers';
 
 test.beforeEach(async ({ context, page }) => {
   await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
@@ -86,7 +86,7 @@ test.describe('the ORDINARY 2v2 — two guys against two guys, best ball, usual 
         await page.getByPlaceholder('Name', { exact: true }).fill(nm);
         await page.getByPlaceholder('HCP').fill(hcp);
         // The manual-add "Add" sits next to the HCP box; the GHIN-# one is above.
-        await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+        await manualAddButton(page).click();
       });
     }
     await countScreen(page, '02-field-four');

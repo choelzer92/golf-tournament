@@ -3,7 +3,7 @@
 // full bar returns from `sm:` up.
 
 import { expect, test } from '@playwright/test';
-import { BASE } from './helpers';
+import { BASE, manualAddButton } from './helpers';
 
 async function toTeesStep(page: import('@playwright/test').Page) {
   await page.goto(`${BASE}/sandbox`);
@@ -17,7 +17,7 @@ async function toTeesStep(page: import('@playwright/test').Page) {
   for (let i = 1; i <= 8; i++) {
     await page.getByPlaceholder('Name', { exact: true }).fill(`P${i}`);
     await page.getByPlaceholder('HCP').fill(String(i * 2));
-    await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    await manualAddButton(page).click();
   }
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await page.getByPlaceholder('e.g. Saturday Pool').fill('Step Bar Test');

@@ -8,7 +8,7 @@
 
 import { test } from '@playwright/test';
 
-import { BASE, chooseStructure, chooseSolo } from './helpers';
+import { BASE, chooseStructure, chooseSolo, manualAddButton } from './helpers';
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -59,7 +59,7 @@ test('walk 1: cold start — home, empty, then the wizard with NO group', async 
   for (const [nm, hcp] of [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16']] as const) {
     await page.getByPlaceholder('Name', { exact: true }).fill(nm);
     await page.getByPlaceholder('HCP').fill(hcp);
-    await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    await manualAddButton(page).click();
   }
   await capture(page, '03-wizard-players-four');
 
@@ -170,7 +170,7 @@ test('walk 4: classic pool with teams — captains, deal, teams step', async ({ 
   for (const [nm, hcp] of eight) {
     await page.getByPlaceholder('Name', { exact: true }).fill(nm);
     await page.getByPlaceholder('HCP').fill(hcp);
-    await page.getByPlaceholder('HCP').locator('xpath=following-sibling::button[normalize-space()="Add"]').click();
+    await manualAddButton(page).click();
   }
   await capture(page, '16-pool-eight-players');
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
