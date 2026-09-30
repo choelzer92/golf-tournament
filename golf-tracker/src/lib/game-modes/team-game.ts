@@ -343,6 +343,8 @@ function compute(ctx: GameModeContext): IndividualResult {
   // two axes now agree instead of one being right.
   const toPar = zeros();
   const legToPar = { front: zeros(), back: zeros() };
+  // Holes each side has posted in each leg, its OWN count (the live reading, F-101 c).
+  const ownLegThru = { front: zeros(), back: zeros() };
   const legThru = { front: 0, back: 0 };
   const totals = zeros();
   // The same to-par figures, accumulated ONLY on CONTESTED holes — ones every side has posted.
@@ -397,6 +399,7 @@ function compute(ctx: GameModeContext): IndividualResult {
       totals[idx] += m;
       toPar[idx] += holeToPar[idx]!;
       legToPar[leg][idx] += holeToPar[idx]!;
+      ownLegThru[leg][idx] += 1;
     });
 
     // A hole is only CONTESTED once every side has posted — the same rule as before, where a
@@ -475,11 +478,31 @@ function compute(ctx: GameModeContext): IndividualResult {
       : (key === 'overall'
         ? contestedToPar.front[idx] + contestedToPar.back[idx]
         : contestedToPar[key][idx]));
+  // F-101 c (§5.bw, 2026-09-29): while the sides are on different holes, the leg ALSO carries a
+  // live reading, the leader on score to par over the holes each side has played, which is
+  // exactly how Standings ranks. Display only: `status`/`winner`/`leaders` stay on contested
+  // holes, and money reads those (F-016). Once every side has posted the same holes the two
+  // agree, so the live field is omitted and nothing about a level or finished leg changes.
+  // Holes-won ('match') has no per-side reading until every side posts a hole, so it has none.
+  const liveLeg = (key: 'front' | 'back' | 'overall'): TeamLegLine['live'] => {
+    if (result !== 'match') {
+      const own = sides.map((_, idx) => (key === 'overall' ? ownLegThru.front[idx] + ownLegThru.back[idx] : ownLegThru[key][idx]));
+      if (own.every((n) => n === own[0])) return undefined;
+      const par = sides.map((_, idx) => (key === 'overall' ? legToPar.front[idx] + legToPar.back[idx] : legToPar[key][idx]));
+      // A side that hasn't reached this leg has no score to lead on.
+      const started = sides.map((_, idx) => idx).filter((idx) => own[idx] > 0);
+      const best = started.reduce((b, idx) => (better(par[idx], par[b]) ? idx : b), started[0]);
+      const top = started.filter((idx) => par[idx] === par[best]);
+      return { leaders: top.map((idx) => sides[idx].id), names: top.map((idx) => names[idx]), toPar: par[best], thru: own[top[0]] };
+    }
+    return undefined;
+  };
   const legLine = (key: 'front' | 'back' | 'overall'): TeamLegLine => {
     const thru = key === 'overall' ? legThru.front + legThru.back : legThru[key];
     const holes = legHoleCount(key);
+    const live = liveLeg(key);
     if (thru === 0) {
-      return { key, label: legLabel(key), status: '–', winner: null, leaders: [], thru: 0, holes };
+      return { key, label: legLabel(key), status: '–', winner: null, leaders: [], thru: 0, holes, ...(live ? { live } : {}) };
     }
 
     // The leg's per-side figure: holes won under match, score to par under total (not the raw
@@ -519,6 +542,7 @@ function compute(ctx: GameModeContext): IndividualResult {
       // them — they just don't settle. Only mark it when the leg is genuinely short, so a
       // stale flag on a completed leg can't silently withhold money.
       voided: voided.has(key) && thru < holes,
+      ...(live ? { live } : {}),
     };
   };
   // A 9-hole game has ONE leg. Every hole in ctx.holes belongs to the played

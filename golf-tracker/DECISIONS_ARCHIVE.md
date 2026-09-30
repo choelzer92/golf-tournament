@@ -2014,6 +2014,23 @@ with these additions in his own words:
      it off for teams across foursomes and don't nudge organizers to turn it on.
    - The all-teams-posted rule for legs and per-hole results stays, labelled "waiting on
      Group N" so a live board never looks stuck.
+   - **Confirmed 2026-09-29, building it.** Craig asked whether the wait should be a toggle ("you
+     should be able to see your foursome's score regardless, right?") and first took it for the
+     hide-holes box. It isn't: the box hides scores; the wait is how legs compare. His point, "it
+     should show all teams' current standing along with how many holes they have played", is
+     what Standings already does (each team's to par on its own holes, plus Thru), and the cards
+     don't wait either. Only the Front · Back · Overall box waits, and mid-round its Overall can
+     name a different leader than Standings (the 32-player seed: Ed & Ula by 5 over Rick & Lou
+     at −21). Offered: label it / label + make Overall follow Standings / hide legs until
+     settled. Picked "label it" first; built, then **reversed the same day** on seeing it: "im
+     still unsure of what this does, and i think it may cause confusion. teams want to know what
+     the current standings are during the round." **Final: the legs read live, like Standings.**
+     While teams are on different holes, each Front / Back / Overall line names the leader on
+     score to par over the holes each team has played, with thru. It's display only: the
+     contested-hole result is still what pays (F-016) and what shows once the game is closed out.
+     A finished round shows exactly what it did before, because every golden is unchanged.
+     Match play (holes won) keeps the contested line, since a hole has no winner until every
+     team posts it.
 5. **F-101 d: YES, lift it.** "I want to make sure we are setting it up so that a large amount
    of players can be tracked, so F-101 d would be important to have more than 4 players."
    Individual modes (skins, Stableford, stroke play/low total, quota) take a whole field

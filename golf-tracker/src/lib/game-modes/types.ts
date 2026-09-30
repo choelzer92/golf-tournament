@@ -136,6 +136,10 @@ export interface TeamLegLine {
   // True when this leg was voided by the group at close-out: it still shows its margin, but
   // settles no money (DECISIONS.md §5.ai). Absent/false on every existing game.
   voided?: boolean;
+  // The LIVE reading while sides are on different holes (F-101 c): who leads on score to par
+  // over the holes each side has played, as Standings ranks. Display only, never money.
+  // Absent once every side has posted the same holes, and under match (holes won).
+  live?: { leaders: string[]; names: string[]; toPar: number; thru: number };
 }
 
 // One hole's matchup story for the Wolf leaderboard breakdown. Wolf's whole

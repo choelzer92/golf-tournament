@@ -1140,12 +1140,19 @@ function IndividualLeaderboard({ id }: { id: string }) {
                 <div className="divide-y divide-gray-700/30">
                   {result.teamLegs.map((leg) => {
                     const slice = sliceOf(leg.key);
+                    // F-101 c (§5.bw, 2026-09-29): during the round a leg reads LIVE, like
+                    // Standings: the leader on score to par over the holes each team has played.
+                    // The engine only sends it while teams are on different holes; the settled
+                    // (contested-hole) line, which is what pays, shows once the game is closed out.
+                    const live = game.status !== 'completed' && !leg.voided ? leg.live : undefined;
                     return (
                     <div key={leg.key} className="px-4 py-2.5 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-200">{leg.label}</p>
                         {/* Also a segment-scoped count (see NassauPayoutBoard). */}
-                        {leg.thru > 0 && (
+                        {live ? (
+                          <p className="text-[10px] text-gray-500">thru {live.thru}</p>
+                        ) : leg.thru > 0 && (
                           <p className="text-[10px] text-gray-500">{leg.thru} of {segmentHoles(leg.key, holesInPlay)} holes</p>
                         )}
                         {slice && <p className="text-[10px] text-gray-500">${Math.round(slice.dollars)} pot</p>}
@@ -1156,13 +1163,21 @@ function IndividualLeaderboard({ id }: { id: string }) {
                         )}
                       </div>
                       <div className="text-right">
+                        {live ? (
+                          <span className={`text-sm font-medium ${live.leaders.length === 1 ? sideTone(live.leaders[0], sideOrder) : 'text-gray-400'}`}>
+                            {live.names.join(' & ')} {fmtPace(live.toPar)}{live.leaders.length > 1 ? ' tied' : ''}
+                          </span>
+                        ) : (
                         <span className={`text-sm font-medium ${
                           leg.voided ? 'text-gray-500 line-through'
                             : leg.winner ? sideTone(leg.winner, sideOrder) : 'text-gray-400'
                         }`}>
                           {leg.status}
                         </span>
-                        {slice && <p className="text-[10px] text-gray-400">{sliceLine(slice)}</p>}
+                        )}
+                        {/* Who a slice goes to is only known when it settles; mid-round the
+                            left column already shows what the slice is worth. */}
+                        {slice && !live && <p className="text-[10px] text-gray-400">{sliceLine(slice)}</p>}
                       </div>
                     </div>
                     );
