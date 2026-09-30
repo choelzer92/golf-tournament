@@ -188,6 +188,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.bx | 2026-09-28: plus handicaps follow the Rules of Handicapping to the letter (quoted in F-102, pinned by `whs-plus-rules.test.ts`); −N is stored truth, "+N" only its spelling (format/parse at the edges, round-trip guarded); plus halves round toward zero (= `Math.round`); F-102 a fix split-format team strokes, g tournament off-the-low rounds first like the pool, i adopt 2024 nine-hole tenth-rounding; h (2024 team-match difference rule) waits for F-022 |
 | 5.by | 2026-09-28: a gross game is a **Net \| Gross switch** on every format (wizard + hub); Gross = allowance 0 (engine unchanged) and hides only the stroke-giving settings (allowance %, full vs off-the-low, basis); match/stroke play, Stableford and the format stay; Net restores the last %; the wizard's 0→100 fallback (F-102 j) fixed with it |
 | 5.bz | 2026-09-29: F-102 k opt A — on Gross, hide a mode's own net/gross basis (skins, low total); on Net it stays (net game + gross skins still possible). Test-process speed-up goes BEFORE F-101 (timing file, prod sandbox build + 3–4 workers, maxFailures) |
+| 5.ca | 2026-09-29: big-field skins (F-101 d) — add a **Skins pot** (entry pot split by skins won; default past 4, $ per skin stays); a skin is decided once **every tee group** has posted the hole (closed game decides on what's posted; one group = old rule); junk defaults to the **junk pot** past 4 |
 
 ---
 

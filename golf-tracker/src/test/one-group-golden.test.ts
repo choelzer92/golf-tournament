@@ -105,7 +105,7 @@ describe('GOLDEN: every mode at one group (MUST NOT MOVE)', () => {
     // unchanged — and at 32, eight foursomes' worth, in place of a ceiling it no longer has.
     const capped = Number.isFinite(mode.playersMax);
     const counts = capped ? [mode.playersMin, mode.playersMax] : [mode.playersMin, 8, 32];
-    if (mode.playersMin < 4 && mode.playersMax > 4 && mode.category === 'team-within-group') counts.splice(1, 0, 4);
+    if (mode.playersMin < 4 && mode.playersMax > 4) counts.splice(1, 0, 4);
     for (const count of counts) {
       const label = count === mode.playersMin ? 'playersMin' : count === mode.playersMax ? 'playersMax'
         : count === 4 ? 'foursome' : `${count / 4} foursomes' worth`;

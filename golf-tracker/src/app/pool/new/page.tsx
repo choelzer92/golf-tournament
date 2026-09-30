@@ -64,10 +64,10 @@ import {
   sidesOfGame,
   type GameSide,
 } from '@/lib/game-modes/sides';
-import { getGameMode, defaultSettings, formatSummaryLine, GAME_MODES, modeFits, type SettingsBag } from '@/lib/game-modes';
+import { getGameMode, defaultSettings, defaultSettingsForField, formatSummaryLine, GAME_MODES, modeFits, type SettingsBag } from '@/lib/game-modes';
 // The wizard's steps, one file each (context economy, 2026-09-14): page.tsx keeps
 // the state + step routing; every step component lives in ./steps/.
-import { type PotDollars } from './steps/shared';
+import { proposePlayingGroups, type PotDollars } from './steps/shared';
 import { StructureStep } from './steps/structure-step';
 import { ScoringStep } from './steps/scoring-step';
 import { CourseStep } from './steps/course-step';
@@ -247,7 +247,9 @@ export default function NewPoolGamePage() {
   // F-019: teams that share foursomes need REAL tee groups once more than four can't walk
   // together; the 'groups' step asks (proposed partners-together, §5.bm Q2). At four or fewer
   // nothing is asked — the ordinary 2v2 keeps its exact flow.
-  const needsPlayingGroups = isWithinGroup && players.length > 4;
+  // F-101 d (§5.bw): an individual game, or all singles, past four walks as several tee groups too.
+  const everyoneAlone = isSolo || (isWithinGroup && !!structure && structure.teamSizes.every((k) => k === 1));
+  const needsPlayingGroups = (isWithinGroup || isSolo) && players.length > 4;
   // The shape the router sees: the sides as actually built when the organizer has adjusted them,
   // else the chosen structure.
   const sidesShape = sides && sides.length > 0 ? sides.map((s) => s.playerIds.length) : null;
@@ -321,7 +323,7 @@ export default function NewPoolGamePage() {
       if (!mode || mode.category !== 'individual' || !modeFits(mode, players.length)) {
         const first = GAME_MODES.find((m) => m.category === 'individual' && modeFits(m, players.length));
         setGameMode(first?.id);
-        setModeSettings(first ? defaultSettings(first.settings) : {});
+        setModeSettings(first ? defaultSettingsForField(first, players.length) : {});
       }
       return;
     }
@@ -714,7 +716,7 @@ export default function NewPoolGamePage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6">
-        <StepIndicator current={step} course={course} solo={isSolo || (isWithinGroup && !!structure && structure.teamSizes.every((k) => k === 1))} playingGroups={needsPlayingGroups} />
+        <StepIndicator current={step} course={course} solo={everyoneAlone} playingGroups={needsPlayingGroups} />
 
         {step === 'structure' && (
           <StructureStep
@@ -829,7 +831,7 @@ export default function NewPoolGamePage() {
             // button has to say that rather than promise a step that never comes.
             // F-071/F-079: every split builds on one Teams step; a 1 v 1 has nothing to build and
             // goes straight to money like an individual game.
-            nextLabel={isSolo || (isWithinGroup && structure!.teamSizes.every((k) => k === 1)) ? 'Money' : 'Teams'}
+            nextLabel={everyoneAlone ? (needsPlayingGroups ? 'Groups' : 'Money') : 'Teams'}
             onBack={() => setStep('course')}
             onNext={() => {
               const singleGroup = () => [{
@@ -838,9 +840,14 @@ export default function NewPoolGamePage() {
                 playerIds: players.map((p) => p.id),
                 matchupId: crypto.randomUUID(),
               }];
+              // Everyone for themselves past four (F-101 d): a balanced tee sheet, asked on Groups.
+              const fieldGroups = () => {
+                setTeams(proposePlayingGroups(players, course, parseAllowance(handicapAllowance), handicapBasis));
+                setStep('groups');
+              };
               if (isSolo) {
-                // Everyone for themselves: one group holding the whole field (individual modes
-                // top out at four), straight to money.
+                // Everyone for themselves: four or fewer walk as one group, straight to money.
+                if (needsPlayingGroups) { fieldGroups(); return; }
                 setTeams(singleGroup());
                 setStep('create');
                 return;
@@ -857,6 +864,7 @@ export default function NewPoolGamePage() {
               if (structure!.teamSizes.every((k) => k === 1)) {
                 setSides(players.map((p, i) => ({ id: sideIdAt(i), playerIds: [p.id] })));
                 setSideTeams([]);
+                if (needsPlayingGroups) { fieldGroups(); return; }
                 setTeams(singleGroup());
                 setStep('create');
                 return;
@@ -958,12 +966,12 @@ export default function NewPoolGamePage() {
             players={players}
             teams={teams}
             setTeams={setTeams}
-            partnerTeams={(sides ?? []).map((s) => s.playerIds)}
+            partnerTeams={everyoneAlone ? undefined : (sides ?? []).map((s) => s.playerIds)}
             handicapAllowance={parseAllowance(handicapAllowance)}
             handicapBasis={handicapBasis}
             nine={wizardNine}
             onNext={() => setStep('create')}
-            onBack={() => setStep('teams')}
+            onBack={() => setStep(everyoneAlone ? 'tees' : 'teams')}
           />
         )}
 
@@ -1036,7 +1044,7 @@ export default function NewPoolGamePage() {
             strokeMethod={strokeMethod}
             onSaveFormat={saveCurrentFormat}
             onCreate={createPoolGame}
-            onBack={() => setStep(isSolo ? 'tees' : 'teams')}
+            onBack={() => setStep(needsPlayingGroups ? 'groups' : isSolo ? 'tees' : 'teams')}
           />
         )}
       </main>

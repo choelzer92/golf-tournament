@@ -2143,3 +2143,17 @@ Awaiting Craig's call. Inferred answers are marked as guesses.
 | 8 | ~~What should a **Stableford** pool's leaderboard show where to-par goes?~~ **FULLY CLOSED 2026-08-18 (§5.am)** — mechanism settled in §5.af; label stays **PACE**; the projected-18 variant is rejected (a guess shown next to real money). | — |
 
 **Only q4 remains open.** q5 closed 2026-08-27 (§5.au).
+
+### 5.ca — Big-field skins: a skins pot, a hole decided once every group posts, junk pot by default (2026-09-29)
+
+Asked while planning F-101 d (`.claude/plans/f101d-individual-modes-past-4.md`). Craig took the
+recommendation on all three:
+
+1. **Skins pot.** "$ per skin" makes every other player pay each skin ($5 = $155 at 32, $715 at
+   144). Add a **Skins pot** money option: everyone antes the entry, the pot splits by skins won.
+   It is the default once the field is past 4; "$ per skin" stays available.
+2. **A skin is decided once every tee group has posted the hole**; a closed game decides on
+   whatever was posted. Until then the board shows who's low so far, live (as F-101 c). With one
+   group this is exactly the old rule (any posted score = the group posted), so goldens hold.
+3. **Junk defaults to the junk pot past 4 players.** Per-point stays available and its hint shows
+   the real per-event amount at the field size ($2 birdie = $62 at 32).

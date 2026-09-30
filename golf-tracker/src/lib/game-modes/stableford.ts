@@ -113,7 +113,7 @@ export const stablefordIndividual: GameModeDescriptor = {
   category: 'individual',
   inputType: 'gross',
   playersMin: 2,
-  playersMax: 4,
+  playersMax: Number.POSITIVE_INFINITY, // F-101 d (§5.bw): a whole field across tee groups
   settings: SETTINGS,
   compute,
 };

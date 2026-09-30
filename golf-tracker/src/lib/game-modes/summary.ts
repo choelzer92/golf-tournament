@@ -92,7 +92,8 @@ export function stakesSummary(mode: GameModeDescriptor | undefined, settings: Se
   // (F-026's e2e caught it; the unit test had the same wrong key and passed vacuously). Nassau
   // model must NOT report a skin price: when moneyModel is 'nassau' the skinValue field is hidden
   // and unpaid, so saying "$5 a skin" there would state a stake the engine won't settle.
-  if (settings.moneyModel !== 'nassau') {
+  // A skins POT (§5.ca) doesn't pay by the skin either: it states its buy-in below.
+  if (settings.moneyModel !== 'nassau' && settings.moneyModel !== 'pot') {
     const skin = num(settings, 'skinValue', 0) || num(settings, 'dollarsPerSkin', 0);
     if (skin > 0) return `$${skin} a skin`;
   }
@@ -120,7 +121,8 @@ export function stakesSummary(mode: GameModeDescriptor | undefined, settings: Se
       return d > 0 ? `$${d} a point` : null;
     }
     case 'pot': {
-      const buyIn = num(settings, 'sideBuyIn', entryPerPlayer);
+      // A team pot's `sideBuyIn`, else an individual mode's own buy-in (low total, skins pot).
+      const buyIn = num(settings, 'sideBuyIn', num(settings, 'entryPerPlayer', entryPerPlayer));
       return buyIn > 0 ? `$${buyIn} buy-in pot` : null;
     }
     case 'nassau': {

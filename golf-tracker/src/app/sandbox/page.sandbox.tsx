@@ -646,6 +646,35 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'skins-32-field',
+    label: 'F-101 d: Skins, 32 players, 8 foursomes (staggered)',
+    detail: 'An individual game across tee groups, on the skins pot ($10). The groups are 18, 16, … 4 holes in, so holes the last group has not reached are still open.',
+    build: () => {
+      const more = ['Al', 'Bo', 'Cy', 'Don', 'Ed', 'Flo', 'Gus', 'Hal', 'Ike', 'Jo', 'Kip', 'Lou',
+        'Mo', 'Ned', 'Oz', 'Pat', 'Quin', 'Ray', 'Sid', 'Ted', 'Ula', 'Vic', 'Wes', 'Xan'];
+      const ps = players(Array.from({ length: 32 }, (_, i) => (i * 7) % 29))
+        .map((p, i) => (i < 8 ? p : { ...p, name: `${more[i - 8]} Test` }));
+      const ids = ps.map((p) => p.id);
+      const game = baseGame({
+        players: ps,
+        name: 'Big Field Skins',
+        gameMode: 'skins',
+        modeSettings: { scoreBasis: 'net', carryover: true, moneyModel: 'pot', entryPerPlayer: 10 },
+        teams: Array.from({ length: 8 }, (_, g) => ({
+          id: `st${g + 1}`, name: `Group ${g + 1}`, playerIds: ids.slice(g * 4, g * 4 + 4),
+          matchupId: `sm${g + 1}`, teeTime: `${8 + Math.floor((g * 10) / 60)}:${String((g * 10) % 60).padStart(2, '0')}`,
+        })),
+      });
+      for (let g = 0; g < 8; g++) {
+        saveGameScores(`sm${g + 1}`, ids.slice(g * 4, g * 4 + 4).flatMap((id, k) => {
+          const i = g * 4 + k;
+          return ALL18.slice(0, 18 - 2 * g).map((h) => ({ playerId: id, hole: h, grossScore: PARS[h - 1] + ((i * 3 + h * 5 + (i % 11) * h) % 5) - 1 }));
+        }));
+      }
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+  {
     key: 'pool-2x4-complete',
     label: 'Classic pool — 2 foursomes, FULLY scored',
     detail: 'Verifies close-out → Stats & money (the completion bug). Ready to close out.',

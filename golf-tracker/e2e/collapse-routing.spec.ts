@@ -34,18 +34,20 @@ async function courseAndTees(page: Page) {
   await page.getByRole('button', { name: /Next: Set Tees/ }).click();
 }
 
-test('structure step: 8 players see the §6 mock — teams of 4 first and recommended, singles greyed', async ({ page }) => {
+test('structure step: 8 players see the §6 mock — teams of 4 first and recommended, singles offered (F-101 d)', async ({ page }) => {
   await startWizard(page, EIGHT_PLAYERS, 'Structure Walk');
   const body = await page.locator('body').innerText();
   expect(body).toContain('Two teams of 4');
   expect(body).toContain('Four pairs');
   expect(body).toContain('Everyone for themselves');
-  expect(body).toContain('needs 2–4 players');
+  // F-101 d (§5.bw): an individual game takes the whole field now, so it's offered, not greyed.
+  expect(body).not.toContain('needs 2');
+  await expect(page.getByRole('radio', { name: 'Everyone for themselves', exact: true })).toBeEnabled();
   expect(body).toContain('Other split…');
   // The recommendation is pre-selected (§5.bk), never forced.
   await expect(page.locator('input[name="structure"][value="teams:4+4"]')).toBeChecked();
-  // F-041: the scoring lives on for a field the individual modes can't hold.
-  expect(body).toMatch(/8 players can still score Stableford — as teams/);
+  // F-041's "can still score Stableford — as teams" note is gone with the cap it explained.
+  expect(body).not.toMatch(/can still score Stableford/);
   await page.screenshot({ path: 'e2e/screenshots/collapse-01-structure-8.png', fullPage: true });
 
   await page.getByRole('button', { name: /Other split/ }).click();

@@ -44,6 +44,19 @@ export function defaultSettings(schema: FormatSetting[]): SettingsBag {
   return bag;
 }
 
+/** A mode's starting settings for a field of `players` (F-101 d, §5.ca). Past four, money every
+ *  other player pays per event grows with the field (a $5 skin is $155 at 32), so an individual
+ *  game starts on the pots: the skins pot and the junk pot. Defaults only; every option stays. */
+export function defaultSettingsForField(mode: { category: string; settings: FormatSetting[] }, players: number): SettingsBag {
+  const bag = defaultSettings(mode.settings);
+  if (mode.category !== 'individual' || players <= 4) return bag;
+  const offers = (key: string, value: string) =>
+    mode.settings.some((s) => s.key === key && s.options?.some((o) => o.value === value));
+  if (bag.moneyModel === 'per-skin' && offers('moneyModel', 'pot')) bag.moneyModel = 'pot';
+  if (offers('junkPayout', 'pot')) bag.junkPayout = 'pot';
+  return bag;
+}
+
 // --- Shared Nassau-pot money settings ---------------------------------------
 // Reused across every individual game so "buy-in, split front/back/total" is
 // configured identically everywhere. Games spread NASSAU_SETTINGS into their

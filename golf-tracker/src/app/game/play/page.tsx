@@ -1871,6 +1871,17 @@ export default function PlayGamePage() {
           );
         })()}
 
+        {/* F-101 d (§5.bw): an individual game across tee groups. This card is this group's; the
+            rest of the field is scored on its own cards and ranked on Standings. */}
+        {poolGame && poolCtx && getGameMode(poolGame.gameMode)?.category === 'individual' && poolGame.teams.length > 1 && (() => {
+          const others = poolGame.teams.filter((t) => t.matchupId !== poolCtx.matchupId).reduce((n, t) => n + t.playerIds.length, 0);
+          return others > 0 ? (
+            <p className="mt-2 text-center text-xs text-gray-500">
+              {others} more player{others === 1 ? '' : 's'} in other groups — see Standings
+            </p>
+          ) : null;
+        })()}
+
         {/* Hole dots */}
         <div className="mt-4 flex flex-wrap gap-1 justify-center">
           {holes.map((hole) => {

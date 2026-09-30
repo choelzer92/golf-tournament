@@ -132,6 +132,10 @@ export function buildGameModeContext(
   const playerIdSet = new Set(players.map((p) => p.id));
   const wolfOrder = game.wolfOrder?.filter((id) => playerIdSet.has(id));
 
+  // F-101 d (§5.ca): who walks together, so skins can wait for every group to post a hole.
+  const teeGroups = groups.map((t) => t.playerIds.filter((id) => playerIdSet.has(id))).filter((g) => g.length > 0);
+
   return { players, holes, scores, settings, pot, playingHcap, strokesOnHole, grossOnHole, netOnHole, subTeams, sides, rawCourseHcap, gross: game.handicapAllowance === 0, wolfDecisions: game.wolfDecisions, wolfOrder: wolfOrder && wolfOrder.length > 0 ? wolfOrder : undefined, voidedLegs: game.voidedLegs,
-    ctpWinners: game.ctpWinners, customBonuses: game.customBonuses, bonusMarks: game.bonusMarks };
+    ctpWinners: game.ctpWinners, customBonuses: game.customBonuses, bonusMarks: game.bonusMarks,
+    ...(teeGroups.length > 1 ? { teeGroups } : {}), closed: game.status === 'completed' };
 }

@@ -443,9 +443,9 @@ export default function PoolHubPage() {
         )}
 
         {/* Foursome cards — a single-group game has just the one "Group" card, so
-            "Foursomes" over it reads wrong. */}
+            "Foursomes" over it reads wrong; spread over several (F-101 d), they're its tee groups. */}
         <section>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">{isSingleGroupHub ? 'Players' : 'Foursomes'}</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-3">{isSingleGroupHub ? (game.teams.length > 1 ? 'Tee groups' : 'Players') : 'Foursomes'}</h2>
           {editing ? (
             <EditFoursomes game={game} onSave={persist} />
           ) : (

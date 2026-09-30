@@ -1393,6 +1393,29 @@ These are what the sweep found around the edges. Each is Craig's call or deliber
 **Status:** DECIDED 2026-09-28 (§5.bw): a → A, b → A, c → A (and hide-holes stays OFF when teams span foursomes; it's anti-cheating for teams that ARE their foursome), d → YES (individual modes go past 4 across tee groups; Wolf and Nines keep their caps). Build queued (NEXT_SESSION_PROMPT). e is backlog.
 **a BUILT 2026-09-29 (a30a20b):** a card whose teams span foursomes takes its team rows from the engine. **b BUILT 2026-09-29:** the hub's Add a player asks "Which team?" (no default, add buttons disabled until picked) and saves the player onto that side; not asked when a multi-group game stores no sides, since there the foursome IS the team (F-097). The side move is now one pure helper (`moveToSide` + `sidesPatch` in `sides.ts`) shared with the team editor. **c BUILT 2026-09-29:** during the round each Front / Back / Overall line reads LIVE, like Standings: the leader on score to par over the holes each team has played, with thru (`TeamLegLine.live`, `team-game.ts`). Display only: the contested-hole status/winner/leaders stay, money reads them (F-016), and the settled line shows once the game is closed out or every team is level. Match play (holes won) has no live reading. A "waiting on Group N" label was built first and dropped: Craig, "im still unsure of what this does … teams want to know what the current standings are during the round" (§5.bw note).
 
+**d BUILT 2026-09-29** (plan `.claude/plans/f101d-individual-modes-past-4.md`; money calls §5.ca):
+- Skins, Stableford, low total and quota are uncapped; Wolf and Nines keep four.
+- In the wizard, a solo (or all-singles) field past 4 goes through the Groups step.
+- On the hub, a group that has outgrown its tee slot gets the split prompt, and the heading reads "Tee groups".
+- The card says "N more players in other groups — see Standings".
+- Skins now has a **skins pot**. Past 4 players it is the default, and so is the junk pot.
+- A skin is decided once every tee group has posted the hole. Until then the board lists it under "Skins still open, low so far".
+- Goldens: the 4-player keys were re-keyed unchanged, and 8 and 32 were added. `individual-field.test.ts` covers 32 and 144 players across every money model and junk payout.
+- Seed: "F-101 d: Skins, 32 players, 8 foursomes (staggered)".
+
+### F-103 — Walk findings from F-101 d (2026-09-29)  [P2] [track]
+
+- **a. The skins pot pays live on the skins decided so far.** In the 32-player seed only holes
+  1–4 are decided (the last group is thru 4). One skin has been won, so Ula reads **+$310** and everyone else −$10, while 14 holes are still open. The arithmetic is right: the pot splits by skins won so far. But mid-round it reads as though the pot is already won.
+  Options:
+  - (A) Mid-round, show the pot's money as "if it ended now".
+  - (B) Hide the pot's $ column until the game closes; skins still show.
+  - (C) Leave it as is.
+  - Craig's call (money display).
+- **b. A skins card's header reads "Stroke Play · Best Net + Best Gross · Full Handicap".**
+  It is the classic pool's format line on an individual game's card (`f101d-card-32.png`). Probably pre-existing for every mode game, not new with F-101 d. Check it at 4 players before fixing.
+
+
 ---
 
 ### F-100 — A plus index can't be typed on an iPhone: the decimal keypad has no "+" or "−"  [P2] [start]

@@ -11,7 +11,7 @@ import { GAME_MODES, getGameMode } from '@/lib/game-modes';
 import { fitForMode, modeFits, playerRangeSentence, fitBadge, fitExplanation } from '@/lib/game-modes/fit';
 
 const wolf = getGameMode('wolf')!;          // exactly 4
-const skins = getGameMode('skins')!;        // 2–4
+const skins = getGameMode('skins')!;        // 2 or more (no ceiling since F-101 d)
 const sides = getGameMode('team-2v2')!;     // 2 or more (2 = a singles match; no ceiling since §5.bv)
 const nines = getGameMode('nines')!;        // 3–4
 
@@ -38,7 +38,7 @@ describe('fitForMode', () => {
     // Sides now starts at TWO (a singles match, 2026-08-27), so one player is the too-few case.
     expect(fitForMode(sides, 1)).toEqual({ kind: 'too-few', need: 1 });
     expect(fitForMode(wolf, 5)).toEqual({ kind: 'too-many', over: 1 });
-    expect(fitForMode(skins, 8)).toEqual({ kind: 'too-many', over: 4 });
+    expect(fitForMode(nines, 8)).toEqual({ kind: 'too-many', over: 4 });
   });
 
   it('both ends of every mode range are INCLUSIVE', () => {
@@ -60,6 +60,9 @@ describe('fitForMode', () => {
     expect(fitForMode(nines, 8).kind).toBe('too-many');
     // And a team game counts the whole field and has no ceiling (§5.bv): 32 = eight foursomes.
     expect(fitForMode(sides, 8).kind).toBe('fits');
+    // F-101 d (§5.bw): so does an individual game (skins, Stableford, low total, quota), to 144.
+    expect(fitForMode(skins, 32).kind).toBe('fits');
+    expect(fitForMode(skins, 144).kind).toBe('fits');
     expect(fitForMode(sides, 32).kind).toBe('fits');
   });
 
@@ -87,8 +90,8 @@ describe('playerRangeSentence', () => {
     // "4–4" is how a machine says it.
     expect(playerRangeSentence(wolf)).toBe('Exactly 4 players.');
     expect(playerRangeSentence(sides)).toBe('For 2 or more players.');
-    expect(playerRangeSentence(skins)).toBe('For 2–4 players.');
-    expect(playerRangeSentence(skins)).toBe('For 2–4 players.');
+    expect(playerRangeSentence(nines)).toBe('For 3–4 players.');
+    expect(playerRangeSentence(skins)).toBe('For 2 or more players.');
   });
 });
 
@@ -101,7 +104,7 @@ describe('fitBadge', () => {
     expect(fitBadge(sides, 6)).toBe('✓ 6 players');
     expect(fitBadge(sides, 1)).toBe('needs 1 more');
     expect(fitBadge(sides, 32)).toBe('✓ 32 players');
-    expect(fitBadge(skins, 6)).toBe('2 too many');
+    expect(fitBadge(nines, 6)).toBe('2 too many');
     // A 1v1 FITS: the range starts at two so a singles match is offered, not refused.
     expect(fitBadge(sides, 2)).toBe('✓ 2 players');
   });
@@ -128,8 +131,8 @@ describe('fitExplanation', () => {
 
   it('states the requirement and the actual count', () => {
     expect(fitExplanation(wolf, 5)).toBe('Wolf needs exactly 4 players — you have 5.');
-    expect(fitExplanation(skins, 5)).toContain('2–4 players');
-    expect(fitExplanation(skins, 5)).toContain('you have 5');
+    expect(fitExplanation(nines, 5)).toContain('3–4 players');
+    expect(fitExplanation(nines, 5)).toContain('you have 5');
   });
 
   // The old copy ended "Go back to Field to adjust." F-020's whole point is that the constraint

@@ -99,9 +99,11 @@ export function StructureStep({
     setStructure(shape);
   }
 
-  // "Everyone for themselves" needs an individual mode that fits the field — those top out at
-  // four. §4.8 of the plan: say so, don't hide it.
+  // "Everyone for themselves" needs an individual mode that fits the field. Skins, Stableford,
+  // low total and quota take any field since F-101 d, so only a one-player field is refused.
+  // §4.8 of the plan: say so, don't hide it.
   const soloFits = GAME_MODES.some((m) => m.category === 'individual' && modeFits(m, playerCount));
+  const soloMin = Math.min(...GAME_MODES.filter((m) => m.category === 'individual').map((m) => m.playersMin));
 
   function choose(o: StructureOption) {
     if (o.kind === 'solo' && !soloFits) return;
@@ -137,7 +139,7 @@ export function StructureStep({
           <span className={`block text-sm font-medium ${disabled ? 'text-gray-400' : 'text-gray-900'}`}>
             {o.label}
             {o.recommended && !disabled && <span className="ml-2 text-xs font-normal text-green-700">the usual</span>}
-            {disabled && <span className="ml-2 text-xs font-normal text-gray-400">needs 2–4 players</span>}
+            {disabled && <span className="ml-2 text-xs font-normal text-gray-400">needs {soloMin} or more players</span>}
           </span>
           <span className={`block text-xs ${disabled ? 'text-gray-400' : 'text-gray-500'}`}>{o.detail}</span>
         </span>
@@ -289,13 +291,6 @@ export function StructureStep({
             >
               Other split… <span className="text-xs font-normal text-gray-500">({other.map((o) => o.teamSizes.join(' + ')).slice(0, 2).join(', ')}{other.length > 2 ? ', …' : ''})</span>
             </button>
-          )}
-          {/* F-041: "Stableford" names a scoring system, not only the 2–4 player game. Say where
-              the scoring lives on for a field the individual modes can't hold. */}
-          {!soloFits && playerCount > 4 && (
-            <p className="mt-2 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs text-sky-800">
-              {playerCount} players can still score Stableford — as teams: pick a split above and choose Stableford points on the next step.
-            </p>
           )}
         </div>
       </div>

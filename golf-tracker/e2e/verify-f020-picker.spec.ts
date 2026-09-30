@@ -48,14 +48,12 @@ test.describe('F-020: the game picker annotates fit', () => {
     await buildField(page, [['Craig', '4'], ['Jym', '12'], ['Dave', '8'], ['Rick', '16'], ['Sam', '6']]);
 
     const body = await page.locator('body').innerText();
-    // Five players (§5.bk): teams fit — 3 + 2 is the usual — and everyone-for-themselves does not,
-    // which the step says HERE rather than letting a dead end wait five steps on.
+    // Five players (§5.bk): teams fit — 3 + 2 is the usual — and since F-101 d (§5.bw) so does
+    // everyone-for-themselves: skins, Stableford, low total and quota take the whole field.
     expect(body).toContain('Two teams, 3 + 2');
-    expect(body).toMatch(/Everyone for themselves\s*needs 2–4 players/);
-    await expect(page.getByRole('radio', { name: 'Everyone for themselves', exact: true })).toBeDisabled();
-    // F-041: "Stableford" names a SCORING SYSTEM, not just the 2–4 player individual mode — the
-    // note redirects to teams rather than reading as "this app can't play Stableford with 5".
-    expect(body).toMatch(/5 players can still score Stableford — as teams/);
+    expect(body).not.toMatch(/Everyone for themselves\s*needs/);
+    await expect(page.getByRole('radio', { name: 'Everyone for themselves', exact: true })).toBeEnabled();
+    expect(body).not.toMatch(/can still score Stableford/);
     await page.screenshot({ path: 'e2e/screenshots/f020-annotated.png', fullPage: true });
   });
 

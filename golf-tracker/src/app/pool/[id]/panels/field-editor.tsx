@@ -994,8 +994,10 @@ export function OversizedGroupPrompt({ game, onSave }: { game: PoolGame; onSave:
 
   const mode = getGameMode(game.gameMode);
   const isSideGame = mode?.category === 'team-within-group';
+  // F-101 d (§5.bw): an individual game takes a whole field too, so its group can outgrow a slot.
+  const asks = isSideGame || mode?.category === 'individual';
   const oversized = game.teams.filter((t) => t.playerIds.length > 4);
-  if (!isSideGame || oversized.length === 0 || dismissed) return null;
+  if (!asks || oversized.length === 0 || dismissed) return null;
 
   // The shapes the whole field could take. Offered from the field size rather than per-group,
   // because splitting one group of five into 3 + 2 changes the tee sheet as a whole.
@@ -1060,7 +1062,7 @@ export function OversizedGroupPrompt({ game, onSave }: { game: PoolGame; onSave:
       <p className="mt-0.5 text-xs text-amber-800">
         More than four can&apos;t play as one group. Split them into separate tee times, or keep them
         together if that&apos;s really the plan — <span className="font-medium">scores already entered
-        are kept either way</span>, and your teams don&apos;t change.
+        are kept either way</span>{isSideGame ? <>, and your teams don&apos;t change</> : null}.
       </p>
 
       {!choosing ? (

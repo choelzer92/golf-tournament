@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { teamModeForFormat, TEAM_FORMAT_OPTIONS, type ScoreBasis, type TeamFormat } from '@/lib/game-modes/team-scoring';
 import { TEAM_MODES } from '@/lib/formats';
 import {
-  GAME_MODES, getGameMode, defaultSettings, playerRangeSentence, fitBadge, fitExplanation, modeFits, type SettingsBag,
+  GAME_MODES, getGameMode, defaultSettingsForField, playerRangeSentence, fitBadge, fitExplanation, modeFits, type SettingsBag,
 } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { type CompareBy, type StructureShape, structureLabel } from '@/lib/game-structure';
@@ -73,7 +73,7 @@ export function ScoringStep({
     if (!mode || !modeFits(mode, playerCount)) return;
     if (appliedFormat) onFormatEdited();
     setGameMode(id);
-    setModeSettings(defaultSettings(mode.settings));
+    setModeSettings(defaultSettingsForField(mode, playerCount));
   }
 
   // USGA recommended allowance for what's being played. Advisory, never forced. Keyed on the

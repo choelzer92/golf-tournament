@@ -90,6 +90,11 @@ export interface GameModeContext {
   ctpWinners?: Record<number, string | null>;
   customBonuses?: { id: string; label: string; points: number }[];
   bonusMarks?: Record<number, Record<string, string[]>>;
+  // The tee groups in scope, as player ids, and whether the game is closed (F-101 d, §5.ca).
+  // Skins decides a hole once EVERY group has posted it, so a staggered field doesn't hand group 1
+  // skins a later group takes back; a closed game decides on whatever was posted. Absent = one group.
+  teeGroups?: string[][];
+  closed?: boolean;
 }
 
 export interface PlayerStanding {
@@ -213,6 +218,9 @@ export interface IndividualResult {
   // plus junk when junk pays as a pot — each with its dollars and what it paid every side. Already
   // settled into standings.moneyNet; this is for the board. One 'overall' entry when unsliced.
   potSlices?: PotSliceLine[];
+  // Skins only (F-101 d, §5.ca): holes someone has posted but not every tee group has, with who is
+  // low so far. Display only: these skins aren't won yet, so they pay nothing.
+  openSkins?: { hole: number; leaders: string[]; names: string[] }[];
 }
 
 // One slice of a team-engine pot. `payouts` is GROSS dollars by side id (antes are deducted once

@@ -27,7 +27,7 @@ export {
 export {
   gameSummary, stakesSummary, handicapSummary, formatSummaryLine, type HandicapSummaryInput,
 } from './summary';
-export { defaultSettings, settingValue, numberSetting, boolSetting, stringSetting, parseVector } from './settings';
+export { defaultSettings, defaultSettingsForField, settingValue, numberSetting, boolSetting, stringSetting, parseVector } from './settings';
 
 // Registered game modes (order = display order in the wizard).
 export const GAME_MODES: GameModeDescriptor[] = [

@@ -1082,6 +1082,13 @@ function IndividualLeaderboard({ id }: { id: string }) {
               {result.moneyModel === 'pot' && result.pot > 0 && (
                 <div className="px-3 py-2 text-[10px] text-gray-500 border-t border-gray-700">${Math.round(result.pot)} pot</div>
               )}
+              {/* F-101 d (§5.ca): skins a later group can still take, live. Not won yet, so unpaid. */}
+              {result.openSkins && result.openSkins.length > 0 && (
+                <div className="px-3 py-2 text-[10px] text-gray-400 border-t border-gray-700">
+                  <span className="font-medium text-gray-300">Skins still open, low so far:</span>{' '}
+                  {result.openSkins.map((o) => `${o.hole} ${o.names[0] ? displayName(o.names[0]) : 'tied'}`).join(' · ')}
+                </div>
+              )}
             </div>
 
             {/* Nassau-pot payout board — front / back / total segment winners.
