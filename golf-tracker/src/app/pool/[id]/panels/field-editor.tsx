@@ -7,6 +7,9 @@ import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournamen
 import { isAppOwner } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import { getGameMode } from '@/lib/game-modes';
+import { sidesForCompute } from '@/lib/game-modes/context';
+import { moveToSide, sidesOfGame, sidesPatch, type GameSide } from '@/lib/game-modes/sides';
+import { allSidesAreSolo, sideNameFrom } from '@/lib/game-modes/team-game';
 import { PairingLocks } from '@/components/pairing-locks';
 import { CaptainsPanel } from '@/components/captains-panel';
 import { TeeTimePicker } from '@/components/tee-time-picker';
@@ -242,8 +245,9 @@ export function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; on
     });
   }
 
-  // Add a new player to game.players and onto a chosen foursome (kept sorted).
-  function addPlayer(player: Player, toTeamId: string) {
+  // Add a new player to game.players and onto a chosen foursome (kept sorted) and, in a team game,
+  // onto the team they play for (F-101 b): a player on no team is silently out of the money.
+  function addPlayer(player: Player, toTeamId: string, toSideId?: string) {
     const players = game.players.some((p) => p.id === player.id)
       ? game.players.map((p) => (p.id === player.id ? player : p))
       : [...game.players, player];
@@ -252,7 +256,8 @@ export function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; on
         ? { ...t, playerIds: t.playerIds.includes(player.id) ? t.playerIds : sortPlayerIdsByHcap([...t.playerIds, player.id], players, course, game.handicapAllowance) }
         : t
     );
-    onSave({ ...game, players, teams });
+    const sidePatch = toSideId ? sidesPatch(game.modeSettings, moveToSide(sidesForCompute(game), player.id, toSideId)) : {};
+    onSave({ ...game, players, teams, ...sidePatch });
   }
 
   // Reassign the field into `newGroups` (arrays of player IDs), reusing the
@@ -620,10 +625,19 @@ export function AddPlayerPanel({
   onAdd,
 }: {
   game: PoolGame;
-  onAdd: (player: Player, toTeamId: string) => void;
+  onAdd: (player: Player, toTeamId: string, toSideId?: string) => void;
 }) {
   const course = game.course;
   const [targetTeamId, setTargetTeamId] = useState<string>(game.teams[game.teams.length - 1]?.id ?? '');
+  // F-101 b (§5.bw A): a team game asks which team, with no default, so nobody is added to the
+  // money by accident. Not asked when a multi-group game stores no sides: its foursomes ARE the
+  // teams (F-097), so the foursome pick already decides it.
+  const askTeam = getGameMode(game.gameMode)?.category === 'team-within-group'
+    && (sidesOfGame(game).length > 0 || game.teams.length === 1);
+  const sides: GameSide[] = askTeam ? sidesForCompute(game) : [];
+  const soloSides = allSidesAreSolo(sides);
+  const [targetSideId, setTargetSideId] = useState('');
+  const teamMissing = askTeam && !sides.some((s) => s.id === targetSideId);
 
   const [rosterQuery, setRosterQuery] = useState('');
   const [rosterResults, setRosterResults] = useState<RosterPlayer[]>([]);
@@ -654,7 +668,7 @@ export function AddPlayerPanel({
   const existingIds = new Set(game.players.map((p) => p.id));
 
   function addRosterPlayer(rp: RosterPlayer) {
-    if (!targetTeamId) return;
+    if (!targetTeamId || teamMissing) return;
     if (rp.ghinNumber != null && existingGhins.has(rp.ghinNumber)) return;
     if (existingIds.has(rp.id)) return;
     const newPlayer: Player = {
@@ -665,12 +679,12 @@ export function AddPlayerPanel({
       ghinNumber: rp.ghinNumber ?? undefined,
       teeSetId: pickTeeForPlayer(course, rp.gender ?? undefined, rp.defaultTeeName, rp.defaultTeeRank),
     };
-    onAdd(newPlayer, targetTeamId);
+    onAdd(newPlayer, targetTeamId, askTeam ? targetSideId : undefined);
   }
 
   async function addByGhin() {
     const token = getToken();
-    if (!token || !ghinInput || !targetTeamId) return;
+    if (!token || !ghinInput || !targetTeamId || teamMissing) return;
     setGhinLoading(true);
     setGhinError('');
     try {
@@ -698,7 +712,7 @@ export function AddPlayerPanel({
         ghinNumber,
         teeSetId: pickTeeForPlayer(course, gender, rememberedRp?.defaultTeeName ?? null, rememberedRp?.defaultTeeRank),
       };
-      onAdd(newPlayer, targetTeamId);
+      onAdd(newPlayer, targetTeamId, askTeam ? targetSideId : undefined);
       upsertRosterPlayer({
         id: newPlayer.id,
         ghinNumber,
@@ -733,6 +747,24 @@ export function AddPlayerPanel({
         </select>
       </div>
 
+      {askTeam && (
+        <div className="mb-3">
+          <label htmlFor="add-player-team" className="block text-xs text-gray-500 mb-1">Which team?</label>
+          <select
+            id="add-player-team"
+            value={targetSideId}
+            onChange={(e) => setTargetSideId(e.target.value)}
+            className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+          >
+            <option value="" disabled>Choose a team</option>
+            {sides.map((s) => (
+              <option key={s.id} value={s.id}>{sideNameFrom(game.players, s.playerIds, s.id, s.name, soloSides)}</option>
+            ))}
+          </select>
+          {teamMissing && <p className="text-xs text-amber-700 mt-1">Pick their team first; a player on no team plays for no money.</p>}
+        </div>
+      )}
+
       {/* Roster name search */}
       <input
         type="text"
@@ -751,8 +783,8 @@ export function AddPlayerPanel({
               <li key={rp.id}>
                 <button
                   onClick={() => addRosterPlayer(rp)}
-                  disabled={inGame}
-                  className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm ${inGame ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-50'}`}
+                  disabled={inGame || teamMissing}
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm ${inGame || teamMissing ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-50'}`}
                 >
                   <span className="flex-1 font-medium text-gray-900">{rp.name}</span>
                   <span className="text-xs text-gray-500">
@@ -781,7 +813,7 @@ export function AddPlayerPanel({
           />
           <button
             onClick={addByGhin}
-            disabled={ghinLoading || !ghinInput || !targetTeamId}
+            disabled={ghinLoading || !ghinInput || !targetTeamId || teamMissing}
             className="rounded-md bg-green-700 px-3 py-2 text-sm text-white font-medium hover:bg-green-800 disabled:opacity-50"
           >
             {ghinLoading ? '...' : 'Add'}

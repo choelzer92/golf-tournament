@@ -6,7 +6,7 @@ import { type PoolGame, type PoolJunkValues, type PoolMoneyMode, getPar3Holes, d
 import { gameCountsCtp } from '@/lib/game-modes/result';
 import { MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
 import { formatOfGame, isOneBall, persistedTeamScoring, TEAM_FORMAT_OPTIONS, type ScoreBasis, type TeamFormat } from '@/lib/game-modes/team-scoring';
-import { LEGACY_SIDE_NAME_KEYS, fromLegacySubTeams, nextSideId, persistedSides, sideMembers, sideOfPlayer, sidesOfGame, type GameSide } from '@/lib/game-modes/sides';
+import { fromLegacySubTeams, moveToSide, nextSideId, sideOfPlayer, sidesOfGame, sidesPatch, type GameSide } from '@/lib/game-modes/sides';
 import { fetchGameScores } from '@/lib/tournament-state';
 import { getGameMode, GAME_MODES, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
@@ -138,39 +138,14 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
     // representation; three or more opts in. The `sides`/`subTeams` pair is cleared first so a
     // game that drops from three sides to two doesn't keep a stale `sides` field that would
     // take precedence over the {a,b} it just wrote.
-    const saveSides = (next: GameSide[]) => {
-      // Drop the legacy `side<Letter>Name` keys on write (F-014). They were absorbed into each
-      // side's own `name` when the game was read, so leaving them would mean two sources of truth
-      // — and clearing a name in the editor would silently resurrect the old one on next load.
-      const settings = { ...(game.modeSettings ?? {}) };
-      let strippedAny = false;
-      for (const key of LEGACY_SIDE_NAME_KEYS) {
-        if (key in settings) { delete settings[key]; strippedAny = true; }
-      }
-      onSave({
-        ...game,
-        subTeams: undefined,
-        sides: undefined,
-        ...persistedSides(next),
-        ...(strippedAny ? { modeSettings: settings } : {}),
-      });
-    };
+    const saveSides = (next: GameSide[]) => onSave({ ...game, ...sidesPatch(game.modeSettings, next) });
 
+    // Tapping the side a player is ALREADY on is a no-op (moveToSide returns the same array):
+    // re-appending them silently reordered the side, and under a one-ball format that moved real
+    // money (F-012). The engine now takes the minimum, and this keeps the stored order stable.
     const assignSide = (pid: string, sideId: string) => {
-      // Tapping the side a player is ALREADY on is a no-op — return early rather than
-      // filter-then-push, which silently moved them to the end of the array. Nothing on
-      // screen changed, but under a one-ball format the side's score was read from the
-      // first member, so that invisible reorder moved real money (F-012). The engine now
-      // takes the minimum, and this keeps the stored order stable regardless.
-      if (sideMembers(sides, sideId).includes(pid)) return;
-      saveSides(sides.map((side) => ({
-        ...side,
-        playerIds: side.id === sideId
-          ? [...side.playerIds.filter((x) => x !== pid), pid]
-          : side.playerIds.filter((x) => x !== pid),
-        // A captain who leaves takes the role with them; the side is simply uncaptained after.
-        ...(side.captainId === pid && side.id !== sideId ? { captainId: undefined } : {}),
-      })));
+      const next = moveToSide(sides, pid, sideId);
+      if (next !== sides) saveSides(next);
     };
     const addSide = () => saveSides([...sides, { id: nextSideId(sides), playerIds: [] }]);
     // Removing a side UNASSIGNS its players rather than guessing a new pairing for them.

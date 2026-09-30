@@ -222,7 +222,7 @@ const SCENARIOS: Scenario[] = [
   {
     key: 'hogs-v-dawgs-two-groups',
     label: 'F-101 a: Hogs v Dawgs, 4 v 4 across two foursomes',
-    detail: 'TWO teams, each split over both tee groups (§5.bw reference). The Dawgs’ low ball is in group 2, so a card reading only group 1 shows a different Dawgs total than the board.',
+    detail: 'TWO teams, each split over both tee groups (§5.bw reference). The Dawgs’ low ball is in group 2, so a card reading only group 1 shows a different Dawgs total than the board. Three saved players to add from the hub (F-101 b).',
     build: () => {
       const ps = players([0, 0, 0, 0, 0, 0, 0, 0]);
       const game = baseGame({
@@ -241,6 +241,9 @@ const SCENARIOS: Scenario[] = [
       });
       saveGameScores('sm1', scores(['sp1', 'sp2', 'sp3', 'sp4'], [0, 1, 2, 3], ALL18));
       saveGameScores('sm2', scores(['sp5', 'sp6', 'sp7', 'sp8'], [3, 3, 1, 2], ALL18));
+      // F-101 b: a few saved players, so the hub's "Add a player" has someone to add mid-round.
+      signInAsOrganizer();
+      void seedTable('players', rosterRows(rosterPlayers(3)));
       return { game, goTo: (id) => `/pool/${id}/leaderboard` };
     },
   },

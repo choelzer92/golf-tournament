@@ -1391,6 +1391,7 @@ These are what the sweep found around the edges. Each is Craig's call or deliber
 - side ids continue `s27`, `s28`, … past 26 teams (`sideIdAt`).
 
 **Status:** DECIDED 2026-09-28 (§5.bw): a → A, b → A, c → A (and hide-holes stays OFF when teams span foursomes; it's anti-cheating for teams that ARE their foursome), d → YES (individual modes go past 4 across tee groups; Wolf and Nines keep their caps). Build queued (NEXT_SESSION_PROMPT). e is backlog.
+**a BUILT 2026-09-29 (a30a20b):** a card whose teams span foursomes takes its team rows from the engine. **b BUILT 2026-09-29:** the hub's Add a player asks "Which team?" (no default, add buttons disabled until picked) and saves the player onto that side; not asked when a multi-group game stores no sides, since there the foursome IS the team (F-097). The side move is now one pure helper (`moveToSide` + `sidesPatch` in `sides.ts`) shared with the team editor.
 
 ---
 

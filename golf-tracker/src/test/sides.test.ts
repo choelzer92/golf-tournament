@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   LEGACY_SIDE_NAME_KEYS,
-  defaultSideLabel, fromLegacySubTeams, legacySideNameKey, nextSideId,
+  defaultSideLabel, fromLegacySubTeams, legacySideNameKey, moveToSide, nextSideId, sidesPatch,
   persistedSides, sideMembers, settleRoundRobin, sideOfPlayer, sidesOfGame, toLegacySubTeams,
   unusedSideNameKeys,
   type GameSide,
@@ -183,6 +183,41 @@ describe('side lookups', () => {
   it('finds which side a player is on', () => {
     expect(sideOfPlayer(sides, 'p4')?.id).toBe('c');
     expect(sideOfPlayer(sides, 'nobody')).toBeNull();
+  });
+});
+
+// F-101 b: the hub's team editor and its add-player flow share these two.
+describe('moving a player onto a side, and writing the result', () => {
+  const sides: GameSide[] = [
+    { id: 'a', name: 'The Hogs', playerIds: ['p1', 'p2'], captainId: 'p1' },
+    { id: 'b', name: 'The Dawgs', playerIds: ['p3', 'p4'] },
+  ];
+
+  it('a new player joins the end of the chosen side, and nothing else moves', () => {
+    expect(moveToSide(sides, 'p9', 'b')).toEqual([
+      sides[0],
+      { id: 'b', name: 'The Dawgs', playerIds: ['p3', 'p4', 'p9'] },
+    ]);
+  });
+
+  it('a player already on the side stays put: the same array comes back (F-012)', () => {
+    expect(moveToSide(sides, 'p1', 'a')).toBe(sides);
+  });
+
+  it('a captain who switches sides leaves the role behind', () => {
+    const next = moveToSide(sides, 'p1', 'b');
+    expect(next[0]).toEqual({ id: 'a', name: 'The Hogs', playerIds: ['p2'], captainId: undefined });
+    expect(next[1].playerIds).toEqual(['p3', 'p4', 'p1']);
+  });
+
+  it('writes named sides as `sides`, clears `subTeams`, and drops the legacy name keys', () => {
+    const patch = sidesPatch({ sideAName: 'Old', dollarsPerPoint: 1 }, sides);
+    expect(patch).toEqual({ subTeams: undefined, sides, modeSettings: { dollarsPerPoint: 1 } });
+  });
+
+  it('an ordinary unnamed 2v2 still writes the legacy shape and leaves the settings alone', () => {
+    const plain: GameSide[] = [{ id: 'a', playerIds: ['p1'] }, { id: 'b', playerIds: ['p2'] }];
+    expect(sidesPatch({ dollarsPerPoint: 1 }, plain)).toEqual({ subTeams: { a: ['p1'], b: ['p2'] }, sides: undefined });
   });
 });
 

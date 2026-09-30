@@ -225,6 +225,46 @@ export function incompleteLegsForCloseOut(
     .filter((l) => l.dollars > 0);
 }
 
+/**
+ * Put a player on a side, taking them off any other (the hub's team editor and its add-player
+ * flow, F-101 b). A player already on that side is left exactly where they are: re-appending
+ * them silently reordered the side, and under a one-ball format that once moved money (F-012).
+ * A captain who leaves takes the role with them.
+ */
+export function moveToSide(sides: GameSide[], playerId: string, sideId: string): GameSide[] {
+  if (sideMembers(sides, sideId).includes(playerId)) return sides;
+  return sides.map((side) => ({
+    ...side,
+    playerIds: side.id === sideId
+      ? [...side.playerIds.filter((x) => x !== playerId), playerId]
+      : side.playerIds.filter((x) => x !== playerId),
+    ...(side.captainId === playerId && side.id !== sideId ? { captainId: undefined } : {}),
+  }));
+}
+
+/**
+ * The game fields to write for a new side collection. `sides`/`subTeams` are cleared first so a
+ * game that drops from three sides to two keeps no stale `sides` field, and the legacy
+ * `side<Letter>Name` keys are dropped (F-014): `sidesOfGame` already absorbed them into each
+ * side's `name`, so keeping them would be two sources of truth.
+ */
+export function sidesPatch(
+  modeSettings: Record<string, string | number | boolean> | undefined,
+  next: GameSide[],
+): { subTeams?: LegacySubTeams; sides?: GameSide[]; modeSettings?: Record<string, string | number | boolean> } {
+  const settings = { ...(modeSettings ?? {}) };
+  let strippedAny = false;
+  for (const key of LEGACY_SIDE_NAME_KEYS) {
+    if (key in settings) { delete settings[key]; strippedAny = true; }
+  }
+  return {
+    subTeams: undefined,
+    sides: undefined,
+    ...persistedSides(next),
+    ...(strippedAny ? { modeSettings: settings } : {}),
+  };
+}
+
 /** Which side a player is on, or null when they're on none. */
 export function sideOfPlayer(sides: GameSide[], playerId: string): GameSide | null {
   return sides.find((s) => s.playerIds.includes(playerId)) ?? null;

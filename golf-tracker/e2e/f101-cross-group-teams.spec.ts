@@ -1,6 +1,8 @@
 // F-101 (§5.bw): teams across foursomes are first-class — Hogs v Dawgs is the reference.
 // a: a two-team card takes its team rows from the ENGINE when a team spans groups, so every
 //    group's card shows the same totals as the board.
+// b: a player added on the hub mid-round is asked which team (no default), so nobody lands on a
+//    tee group but no team, out of the money.
 
 import { expect, test, type Page } from '@playwright/test';
 import { BASE, PHONE, resetBackend, seed } from './helpers';
@@ -38,4 +40,35 @@ test('F-101 a: both groups\' cards show the board\'s team totals when teams span
   const g2 = await cardRow(page, id, 2, 'The Hogs');
   expect(g2).toContain(boardHogs!);
   expect(g2).toContain('1st');
+});
+
+test('F-101 b: a player added on the hub is asked which team, and joins it', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  const id = await seed(page, 'F-101 a: Hogs v Dawgs, 4 v 4 across two foursomes');
+  await page.goto(`${BASE}/pool/${id}`);
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+  await expect(page.getByText('Add a player')).toBeVisible();
+
+  // No team chosen yet: nobody can be added, and the panel says why.
+  const team = page.getByLabel('Which team?');
+  await expect(team).toHaveValue('');
+  await expect(page.getByText(/Pick their team first/)).toBeVisible();
+  const saved = page.getByRole('button', { name: /Jym Youngberg/ });
+  await expect(saved).toBeDisabled();
+  await page.screenshot({ path: 'e2e/screenshots/f101b-add-player-ask-team.png', fullPage: true });
+
+  await team.selectOption({ label: 'The Dawgs' });
+  await expect(page.getByText(/Pick their team first/)).toHaveCount(0);
+  await saved.click();
+  await expect(saved).toContainText('In game');
+  await page.screenshot({ path: 'e2e/screenshots/f101b-add-player-added.png', fullPage: true });
+
+  // Saved onto the team: after a reload the team editor has nobody unassigned. Without F-101 b
+  // it read "Jym not on a team — their scores won't count toward any team".
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+  await expect(page.getByText('+ Add a team')).toBeVisible();
+  await expect(page.getByText(/not\s+on a team/)).toHaveCount(0);
 });
