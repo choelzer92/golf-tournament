@@ -62,7 +62,9 @@ Ranked by tap savings times how often it happens.
 7. **Plain words.** Plain labels or an info tip for M, CHcp, "Off the low", "How many strokes change
    hands", "Decide by", and "Casual round" for a money game (Craig's own open thread). Hub stakes read
    "$10", not "Front 9 ($) 10". **S.**
-8. **Round-start clutter.** Hide "Finish Game" and "Close out" until scores exist. **S.**
+8. **Group courses first (§5.cf).** On the course step, a group's own courses are listed most-played
+   first, with search and add-new kept. **S–M.**
+9. **Round-start clutter.** Hide "Finish Game" and "Close out" until scores exist. **S.**
 
 Measure each one: re-walk the three personas and record the tap counts in the table above.
 
@@ -104,6 +106,10 @@ These are not a restyle. They're the first-impression basics a new player judges
 - **S4:** a pool is an Event with one round, so multi-day is "add a round" and the pool/tournament
   vocabulary goes away (§5.cb 4).
 - **Then flights**, for the member-guest at 144.
+- **Multi-day events (§5.cf): a REAL, public-market need,** proposed beta bar #11. Set up from a group's
+  preferences; cumulative money paid at the end first, other cross-day formats later. Open question:
+  a Series wrapper (GROUPS_AND_EVENTS Option A, sooner) or spine S4 (uniform, later). Present the
+  trade-off after S2's investigation.
 
 ## Handicap check (§5.ce)
 

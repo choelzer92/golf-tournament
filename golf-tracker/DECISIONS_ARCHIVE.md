@@ -2235,3 +2235,26 @@ pain free and intuitive"). The plan is `.claude/plans/roadmap-2026-10.md`. His a
    implement." Each one is investigated, then gets a build plan written into the roadmap (S2 in
    Phase E, F-063 C in Phase C), then is built. F-063 C's live-database migration is shown to Craig
    before it runs (AGENTS.md: irreversible or live data means ask).
+
+---
+
+### 5.cf — GROUPS_AND_EVENTS questions answered: multi-day is a real (public) need; cumulative first; group courses by frequency (2026-10-01)
+
+1. **Multi-day events are a REAL need.** Craig: "real, and especially for the app going to the general
+   public. this is a huge need and a large market. making this easy to set up based on a groups
+   preferences for teams and set up would be huge." It is proposed as beta bar #11. A group's
+   preferences (teams, formats, setup) seed every day.
+2. **Days combine by cumulative money first.** Craig: "Cumulative money would be good for paying at the
+   end, but other options may be needed (but not as important)." So each day settles, and the event
+   pays out the sum at the end. Other cross-day formats ("best N of M") are later; don't block them in
+   the design.
+3. **A group shows its own courses, most-played first.** Craig: "its own courses should show, and
+   listed by how often its been played. still with the option of adding a new one if they are playing
+   somewhere new." The course step lists the group's courses by play count, with search or add-new
+   still there.
+4. **Already settled, so not re-asked:** q3 (the two-team limit; N-way is spine S3) and q4 (the group
+   picker; the first wizard step has "Load group").
+5. **OPEN, an architecture call for the next session:** build multi-day as GROUPS_AND_EVENTS Option A
+   (a thin Series wrapper over existing games, low risk, sooner) or through spine S4 (a pool is an
+   Event with rounds, uniform, later). Present the trade-off after S2's investigation. Don't pick
+   unasked.

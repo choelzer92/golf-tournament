@@ -18,6 +18,8 @@ Read `AGENTS.md` first, then `DECISIONS.md` whole. Grep the archive only for the
 0. **Ask Craig to confirm or edit the beta bar in `BETA.md` §1** (a DRAFT from 2026-10-01). After that it
    filters all work: intake (§2), the session loop (§3), and the backlog comb (§5).
 
+   Include proposed bar #11, multi-day events (§5.cf).
+
 0b. **THEN the DEDUP AUDIT + the backlog comb (BETA.md §5) of `.claude/plans/roadmap-2026-10.md` (§5.cd).** Craig answered the
    roadmap's calls, but wants every item confirmed as real remaining work before anything is built.
    Follow the plan's "Dedup audit" section: give each item a verdict (DONE / PARTLY / OPEN / DECIDED

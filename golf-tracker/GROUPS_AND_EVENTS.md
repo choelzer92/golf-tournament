@@ -249,6 +249,8 @@ zero-config, and the series makes the trip a single thing.
 
 ## Open questions for Craig
 
+**ANSWERED 2026-10-01 (§5.cf):** 1 is real (a large public market); 2 is cumulative first, others later; 3 is N-way (spine S3); 4 is "Load group" on the first step; 5 is the group's courses, most-played first, plus add-new. Open: Series (Option A) vs spine S4.
+
 1. **Multi-day pool: real need or hypothetical?** Do you and your friends do trips
    where a money pool runs several days? That decides whether Series is next or later.
 2. **Cross-day formats?** Is "best 2 of 3 days count" a thing you'd want, or is
