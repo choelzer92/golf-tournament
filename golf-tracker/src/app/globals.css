@@ -12,16 +12,19 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* No system dark mode: no screen has dark styles, so flipping the body to near-black only put
+   dark text on a dark page (the login screen on a phone in dark mode). */
 
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* Each page's root div fills the body's flex column. Its own `min-h-full` can't resolve
+   (the body has only a min-height), so a short page's background, e.g. the dark board,
+   stopped partway down with white below it. */
+body > div {
+  flex-grow: 1;
 }
 
 select,
