@@ -912,6 +912,12 @@ function IndividualLeaderboard({ id }: { id: string }) {
   // (side games under 'total' scoring — see DECISIONS.md §5.af). Under Stableford the figure is
   // PACE, where ahead of pace is GOOD; under strokes it's plain to-par.
   const showToPar = result?.standings.some((s) => s.toPar !== undefined) ?? false;
+  // §5.cc: skins with holes still open get a LEADING column (open holes a player is alone low
+  // on: provisional, never added into the skins won). Skins won, for the pot's per-skin line.
+  const leadingOpen = new Map<string, number>();
+  for (const o of result?.openSkins ?? []) if (o.leaders.length === 1) leadingOpen.set(o.leaders[0], (leadingOpen.get(o.leaders[0]) ?? 0) + 1);
+  const showLeading = (result?.openSkins?.length ?? 0) > 0;
+  const skinsWon = result?.standings.reduce((n, s) => n + s.points, 0) ?? 0;
   const paceHigherIsBetter = result?.metricLabel === 'pts';
   const paceLabel = paceHigherIsBetter ? 'PACE' : 'To par';
 
@@ -988,6 +994,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
                     <th className="text-left px-3 py-1.5 font-medium">#</th>
                     <th className="text-left px-2 py-1.5 font-medium">{isWithinGroup ? 'Team' : 'Player'}</th>
                     <th className="text-center px-2 py-1.5 font-medium">{result.metricLabel}</th>
+                    {showLeading && <th className="text-center px-2 py-1.5 font-medium">Leading</th>}
                     {/* The figure the board is RANKED and PAID on, when it isn't the metric
                         itself (DECISIONS.md §5.af). A raw total can't be compared across
                         differing thru counts, so a side game under 'total' scoring ranks on
@@ -1024,6 +1031,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
                             {canExpand && <span className="ml-1 text-gray-600 text-[10px]">{isOpen ? '▾' : '▸'}</span>}
                           </td>
                           <td className="text-center px-2 py-1.5 font-bold text-white">{fmtMetric(s.points)}</td>
+                          {showLeading && <td className="text-center px-2 py-1.5 text-gray-400">{leadingOpen.get(s.playerId) || '-'}</td>}
                           {showToPar && (
                             <td className="text-center px-2 py-1.5">
                               {/* Colour keys on the BASIS, not just the sign: under Stableford
@@ -1067,7 +1075,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
                         {canExpand && isOpen && (
                           <tr className="bg-gray-900/40">
                             <td />
-                            <td colSpan={4 + (showToPar ? 1 : 0) + (showGrossToPar ? 1 : 0)} className="px-2 pb-2 text-[11px] text-gray-400">
+                            <td colSpan={4 + (showToPar ? 1 : 0) + (showGrossToPar ? 1 : 0) + (showLeading ? 1 : 0)} className="px-2 pb-2 text-[11px] text-gray-400">
                               {s.holesWon && s.holesWon.length > 0
                                 ? <>Won holes: <span className="text-gray-300">{s.holesWon.join(', ')}</span></>
                                 : 'No holes won yet.'}
@@ -1080,13 +1088,34 @@ function IndividualLeaderboard({ id }: { id: string }) {
                 </tbody>
               </table>
               {result.moneyModel === 'pot' && result.pot > 0 && (
-                <div className="px-3 py-2 text-[10px] text-gray-500 border-t border-gray-700">${Math.round(result.pot)} pot</div>
+                <div className="px-3 py-2 text-[10px] text-gray-500 border-t border-gray-700">
+                  ${Math.round(result.pot)} pot
+                  {/* §5.cc: a pot skin's worth isn't known until the round ends (pot ÷ every skin
+                      won), so mid-round the $ is as if no more skins were won. */}
+                  {game.gameMode === 'skins' && game.status !== 'completed' && skinsWon > 0 && (
+                    <> · if it ended now with no more skins won: ${Math.round(result.pot / skinsWon)} a skin (${Math.round(result.pot)} ÷ {skinsWon})</>
+                  )}
+                </div>
               )}
-              {/* F-101 d (§5.ca): skins a later group can still take, live. Not won yet, so unpaid. */}
+              {/* F-101 d (§5.ca) + §5.cc: skins a later player can still take, live. Not won, so
+                  unpaid: who's low, and how many of the field have played the hole. */}
               {result.openSkins && result.openSkins.length > 0 && (
-                <div className="px-3 py-2 text-[10px] text-gray-400 border-t border-gray-700">
-                  <span className="font-medium text-gray-300">Skins still open, low so far:</span>{' '}
-                  {result.openSkins.map((o) => `${o.hole} ${o.names[0] ? displayName(o.names[0]) : 'tied'}`).join(' · ')}
+                <div className="px-3 py-2 text-[11px] text-gray-400 border-t border-gray-700">
+                  <p className="font-medium text-gray-300 mb-1">
+                    Open skins: each pays once all {result.openSkins[0].field} players have played it
+                  </p>
+                  <ul className="space-y-0.5">
+                    {result.openSkins.map((o) => (
+                      <li key={o.hole} className="flex justify-between gap-2">
+                        <span>
+                          Hole {o.hole}{' '}
+                          <span className="text-gray-200">{o.names[0] ? `${displayName(o.names[0])} ${o.low}` : `tied at ${o.low}`}</span>
+                          {o.carriedIn ? <span className="text-gray-500"> (+{o.carriedIn} carried)</span> : null}
+                        </span>
+                        <span className="text-gray-500 whitespace-nowrap">{o.posted} of {o.field} played</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>

@@ -1405,7 +1405,7 @@ These are what the sweep found around the edges. Each is Craig's call or deliber
 
 ### F-103 — Walk findings from F-101 d (2026-09-29)  [P2] [track]
 
-- **a. The skins pot pays live on the skins decided so far.** In the 32-player seed only holes
+- **a. DECIDED + BUILT 2026-10-01 (§5.cc):** a Leading column, open holes with "N of 32 played", and the pot's $ labelled "if it ended now". Original: **The skins pot pays live on the skins decided so far.** In the 32-player seed only holes
   1–4 are decided (the last group is thru 4). One skin has been won, so Ula reads **+$310** and everyone else −$10, while 14 holes are still open. The arithmetic is right: the pot splits by skins won so far. But mid-round it reads as though the pot is already won.
   Options:
   - (A) Mid-round, show the pot's money as "if it ended now".

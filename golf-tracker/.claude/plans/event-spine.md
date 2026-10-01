@@ -109,7 +109,7 @@ is the seam that N-way tournament writes go through later.
 3. Groups app-wide for tournaments, and formats riding along with S4: agree?
 4. F-098 (plus handicaps): does anyone in the circle carry a plus index? Is option A OK
    to schedule with S2?
-5. **(open, 2026-09-29) Who sees an OWNED tournament once readers filter?** The pool rule is
+5. **ANSWERED 2026-10-01 (§5.cb): owner + every player (by GHIN) + every member of the source group, for pools AND tournaments.** Original question: Who sees an OWNED tournament once readers filter? The pool rule is
    owner-only (`getPoolGameListForGhin`); others reach a pool by its share link. A Hogs v Dawgs
    tournament has 8+ players who each open /home. Options: **A** owner only, like the pool (the
    others lose it from /home and the ledger); **B** owner + every player whose GHIN is in

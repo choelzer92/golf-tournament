@@ -15,19 +15,12 @@ Read `AGENTS.md` first, then `DECISIONS.md` whole. Grep the archive only for the
 
 ## Step 1: ask Craig outright (§5.bo). Don't build a guess.
 
-1. **F-103 a, the live skins-pot money.** Mid-round, a 32-player pot shows +$310 for one early skin.
-   The options are:
-   - A: label it "if it ended now";
-   - B: hide the $ until the game is closed;
-   - C: leave it.
-   See FINDINGS F-103.
-2. **Event spine q5 (`.claude/plans/event-spine.md` §6): who sees an OWNED tournament?** The options are:
-   - A: the owner only, like the pool;
-   - B: the owner plus every player in `tournament.players` by GHIN;
-   - C: B plus the app owner.
-
-   `tournamentVisibleTo` exists but no page reads it. Wiring it into `/home`, `/dashboard` and
-   `/home/stats` is the follow-up.
+1. **F-103 a is DONE (§5.cc).** The skins board shows Leading, "N of M played" per open hole, and the pot's $ "if it ended now".
+2. **Visibility is DECIDED (§5.cb):** a pool or tournament is visible to its owner, every player in it
+   (by GHIN), and every member of its source group. Build it in `lib/` (pool-game + tournament-state list
+   functions), then wire `/home`, `/dashboard`, `/home/stats`, `/home/groups/[id]`, `/pool`. It widens
+   the pool's owner-only list, so the e2e pins on that need updating. Ask Craig before building if it
+   isn't already approved.
 3. **Merge the branch?** It's his call (§5.ab). His phone walk is still wanted (§5.y).
 
 ## Step 2: F-103 b and F-101 e

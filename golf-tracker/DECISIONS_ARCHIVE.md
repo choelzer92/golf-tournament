@@ -2157,3 +2157,42 @@ recommendation on all three:
    group this is exactly the old rule (any posted score = the group posted), so goldens hold.
 3. **Junk defaults to the junk pot past 4 players.** Per-point stays available and its hint shows
    the real per-event amount at the field size ($2 birdie = $62 at 32).
+
+---
+
+### 5.cb — Who sees a game: everyone in it, or in the group it was made from (2026-10-01)
+
+Craig, answering event-spine q5 (`.claude/plans/event-spine.md` §6): "tournaments and pools should be
+available to anyone in the tournament or pool or even the group that it was made with if there is
+one."
+
+1. **A game is visible to its owner, every player in it, and every member of its `sourceGroupId`
+   group.** "Players" are matched by GHIN (`Player.ghinNumber`); group members are the group's roster
+   players' GHINs. This applies to **both** pools and tournaments. For pools it WIDENS today's
+   owner-only `getPoolGameListForGhin`.
+2. Legacy owner-less tournaments stay visible to everyone (§5.bu 3 unchanged).
+3. Not built yet. Open details for the build:
+   - a player added by name with no GHIN can't be matched, and still reaches the game by its share link;
+   - the app owner keeps seeing everything (`isAppOwner()`, §5.bi).
+4. Craig also confirmed the long-term direction: no "pool vs tournament" in the vocabulary; you set
+   up a game with your configured settings. That is the collapse (§5.bk "never a user-facing
+   container") plus Event spine S4 (a pool is an Event with one round).
+
+---
+
+### 5.cc — Skins standings mid-round: skins won, leading, players played; pot $ "if it ended now" (2026-10-01)
+
+Craig, on F-103 a (the live skins pot read +$310 for one early skin): "Maybe we have a way to show
+standings for skins where it shows skins won coupled with how many players have played the hole?"
+Then, choosing between the options: "i like counting players, and yes, lets do 'if it ended now' or
+something along those lines".
+
+1. **Skins won stays the ranking.** A **Leading** column (shown only while holes are open) counts
+   the open holes a player is alone low on. It is provisional and never added to skins won.
+2. **Every open hole is listed**, with who is low (or "tied at N"), and **"N of M played", counting
+   PLAYERS, not groups**. With carryover, the first open hole shows the skins riding in ("+3
+   carried"); past it the carry depends on holes not yet decided, so it isn't shown.
+3. **Pot $ mid-round is labelled**: "if it ended now with no more skins won: $X a skin (pot ÷
+   skins won)". A pot skin's worth isn't known until the round ends. Per-skin money is unchanged,
+   since each skin is a fixed amount.
+4. The money math is unchanged (§5.ca still decides a hole once every group posts).

@@ -175,3 +175,28 @@ describe('§5.ca: a field past four starts on the pots', () => {
     expect(defaultSettingsForField(team, 32)).toEqual(defaultSettingsForField(team, 4));
   });
 });
+
+describe('§5.cc: an open skin says who is low, how many of the field have played it, and the carry', () => {
+  it('posted counts players (not groups); field is everyone', () => {
+    const game = fieldGame(8, 'skins', { moneyModel: 'pot', entryPerPlayer: 10 });
+    const r = run(game, scores(8, (g) => (g === 0 ? 12 : 6)));
+    for (const o of r.openSkins!) {
+      expect(o.posted).toBe(4);
+      expect(o.field).toBe(8);
+      expect(Number.isFinite(o.low)).toBe(true);
+    }
+  });
+
+  it('with carryover, the first open hole carries the skins tied before it; later ones do not say', () => {
+    // Eight scratch players all making par: holes 1–6 tie, so 6 skins ride into hole 7.
+    const game = makeGame({ gameMode: 'skins', indexes: Array(8).fill(0), teamCount: 2, modeSettings: { moneyModel: 'pot', entryPerPlayer: 10 } });
+    const m = new Map<string, GameScore[]>();
+    ids(8).forEach((id, i) => {
+      const g = i < 4 ? 'm1' : 'm2';
+      m.set(g, [...(m.get(g) ?? []), ...scoresFor(id, TEST_PARS).filter((s) => s.hole <= (i < 4 ? 12 : 6))]);
+    });
+    const r = run(game, m);
+    expect(r.openSkins![0]).toMatchObject({ hole: 7, leaders: [], carriedIn: 6, posted: 4, field: 8, low: TEST_PARS[6] });
+    expect(r.openSkins!.slice(1).every((o) => o.carriedIn === undefined)).toBe(true);
+  });
+});

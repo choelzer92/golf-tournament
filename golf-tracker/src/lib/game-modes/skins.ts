@@ -86,6 +86,8 @@ function compute(ctx: GameModeContext): IndividualResult {
         hole: hole.number,
         leaders: winners.length === 1 ? [winners[0].playerId] : [],
         names: winners.length === 1 ? [byId.get(winners[0].playerId)!.playerName] : [],
+        low, posted: scored.length, field: ctx.players.length,
+        ...(openSkins.length === 0 && carryover && carried > 0 ? { carriedIn: carried } : {}),
       });
       return;
     }

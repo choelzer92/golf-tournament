@@ -44,7 +44,7 @@ test('F-101 d: eight players play skins as individuals, on two tee groups', asyn
   await page.screenshot({ path: 'e2e/screenshots/f101d-hub-8.png', fullPage: true });
 });
 
-test('F-101 d: a 32-player skins board shows the whole field, with open skins live', async ({ page }) => {
+test('F-101 d + §5.cc: a 32-player skins board, open skins with players played, $ if it ended now', async ({ page }) => {
   await page.setViewportSize(PHONE);
   const id = await seed(page, 'F-101 d: Skins, 32 players, 8 foursomes (staggered)');
   await page.goto(`${BASE}/pool/${id}/leaderboard`);
@@ -52,9 +52,12 @@ test('F-101 d: a 32-player skins board shows the whole field, with open skins li
   // 32 × $10 on the skins pot.
   await expect(page.getByText('$320 pot')).toBeVisible();
   // The last group is 4 holes in: holes 5–18 aren't decided, so they read live, unpaid.
-  const open = page.getByText(/Skins still open, low so far:/);
-  await expect(open).toBeVisible();
-  await expect(open.locator('..')).toContainText(/\b5 /);
+  // §5.cc: each open hole lists who's low and how many of the 32 have played it.
+  await expect(page.getByText('Open skins: each pays once all 32 players have played it')).toBeVisible();
+  await expect(page.locator('li', { hasText: /^Hole 5 / })).toContainText('28 of 32 played');
+  await expect(page.getByRole('columnheader', { name: 'Leading' })).toBeVisible();
+  // A pot skin's $ is provisional mid-round: as if no more skins were won.
+  await expect(page.getByText(/if it ended now with no more skins won: \$\d+ a skin \(\$320 ÷ \d+\)/)).toBeVisible();
   // Every player is on the board, from every group.
   const body = await page.locator('body').innerText();
   for (const name of ['Xan', 'Al', 'Ula']) expect(body).toContain(name);
