@@ -169,6 +169,7 @@ dedup audit checks these too.
 | Flights | **E** |
 | Known-incomplete corners (tournament team math, 9-hole scramble dots, 2v2 pot, Vegas/BBB) | Fix on their trigger; the tournament math goes with S2 |
 | Ideas section | Stays raw; nothing to build from it |
+| The OLD feature roadmap (memory `project_golf-tracker-roadmap`, June–Aug 2026): #6 stroke-allocation overview on the play page, #8 team match status in the play header ("Bernstein +2 thru 7"), #9 match-by-match scorecard on round detail; #10 flights, #12 AI caddy, #14 9-hole scramble dots are covered above | **Dedup audit**: check #6/#8/#9 (they may already exist), then tag them |
 
 ## Dedup audit (the next session's whole job before building)
 

@@ -19,11 +19,11 @@ dollar is ever lost or wrong.
 | 7 | **It looks like a real app:** a font, an icon, a front door, one theme | a screenshot walk | D1–D4 |
 | 8 | **Money history survives:** an export or backup exists | the JSON export | C |
 | 9 | **No open P1 finding** | FINDINGS.md | n/a |
-| 11 | **A multi-day event** (a trip) sets up from a group's preferences and pays cumulative money at the end. *Proposed (§5.cf); Craig confirms with the bar* | a persona walk of a 3-day trip | E (Series vs S4, open) |
 | 10 | **The full gate is green, and Craig has walked it on a phone and merged it** | `npm run verify`; Craig | n/a |
+| 11 | **A multi-day event** (a trip) sets up from a group's preferences and pays cumulative money at the end. *Proposed (§5.cf); Craig confirms with the bar* | a persona walk of a 3-day trip | E (Series vs S4, open) |
 
 Not on the bar, so it waits until after beta:
-- S3/S4 and flights;
+- S3 and flights, and S4 too, unless it's the route chosen for #11;
 - the AI caddy and trainer layers;
 - Vegas/BBB;
 - the 1v1 batch;
