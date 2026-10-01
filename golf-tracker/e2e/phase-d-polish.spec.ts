@@ -2,7 +2,7 @@
 
 import { expect, test } from '@playwright/test';
 
-import { BASE, goToGame, PHONE, seed } from './helpers';
+import { BASE, fieldToGameStep, goToGame, PHONE, resetBackend, seed, toScoringStep } from './helpers';
 
 test('D1: the app renders in Geist, not Arial', async ({ context, page }) => {
   await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
@@ -47,4 +47,19 @@ test('D3: the front door says what the app is', async ({ page }) => {
   await expect(page.getByPlaceholder('Invite code')).toBeVisible(); // the gate, not a page behind it
   await expect(page.getByText('score it hole by hole, and settle the money')).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/d3-front-door-phone.png', fullPage: true });
+});
+
+test('D5: the selected Net looks like every other selected toggle', async ({ context, page }) => {
+  await resetBackend(context, page);
+  await page.setViewportSize(PHONE);
+  await page.goto(`${BASE}/pool/new`);
+  await page.waitForLoadState('networkidle');
+  await fieldToGameStep(page);
+  await toScoringStep(page);
+  const net = page.getByRole('radiogroup', { name: 'Net or gross' }).getByRole('radio', { name: 'Net' });
+  await expect(net).toHaveAttribute('aria-checked', 'true');
+  const full = page.getByRole('button', { name: 'Off the low', exact: true }); // the default stroke method
+  const bg = (l: typeof net) => l.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(await bg(net)).toBe(await bg(full));
+  await page.screenshot({ path: 'e2e/screenshots/d5-toggles-phone.png', fullPage: true });
 });

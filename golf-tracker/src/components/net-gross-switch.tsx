@@ -24,8 +24,10 @@ export function parseAllowance(raw: string): number {
 }
 
 export function NetGrossSwitch({ gross, onChange }: { gross: boolean; onChange: (gross: boolean) => void }) {
-  const btn = (on: boolean) =>
-    `flex-1 rounded-md border px-3 py-1.5 text-sm font-medium ${on ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-300 bg-white text-gray-600'}`;
+  // D5: the same solid selected style as the wizard's other toggles (scoring-step `toggle`).
+  const btn = (on: boolean) => `flex-1 min-h-[44px] rounded-md border px-3 py-2.5 text-sm font-medium ${
+    on ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-green-400'
+  }`;
   return (
     <div>
       <div className="flex gap-2" role="radiogroup" aria-label="Net or gross">
