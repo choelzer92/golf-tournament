@@ -230,6 +230,8 @@ Nothing left here — archive in the next sweep.
 
 ### F-022 — 90% allowance applies to the ROUNDED course handicap; GHIN uses the unrounded one  [P1 MONEY] [track]
 
+**CLOSED 2026-10-01 (Craig, §5.ce):** unrounded-first confirmed done. Follow-on is a separate investigation: stroke vs match play strokes can differ slightly (see BACKLOG).
+
 **Where:** `src/lib/game-state.ts:118` — `applyAllowance` = `Math.round(courseHandicap) × (allowance/100)`
 **Reported:** Craig, 2026-09-09 — at Spring Creek ("3 star" tees, 90% allowance), a 7.6 index vs a
 2.7 index showed **5** strokes in our app where the GHIN app showed **6**.
@@ -428,6 +430,8 @@ doesn't stick. Opt C (standings strip on the card, §6b) remains open as the dee
 ---
 
 ### F-033 — "1v1 and more 3-player game types" — mostly EXIST; he can't find them  [P2] [start]
+
+**CLOSED 2026-10-01 (Craig, §5.ce):** built and answered back to the friend.
 
 **Report:** "1v1 game types and more 3-player game types (or the capability to
 create them)."

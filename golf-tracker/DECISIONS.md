@@ -191,6 +191,8 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.ca | 2026-09-29: big-field skins (F-101 d) — add a **Skins pot** (entry pot split by skins won; default past 4, $ per skin stays); a skin is decided once **every tee group** has posted the hole (closed game decides on what's posted; one group = old rule); junk defaults to the **junk pot** past 4 |
 | 5.cb | 2026-10-01: a game (pool OR tournament) is visible to its owner + every player in it (by GHIN) + every member of its source group; widens pool's owner-only list; not built yet. Long-term: no pool/tournament lingo, "set up a game" (collapse + spine S4) |
 | 5.cc | 2026-10-01: skins mid-round = skins won + Leading (open holes alone low) + each open hole "N of M played" (PLAYERS); pot $ labelled "if it ended now with no more skins won". F-103 a resolved; no money change |
+| 5.cd | 2026-10-01: roadmap `.claude/plans/roadmap-2026-10.md`; §5.bv 3 lifted for Phase D first-impression polish only; order polish → B → A, but a DEDUP AUDIT of every item comes first (new session); §5.cb visibility next; no-GHIN organizer wanted but map GHIN dependencies + options before building |
+| 5.ce | 2026-10-01: F-022 + F-033 CLOSED; S2 + F-063 C APPROVED (investigate → plan in roadmap → build; show the live migration first); new investigation: stroke vs match play strokes can differ slightly (report only, no math change without Craig) |
 
 ---
 

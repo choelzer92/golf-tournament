@@ -2196,3 +2196,42 @@ something along those lines".
    skins won)". A pot skin's worth isn't known until the round ends. Per-skin money is unchanged,
    since each skin is a fixed amount.
 4. The money math is unchanged (§5.ca still decides a hole once every group posts).
+
+---
+
+### 5.cd — Roadmap 2026-10: polish lifted for first-impression items; dedup audit before building (2026-10-01)
+
+Craig asked for a methodical plan, plus design ideas for a more professional feel and a painless
+first-time setup ("the way the app will be successful is having the first time set up for players
+pain free and intuitive"). The plan is `.claude/plans/roadmap-2026-10.md`. His answers:
+
+1. **§5.bv 3 is lifted for Phase D's items ONLY**: the Geist font fix, brand assets (icon,
+   favicon, manifest), a branded front door, one consistent theme, real icons instead of emoji, and
+   the copy diet. A full redesign still waits.
+2. **Order: quick polish, then Phase B (ease), then Phase A (decided items)**, but only after a
+   **dedup audit**. Craig: "didnt we already do some of the stuff in the plan? I want to be sure we
+   [aren't] duplicating work. I think we need to plan this out, and then start a new session where we
+   ensure that this is actually all work that is to be completed." The next session checks every
+   roadmap item against the code, git log, FINDINGS and the archive, and marks it done, partly done
+   or open, before anything gets built.
+3. **§5.cb visibility: build it next**, after the audit confirms it is still open.
+4. **Organizer without GHIN: wanted, but not a simple change.** Craig: "We probably do need a way to do
+   this, but a lot of the app relies on ghin numbers, so this may be more tricky than it appears."
+   Map every GHIN dependency first (ownership, `createdByGhin`, visibility, roster identity, the
+   stats ledger, handicap lookup) and propose options. Don't build until he picks one.
+
+---
+
+### 5.ce — F-022 and F-033 closed; S2 and F-063 C approved; a stroke vs match play handicap check (2026-10-01)
+
+1. **F-022 and F-033 are CLOSED.** Craig: "F-022 and F-033 are done. I think the math on handicaps if
+   following official ghin and usga calcs are perfect."
+2. **A new investigation.** Craig: "stroke and match play are calculated very slightly differently, and
+   very occasionally can produce different stroke totals given." Pin down the USGA/WHS rule for each
+   format, find where our code computes each one, and use a property test to find inputs where they
+   disagree. Report and propose; changing the math still needs his OK.
+3. **Event spine S2 and F-063 option C are APPROVED.** Craig: they "should be implemented, so ensure
+   they are in the backlog and will be investigated and then added accordingly to the plan to
+   implement." Each one is investigated, then gets a build plan written into the roadmap (S2 in
+   Phase E, F-063 C in Phase C), then is built. F-063 C's live-database migration is shown to Craig
+   before it runs (AGENTS.md: irreversible or live data means ask).

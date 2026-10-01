@@ -1,4 +1,4 @@
-# Next session: Craig's open calls, then F-103 and F-101 e polish at 144
+# Next session: dedup-audit the 2026-10 roadmap, then polish → §5.cb visibility → first-time ease
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
@@ -15,12 +15,19 @@ Read `AGENTS.md` first, then `DECISIONS.md` whole. Grep the archive only for the
 
 ## Step 1: ask Craig outright (§5.bo). Don't build a guess.
 
+0. **FIRST, the DEDUP AUDIT of `.claude/plans/roadmap-2026-10.md` (§5.cd).** Craig answered the
+   roadmap's calls, but wants every item confirmed as real remaining work before anything is built.
+   Follow the plan's "Dedup audit" section: give each item a verdict (DONE / PARTLY / OPEN / DECIDED
+   AGAINST) with evidence, fill in the table, re-rank, and show Craig. Use Explore agents per phase to
+   save context. Then build in his order: Phase D quick polish, then §5.cb visibility, then Phase B,
+   then Phase A. Also map the no-GHIN organizer's GHIN dependencies into options (don't build that).
+
 1. **F-103 a is DONE (§5.cc).** The skins board shows Leading, "N of M played" per open hole, and the pot's $ "if it ended now".
 2. **Visibility is DECIDED (§5.cb):** a pool or tournament is visible to its owner, every player in it
    (by GHIN), and every member of its source group. Build it in `lib/` (pool-game + tournament-state list
    functions), then wire `/home`, `/dashboard`, `/home/stats`, `/home/groups/[id]`, `/pool`. It widens
-   the pool's owner-only list, so the e2e pins on that need updating. Ask Craig before building if it
-   isn't already approved.
+   the pool's owner-only list, so the e2e pins on that need updating. **APPROVED 2026-10-01 (§5.cd): build it
+   right after the Phase D quick polish.**
 3. **Merge the branch?** It's his call (§5.ab). His phone walk is still wanted (§5.y).
 
 ## Step 2: F-103 b and F-101 e
@@ -38,15 +45,26 @@ Read `AGENTS.md` first, then `DECISIONS.md` whole. Grep the archive only for the
 - **Walk every screen you touch** at 32 and 144, and screenshot each one.
 - **F-103 c:** CTP across tee groups (suspected overwrite). Reproduce it with two tabs first.
 
-## Later, each needing its own approval
+## Approved 2026-10-01 (§5.ce): investigate, then plan, then build
 
-- **Event spine S2**: tournament rounds scored through `game-modes/`, goldens first.
+Do these after the dedup audit. Each gets an investigation, then a build plan written into the roadmap,
+then the build. BACKLOG has the details.
+- **Event spine S2:** tournament rounds through `game-modes/`, goldens first. Roadmap Phase E.
+- **F-063 C:** per-cell score rows plus an outbox. Roadmap Phase C. Show Craig the live migration
+  before it runs.
+- **Stroke vs match play handicap investigation:** report only. No math change without Craig.
+
+## Parked
+
 - The course-data audit (parked by Craig).
 
 ## Waiting on Craig
 
-- F-022, the on-course stroke check against the GHIN app; include a plus-handicap player.
-- F-033, the answer to the friend.
+- "Your golf" on Home: Craig leans to the 3 most recent. Option B (a Continue card for a live game,
+  then recent games with Run it back) was offered 2026-10-01 and is unanswered.
+- 2v2 "who plays whom" with 3+ teams: A two games / B a within-tee-group setting (recommended) /
+  C custom pairings / D B plus an overall layer. Offered 2026-10-01, unanswered.
+- Merging the branch (walk first, or merge now).
 - §7 q4.
 - The BACKLOG P3 hide-holes wizard question.
 - The items in Step 1.

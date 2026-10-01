@@ -24,7 +24,10 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | **Course-data correctness audit — PARKED by Craig 2026-09-15 ("wait on the course data")**. Meadows payload banked + CLEAN (F-023); prime suspects now gender-name tee collisions and stale stored games. Resume on his word. | M | Craig 2026-09-10/14 + F-023 |
 | Merge-audit polish batch (all four S items below) — fallback slack work | S×4 | merge audit / §5.ak |
 | **NEXT SESSION:** Craig's calls first (F-103 a live skins-pot $; event-spine q5 who sees an owned tournament; merge) → F-103 b card header → F-101 e polish at 144 (`scoreAt`, rendering) → wire the tournament owner filter once q5 is answered | M | 2026-09-29 |
-| Event spine **S2** (tournament rounds through `game-modes/`, goldens first) needs its OWN approval (`.claude/plans/event-spine.md` §3) | L | §5.bu |
+| **ROADMAP 2026-10 (DRAFT, awaiting Craig's order + calls):** `.claude/plans/roadmap-2026-10.md`. A: finish what's decided (§5.cb visibility, F-103 b/c, F-101 e, money-format bugs, doc hygiene). B: first-time + return ease (Run it back, wizard fast path, Send after Create, don't ask twice, paste/recent players, guest remembers group, plain words, round-start clutter). C: never lose a score (F-063 C, offline/PWA, live-scoring pass, season ledger). D: professional polish (Geist font, brand assets, front door, one theme, icons, copy diet; needs §5.bv 3 lifted). E: spine S2→S4, flights | L | Craig 2026-10-01 |
+| **Event spine S2 — APPROVED 2026-10-01 (§5.ce).** Tournament rounds scored through `game-modes/`, goldens first (`.claude/plans/event-spine.md` §3). Investigate first (corpus, every A/B function vs the registry, what disagrees), then write the build plan into roadmap Phase E and build. Any money/points disagreement goes to Craig before switching | L | §5.bu, §5.ce |
+| **F-063 C — APPROVED 2026-10-01 (§5.ce).** Per-cell score rows `(matchup_id, player_id, hole)` plus a localStorage outbox, dual-read. Investigate first (schema, migration on live Supabase, dual-read and backfill, RLS, realtime), then write the build plan into roadmap Phase C. **Show Craig the migration before it touches live** | M | F-063, §5.ce |
+| **Stroke vs match play handicap investigation (Craig 2026-10-01, §5.ce).** "Stroke and match play are calculated very slightly differently, and very occasionally can produce different stroke totals." Pin down the USGA/WHS rules for each (stroke play gives each player their full Playing Handicap; match play gives strokes off the low as the DIFFERENCE of Playing Handicaps, and four-ball applies the allowance first; where the rounding lands), find where our code computes each one (`applyAllowance`, off-the-low, `getMoneyStrokesOnHole`), and build a property test that finds the inputs where the two disagree. Report the findings and options; **no math change without Craig** | M | §5.ce |
 
 ## Done recently
 
@@ -88,10 +91,8 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | Item | What's needed |
 |---|---|
 | ~~Walk the collapsed wizard on your phone~~ WAIVED 2026-09-27 — Craig merged on the green gate + screenshots (§5.bt). The live app is now the walk: friends' feedback on the new wizard goes to FINDINGS.md as it arrives | — |
-| F-022 on-course verification | Spot-check 90% strokes vs the GHIN app (incl. an off-the-low game); screenshots if anything is off by one |
 | ~~F-023 part B payload~~ DONE 2026-09-15 — Craig ran the script; Meadows payload is CLEAN (see F-023). Optional: capture 1–2 more suspect courses the same way before the audit session | — |
 | §7 q4 | Confirm dark = live / light = setup is deliberate |
-| F-033 answer-back | Send the friend the drafted answer (in the 2026-09-15 session notes): 1v1 = Sides/Match, 3p = Nines etc., SI factored, fixes now live |
 
 ## Next few sessions (shaped, ready to build)
 
@@ -137,6 +138,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | ~~F-102 j / §5.by: Net \| Gross switch on every format (wizard + hub) + the wizard's 0→100 fallback~~ BUILT 310fd48 (also: gross scramble/alt-shot no longer give team strokes) | S | F-102, §5.by |
 | ~~F-102 k: Gross hides a mode's own net/gross basis~~ BUILT (§5.bz A; scoreBasis + junkBasis) | S | F-102 |
 | ~~Test-process speed~~ BUILT 82ac9ae (§5.bz): sandbox prod build + 3 workers (e2e 10.3 → 5.6 min), maxFailures 10, `npm run e2e:slowest`, verify:quick uses it past 25 specs. Left: move text-format checks to unit; faster seeding | M | gate |
+| **Gate memory:** ~200 Playwright Chrome processes during a full run (2026-10-01; the gate was OOM-killed once). Check that every spec closes its pages and contexts. Low-memory fallback: `PW_WORKERS=1` | S | 2026-10-01 |
 | F-102 leftovers (LOW): legacy tournament pages hide give-back dots; the play page's handicap detail reads the nine from the view, not per hole | S | F-102 |
 | F-069 DECIDED §5.bw: keep best-ball default + pin every offered format is computed. Was: a NON-`TeamFormat` string in a sides game still scores as best ball (`teamNetOnHole` default arm, now the one place for both containers after F-072) — refuse vs default is Craig's call; Phase 3 rider | S | F-069 |
 | ~~F-070: sandbox fake gains `.in()`/`.order()`/`.limit()`~~ DONE 2026-09-28 (9e1e9ae) | — | F-070 |
