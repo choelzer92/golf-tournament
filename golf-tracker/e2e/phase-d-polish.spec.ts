@@ -40,3 +40,11 @@ test('D4: the dark board fills the screen, with no white band below it', async (
   expect(bottom).not.toBe('rgb(255, 255, 255)');
   await page.screenshot({ path: 'e2e/screenshots/d4-dark-board-phone.png', fullPage: true });
 });
+
+test('D3: the front door says what the app is', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await page.goto(`${BASE}/`);
+  await expect(page.getByPlaceholder('Invite code')).toBeVisible(); // the gate, not a page behind it
+  await expect(page.getByText('score it hole by hole, and settle the money')).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/d3-front-door-phone.png', fullPage: true });
+});

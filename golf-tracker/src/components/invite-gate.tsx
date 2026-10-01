@@ -43,14 +43,15 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
     }
   }
 
-  if (checking) return null;
+  // D3: a quiet skeleton while the cookie is read, not a blank white frame.
+  if (checking) return <GateSkeleton />;
 
   if (level === 'full') return <>{children}</>;
 
   if (level === 'pool') {
     // Allowed on pool routes; the redirect effect handles anything else.
     if (pathname && isPoolAllowedPath(pathname)) return <>{children}</>;
-    return null;
+    return <GateSkeleton />;
   }
 
   return (
@@ -58,9 +59,11 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Golf Tracker</h1>
+          {/* D3: say what the app is. The name and brand wait for a branding session (§5.ci). */}
+          <p className="mt-2 text-gray-800">Set up your group&apos;s game, score it hole by hole, and settle the money.</p>
           {/* F-050: most people hitting this screen are RETURNING friends whose
               access lapsed, not strangers — say the code hasn't changed. */}
-          <p className="mt-2 text-gray-600">Enter the invite code — the same one works every time</p>
+          <p className="mt-4 text-sm text-gray-600">Enter the invite code — the same one works every time</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -89,6 +92,18 @@ export function InviteGate({ children }: { children: React.ReactNode }) {
         <p className="mt-6 text-xs text-center text-gray-400">
           Ask the organizer for your invite code
         </p>
+      </div>
+    </div>
+  );
+}
+
+function GateSkeleton() {
+  return (
+    <div className="flex-1 bg-gray-50" aria-busy="true" aria-label="Loading">
+      <div className="mx-auto max-w-2xl p-4 space-y-3 animate-pulse">
+        <div className="h-7 w-40 rounded bg-gray-200" />
+        <div className="h-24 rounded-lg bg-gray-200" />
+        <div className="h-24 rounded-lg bg-gray-200" />
       </div>
     </div>
   );
