@@ -181,9 +181,10 @@ it's real. Never build from this section directly.
 - **AI caddy** — Craig has ideas, deferred until the base is solid (roadmap #12)
 - Season-long money ledger surfaced better ("who owes whom, over a season" — north star's
   "continuing" pillar; partially exists in /home/stats)
-- Match status in the play-page header for tournament games ("Bernstein +2 thru 7") — roadmap #8,
-  may already partially exist; verify before building
-- Match-by-match scorecard view on round detail (needs per-matchup score persistence) — roadmap #9
+- ~~Roadmap #8 match status in the play header, and #9 the match-by-match scorecard~~: both
+  already exist (dedup audit 2026-10-01: `play/page.tsx:3139`, tournament round `:1277`)
+- **Branding and name** (Craig, 2026-10-01, §5.ci): a brainstorm session near the end of beta.
+  "GrudgeMatch" was floated. D2 (icon set, name, colour) waits for it.
 - Smart-anything (tee recommender by skill, score predictions) — Craig explicitly cut the tee
   RECOMMENDER down to "the tee they typically play" (built); keep that instinct
 - Individual stat tracking (friend, 2026-09-10) — partially exists at /home/stats (money);

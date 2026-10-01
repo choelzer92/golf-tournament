@@ -73,7 +73,7 @@ Measure each one: re-walk the three personas and record the tap counts in the ta
 1. **F-063 option C: APPROVED 2026-10-01 (§5.ce).** Per-cell score rows plus a localStorage outbox, so
    "two phones, one foursome" and lost taps are solved for good. Investigate, then write the build
    plan here, then build. Show Craig the live migration first. **M.**
-2. **Offline / PWA.** `sw.js` caches nothing today, and a cart path has no signal. **M.**
+2. **Offline / PWA.** `sw.js` already caches the app shell. Data and writes are not cached, and a cart path has no signal. **M.**
 3. **The live-scoring pass** (measure first), which Craig asked for and never got a session. **M.**
 4. **Season ledger** on top of P2's stats and §5.cb's visibility.
 
@@ -187,9 +187,79 @@ delete or reword items that turn out done. Things the sweeps may have missed:
 - any earlier jargon or label passes.
 An Explore agent per phase keeps the context small. Then re-rank what's left and show Craig.
 
+**DONE 2026-10-01.** Five read-only agents ran the audit. The raw notes are in `.claude/plans/dedup-audit-2026-10-01-comb.md`.
+
 | Item | Verdict | Evidence |
 |---|---|---|
-| (fill in) | | |
+| A1 §5.cb visibility | OPEN | `getPoolGameListForGhin` is owner-only (`pool-game.ts:2559`). `getTournamentList` is unscoped (:353). `tournamentVisibleTo` (:372) is called only by a test. Every page uses the owner list. |
+| A2 F-103 b | OPEN | `play/page.tsx:812-860` prints the classic format line with no mode guard. |
+| A2 F-103 c | OPEN, risk REAL in code | `setCtpWinner` (`play:2144`) merges against the LOCAL cache, then `savePoolGame` upserts the whole row, so the last write wins. The hub does the same (`settings-editor:574`). Not yet reproduced. |
+| A3 F-101 e | OPEN | Linear `scoreAt` (`context.ts:90`). `Date.now()+800` deadline (`pool-game.ts:1118`). Palettes mod 6. "21th" is only at `team-game.ts:798`. |
+| A4 money formats | OPEN | `home/stats:44` (no +). `home/groups/[id]:333` (no +, cents, inline template). `fmtMetric` adds + to match pts (`leaderboard:895`). |
+| A5 doc hygiene | OPEN (the doc itself) | F-089, F-030 B and F-015 are done. F-090 was SUPERSEDED by e07ad10. About 54 fixed findings are still in the live file. BACKLOG rows 22 and 26, the Team Competition row and the "Sides / Match" row are stale. |
+| B1 Run it back | OPEN | The parts exist: `formatFromGame` and the format seed. The draft skips players. |
+| B2 The usual | PARTLY | Scoring collapses already when a format is applied (F-021). Missing: "last game" after Players. |
+| B3 Send to players | OPEN | Create runs `router.push`. Leaderboard is the primary button; Share is a small link. |
+| B4a Sides re-asks split | PROBABLY STALE (pre-F-071) | Re-walk it before building. |
+| B4b / B4c | OPEN | `canProceed` needs everyone assigned (`teams-step:326`). "Captains' deal" is listed even with "No captains" set. |
+| B5 Adding players | PARTLY | Group members come first. Missing: recents, pasting names, and removing the duplicate list (`field-step:478`). |
+| B6 Guest remembers group | OPEN | Guests see My Games (`[id]:350`). |
+| B7 Plain words | OPEN | Every site is listed in the notes. |
+| B8 Group courses | PARTLY | "Played recently" is the organizer's last 5 games, not per group and not by frequency. |
+| B9 Hide Finish / Close out | OPEN | Both always render. `fullyScored` exists; an "any score" check doesn't. |
+| C1 F-063 C | OPEN | Each matchup is still one JSONB array. Option A is done (bd2db4d). No outbox. |
+| C2 Offline | PARTLY | **The roadmap was wrong:** `sw.js` already caches the shell and static assets, and is registered in prod. The gap is data and queued writes (C1). The `manifest.ts` comment is stale. |
+| C3 Live-scoring pass | OPEN | |
+| C4 Season ledger | PARTLY | The all-time ledger exists (01797df). There's no season or date filter. |
+| JSON export | PARTLY | The CLI `scripts/export-backup.mjs` exists (405a27f), and tournaments have an export button. Pools have none. |
+| D1 Font | OPEN | `globals.css:25` sets Arial. |
+| D2 Brand assets | OPEN | The favicon is the Next default, the starter SVGs are still there, the manifest has only an SVG icon, and there's no install prompt. |
+| D3 Front door | OPEN | `invite-gate.tsx:46,53` return null. The gate is a bare h1 and an input. |
+| D4 One theme | OPEN | The dark board is `min-h-full` inside the body, so the dark likely stops partway. The login page has no background in system dark mode. §7 q4 is still open. |
+| D5 Icons / toggle | OPEN | Emoji in 5 places. Net/Gross is outlined (`net-gross-switch:28`); other toggles are solid. |
+| D6 Copy diet | OPEN | 19 helper lines in `create-step`. There's no InfoTip. |
+| Merge-audit polish | 1 DONE, 3 OPEN | "Sides / Match" is gone. Loss-red, the `70, 30` DSL and three CH wordings are still open. |
+| 9-hole F/B columns | OPEN | `leaderboard:230,234,419…` |
+| OLD #6 / #8 / #9 | ALL DONE | Stroke Allocation panel (`play:885`, 67f65f3). "N UP thru X" (`play:3139`). Per-matchup scorecard (tournament round `:1277`). |
+
+**Corrections to this plan:**
+- F-091/F-092/F-096 are hub layout, junk-pot naming and pot inputs, not Sides/Teams defaults.
+- C2 has its wording corrected above.
+- The no-GHIN organizer is DEFERRED (§5.ch). Its map is in `no-ghin-organizer.md`.
+- A new finding, F-104, came out of the audit: a share-link visitor can create a game, and it saves with no owner.
+
+### Re-ranked after the audit (Craig's order: polish → §5.cb → B → A)
+
+1. **Phase D quick polish** (bar #7). Do the S items first:
+   1. D1 font;
+   2. D3 front door, with a skeleton instead of null;
+   3. D2 the icon set and removing the starter SVGs;
+   4. D5 toggle style and emoji;
+   5. the D4 dark-board height fix and login background.
+
+   The theme direction itself waits on §7 q4.
+2. **§5.cb visibility** (bar #4). Two calls first: legacy owner-less tournaments (spine q2), and F-104.
+3. **Phase B** (bars #1–3), ranked:
+   1. B3 Send to players (S);
+   2. B9 hide close-out (S);
+   3. B1 Run it back (M);
+   4. B4b/c (S–M);
+   5. B7 plain words (S);
+   6. B2 the usual (M; much smaller now);
+   7. B5 adding players (M);
+   8. B6 guest group (S–M);
+   9. B8 group courses (S–M).
+
+   B4a is re-walked, not built.
+4. **Phase A remainder:**
+   1. A4 money formats (a shared helper);
+   2. F-103 b;
+   3. F-103 c (repro, then Craig picks; it's wrong money at a member-guest, bar #6);
+   4. A5 docs.
+
+   A3 / F-101 e is `[after-beta]` per the comb.
+5. **The P1 that blocks bar #9:** F-037 (two separate 2v2s at 8 players). It is the same question as
+   the open 2v2 "who plays whom".
 
 ## Craig's calls
 

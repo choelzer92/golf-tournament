@@ -194,6 +194,9 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.cd | 2026-10-01: roadmap `.claude/plans/roadmap-2026-10.md`; §5.bv 3 lifted for Phase D first-impression polish only; order polish → B → A, but a DEDUP AUDIT of every item comes first (new session); §5.cb visibility next; no-GHIN organizer wanted but map GHIN dependencies + options before building |
 | 5.ce | 2026-10-01: F-022 + F-033 CLOSED; S2 + F-063 C APPROVED (investigate → plan in roadmap → build; show the live migration first); new investigation: stroke vs match play strokes can differ slightly (report only, no math change without Craig) |
 | 5.cf | 2026-10-01: multi-day events are a REAL, public-market need (proposed beta bar #11), seeded from the group's preferences; cumulative money first, other cross-day formats later; group's own courses listed most-played first plus add-new; OPEN: Series wrapper vs spine S4 for multi-day |
+| 5.cg | 2026-10-01: BETA.md bar CONFIRMED as written and binding (work moves a bar item or waits); multi-day events ARE bar #11, so Series vs S4 is on the beta path (still asked after S2's investigation) |
+| 5.ch | 2026-10-01: only GHIN-login users ORGANIZE for now (handicap refresh needs a GHIN token anyway); non-GHIN players keep scoring and seeing the leaderboard; the no-GHIN organizer moves to §5c security, [deferred]; GHIN stays the identity key for §5.cb |
+| 5.ci | 2026-10-01 (after the dedup audit): F-104 opt A (Create requires a GHIN login); legacy owner-less tournaments visible to their players + the app owner (replaces §5.bu's everyone); brand/name waits for a pre-beta-end branding session (GrudgeMatch floated), so D2 waits; F-037 / 2v2 pairings opt B within-tee-group (goldens-first, plan shown first) |
 
 ---
 

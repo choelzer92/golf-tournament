@@ -2258,3 +2258,49 @@ pain free and intuitive"). The plan is `.claude/plans/roadmap-2026-10.md`. His a
    (a thin Series wrapper over existing games, low risk, sooner) or through spine S4 (a pool is an
    Event with rounds, uniform, later). Present the trade-off after S2's investigation. Don't pick
    unasked.
+
+---
+
+### 5.cg — The beta bar is binding, with multi-day as #11 (2026-10-01)
+
+1. **BETA.md §1 is CONFIRMED as written** (bars #1 to #10). From now on it filters all work. A session
+   promotes `[beta]` items. Anything that doesn't move a bar item waits until after beta, unless Craig
+   picks it. Intake (§2), the session loop (§3) and the backlog comb (§5) are now binding too.
+2. **Bar #11, multi-day events, is ON the bar.** Beta waits until a 3-day trip sets up from a group's
+   preferences and pays cumulative money at the end. So the Series-wrapper vs spine S4 call (§5.cf 5)
+   is now on the beta path. It is still presented after S2's investigation, and still not picked unasked.
+
+---
+
+### 5.ch — Organizers need a GHIN login; a no-GHIN organizer waits for security (2026-10-01)
+
+1. **Only GHIN-login users organize, for now.** Craig: "only let people with ghin logins be able to
+   organize. non ghin players theoretically could score a game or actually see the leaderboard, but we
+   can deal with non ghin players later when we do security."
+2. **Why:** handicaps can't be refreshed without a GHIN token, so a no-GHIN organizer would have to
+   update every handicap by hand anyway.
+3. **What stays:** non-GHIN players keep scoring through the share link and seeing the leaderboard,
+   as today.
+4. **The no-GHIN organizer moves to §5c accounts/security hardening**, under `[deferred]`, off the
+   beta bar. The map and options are kept in `.claude/plans/no-ghin-organizer.md`.
+5. **Consequence:** the GHIN number stays the identity key. §5.cb visibility builds on it with no
+   separate identity layer.
+
+---
+
+### 5.ci — After the dedup audit: F-104 login at Create, legacy tournaments by player, brand later, F-037 within-tee-group (2026-10-01)
+
+1. **F-104, option A.** The wizard stays open to a share-link visitor, but **Create requires a GHIN
+   login**. This follows §5.ch.
+2. **Legacy owner-less tournaments (spine q2):** under §5.cb they are visible to **the players in
+   them, plus the app owner**. The missing owner just skips the owner check, so nobody unrelated sees
+   them. This replaces §5.bu's "legacy owner-less tournaments stay visible to everyone".
+3. **The brand waits.** Craig: "we can worry about the name later. I was thinking GrudgeMatch maybe.
+   But id like to brainstorm names / branding later down the line when we are almost done with the
+   beta." So D2's icon set, name and colour wait for a branding session near the end of beta. Bar #7's
+   "an icon" is met then. Phase D builds the rest (font, front door, theme, toggle style) without a
+   brand.
+4. **F-037 and the 2v2 "who plays whom" question, option B:** a within-tee-group setting, where each
+   pair plays the other pair in its own foursome (the classic Saturday). It closes the only open P1
+   (bar #9). This changes how team results pair up, so it goes goldens-first (§5.z); the build plan is
+   shown before the build.

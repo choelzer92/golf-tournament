@@ -1428,6 +1428,22 @@ These are what the sweep found around the edges. Each is Craig's call or deliber
 
   Check first how the game row is merged on save (last write wins vs a per-field merge).
 
+### F-104 — A share-link visitor (no GHIN login) can create a game, and it saves with no owner (2026-10-01)  [P3] [start]
+
+**Seen:** the GHIN dependency sweep, in code, not on screen. A `?key=` link grants `pool` access
+(`invite-gate.ts:52`), which allows `/pool*`, including `/pool/new`. A game made there gets
+`createdByGhin: undefined` (`pool/new/page.tsx:669`). No "My Games" list matches it again, so only
+the app owner sees it.
+
+**This conflicts with §5.ch:** only GHIN-login users organize. Options:
+- (A) At Create, `/pool/new` requires a GHIN login. The course step already offers an inline login
+  (`course-step.tsx:57`).
+- (B) Hide "New game" from `pool`-level visitors.
+- (C) Leave it until §5c security.
+
+Not yet reproduced on screen; walk it in the sandbox with a share link first. Tag: [beta #4]. An
+owner-less game breaks "every player finds their games".
+
 
 ---
 
