@@ -20,6 +20,7 @@ import {
   type MyMoney,
 } from '@/lib/stats-ledger';
 import { hydrateRoster, getRosterPlayerByGhin } from '@/lib/roster';
+import { ledgerMoney } from '@/lib/money-format';
 
 // Stats & money (read-only). Money is only DISPLAYED (who-owes-whom); settle outside
 // the app. Reachable from Home's "Stats & money" card and deep-linked from a group page
@@ -41,7 +42,7 @@ import { hydrateRoster, getRosterPlayerByGhin } from '@/lib/roster';
 
 type Lens = 'mine' | 'group' | 'game';
 
-const money = (n: number) => `${n < 0 ? '−' : ''}$${Math.abs(n).toFixed(2)}`;
+const money = ledgerMoney; // the ledger is the one surface that shows cents (UI_CONVENTIONS §1)
 const netClass = (n: number) => (n > 0.005 ? 'text-green-700' : n < -0.005 ? 'text-red-600' : 'text-gray-500');
 
 export default function StatsPage() {

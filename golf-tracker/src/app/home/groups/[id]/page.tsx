@@ -15,6 +15,7 @@ import {
 import { isAppOwner } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import { POOL_GROUP_SEED_KEY, TOURNAMENT_GROUP_SEED_KEY, FORMAT_SEED_KEY } from '@/lib/group-seed';
+import { money } from '@/lib/money-format';
 
 // Group detail — the hub for one saved group, reached from /home. Shows the
 // members and lets you (1) start a casual round, (2) start a tournament, or
@@ -330,7 +331,7 @@ export default function GroupDetailPage() {
                     <p className="text-xs text-gray-500">{r.gamesPlayed} game{r.gamesPlayed !== 1 ? 's' : ''}</p>
                   </div>
                   <span className={`font-semibold ${r.net > 0.005 ? 'text-green-700' : r.net < -0.005 ? 'text-red-600' : 'text-gray-500'}`}>
-                    {`${r.net < 0 ? '−' : ''}$${Math.abs(r.net).toFixed(2)}`}
+                    {money(r.net)}
                   </span>
                 </div>
               ))}
