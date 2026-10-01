@@ -1,0 +1,75 @@
+# Beta: what "done enough" means, and how work gets there
+
+**DRAFT 2026-10-01: Craig confirms or edits the bar (§1) before it's binding.** Once he does, this
+file is the filter for every session: work either moves a bar item, or it waits until after beta.
+
+## 1. The beta bar (exit criteria)
+
+Beta = a stranger's group can set up, play, and settle a game with no help from Craig, and no score or
+dollar is ever lost or wrong.
+
+| # | Bar | Measured by | Roadmap |
+|---|---|---|---|
+| 1 | **First-time organizer** gets from the URL to a shared game in about 2 minutes, with no jargon left unexplained | a persona walk with tap counts recorded | B, D3 |
+| 2 | **Invited player** scores in about 3 taps, and the app remembers their group | a persona walk | B6 |
+| 3 | **Returning organizer** runs the same game again in 2 taps | a persona walk | B1 |
+| 4 | **Every player finds their games and money** without the organizer re-sharing | §5.cb is built, plus an e2e | A1 |
+| 5 | **No score is ever lost:** two phones, a dead spot, a sleeping phone | F-063 C, offline, an e2e plus unit tests | C1–C2 |
+| 6 | **Money and strokes match GHIN/USGA**, and settle to zero | the stroke vs match play check closed; zero-sum tests | §5.ce |
+| 7 | **It looks like a real app:** a font, an icon, a front door, one theme | a screenshot walk | D1–D4 |
+| 8 | **Money history survives:** an export or backup exists | the JSON export | C |
+| 9 | **No open P1 finding** | FINDINGS.md | n/a |
+| 10 | **The full gate is green, and Craig has walked it on a phone and merged it** | `npm run verify`; Craig | n/a |
+
+Not on the bar, so it waits until after beta:
+- S3/S4 and flights;
+- the AI caddy and trainer layers;
+- Vegas/BBB;
+- the 1v1 batch;
+- accounts/RLS hardening, unless the bar needs it.
+
+S2 is approved and does go ahead. It is NOT a bar item, so it's scheduled after the bar items it doesn't
+block.
+
+## 2. Intake: how a new idea or feedback item is handled (pruning)
+
+1. **Write it down, don't build it.** A mid-session idea, from Craig or discovered, goes to FINDINGS
+   (if it's a problem) or BACKLOG Ideas (if it's a possibility). It goes there the moment it comes up.
+2. **Tag it against the bar.** Does it move a bar item? Then it's tagged `[beta]` with its bar #. If
+   not, it's tagged `[after-beta]`. This tag is Craig's call when it's unclear.
+3. **The current session doesn't absorb it** unless Craig says "now". The default answer is "logged
+   as F-xxx / backlog, tagged [beta #n]".
+4. **A bug that's wrong money, or lost data, jumps the queue** (P1). Everything else waits for grooming.
+
+## 3. The session loop (staying on task)
+
+- **Start:** NEXT_SESSION_PROMPT promotes **at most 3 items**, all `[beta]` unless Craig picked
+  otherwise. Work them in order.
+- **During:** one item at a time:
+  1. investigate;
+  2. ask where the answer is Craig's;
+  3. build;
+  4. run `verify:quick`;
+  5. commit.
+  New ideas go through §2.
+- **End:** groom.
+  - Mark items done.
+  - Tag what was discovered.
+  - Update the bar table's progress (below).
+  - Promote the next ≤3.
+  - Run the full gate once.
+
+## 4. Progress against the bar
+
+| # | Status | Last moved |
+|---|---|---|
+| 1–10 | not yet measured (the dedup audit sets the baseline) | n/a |
+
+## 5. The one-time backlog comb
+
+This is part of the next session's dedup audit. For every open BACKLOG row and open FINDINGS entry:
+1. Decide DONE, PARTLY or OPEN, with evidence.
+2. Tag it `[beta #n]`, `[after-beta]` or `[deferred]`.
+3. Close what's done.
+
+What remains tagged `[beta]` is the road to beta, and its count is the progress meter.

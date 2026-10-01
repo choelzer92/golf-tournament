@@ -2,7 +2,7 @@
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
-**State (2026-09-29):** branch `gate-speed-2026-09-27` (NOT merged, NOT pushed; §5.ab: never merge or push
+**State (2026-10-01; slice 1 = 7b53913, §5.cc skins = 3f9c591, docs = 15cd551):** branch `gate-speed-2026-09-27` (NOT merged, NOT pushed; §5.ab: never merge or push
 unbidden). The §5.bw session landed on it:
 - the plus-handicap sweep (F-102 a–k, §5.bx) and the F-100 A "+" chip;
 - §5.by Net | Gross on every format, and §5.bz, the e2e gate on a production-mode sandbox build (~5.6 min);
@@ -15,7 +15,10 @@ Read `AGENTS.md` first, then `DECISIONS.md` whole. Grep the archive only for the
 
 ## Step 1: ask Craig outright (§5.bo). Don't build a guess.
 
-0. **FIRST, the DEDUP AUDIT of `.claude/plans/roadmap-2026-10.md` (§5.cd).** Craig answered the
+0. **Ask Craig to confirm or edit the beta bar in `BETA.md` §1** (a DRAFT from 2026-10-01). After that it
+   filters all work: intake (§2), the session loop (§3), and the backlog comb (§5).
+
+0b. **THEN the DEDUP AUDIT + the backlog comb (BETA.md §5) of `.claude/plans/roadmap-2026-10.md` (§5.cd).** Craig answered the
    roadmap's calls, but wants every item confirmed as real remaining work before anything is built.
    Follow the plan's "Dedup audit" section: give each item a verdict (DONE / PARTLY / OPEN / DECIDED
    AGAINST) with evidence, fill in the table, re-rank, and show Craig. Use Explore agents per phase to

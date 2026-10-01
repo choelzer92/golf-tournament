@@ -1,5 +1,7 @@
 # F-101 d: individual modes past 4, across tee groups (§5.bw item 5)
 
+**Status: BUILT 2026-09-29 (1f432e8). Follow-on §5.cc (live skins view, 3f9c591). Left: F-101 e (scale polish at 144), F-103 b/c.**
+
 Craig's decision (§5.bw 5): skins, Stableford, low total and quota take a whole field across tee
 groups, the way `team-2v2` does. Wolf and Nines keep their caps. Scale target: 32 and 144 (§5.bw 8).
 
