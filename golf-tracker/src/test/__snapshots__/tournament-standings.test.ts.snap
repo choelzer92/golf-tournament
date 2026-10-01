@@ -1,0 +1,103 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Event spine slice 1: computeStandings goldens (pinned before the N-way refactor) > no rounds 1`] = `
+{
+  "roundResults": [],
+  "teamAPoints": 0,
+  "teamBPoints": 0,
+}
+`;
+
+exports[`Event spine slice 1: computeStandings goldens (pinned before the N-way refactor) > one round, matchups only 1`] = `
+{
+  "roundResults": [
+    {
+      "roundId": "r1",
+      "teamAPoints": 1.5,
+      "teamBPoints": 1.5,
+    },
+  ],
+  "teamAPoints": 1.5,
+  "teamBPoints": 1.5,
+}
+`;
+
+exports[`Event spine slice 1: computeStandings goldens (pinned before the N-way refactor) > per-matchup scope with only a winning team 1`] = `
+{
+  "roundResults": [
+    {
+      "roundId": "r1",
+      "teamAPoints": 0,
+      "teamBPoints": 2,
+    },
+  ],
+  "teamAPoints": 0,
+  "teamBPoints": 2,
+}
+`;
+
+exports[`Event spine slice 1: computeStandings goldens (pinned before the N-way refactor) > per-matchup with missing tallies 1`] = `
+{
+  "roundResults": [
+    {
+      "roundId": "r1",
+      "teamAPoints": 1,
+      "teamBPoints": 7,
+    },
+  ],
+  "teamAPoints": 1,
+  "teamBPoints": 7,
+}
+`;
+
+exports[`Event spine slice 1: computeStandings goldens (pinned before the N-way refactor) > per-round bonuses, every outcome 1`] = `
+{
+  "roundResults": [
+    {
+      "roundId": "r1",
+      "teamAPoints": 7.5,
+      "teamBPoints": 6.5,
+    },
+  ],
+  "teamAPoints": 7.5,
+  "teamBPoints": 6.5,
+}
+`;
+
+exports[`Event spine slice 1: computeStandings goldens (pinned before the N-way refactor) > ryder cup: per-matchup match winner 1`] = `
+{
+  "roundResults": [
+    {
+      "roundId": "r1",
+      "teamAPoints": 3.5,
+      "teamBPoints": 2.5,
+    },
+  ],
+  "teamAPoints": 3.5,
+  "teamBPoints": 2.5,
+}
+`;
+
+exports[`Event spine slice 1: computeStandings goldens (pinned before the N-way refactor) > three rounds, one without bonuses 1`] = `
+{
+  "roundResults": [
+    {
+      "roundId": "r1",
+      "teamAPoints": 3,
+      "teamBPoints": 0,
+    },
+    {
+      "roundId": "r2",
+      "teamAPoints": 0.5,
+      "teamBPoints": 0.5,
+    },
+    {
+      "roundId": "r3",
+      "teamAPoints": 0.25,
+      "teamBPoints": 2.25,
+    },
+  ],
+  "teamAPoints": 3.75,
+  "teamBPoints": 2.75,
+}
+`;

@@ -1,6 +1,9 @@
 # Event spine (Home/Event plan, Phase 3): DESIGN, awaiting Craig's approval
 
-Status: **slice 1 APPROVED 2026-09-27 (§5.bu), not built yet.** Legacy owner-less
+Status: **slice 1 APPROVED 2026-09-27 (§5.bu), BUILT 2026-09-29**: `lib/tournament-standings.ts`
+(`teamsOf`, `computeStandingsN`), `computeStandings` is its 2-team wrapper, and the three creators write
+`createdByGhin`/`createdAt`. `tournamentVisibleTo` exists but NO page reads it yet (q5 below). Goldens:
+`src/test/tournament-standings.test.ts` (written from the old function first; two mutations caught). Legacy owner-less
 tournaments stay visible to everyone (§4 option A). S2 onward each still need their own
 OK (§2): they touch persistence and scoring. P1 (`/home` hub) and P2
 (`/home/stats` ledger) are already built, and `HOME_V2` has been on since 2026-08-12 (§5.bt).
@@ -106,3 +109,9 @@ is the seam that N-way tournament writes go through later.
 3. Groups app-wide for tournaments, and formats riding along with S4: agree?
 4. F-098 (plus handicaps): does anyone in the circle carry a plus index? Is option A OK
    to schedule with S2?
+5. **(open, 2026-09-29) Who sees an OWNED tournament once readers filter?** The pool rule is
+   owner-only (`getPoolGameListForGhin`); others reach a pool by its share link. A Hogs v Dawgs
+   tournament has 8+ players who each open /home. Options: **A** owner only, like the pool (the
+   others lose it from /home and the ledger); **B** owner + every player whose GHIN is in
+   `tournament.players`; **C** B + the app owner. Wiring waits on this. Until then every new
+   tournament is written with an owner and still listed to everyone.

@@ -160,6 +160,8 @@ export default function NewTournamentPage() {
       }),
       status: 'active',
       sourceGroupId,
+      createdByGhin: getCreatorGhin() ?? undefined,  // Event spine slice 1 (§5.bu)
+      createdAt: new Date().toISOString(),
     };
 
     saveTournament(tournament);

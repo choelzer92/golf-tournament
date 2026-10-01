@@ -9,6 +9,7 @@ import { calcCourseHandicap } from '@/lib/game-state';
 import { AddPlayerPanel, type AddedPlayer } from '@/components/add-player-panel';
 import type { Tournament, TournamentRound, RoundMatchup } from '@/lib/tournament-state';
 import { saveTournament } from '@/lib/tournament-state';
+import { getCreatorGhin } from '@/lib/pool-identity';
 
 type Step = 'format' | 'course' | 'players' | 'settings';
 
@@ -112,6 +113,8 @@ export default function NewGamePage() {
       ],
       rounds: [round],
       status: 'active',
+      createdByGhin: getCreatorGhin() ?? undefined,  // Event spine slice 1 (§5.bu)
+      createdAt: new Date().toISOString(),
     };
 
     saveTournament(tournament);

@@ -2,6 +2,7 @@ import type { Player, CourseSelection, GameScore } from './game-state';
 import type { TeamMode } from './formats';
 import { supabase } from './supabase';
 import { computePlayerStablefordPoints, computePlayerNetTotal, computeSplitMatchStatuses, computeNassauStatus, computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, getPlayerStrokesForHole } from './live-scoring';
+import { computeStandingsN, teamsOf } from './tournament-standings';
 
 export type TournamentMode = 'team-event' | 'flight-bracket';
 
@@ -200,6 +201,10 @@ export interface Tournament {
   hypeContent?: HypeContent;
   recapEnabled?: boolean;
   sourceGroupId?: string;   // the saved group this event was created FROM (exact stats/ledger link; absent = made outside a group). See lib/stats-ledger.ts
+  // Event spine slice 1 (§5.bu, writers first §5.be): who made it, and when. Written on NEW
+  // tournaments only; a legacy row has neither and stays visible to everyone (§4 option A).
+  createdByGhin?: number;
+  createdAt?: string;
 }
 
 export interface TournamentListItem {
@@ -360,6 +365,12 @@ export function getTournamentList(): TournamentListItem[] {
     });
   }
   return list;
+}
+
+// Event spine slice 1 (§5.bu): an owner scopes a tournament only when it HAS one. Pure; not yet
+// read by any page (scoping /home and the ledger is its own step).
+export function tournamentVisibleTo(t: Pick<Tournament, 'createdByGhin'>, ghinNumber: number | null): boolean {
+  return t.createdByGhin == null || t.createdByGhin === ghinNumber;
 }
 
 function sanitizeTournament(t: Tournament): Tournament {
@@ -1229,42 +1240,14 @@ export function computeProjectedBonuses(
   return projected;
 }
 
+// The 2-team view every tournament page reads. Event spine slice 1 (§5.bu): a wrapper over the
+// N-way `computeStandingsN`, pinned by src/test/tournament-standings.test.ts goldens.
 export function computeStandings(tournament: Tournament) {
-  let teamAPoints = 0;
-  let teamBPoints = 0;
-  const roundResults: { roundId: string; teamAPoints: number; teamBPoints: number }[] = [];
-
-  for (const round of tournament.rounds) {
-    let roundA = 0;
-    let roundB = 0;
-    for (const matchup of round.matchups) {
-      if (matchup.result) {
-        roundA += matchup.result.pointsTeamA;
-        roundB += matchup.result.pointsTeamB;
-      }
-    }
-    for (const bonus of round.bonuses || []) {
-      if (!bonus.result) continue;
-      if (bonus.scope === 'per-matchup' && (bonus.result.teamAWins != null || bonus.result.teamBWins != null)) {
-        const aWins = bonus.result.teamAWins || 0;
-        const bWins = bonus.result.teamBWins || 0;
-        const ties = bonus.result.ties || 0;
-        roundA += aWins * bonus.points + ties * bonus.points * 0.5;
-        roundB += bWins * bonus.points + ties * bonus.points * 0.5;
-      } else if (bonus.result.winningTeamId === tournament.teams[0].id) {
-        roundA += bonus.points;
-      } else if (bonus.result.winningTeamId === tournament.teams[1].id) {
-        roundB += bonus.points;
-      } else if (bonus.result.winningTeamId === undefined || bonus.result.winningTeamId === null) {
-        // Tied — split the points
-        roundA += bonus.points * 0.5;
-        roundB += bonus.points * 0.5;
-      }
-    }
-    teamAPoints += roundA;
-    teamBPoints += roundB;
-    roundResults.push({ roundId: round.id, teamAPoints: roundA, teamBPoints: roundB });
-  }
-
-  return { teamAPoints, teamBPoints, roundResults };
+  const [a, b] = teamsOf(tournament).map((t) => t.id);
+  const n = computeStandingsN(tournament);
+  return {
+    teamAPoints: n.points.get(a) ?? 0,
+    teamBPoints: n.points.get(b) ?? 0,
+    roundResults: n.roundResults.map((r) => ({ roundId: r.roundId, teamAPoints: r.points.get(a) ?? 0, teamBPoints: r.points.get(b) ?? 0 })),
+  };
 }

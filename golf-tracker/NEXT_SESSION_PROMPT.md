@@ -1,123 +1,101 @@
-# Next session: plus handicaps everywhere, then big fields (F-101), then individual modes past 4
+# Next session: Craig's open calls, then F-103 and F-101 e polish at 144
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
-**State (2026-09-28):** branch `gate-speed-2026-09-27` (NOT merged, NOT pushed; §5.ab: never merge or push
-unbidden). The branch carries:
-- the gate speed-up: 2 Playwright workers and `verify:quick` (§5.bu);
-- the Phase 2 residue (f3321da), F-070 (9e1e9ae) and F-062 A (9c70565);
-- F-098, plus handicaps in every engine (6509439, §5.bv);
-- **the team field cap removed** (41d3987): 32 players / 8 foursomes / 16 teams, zero-sum pinned in
-  `team-field-32.test.ts`;
-- F-099, the compact phone step bar (6228d82).
+**State (2026-09-29):** branch `gate-speed-2026-09-27` (NOT merged, NOT pushed; §5.ab: never merge or push
+unbidden). The §5.bw session landed on it:
+- the plus-handicap sweep (F-102 a–k, §5.bx) and the F-100 A "+" chip;
+- §5.by Net | Gross on every format, and §5.bz, the e2e gate on a production-mode sandbox build (~5.6 min);
+- F-069 pin, and F-101 a (a30a20b), b (b0a188d), c (b7a7fc9) and d (1f432e8, §5.ca);
+- **Event spine slice 1** (the commit after 1f432e8): pure `lib/tournament-standings.ts`, with
+  `computeStandings` as its 2-team wrapper, and the owner written on new tournaments.
 
-Read `AGENTS.md` first, then `DECISIONS.md` whole, then archive **§5.bv and §5.bw** in full. They are
-this session's brief: Craig's answers in his own words.
+Read `AGENTS.md` first, then `DECISIONS.md` whole. Grep the archive only for the § you touch
+(§5.ca skins, §5.bw big fields, §5.bu the spine).
 
-**Craig's direction:**
-- **Configurable to whatever the organizer wants, within reason.** Teams spread across foursomes are
-  first-class. The reference is how the old Hogs v Dawgs tournaments were set up (the `Tournament`
-  shape in `lib/tournament-state.ts`; the hype page names them).
-- **Scale target: a member-guest**, 72 teams of 2 = 144 players, about 36 foursomes, eventually cut into
-  flights. Test big-field work at 144 as well as 32. Keep flights in view (a flight = a subset of sides
-  with its own standings) but don't build them yet.
-- **Back end first.** A full UI revamp comes later; until then UI work is fixes and consistency only.
+## Step 1: ask Craig outright (§5.bo). Don't build a guess.
 
-## Step 0 — the full gate, once
+1. **F-103 a, the live skins-pot money.** Mid-round, a 32-player pot shows +$310 for one early skin.
+   The options are:
+   - A: label it "if it ended now";
+   - B: hide the $ until the game is closed;
+   - C: leave it.
+   See FINDINGS F-103.
+2. **Event spine q5 (`.claude/plans/event-spine.md` §6): who sees an OWNED tournament?** The options are:
+   - A: the owner only, like the pool;
+   - B: the owner plus every player in `tournament.players` by GHIN;
+   - C: B plus the app owner.
 
-The 2026-09-28 run was killed for low system memory partway through e2e. tsc, build and 2179 unit tests
-had passed (`.claude/verify-2026-09-28-final.log`), and each commit passed its own checks. Close other
-apps, kill the 3200 server by PID, `rm -rf .next`, and run `PW_WORKERS=1 npm run verify` in the
-background. If it's green, the branch is ready for Craig's merge call.
+   `tournamentVisibleTo` exists but no page reads it. Wiring it into `/home`, `/dashboard` and
+   `/home/stats` is the follow-up.
+3. **Merge the branch?** It's his call (§5.ab). His phone walk is still wanted (§5.y).
 
-## Step 1 — plus handicaps, every situation (§5.bw 6; Craig: "lets make sure we figure out + handicap situations")
+## Step 2: F-103 b and F-101 e
 
-Start with a read-only sweep (delegate it) of every place a plus index is:
-- entered: the add-player box, hub field editor, roster, GHIN import;
-- stored and shown: "+2.1", never "-2.1" or "2.1", on chips, cards, the leaderboard, prints;
-- allowed: 90% of +3 and similar, unrounded-first (§5.bb);
-- split: off-the-low with a plus LOW player, where everyone gains strokes (§5.bv 1);
-- based on 9 holes: both handicap bases;
-- fed into team formulas: scramble and alt-shot with a plus member, combined HCP, the balancer and
-  captains;
-- used for targets: a quota or Chicago target of 36/39 − (−2) = 38/41;
-- given back in each engine: pool, sides, individual modes, the legacy tournament (F-098 "Left" list:
-  its pages still hide give-back dots).
+- **F-103 b:** the skins card header reads "Stroke Play · Best Net + Best Gross · Full Handicap".
+  Check it at 4 players first; it's probably pre-existing.
+- **F-101 e, scale at 144** (BACKLOG row). Covers:
+  - the linear `scoreAt`;
+  - rendering the board and the card at 144;
+  - the balancer deadline;
+  - palettes wrapping at 6;
+  - tied names wrapping;
+  - the printed card's team tags;
+  - "21th".
+- **Walk every screen you touch** at 32 and 144, and screenshot each one.
+- **F-103 c:** CTP across tee groups (suspected overwrite). Reproduce it with two tabs first.
 
-Write the gaps into F-098 or a new finding; fix what's mechanical. Anything that changes the MATH
-beyond §5.bv is stop-and-ask. Then build **F-100 A**, a ± toggle beside the handicap box (the iPhone
-keypad has no "+"). Pin every case in unit tests, add e2e for the toggle, and use the sandbox seed
-`pool-plus-handicap`.
+## Later, each needing its own approval
 
-## Step 2 — F-101 a/b/c + F-069 (all DECIDED §5.bw)
-
-- **a [P1]:** a card on a team game whose teams span foursomes shows the whole team's rows from the
-  engine (`sideBreakdown`), not this foursome's recompute (`game/play/page.tsx` ~1392). This changes how
-  the scorecard computes team rows, and Craig has approved it. Pin the agreement between card and engine.
-- **b:** a player added on the hub mid-round is asked which team they join (`field-editor.tsx`
-  `addPlayer`).
-- **c:** keep the all-teams-posted rule for legs and per-hole results, and label it "waiting on
-  Group N". Hide-holes stays OFF when teams span foursomes: it's anti-cheating for teams that ARE their
-  foursome. Check that nothing defaults it on or nudges toward it for spread teams.
-- **F-069:** keep the best-ball default. Add a unit pin that every format the wizard or hub offers is
-  computed.
-
-## Step 3 — F-101 d: individual modes past 4 (DECIDED YES §5.bw 5)
-
-Skins, Stableford, low total and quota take a whole field across tee groups, the way `team-2v2` does.
-Wolf and Nines keep their caps. Today `buildGameModeContext` reads only the first matchup for
-individual modes, and `structureOptionsFor` offers solo only at ≤4. Write a short plan in
-`.claude/plans/` first, then build goldens first: 4-player results unchanged, zero-sum at 32 and 144.
-Walk the leaderboard at 144 players.
-
-## Then — Event spine slice 1 (APPROVED §5.bu, `.claude/plans/event-spine.md` §3)
-
-Tournament owner (writers first) plus the pure N-way `teamsOf`/`computeStandingsN`. Goldens of today's
-2-team standings go first. No stored shape changes and no UI. Keep Hogs v Dawgs and flights in mind for
-the N-way shape.
-
-## Slack
-
-The F-101 e polish list, starting with the scale risks at 144 (`scoreAt`, the balancer deadline,
-rendering); the merge-audit polish rows.
+- **Event spine S2**: tournament rounds scored through `game-modes/`, goldens first.
+- The course-data audit (parked by Craig).
 
 ## Waiting on Craig
 
 - F-022, the on-course stroke check against the GHIN app; include a plus-handicap player.
 - F-033, the answer to the friend.
 - §7 q4.
-- Merging this branch.
+- The BACKLOG P3 hide-holes wizard question.
+- The items in Step 1.
 
 ## Traps that keep biting
 
-- **Two gate tiers.** `npm run verify:quick` per commit: `VQ_BASE=HEAD` picks only uncommitted
-  changes, `-- e2e/x.spec.ts` adds specs, `-- --list` shows the pick. `npm run verify` is the full gate,
-  run ONCE before handoff.
+- **Two gate tiers.** Run `npm run verify:quick` per commit:
+  - `VQ_BASE=HEAD` picks only uncommitted changes;
+  - `-- e2e/x.spec.ts` adds specs;
+  - `-- --list` shows the pick;
+  - a change to a shared lib picks 200+ specs, so it runs on the sandbox build.
+
+  `npm run verify` is the full gate, run ONCE before handoff, about 6.5 min on 3 workers.
 - **Never poll a gate.** Background it with `; echo "VERIFY_EXIT=$?" >> log`, end the turn, and read the
   tail when notified.
-- **Use `PW_WORKERS=1`** when the machine is busy. Windows once killed a full gate for low memory. The
-  full gate takes ~17–20 min on 1 worker (222 e2e), and verify:quick often picks ~200 specs anyway.
-- **Do NOT edit app code while a gate runs** (the e2e server hot-reloads). Markdown is safe.
-- **Before a gate, kill hand-started dev servers AND `rm -rf .next`.** Port 3000 is Craig's; kill 3200
-  by PID (`netstat -ano | grep ":3200 .*LISTENING"` → `taskkill //PID <pid> //F //T`), not by
-  `//IM node.exe`.
-- **The git root is one level up:** paths in `git add` are relative to golf-tracker/. CRLF warnings are
-  harmless.
-- **Python edits:** write the script to `.claude/tmp_*.py`, run it, delete it. Matches on comments that
-  wrap across lines fail, so use the Edit tool then. A "�" in a traceback is console-only.
+- **Do NOT edit app code while a gate runs.** Markdown is safe.
+- **Before a gate, kill hand-started dev servers.** Port 3000 is Craig's. Kill 3200 or 3201 by PID
+  (`netstat -ano | grep ":3200 .*LISTENING"` → `taskkill //PID <pid> //F //T`), never by `//IM node.exe`.
+- **`SANDBOX_BUILD` must always be defined** (inlined), so the real build dead-code-eliminates the fake.
+  `sandbox-seam.test.ts` and `no-sandbox-in-build.test.ts` guard it.
+- **A corrupted `.next/dev/types`** (tsc errors in generated files) is fixed with `rm -rf .next/dev/types`.
+- **The git root is one level up:** paths in `git add` are relative to golf-tracker/.
+- **Python edits:** write the script to `.claude/tmp_*.py`, run it, delete it. An apostrophe inside a
+  single-quoted TS string breaks the build (TS1005). Write "has not".
 - **Editor diagnostics lag behind edits.** Trust `npx tsc --noEmit`.
-- **Uncapped modes:** `playersMax` can be `Infinity`. Use `testFieldMax(mode)` in tests and
-  `playerRangeText` in copy, never `Array(playersMax)`.
-- **Side ids** go through `sideIdAt(i)` (a…z, then s27…), not `String.fromCharCode(97 + i)`.
-- **Test cards must differ between partners.** A pattern repeating every 4 players gave partners 8 apart
-  identical cards (`% 5` fixes it).
+- **Uncapped modes:** `playersMax` can be `Infinity` (team-2v2, skins, Stableford, low total, quota).
+  Use `testFieldMax(mode)` in tests and `playerRangeText` in copy.
+- **Skins across groups (§5.ca):** a hole is open until every tee group posts it. The context carries
+  `teeGroups` (only with 2+ groups) and `closed`.
+- **Side ids** go through `sideIdAt(i)`.
+- **Test cards must differ between players.** Use mod 7 with a per-player term at 144, or skins tie out.
+- **Wizard e2e:**
+  - Click the "Past games (for recent-course" seed card first, or the course step has no Sandbox National.
+  - Find the manual Add button with `manualAddButton`.
+  - The helpers are `addPlayers`, `fieldToGameStep`, `toScoringStep`, `chooseSolo` and `chooseMoney`.
+  - On phones, assert the step with "Step N of M · Name".
 - **Playwright strict mode:** use `exact: true` when one label prefixes another, and `.first()` for
-  repeated text. On phones the full step bar is hidden (F-099), so assert the step with
-  "Step N of M · Name".
-- **Wizard helpers** in `e2e/helpers.ts`: `addPlayers`, `toScoringStep(page, 'teams:4+4+4')`,
-  `chooseSolo`, `chooseMoney`. An all-singles teams structure exists only for n=2; bigger singles fields
-  are `solo`, which caps at 4.
-- Sandbox owner is always GHIN 1234567. The big-field seed is "§5.bv: 32 players, 8 foursomes, 16 pairs".
+  repeated text.
+- **Sandbox:**
+  - The owner is always GHIN 1234567.
+  - The big-field seeds are "§5.bv: 32 players, 8 foursomes, 16 pairs" and
+    "F-101 d: Skins, 32 players, 8 foursomes (staggered)".
 - Plans go in the repo's `.claude/plans/`.
 
 ## End the session by grooming BACKLOG.md

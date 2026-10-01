@@ -1414,6 +1414,15 @@ These are what the sweep found around the edges. Each is Craig's call or deliber
   - Craig's call (money display).
 - **b. A skins card's header reads "Stroke Play · Best Net + Best Gross · Full Handicap".**
   It is the classic pool's format line on an individual game's card (`f101d-card-32.png`). Probably pre-existing for every mode game, not new with F-101 d. Check it at 4 players before fixing.
+- **c. (suspected, not reproduced) CTP across tee groups.** `ctpWinners` holds one winner per par 3
+  for the whole game, stored on the game row, not on a group's scores. At 8 groups, every group's scorer
+  can set it. Two open cards could overwrite each other's pick, and a later group could "win" a par 3
+  over a closer ball it never saw. Options:
+  - (A) Reproduce it with two tabs in the sandbox first.
+  - (B) Show "CTP so far: X (Group N)" on every card, so the next group only overwrites on purpose.
+  - (C) Record a CTP per group, and have the organizer pick at the end.
+
+  Check first how the game row is merged on save (last write wins vs a per-field merge).
 
 
 ---

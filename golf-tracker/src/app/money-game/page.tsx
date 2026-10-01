@@ -8,6 +8,7 @@ import { parseGhinIndex } from '@/lib/game-state';
 import { HandicapIndexInput } from '@/components/handicap-index-input';
 import type { Tournament, TournamentRound, RoundBonus } from '@/lib/tournament-state';
 import { saveTournament } from '@/lib/tournament-state';
+import { getCreatorGhin } from '@/lib/pool-identity';
 import { DEFAULT_MONEY_CONFIG, type MoneyConfig } from '@/lib/money-game';
 
 type Step = 'config' | 'course' | 'players' | 'review';
@@ -80,6 +81,8 @@ export default function MoneyGamePage() {
       rounds: [round],
       status: 'active',
       moneyConfig,
+      createdByGhin: getCreatorGhin() ?? undefined,  // Event spine slice 1 (§5.bu)
+      createdAt: new Date().toISOString(),
     };
 
     // Store money config in sessionStorage for the scoreboard to use
