@@ -2,7 +2,7 @@
 // "Close out game" and the card's "Finish Game" stay hidden until a score exists, then appear.
 
 import { expect, test } from '@playwright/test';
-import { BASE, EIGHT_PLAYERS, PHONE, chooseSolo, fieldToGameStep, resetBackend, seed, toScoringStep, signInOrganizer } from './helpers';
+import { BASE, EIGHT_PLAYERS, PHONE, chooseSolo, fieldToGameStep, resetBackend, seed, toScoringStep, signInOrganizer, closeSendSheet } from './helpers';
 
 test.beforeEach(async ({ context, page }) => { await resetBackend(context, page); });
 
@@ -22,8 +22,9 @@ test('B9: a fresh game hides Close out and Finish Game until the first score', a
   await page.getByRole('button', { name: 'Next: Groups' }).click();
   await page.getByRole('button', { name: /Next: Review & Create/ }).click();
   await signInOrganizer(page);
-  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await closeSendSheet(page);
   await page.waitForLoadState('networkidle');
   const hubUrl = page.url();
 

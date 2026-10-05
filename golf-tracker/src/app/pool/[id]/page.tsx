@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { type GameSetup, type Player, parseGhinIndex } from '@/lib/game-state';
-import { type PoolGame, type PoolTeam, type PoolTeamDetail, loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, getPoolPlayingHandicap, gameNineBasis, computePoolPlayerDetails, defaultSubTeams, shareTokenMatches } from '@/lib/pool-game';
+import { type GameSetup, type GameScore, type Player, parseGhinIndex } from '@/lib/game-state';
+import { fetchGameScores } from '@/lib/tournament-state';
+import { type PoolGame, type PoolTeam, type PoolTeamDetail, loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, getPoolPlayingHandicap, gameNineBasis, computePoolPlayerDetails, defaultSubTeams, shareTokenMatches, poolGameHasAnyScore } from '@/lib/pool-game';
 import { isOneBall, teamModeForFormat } from '@/lib/game-modes/team-scoring';
 import { fromLegacySubTeams, sideOfPlayer, sidesOfGame } from '@/lib/game-modes/sides';
 import { getAccessLevel } from '@/lib/invite-gate';
@@ -45,6 +46,17 @@ export default function PoolHubPage() {
   useEffect(() => {
     try { setUrlKey(new URLSearchParams(window.location.search).get('key')); } catch { /* ignore */ }
   }, []);
+  // §5.cl: Create is the share moment. The wizard lands here with ?send=1, so the
+  // organizer opens on the player-link sheet. Strip the flag so a reload doesn't reopen it.
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('send') !== '1') return;
+      url.searchParams.delete('send');
+      window.history.replaceState(null, '', url.pathname + url.search);
+      if (getAccessLevel() !== 'pool') setSharing(true);
+    } catch { /* ignore */ }
+  }, []);
   // F-049: who the app thinks you are — shown in the header so a share-link
   // player isn't left inferring their identity from which buttons are missing.
   const [viewerName, setViewerName] = useState<string | null>(null);
@@ -60,6 +72,24 @@ export default function PoolHubPage() {
     const channel = subscribeToPoolGame(id, (g) => setGame(g));
     return () => { channel.unsubscribe(); };
   }, [id, router]);
+
+  // §5.cl: until any foursome posts a score, sending the link is the organizer's next job,
+  // so "Send to players" leads the hub. null = still checking (keep the usual row).
+  const matchupKey = game ? Array.from(new Set(game.teams.map((t) => t.matchupId))).join(',') : '';
+  const [hasScores, setHasScores] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!game || !matchupKey) return;
+    let cancelled = false;
+    const ids = matchupKey.split(',');
+    Promise.all(ids.map(async (mid) => [mid, await fetchGameScores(mid)] as const)).then((pairs) => {
+      if (cancelled) return;
+      const byMatchup = new Map<string, GameScore[]>();
+      for (const [mid, sc] of pairs) if (sc && Array.isArray(sc)) byMatchup.set(mid, sc as GameScore[]);
+      setHasScores(poolGameHasAnyScore(game, byMatchup));
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchupKey, game?.id]);
 
   // Stroke allocation per team/player/hole — no scores needed, so pass an empty
   // map. Memoized on the game object (recomputes only when the game changes).
@@ -287,6 +317,7 @@ export default function PoolHubPage() {
   // F-081: a team game whose teams share foursomes shows WHO IS PAIRED, with each team's tee
   // group beside it — the one thing the organizer opens the hub to confirm. The classic pool's
   // teams are its foursome cards below, so this list is for the shared-foursome game only.
+  const sendFirst = !poolOnly && hasScores === false;
   const hubTeams = hubMode?.category === 'team-within-group' ? sidesOfGame(game) : [];
   const hubTeamsSolo = allSidesAreSolo(hubTeams);
   const groupNameOf = (playerId: string) => game.teams.find((t) => t.playerIds.includes(playerId))?.name;
@@ -365,11 +396,22 @@ export default function PoolHubPage() {
       />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-        {/* Leaderboard + Teams + Scorecards CTAs */}
+        {/* Leaderboard + Teams + Scorecards CTAs. §5.cl: before any score, the organizer's
+            filled button is "Send to players" and Leaderboard steps back to an outline. */}
         <div className="flex flex-wrap justify-center gap-3">
+          {sendFirst && (
+            <button
+              onClick={() => setSharing(true)}
+              className="text-sm bg-green-700 hover:bg-green-600 text-white px-5 py-2.5 rounded-lg font-medium transition"
+            >
+              Send to players
+            </button>
+          )}
           <button
             onClick={() => router.push(`/pool/${id}/leaderboard`)}
-            className="text-sm bg-green-700 hover:bg-green-600 text-white px-5 py-2.5 rounded-lg font-medium transition"
+            className={sendFirst
+              ? 'text-sm bg-white border border-green-700 text-green-700 hover:bg-green-50 px-5 py-2.5 rounded-lg font-medium transition'
+              : 'text-sm bg-green-700 hover:bg-green-600 text-white px-5 py-2.5 rounded-lg font-medium transition'}
           >
             Leaderboard
           </button>

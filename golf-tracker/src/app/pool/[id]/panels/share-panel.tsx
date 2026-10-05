@@ -53,7 +53,7 @@ export function SaveFormatModal({ game, onClose }: { game: PoolGame; onClose: ()
       <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-bold text-gray-900">Save as format</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">&times;</button>
+          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-700 text-xl leading-none">&times;</button>
         </div>
         <p className="text-xs text-gray-500 mb-3">
           Saves this game&apos;s <span className="font-medium">{modeName}</span> setup (no players) to your Format
@@ -143,7 +143,7 @@ export function SharePanel({ game, onSave, onClose }: { game: PoolGame; onSave: 
       <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-900">Share “{gameName}”</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">&times;</button>
+          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-700 text-xl leading-none">&times;</button>
         </div>
 
         {/* Primary: player scoring link for THIS game */}

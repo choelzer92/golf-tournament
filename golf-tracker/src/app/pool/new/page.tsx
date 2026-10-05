@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Player, CourseSelection } from '@/lib/game-state';
-import { PoolShareButton } from '@/components/pool-share';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import {
@@ -703,7 +702,8 @@ export default function NewPoolGamePage() {
 
     savePoolGame(game);
     sessionStorage.removeItem(WIZARD_KEY);
-    router.push('/pool/' + game.id);
+    // §5.cl: Create is the share moment — the hub opens on the player-link sheet.
+    router.push('/pool/' + game.id + '?send=1');
   }
 
   return (
@@ -712,7 +712,6 @@ export default function NewPoolGamePage() {
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold">New Game</h1>
           <div className="flex items-center gap-4">
-            <PoolShareButton className="text-sm text-green-200 hover:text-white font-medium" label="Share" />
             <button onClick={() => router.push('/pool')} className="text-sm text-green-200 hover:text-white">
               Cancel
             </button>

@@ -2343,3 +2343,18 @@ Asked one at a time from NEXT_SESSION_PROMPT's "Waiting on Craig".
 4. **Ship the branch.** Craig: push the branch, merge to main, push main (a live deploy), once the
    full `npm run verify` exits 0. This lifts §5.ab for this branch only; the rule stands for the
    next one.
+
+### 5.cl — Create is the share moment: "Create & send to players" (F-105 + B3, 2026-10-05)
+
+Craig first parked B3 for the design discussion ("share should happen when the game rules have been
+finalized"), asked what fits his aim, then asked whether Share is available during setup. It is, but
+the wizard's header Share sends the ORGANIZER link (create-your-own-games), because the game doesn't
+exist until Create (F-105). He then took the recommendation:
+
+- **Remove Share from the wizard.**
+- **The last button becomes "Create & send to players"**: it creates the game and lands on the hub
+  with the player-link sheet already open. Review & Create IS the finalization. The link opens the
+  live game, so a later rule tweak reaches players without a re-send.
+- **On the hub, "Send to players" is the main (filled) button until any score exists.** Leaderboard
+  goes secondary until then. Organizer only, since a guest on a scoring link already holds it.
+- The co-organizer (organizer) link stays inside the share sheet, as its secondary section.

@@ -806,7 +806,7 @@ export function CreateStep({
         disabled={!!blockedReason}
         className="mt-6 w-full rounded-md bg-green-700 px-4 py-3 text-white font-bold text-lg hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Create Game
+        Create &amp; send to players
       </button>
       {blockedReason && (
         <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">

@@ -199,6 +199,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.ci | 2026-10-01 (after the dedup audit): F-104 opt A (Create requires a GHIN login); legacy owner-less tournaments visible to their players + the app owner (replaces §5.bu's everyone); brand/name waits for a pre-beta-end branding session (GrudgeMatch floated), so D2 waits; F-037 / 2v2 pairings opt B within-tee-group (goldens-first, plan shown first) |
 | 5.cj | 2026-10-01: §5.cb details: members see the group's whole ledger (§5h), non-group money only for games played; members see their groups read-only; a group's creator is NOT a member for visibility; match points drop the "+" (UI_CONVENTIONS updated) |
 | 5.ck | 2026-10-05: Home = live game Continue card on top, then each group card with its latest game, then "Other games" (replaces collapsed list); §7 q4 closed — dark/light split was not deliberate, ALL design (theme, colour) waits for the branding session; hide-holes gets an unchecked wizard checkbox when each team is its own foursome; branch gate-speed shipped (push + merge + push main) on a green full gate |
+| 5.cl | 2026-10-05: Create is the share moment (F-105 + B3): no Share in the wizard; "Create & send to players" opens the player-link sheet on the hub; hub's main button is "Send to players" until any score exists (organizer only); co-organizer link stays inside the sheet |
 
 ---
 

@@ -7,8 +7,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
   BASE, PHONE, EIGHT_PLAYERS, FOUR_PLAYERS, TWO_PLAYERS, resetBackend,
-  addPlayers, toScoringStep, chooseSolo, chooseMoney, buildTeams, signInOrganizer,
-} from './helpers';
+  addPlayers, toScoringStep, chooseSolo, chooseMoney, buildTeams, signInOrganizer, closeSendSheet } from './helpers';
 
 test.beforeEach(async ({ context, page }) => {
   await page.setViewportSize(PHONE);
@@ -91,8 +90,9 @@ test('routing row: two teams of 4, pot → the classic pool (hub shows its fours
   await page.screenshot({ path: 'e2e/screenshots/collapse-04-money-classic.png', fullPage: true });
 
   await signInOrganizer(page);
-  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await closeSendSheet(page);
   // Only the classic pool's hub says this.
   await expect(page.getByText(/2 teams of 4 · pot/)).toBeVisible();
 });
@@ -114,8 +114,9 @@ test('F-084: head-to-head leg amounts are editable on the money step and reach t
   await leg('Junk / pt').fill('2');
   await page.screenshot({ path: 'e2e/screenshots/f084-legs-editable.png', fullPage: true });
   await signInOrganizer(page);
-  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await closeSendSheet(page);
   await expect(page.getByRole('heading', { name: 'Head-to-Head Match' })).toBeVisible();
   const hub = await page.locator('body').innerText();
   expect(hub).toContain('$15');
@@ -138,8 +139,9 @@ test('routing row: two teams of 4, $ per point → the sides engine even though 
   await expect(page.getByText('Buy-in per player ($)')).toHaveCount(0);
   await page.screenshot({ path: 'e2e/screenshots/collapse-05-money-aligned-per-point.png', fullPage: true });
   await signInOrganizer(page);
-  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await closeSendSheet(page);
   await expect(page.getByText(/2 teams of 4 · \$\/point/)).toBeVisible();
 });
 
@@ -186,8 +188,9 @@ test('routing row: four pairs, fixed legs → the sides engine with two tee time
   await expect(page.getByText(/Front 9 \(\$\)/)).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/collapse-07-money-sides.png', fullPage: true });
   await signInOrganizer(page);
-  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await closeSendSheet(page);
   await expect(page.getByText(/4 pairs · head-to-head · 2 groups/)).toBeVisible();
 });
 
@@ -215,8 +218,9 @@ test('F-072: four pairs, best net + best gross → the sides engine scores two b
   await chooseMoney(page, 'per-point');
   await page.screenshot({ path: 'e2e/screenshots/f072-money-pairs-net-gross.png', fullPage: true });
   await signInOrganizer(page);
-  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await closeSendSheet(page);
   await expect(page.getByText(/4 pairs · \$\/point · 2 groups/)).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/f072-hub-pairs-net-gross.png', fullPage: true });
 });
@@ -271,8 +275,9 @@ test('F-074: a typed split (4, 2, 2) is a real structure — three teams, the pa
   await page.getByRole('button', { name: /Next: Review/ }).click();
   await expect(page.getByText('Teams (4 vs 2 vs 2)')).toBeVisible();
   await signInOrganizer(page);
-  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await closeSendSheet(page);
 });
 
 test('routing row: everyone for themselves (4) → skins, the individual mode', async ({ page }) => {
@@ -292,8 +297,9 @@ test('routing row: everyone for themselves (4) → skins, the individual mode', 
   await expect(page.getByRole('heading', { name: /Review & create/ })).toBeVisible();
   await expect(page.locator('input[name="money-model"]')).toHaveCount(0);
   await signInOrganizer(page);
-  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await closeSendSheet(page);
   await expect(page.getByText(/Skins · 4 players/)).toBeVisible();
 });
 
@@ -317,8 +323,9 @@ test('routing row: 1 v 1 → a singles match on the sides engine, 100% allowance
   expect(review).toContain('$10 / $10 / $10 front·back·overall');
   expect(review).not.toMatch(/a skin/);
   await signInOrganizer(page);
-  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await closeSendSheet(page);
   await expect(page.getByText(/1 v 1 · head-to-head/)).toBeVisible();
 });
 
@@ -344,12 +351,12 @@ test('F-104: Create asks a visitor with no GHIN login to log in, and makes no ow
   await expect(page.getByRole('heading', { name: "What's it worth?" })).toBeVisible();
   // A share-link visitor: game access, no GHIN identity on this device.
   await page.evaluate(() => { sessionStorage.removeItem('ghin_golfer'); localStorage.removeItem('ghin_golfer'); });
-  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.getByRole('button', { name: 'Create & send to players' }).click();
   await expect(page.getByRole('heading', { name: 'Log in to create the game' })).toBeVisible();
   await expect(page.getByPlaceholder('GHIN email')).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/f104-create-login.png', fullPage: true });
   // Closing it leaves the wizard where it was, with nothing saved.
   await page.getByRole('button', { name: '×' }).click();
   await expect(page).toHaveURL(`${BASE}/pool/new`);
-  await expect(page.getByRole('button', { name: 'Create Game' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create & send to players' })).toBeVisible();
 });

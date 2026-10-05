@@ -1444,7 +1444,7 @@ the app owner sees it.
 Not yet reproduced on screen; walk it in the sandbox with a share link first. Tag: [beta #4]. An
 owner-less game breaks "every player finds their games".
 
-### F-105 — The wizard's "Share" sends the ORGANIZER link, not this game (2026-10-05)  [P2] [start]
+### F-105 — The wizard's "Share" sends the ORGANIZER link, not this game (2026-10-05)  [P2] [start] — **DECIDED 2026-10-05 (§5.cl): A + C**, built with B3
 
 **Seen:** in code, while answering Craig ("is the share button available throughout the game set up
 process?"). Every wizard step has a header "Share" (`pool/new/page.tsx:715`, `PoolShareButton`). It
@@ -1459,7 +1459,7 @@ discussion, 2026-10-05). Options:
 - (B) Relabel it "Invite a co-organizer", so it says what it sends.
 - (C) Make Create the share moment: "Create & send to players" opens the player link sheet (B3).
 
-A and C combine. Tag: [beta #1]. Craig's call.
+A and C combine. Tag: [beta #1]. **Craig picked A + C (§5.cl).**
 
 
 ---

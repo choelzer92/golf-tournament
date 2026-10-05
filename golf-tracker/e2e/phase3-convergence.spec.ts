@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { BASE, PHONE, EIGHT_PLAYERS, resetBackend, addPlayers, toScoringStep, buildTeams, chooseMoney, signInOrganizer } from './helpers';
+import { BASE, PHONE, EIGHT_PLAYERS, resetBackend, addPlayers, toScoringStep, buildTeams, chooseMoney, signInOrganizer, closeSendSheet } from './helpers';
 
 // Phase 3 steps 5–6 (§5.bq Q5; spec §4–§5): captains ride on shared-foursome teams into the saved
 // game, the hub offers "hide holes until all groups finish" to a team game across foursomes, and
@@ -55,8 +55,9 @@ test('step 5: captains chosen for 4 + 2 + 2 teams (the pairs share a foursome) r
   expect(await page.locator('body').innerText()).not.toContain('Not built yet');
   await chooseMoney(page, 'per-point');
   await signInOrganizer(page);
-  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await closeSendSheet(page);
   await expect(page.getByText(/4 \+ 2 \+ 2 · \$\/point · 2 groups/)).toBeVisible();
   // The hub's Teams list marks each captain.
   const teams = page.locator('section', { has: page.getByRole('heading', { name: 'Teams' }) });
@@ -78,8 +79,9 @@ test('F-097: an aligned 3 + 3 + 2 on $ per point saves its three teams as the si
   await page.getByRole('button', { name: /Next: Review/ }).click();
   await chooseMoney(page, 'per-point');
   await signInOrganizer(page);
-  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await closeSendSheet(page);
   await expect(page.getByText(/3 \+ 3 \+ 2 · \$\/point · 3 groups/)).toBeVisible();
   // Before the fix this game saved `sides: []`, the hub had no Teams list, and the engine settled two
   // invented sides. Now the Teams list is the three tee groups, each with its captain.

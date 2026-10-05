@@ -4,7 +4,7 @@
 // every card would bury the scores); the hub's team editor picks from a list, not 16 circles.
 
 import { expect, test } from '@playwright/test';
-import { BASE, PHONE, resetBackend, seed, goToGame, addPlayers, toScoringStep, chooseMoney, signInOrganizer } from './helpers';
+import { BASE, PHONE, resetBackend, seed, goToGame, addPlayers, toScoringStep, chooseMoney, signInOrganizer, closeSendSheet } from './helpers';
 
 const SEED = '§5.bv: 32 players, 8 foursomes, 16 pairs across groups (staggered)';
 
@@ -80,7 +80,8 @@ test('§5.bv: twelve players as three teams of 4 on head-to-head legs is no long
   await chooseMoney(page, 'legs');
   await page.screenshot({ path: 'e2e/screenshots/cap-12-legs-money.png', fullPage: true });
   await signInOrganizer(page);
-  await page.getByRole('button', { name: 'Create Game' }).click();
+  await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
+  await closeSendSheet(page);
   await expect(page.getByText(/3 teams of 4/)).toBeVisible();
 });
