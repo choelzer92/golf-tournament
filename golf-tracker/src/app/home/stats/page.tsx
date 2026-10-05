@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { hydratePoolGames, loadPoolGame, getPoolGameList, getPoolGameListForGhin, type PoolGameListItem } from '@/lib/pool-game';
-import { hydrateTournaments, loadTournament, getTournamentList } from '@/lib/tournament-state';
-import { hydrateGroups, type RosterGroup } from '@/lib/roster-groups';
-import { getPlayerGroups } from '@/lib/pool-formats';
+import { hydratePoolGames, loadPoolGame, getPoolGameList, getPoolGameListVisibleTo, type PoolGameListItem } from '@/lib/pool-game';
+import { hydrateTournaments, loadTournament, getTournamentList, getTournamentListVisibleTo } from '@/lib/tournament-state';
+import { getViewer, hydrateGroups, type RosterGroup } from '@/lib/roster-groups';
+import { getViewablePlayerGroups } from '@/lib/pool-formats';
 import { isAppOwner } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import {
@@ -76,25 +76,23 @@ export default function StatsPage() {
       // (see the wizard's loadGroup), so this is what links "me" to my results.
       const rp = ghin !== null ? getRosterPlayerByGhin(ghin) : null;
       if (rp) setMe({ id: rp.id, name: rp.name });
-      // Viewer-scoped pool games (owner sees all), plus tournaments (global — no
-      // owner field yet). Resolve list items back to full game objects for the
-      // ledger reducers, which need players/teams/config.
-      const poolItems: PoolGameListItem[] = isOwner
-        ? getPoolGameList()
-        : ghin !== null
-          ? getPoolGameListForGhin(ghin)
-          : [];
+      // The games this viewer may see (owner sees all; §5.cb): theirs, ones they played,
+      // and their groups'. That is also §5.cj's money rule: a group's whole ledger for its
+      // members, and outside groups only games the viewer was in. Resolve list items back
+      // to full game objects for the ledger reducers, which need players/teams/config.
+      const viewer = getViewer(ghin);
+      const poolItems: PoolGameListItem[] = isOwner ? getPoolGameList() : getPoolGameListVisibleTo(viewer);
       const poolGames = poolItems.map((i) => loadPoolGame(i.id)).filter((g): g is NonNullable<typeof g> => !!g);
-      const tournaments = getTournamentList()
+      const tournaments = (isOwner ? getTournamentList() : getTournamentListVisibleTo(viewer))
         .map((i) => loadTournament(i.id))
         .filter((t): t is NonNullable<typeof t> => !!t);
 
       const built = await buildGameLedgers(poolGames, tournaments);
       setLedgers(built);
-      // getPlayerGroups() excludes Format Library entries — formats live in the same
+      // getViewablePlayerGroups() excludes Format Library entries — formats live in the same
       // roster_groups table tagged kind:'format' and have no players by design, so a
       // format in this picker is a dead option that can only render an empty ledger.
-      setGroups(getPlayerGroups());
+      setGroups(getViewablePlayerGroups());
       setReady(true);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

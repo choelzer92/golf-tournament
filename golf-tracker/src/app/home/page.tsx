@@ -2,16 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getTournamentList, hydrateTournaments, type TournamentListItem } from '@/lib/tournament-state';
+import { getTournamentList, getTournamentListVisibleTo, hydrateTournaments, type TournamentListItem } from '@/lib/tournament-state';
 import {
   getPoolGameList,
-  getPoolGameListForGhin,
+  getPoolGameListVisibleTo,
   hydratePoolGames,
   type PoolGameListItem,
 } from '@/lib/pool-game';
 import { gameListSubtitle } from '@/lib/game-modes/result';
-import { hydrateGroups, upsertGroup, type RosterGroup } from '@/lib/roster-groups';
-import { getPlayerGroups } from '@/lib/pool-formats';
+import { getViewer, hydrateGroups, upsertGroup, type RosterGroup } from '@/lib/roster-groups';
+import { getViewablePlayerGroups } from '@/lib/pool-formats';
+import { hydrateRoster } from '@/lib/roster';
 import { clearAccessCookie, isAppOwner } from '@/lib/invite-gate';
 import { clearGhinIdentity, getCreatorGhin, getCreatorName } from '@/lib/pool-identity';
 import { SOLO_ROUNDS } from '@/lib/flags';
@@ -110,26 +111,22 @@ export default function HomePage() {
     const ghin = getCreatorGhin();
     setName(getCreatorName());
 
-    // Read-only hydration. Games and groups scope to the viewer exactly like the
-    // pool pages: owner (full access) sees all pool games; a scoped organizer
-    // sees only their own. Tournaments have no owner field, so they list
-    // globally — matching today's dashboard behavior (Phase 1 caveat).
+    // Read-only hydration. The owner (full access) sees every game; anyone else sees the
+    // games they made, played in, or that belong to a group they're in (§5.cb). Group
+    // membership is by roster id, so the roster loads too.
     Promise.all([
       hydratePoolGames(),
       hydrateTournaments(),
       hydrateGroups({ viewerGhin: ghin, isOwner }).catch(() => []),
+      hydrateRoster({ viewerGhin: ghin, isOwner }).catch(() => []),
     ]).then(() => {
-      const poolItems = isOwner
-        ? getPoolGameList()
-        : ghin !== null
-          ? getPoolGameListForGhin(ghin)
-          : [];
+      const viewer = getViewer(ghin);
       const merged = [
-        ...poolItems.map(poolToHomeGame),
-        ...getTournamentList().map(tournamentToHomeGame),
+        ...(isOwner ? getPoolGameList() : getPoolGameListVisibleTo(viewer)).map(poolToHomeGame),
+        ...(isOwner ? getTournamentList() : getTournamentListVisibleTo(viewer)).map(tournamentToHomeGame),
       ].sort(sortHomeGames);
       setGames(merged);
-      setGroups(getPlayerGroups());
+      setGroups(getViewablePlayerGroups());
       setReady(true);
     });
   }, [router]);

@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { computeStandingsN, teamsOf } from '@/lib/tournament-standings';
-import { computeStandings, tournamentVisibleTo, type RoundBonus, type RoundMatchup, type Tournament, type TournamentRound } from '@/lib/tournament-state';
+import { computeStandings, type RoundBonus, type RoundMatchup, type Tournament, type TournamentRound } from '@/lib/tournament-state';
 
 const A = 'team-a';
 const B = 'team-b';
@@ -136,14 +136,5 @@ describe('Event spine slice 1: computeStandingsN', () => {
   });
 });
 
-describe('Event spine slice 1: the owner scopes only when present (§5.bu, plan §4 A)', () => {
-  it('a legacy owner-less tournament is visible to everyone, signed in or not', () => {
-    expect(tournamentVisibleTo({}, 123)).toBe(true);
-    expect(tournamentVisibleTo({}, null)).toBe(true);
-  });
-  it('an owned tournament is visible to its owner, not to someone else', () => {
-    expect(tournamentVisibleTo({ createdByGhin: 123 }, 123)).toBe(true);
-    expect(tournamentVisibleTo({ createdByGhin: 123 }, 456)).toBe(false);
-    expect(tournamentVisibleTo({ createdByGhin: 123 }, null)).toBe(false);
-  });
-});
+// The owner-scoping pin that lived here moved to game-visibility.test.ts and flipped (§5.ci):
+// an owner-less tournament is no longer visible to everyone.

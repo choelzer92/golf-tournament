@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getTournamentList, importTournament, hydrateTournaments, type TournamentListItem } from '@/lib/tournament-state';
+import { getTournamentList, getTournamentListVisibleTo, importTournament, hydrateTournaments, type TournamentListItem } from '@/lib/tournament-state';
 import { parseGhinIndex, formatHandicap } from '@/lib/game-state';
 import { PoolShareButton } from '@/components/pool-share';
-import { getPoolGameList, getPoolGameListForGhin, hydratePoolGames, type PoolGameListItem } from '@/lib/pool-game';
+import { getPoolGameList, getPoolGameListVisibleTo, hydratePoolGames, type PoolGameListItem } from '@/lib/pool-game';
 import { SOLO_ROUNDS } from '@/lib/flags';
 import { clearAccessCookie, isAppOwner } from '@/lib/invite-gate';
 import { clearGhinIdentity, getCreatorGhin } from '@/lib/pool-identity';
+import { hydrateRoster } from '@/lib/roster';
+import { getViewer, hydrateGroups } from '@/lib/roster-groups';
 
 interface TeeRating {
   RatingType: 'Front' | 'Back' | 'Total';
@@ -85,16 +87,20 @@ export default function DashboardPage() {
     } else {
       setGolfer({ handicap_index: null, clubs: [] });
     }
-    hydrateTournaments().then(() => {
-      setTournaments(getTournamentList());
-    });
-    hydratePoolGames().then(() => {
-      // F-059 (§5.bi): the classic dashboard had NO owner check at all, so it
-      // listed every pool game to anyone with the invite code. Scope it like
-      // /pool: the app owner sees all, everyone else their own GHIN's games.
-      // (The page is behind the login redirect above, so a GHIN identity exists.)
-      const ghin = getCreatorGhin();
-      setPoolGames(isAppOwner() ? getPoolGameList() : ghin !== null ? getPoolGameListForGhin(ghin) : []);
+    // F-059 (§5.bi) + §5.cb: the app owner sees every game; anyone else the games they
+    // made, played in, or that belong to a group they're in. (The page is behind the login
+    // redirect above, so a GHIN identity exists.) Membership needs the roster and groups.
+    const ghin = getCreatorGhin();
+    const isOwner = isAppOwner();
+    Promise.all([
+      hydrateTournaments(),
+      hydratePoolGames(),
+      hydrateRoster({ viewerGhin: ghin, isOwner }).catch(() => []),
+      hydrateGroups({ viewerGhin: ghin, isOwner }).catch(() => []),
+    ]).then(() => {
+      const viewer = getViewer(ghin);
+      setTournaments(isOwner ? getTournamentList() : getTournamentListVisibleTo(viewer));
+      setPoolGames(isOwner ? getPoolGameList() : getPoolGameListVisibleTo(viewer));
     });
   }, [router]);
 

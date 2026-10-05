@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { hydratePoolGames, getPoolGameList, getPoolGameListForGhin, type PoolGameListItem } from '@/lib/pool-game';
+import { hydratePoolGames, getPoolGameList, getPoolGameListVisibleTo, type PoolGameListItem } from '@/lib/pool-game';
 import { gameListSubtitle } from '@/lib/game-modes/result';
 import { isAppOwner } from '@/lib/invite-gate';
 import { saveGhinIdentity, getCreatorGhin, getCreatorName } from '@/lib/pool-identity';
+import { hydrateRoster } from '@/lib/roster';
+import { getViewer, hydrateGroups } from '@/lib/roster-groups';
 import { PoolShareButton } from '@/components/pool-share';
 
 // "My Pool Games" — the organizer share-link landing page. Lists the games the
@@ -27,9 +29,9 @@ export default function PoolGamesListPage() {
   function refreshList() {
     const owner = isAppOwner();
     setIsOwner(owner);
-    // Owner (full access) sees all pool games. A share-link organizer sees ONLY
-    // games created under their GHIN — and if we can't resolve their identity
-    // yet, we prompt login rather than showing everyone's games or a false empty.
+    // Owner (full access) sees all pool games. Anyone else sees the games they made,
+    // played in, or that belong to a group they're in (§5.cb). If we can't resolve their
+    // identity yet, we prompt login rather than showing everyone's games or a false empty.
     if (owner) {
       setGames(getPoolGameList());
       setNeedsLogin(false);
@@ -42,13 +44,20 @@ export default function PoolGamesListPage() {
       setCreatorName(null);
       return;
     }
-    setGames(getPoolGameListForGhin(ghin));
+    setGames(getPoolGameListVisibleTo(getViewer(ghin)));
     setCreatorName(getCreatorName());
     setNeedsLogin(false);
   }
 
   useEffect(() => {
-    hydratePoolGames().then(() => {
+    // Membership is by roster id, so the roster and groups load with the games.
+    const ghin = getCreatorGhin();
+    const owner = isAppOwner();
+    Promise.all([
+      hydratePoolGames(),
+      hydrateRoster({ viewerGhin: ghin, isOwner: owner }).catch(() => []),
+      hydrateGroups({ viewerGhin: ghin, isOwner: owner }).catch(() => []),
+    ]).then(() => {
       refreshList();
       setLoading(false);
     });

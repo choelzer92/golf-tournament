@@ -3,6 +3,8 @@ import type { PoolJunkValues, PoolMoneyMode, PoolMatchConfig, CustomBonus } from
 import type { TwoBestBallsVariant } from './formats';
 import type { ScoreBasis, TeamFormat } from './game-modes/team-scoring';
 import type { GameSide } from './game-modes/sides';
+import { groupIdsForGhin, type Viewer } from './game-visibility';
+import { getRosterIdsByGhin } from './roster';
 
 // A saved group = an organizer's "home base": a named set of roster player IDs
 // PLUS the default game settings to prefill when starting a game from it. The
@@ -113,6 +115,35 @@ export async function hydrateGroups(opts?: { viewerGhin?: number | null; isOwner
 // The groups the current viewer may see (base + their own; owner sees all).
 export function getGroups(): RosterGroup[] {
   return Array.from(groupCache.values()).filter(isVisibleToViewer).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// The groups whose roster includes this GHIN (§5.cb). Scans the FULL cache, so it sees
+// another organizer's group the viewer belongs to. The roster and groups must both be
+// hydrated first. Owning a group isn't membership (§5.cj).
+export function getGroupIdsForGhin(ghin: number | null): Set<string> {
+  if (ghin == null) return new Set();
+  return groupIdsForGhin([...groupCache.values()], getRosterIdsByGhin(ghin));
+}
+
+// The viewer for game visibility (§5.cb): their GHIN, their roster entries, and the groups
+// they're a member of.
+export function getViewer(ghin: number | null): Viewer {
+  return { ghin, groupIds: getGroupIdsForGhin(ghin), rosterIds: new Set(ghin == null ? [] : getRosterIdsByGhin(ghin)) };
+}
+
+// The viewer's own groups plus every group they're a member of (§5.cj: members see their
+// groups, read-only). For the hub and stats; the wizard keeps getGroups().
+export function getViewableGroups(): RosterGroup[] {
+  const member = getGroupIdsForGhin(viewerGhin);
+  return Array.from(groupCache.values())
+    .filter((g) => isVisibleToViewer(g) || member.has(g.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// Whether the viewer may rename, delete, or change a group. A member who only sees a
+// group through membership may not (§5.cj).
+export function canEditGroup(g: RosterGroup): boolean {
+  return isVisibleToViewer(g);
 }
 
 export function getGroupById(id: string): RosterGroup | null {

@@ -3,11 +3,11 @@
 import { formatHandicapIndex } from '@/lib/game-state';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { hydrateGroups, getGroupById, addGroupMember, removeGroupMember, renameGroup, deleteGroup, type RosterGroup } from '@/lib/roster-groups';
+import { canEditGroup, getGroupIdsForGhin, getViewer, hydrateGroups, getGroupById, addGroupMember, removeGroupMember, renameGroup, deleteGroup, type RosterGroup } from '@/lib/roster-groups';
 import { hydrateRoster, searchRoster, getRosterPlayerById, rosterDisplayName, type RosterPlayer } from '@/lib/roster';
 import { getFormats, getGroupFormats, attachFormatToGroup, detachFormatFromGroup } from '@/lib/pool-formats';
-import { hydratePoolGames, loadPoolGame, getPoolGameList, getPoolGameListForGhin } from '@/lib/pool-game';
-import { hydrateTournaments, loadTournament, getTournamentList } from '@/lib/tournament-state';
+import { hydratePoolGames, loadPoolGame, getPoolGameList, getPoolGameListVisibleTo } from '@/lib/pool-game';
+import { hydrateTournaments, loadTournament, getTournamentList, getTournamentListVisibleTo } from '@/lib/tournament-state';
 import {
   buildGameLedgers, ledgersForGroup, rollupByPlayer,
   type GameLedger, type PlayerRollup,
@@ -60,6 +60,8 @@ export default function GroupDetailPage() {
   // F-055 (§5.bh): this dashboard is the ONLY group manager, so rename and
   // delete live here — joining the dashboard, not displacing it (F-010 shape).
   const [renaming, setRenaming] = useState(false);
+  // §5.cj: a member who isn't this group's organizer sees it read-only.
+  const [editable, setEditable] = useState(true);
   const [renameText, setRenameText] = useState('');
 
   function refreshFormats(g: RosterGroup | null) {
@@ -71,13 +73,12 @@ export default function GroupDetailPage() {
   async function loadGroupLedger(g: RosterGroup, ghin: number | null, isOwner: boolean) {
     try {
       await Promise.all([hydratePoolGames(), hydrateTournaments()]);
-      const poolItems = isOwner
-        ? getPoolGameList()
-        : ghin !== null ? getPoolGameListForGhin(ghin) : [];
+      const viewer = getViewer(ghin);
+      const poolItems = isOwner ? getPoolGameList() : getPoolGameListVisibleTo(viewer);
       const poolGames = poolItems
         .map((i) => loadPoolGame(i.id))
         .filter((x): x is NonNullable<typeof x> => !!x);
-      const tournaments = getTournamentList()
+      const tournaments = (isOwner ? getTournamentList() : getTournamentListVisibleTo(viewer))
         .map((i) => loadTournament(i.id))
         .filter((x): x is NonNullable<typeof x> => !!x);
       const all = await buildGameLedgers(poolGames, tournaments);
@@ -115,7 +116,12 @@ export default function GroupDetailPage() {
     hydrateRoster({ viewerGhin: ghin, isOwner })
       .then(() => hydrateGroups({ viewerGhin: ghin, isOwner }))
       .then(() => {
-        const g = getGroupById(groupId);
+        // Visible to whoever may edit it, and read-only to its members (§5.cj). Anyone
+        // else gets "not found", the same as a group that doesn't exist.
+        const found = getGroupById(groupId);
+        const canEdit = !!found && canEditGroup(found);
+        const g = found && (canEdit || getGroupIdsForGhin(ghin).has(found.id)) ? found : null;
+        setEditable(canEdit);
         setGroup(g);
         refreshMembers(g);
         refreshFormats(g);
@@ -269,8 +275,9 @@ export default function GroupDetailPage() {
             ) : (
               <h1 className="text-xl font-bold truncate">{group.name}</h1>
             )}
+            {!editable && <p className="text-xs text-green-200">You’re a member · view only</p>}
           </div>
-          {!renaming && (
+          {!renaming && editable && (
             <div className="flex items-center gap-3 shrink-0">
               <button
                 onClick={() => { setRenameText(group.name); setRenaming(true); }}
@@ -288,6 +295,7 @@ export default function GroupDetailPage() {
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-8">
 
+        {editable && (
         <section>
           <h2 className="text-lg font-semibold text-gray-900 mb-3">Start something with this group</h2>
           <div className="flex flex-col sm:flex-row gap-3">
@@ -309,6 +317,7 @@ export default function GroupDetailPage() {
             </button>
           </div>
         </section>
+        )}
 
         {/* WHO'S UP / MONEY — what a group is actually for. These were absent before:
             the page led with 61 member cards and linked money as a single line. */}
@@ -371,15 +380,18 @@ export default function GroupDetailPage() {
 
         {/* Game formats this group plays. Pick one when starting a casual round
             (or start fresh). Import from the saved Format Library. */}
+        {(editable || groupFormats.length > 0) && (
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-gray-900">Game formats</h2>
+            {editable && (
             <button
               onClick={() => setShowImport((s) => !s)}
               className="text-sm text-green-700 hover:text-green-900 font-medium"
             >
               {showImport ? 'Done' : '+ Import from library'}
             </button>
+            )}
           </div>
 
           {groupFormats.length === 0 ? (
@@ -391,15 +403,17 @@ export default function GroupDetailPage() {
               {groupFormats.map((f) => (
                 <div key={f.id} className="flex items-center justify-between bg-white rounded-lg shadow p-3">
                   <p className="font-medium text-gray-900 truncate">{f.name}</p>
-                  <button onClick={() => removeFormat(f.id)} className="shrink-0 text-sm text-red-600 hover:text-red-800 px-2 py-1">
-                    Remove
-                  </button>
+                  {editable && (
+                    <button onClick={() => removeFormat(f.id)} className="shrink-0 text-sm text-red-600 hover:text-red-800 px-2 py-1">
+                      Remove
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
           )}
 
-          {showImport && (
+          {editable && showImport && (
             <div className="mt-2 bg-white rounded-lg shadow divide-y divide-gray-100">
               {allFormats.filter((f) => !(group.defaults?.formatIds ?? []).includes(f.id)).length === 0 ? (
                 <p className="px-3 py-3 text-sm text-gray-500">
@@ -424,6 +438,7 @@ export default function GroupDetailPage() {
             </div>
           )}
         </section>
+        )}
 
         <section>
           <h2 className="text-lg font-semibold text-gray-900 mb-3">
@@ -441,7 +456,7 @@ export default function GroupDetailPage() {
               className="w-full text-left bg-white rounded-lg shadow p-4 hover:shadow-md transition"
             >
               <p className="text-sm font-medium text-gray-900">
-                {members.length} player{members.length !== 1 ? 's' : ''} — tap to view or edit
+                {members.length} player{members.length !== 1 ? 's' : ''} — {editable ? 'tap to view or edit' : 'tap to view'}
               </p>
               <p className="text-xs text-gray-500 mt-0.5 truncate">
                 {members.slice(0, 4).map((m) => m.name.split(' ')[0]).join(', ')}
@@ -480,12 +495,14 @@ export default function GroupDetailPage() {
                           {m.handicapIndex != null ? `Index ${formatHandicapIndex(m.handicapIndex)}` : 'No index'}
                         </p>
                       </div>
-                      <button
-                        onClick={() => removeMember(m)}
-                        className="shrink-0 text-sm text-red-600 hover:text-red-800 px-2 py-1"
-                      >
-                        Remove
-                      </button>
+                      {editable && (
+                        <button
+                          onClick={() => removeMember(m)}
+                          className="shrink-0 text-sm text-red-600 hover:text-red-800 px-2 py-1"
+                        >
+                          Remove
+                        </button>
+                      )}
                     </div>
                   ));
                 })()}
@@ -499,6 +516,7 @@ export default function GroupDetailPage() {
           )}
         </section>
 
+        {editable && (
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-gray-900">Add players</h2>
@@ -541,6 +559,7 @@ export default function GroupDetailPage() {
             </div>
           )}
         </section>
+        )}
       </main>
 
       {/* Format picker for "Start casual round" when the group has formats. */}

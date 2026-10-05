@@ -56,3 +56,20 @@ An owner-less legacy game simply skips the owner check. The app owner (`isAppOwn
   Warriors wouldn't show in Jym's groups list or in the stats group picker.
 - **Does a group's owner who isn't a member see its games?**
 - **Labels and editing.** Should a game read "shared with you"? Do edit controls stay owner-only?
+
+## Built 2026-10-05
+- `src/lib/game-visibility.ts`: `gameVisibleTo` and `groupIdsForGhin`. A player matches by GHIN
+  **or roster id**: games built from the roster carry the roster id, which is also how the stats
+  "mine" lens links a player.
+- `roster.getRosterIdsByGhin`, `roster-groups.getGroupIdsForGhin` / `getViewer` /
+  `getViewableGroups` / `canEditGroup`, `pool-formats.getViewablePlayerGroups`.
+- `getPoolGameListVisibleTo` and `getTournamentListVisibleTo`. `tournamentVisibleTo` is retired, and
+  its "owner-less = everyone" pin flipped into `game-visibility.test.ts`.
+- Wired on /home, /dashboard, /pool, /home/stats and /home/groups/[id]. `isAppOwner` still sees
+  all. The wizard keeps the owner-scoped `getGroups()`.
+- The group page is read-only for members ("You're a member · view only"): no rename/delete,
+  start, formats edit or members edit. A non-member, non-owner gets "Group not found".
+- **Money (§5.cj) needed no extra filter.** Every visible game is one the viewer owns, played or
+  is a group member for. The one case beyond "played or group" is an organizer who didn't play a
+  non-group game they made: they still see its ledger, as before.
+- Sandbox: `visibility-member` (Jym = rp20, GHIN 7654321). Spec: `e2e/visibility-5cb.spec.ts`.

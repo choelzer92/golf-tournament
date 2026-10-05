@@ -4,7 +4,7 @@
 // are thin helpers over roster-groups.ts; the group cache/hydration is shared.
 import type { PoolGame } from './pool-game';
 import type { GroupDefaults, RosterGroup } from './roster-groups';
-import { getGroups, upsertGroup, getGroupById, setGroupOwner } from './roster-groups';
+import { getGroups, getViewableGroups, upsertGroup, getGroupById, setGroupOwner } from './roster-groups';
 import { getCreatorGhin } from './pool-identity';
 
 // A group's attached formats (resolved to the RosterGroup format rows), in the
@@ -36,6 +36,11 @@ export function getFormats(): RosterGroup[] {
 // keeps showing only player groups once formats share the table.
 export function getPlayerGroups(): RosterGroup[] {
   return getGroups().filter((g) => g.defaults?.kind !== 'format');
+}
+
+// Player groups the viewer owns or is a member of (§5.cj): the hub and stats list these.
+export function getViewablePlayerGroups(): RosterGroup[] {
+  return getViewableGroups().filter((g) => g.defaults?.kind !== 'format');
 }
 
 export function getFormatById(id: string): RosterGroup | null {

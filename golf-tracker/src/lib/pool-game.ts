@@ -4,6 +4,7 @@ import { calcCourseHandicap, applyAllowance, nineHoleIndex, formatHandicap } fro
 import { getMoneyStrokesOnHole } from './money-games';
 import { bestBallTeamHoleScore } from './live-scoring';
 import { supabase } from './supabase';
+import { gameVisibleTo, type Viewer } from './game-visibility';
 import { ORGANIZER_TOKEN, generateShareToken } from './invite-gate';
 import {
   ballsPerHole, betterValue, evenValueOnHole, isOneBall, teamValueOnHole,
@@ -2535,9 +2536,10 @@ export function getRecentCourses(ghin?: number | null, limit = 5): CourseSelecti
   return out;
 }
 
-export function getPoolGameList(): PoolGameListItem[] {
+export function getPoolGameList(filter?: (g: PoolGame) => boolean): PoolGameListItem[] {
   const list: PoolGameListItem[] = [];
   for (const g of poolGameCache.values()) {
+    if (filter && !filter(g)) continue;
     list.push({
       id: g.id,
       name: g.name,
@@ -2558,6 +2560,11 @@ export function getPoolGameList(): PoolGameListItem[] {
 // Only the games created by a given GHIN number (an organizer's own history).
 export function getPoolGameListForGhin(ghinNumber: number): PoolGameListItem[] {
   return getPoolGameList().filter((g) => g.createdByGhin === ghinNumber);
+}
+
+// The games this viewer may see: theirs, ones they played in, and their groups' (§5.cb).
+export function getPoolGameListVisibleTo(v: Viewer): PoolGameListItem[] {
+  return getPoolGameList((g) => gameVisibleTo(g, v));
 }
 
 // Unique per subscription: two components (e.g. the leaderboard page and its

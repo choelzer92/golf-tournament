@@ -1,6 +1,7 @@
 import type { Player, CourseSelection, GameScore } from './game-state';
 import type { TeamMode } from './formats';
 import { supabase } from './supabase';
+import { gameVisibleTo, type Viewer } from './game-visibility';
 import { computePlayerStablefordPoints, computePlayerNetTotal, computeSplitMatchStatuses, computeNassauStatus, computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, getPlayerStrokesForHole } from './live-scoring';
 import { computeStandingsN, teamsOf } from './tournament-standings';
 
@@ -350,9 +351,10 @@ export function loadTournament(id: string): Tournament | null {
   return tournamentCache.get(id) || null;
 }
 
-export function getTournamentList(): TournamentListItem[] {
+export function getTournamentList(filter?: (t: Tournament) => boolean): TournamentListItem[] {
   const list: TournamentListItem[] = [];
   for (const t of tournamentCache.values()) {
+    if (filter && !filter(t)) continue;
     const standings = computeStandings(t);
     list.push({
       id: t.id,
@@ -367,10 +369,10 @@ export function getTournamentList(): TournamentListItem[] {
   return list;
 }
 
-// Event spine slice 1 (§5.bu): an owner scopes a tournament only when it HAS one. Pure; not yet
-// read by any page (scoping /home and the ledger is its own step).
-export function tournamentVisibleTo(t: Pick<Tournament, 'createdByGhin'>, ghinNumber: number | null): boolean {
-  return t.createdByGhin == null || t.createdByGhin === ghinNumber;
+// The tournaments this viewer may see (§5.cb): the same rule as a pool. A legacy owner-less
+// one is visible to its players and the app owner only, no longer to everyone (§5.ci).
+export function getTournamentListVisibleTo(v: Viewer): TournamentListItem[] {
+  return getTournamentList((t) => gameVisibleTo(t, v));
 }
 
 function sanitizeTournament(t: Tournament): Tournament {

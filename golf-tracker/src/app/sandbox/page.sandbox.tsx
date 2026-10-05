@@ -15,7 +15,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { IS_SANDBOX, supabase } from '@/lib/supabase';
 import { savePoolGame, type PoolGame } from '@/lib/pool-game';
-import { saveGameScores } from '@/lib/tournament-state';
+import { saveGameScores, saveTournament, type Tournament } from '@/lib/tournament-state';
 import { setAccessCookie } from '@/lib/invite-gate';
 import { saveGhinIdentity } from '@/lib/pool-identity';
 import type { GameScore, Player, CourseSelection } from '@/lib/game-state';
@@ -824,6 +824,55 @@ const SCENARIOS: Scenario[] = [
         savePoolGame(game);
         for (const [mid, scores] of scoresByMatchup) saveGameScores(mid, scores);
       }
+      return { goTo: '/home' };
+    },
+  },
+  {
+    key: 'visibility-member',
+    label: 'Visibility — Jym, a Warriors member, signed in (§5.cb)',
+    detail: 'Who sees what: Craig\'s season, with Jym (GHIN 7654321) as a Warriors member who isn\'t in Tuesday Crew. He should see the Warriors games, a game he played outside any group, and the owner-less event he played in, and nothing else.',
+    buildDomain: () => {
+      signInAsOrganizer();
+      const roster = rosterPlayers(61);
+      // rp20 becomes Jym: in Weekend Warriors (all 61) but not Tuesday Crew (the first 8),
+      // and in none of the seeded games' foursomes.
+      const jym = { ...roster[19], ghinNumber: 7654321, name: 'Jym Youngberg' };
+      roster[19] = jym;
+      const gs = makeGroups(roster);
+      void seedTable('players', rosterRows(roster));
+      void seedTable('roster_groups', groupRows(gs));
+      for (const { game, scoresByMatchup } of ledgerSeason(roster)) {
+        savePoolGame(game);
+        for (const [mid, scores] of scoresByMatchup) saveGameScores(mid, scores);
+      }
+      // A game Craig made outside any group, with Jym in it (matched by GHIN).
+      const ps = players([4, 12, 8, 16]);
+      ps[1] = { ...ps[1], name: 'Jym Youngberg', ghinNumber: 7654321 };
+      savePoolGame(baseGame({
+        id: 'vis-played', name: 'Craig & Jym — Thursday', players: ps,
+        teams: [{ id: 'vt1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'vm1' }],
+      }));
+      // Two legacy owner-less events: one Jym played in, one he didn't (§5.ci).
+      const event = (id: string, name: string, roster4: Player[]): Tournament => ({
+        id, name, mode: 'team-event', players: roster4,
+        teams: [{ id: `${id}-a`, name: 'Aces', playerIds: [roster4[0].id, roster4[1].id] },
+                { id: `${id}-b`, name: 'Bogeys', playerIds: [roster4[2].id, roster4[3].id] }],
+        rounds: [], status: 'active',
+      });
+      saveTournament(event('vis-ev-in', 'Old Trip — with Jym', [
+        { id: 'te1', name: 'Craig Hoelzer', handicapIndex: 4, ghinNumber: 1234567 },
+        { id: 'te2', name: 'Jym Youngberg', handicapIndex: 12, ghinNumber: 7654321 },
+        { id: 'te3', name: 'Dave Miller', handicapIndex: 8 },
+        { id: 'te4', name: 'Rick Tanaka', handicapIndex: 16 },
+      ]));
+      saveTournament(event('vis-ev-out', 'Old Trip — without Jym', [
+        { id: 'tf1', name: 'Craig Hoelzer', handicapIndex: 4, ghinNumber: 1234567 },
+        { id: 'tf2', name: 'Sam Ortiz', handicapIndex: 10 },
+        { id: 'tf3', name: 'Dave Miller', handicapIndex: 8 },
+        { id: 'tf4', name: 'Rick Tanaka', handicapIndex: 16 },
+      ]));
+      // Now sign in as Jym.
+      saveGhinIdentity({ golfer_id: 7654321, first_name: 'Jym', last_name: 'Youngberg' });
       return { goTo: '/home' };
     },
   },

@@ -114,6 +114,15 @@ export function getRosterPlayerByGhin(ghinNumber: number): RosterPlayer | null {
   return null;
 }
 
+// Every roster id carrying this GHIN, across all organizers' rosters (the full cache, not
+// the viewer's slice): group membership is by roster id, and one golfer can sit on several
+// organizers' rosters. Used for game visibility (§5.cb).
+export function getRosterIdsByGhin(ghinNumber: number): string[] {
+  const ids: string[] = [];
+  for (const p of rosterCache.values()) if (p.ghinNumber === ghinNumber) ids.push(p.id);
+  return ids;
+}
+
 export function getRosterPlayerById(id: string): RosterPlayer | null {
   return rosterCache.get(id) ?? null;
 }
