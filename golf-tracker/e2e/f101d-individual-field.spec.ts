@@ -68,7 +68,7 @@ test('F-101 d + §5.cc: a 32-player skins board, open skins with players played,
   await page.goto(`${BASE}/pool/${id}`);
   await page.getByRole('button', { name: /enter scores/i }).first().click();
   await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
-  await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+  await expect(page.getByText(/^Hole \d+$/).first()).toBeVisible();
   await expect(page.getByText('28 more players in other groups — see Standings')).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/f101d-card-32.png', fullPage: true });
 });

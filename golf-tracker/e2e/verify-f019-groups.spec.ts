@@ -199,7 +199,7 @@ test.describe('F-019: the scorecard agrees with the leaderboard across groups', 
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: /enter scores/i }).first().click();
     await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
-    await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+    await expect(page.getByText(/^Hole \d+$/).first()).toBeVisible();
 
     const cardBody = await page.locator('body').innerText();
     // The card names all four sides (it reads them from the engine).

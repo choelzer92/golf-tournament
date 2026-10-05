@@ -349,7 +349,7 @@ test.describe('manual bonuses on the scorecard', () => {
     await seed(page, 'Manual bonuses');
     await page.getByRole('button', { name: /enter scores/i }).first().click();
     await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
-    await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+    await expect(page.getByText(/^Hole \d+$/).first()).toBeVisible();
 
     // A toggle exists for EVERY player on the hole, not just the logged-in one.
     const sandies = page.getByRole('button', { name: /Sandie/ });

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { type PoolGame, DEFAULT_MATCH_CONFIG, isPoolGameFullyScored } from '@/lib/pool-game';
+import { type PoolGame, DEFAULT_MATCH_CONFIG, isPoolGameFullyScored, poolGameHasAnyScore } from '@/lib/pool-game';
 import { incompleteLegsForCloseOut, persistedSides, sidesOfGame, type IncompleteLeg } from '@/lib/game-modes/sides';
 import { MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
 import { type GameScore } from '@/lib/game-state';
@@ -245,6 +245,10 @@ export function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: Poo
   }, [game]);
 
   const isDone = game.status === 'completed';
+
+  // B9: nothing to close out until a score exists (and nothing to say while still
+  // checking). A closed game always shows, so Reopen is never lost.
+  if (!isDone && (scoresByMatchup === null || !poolGameHasAnyScore(game, scoresByMatchup))) return null;
 
   function closeOut(voidedLegs?: ('front' | 'back' | 'overall')[]) {
     // Only WRITE the field when something is voided, so an ordinary game's saved shape is

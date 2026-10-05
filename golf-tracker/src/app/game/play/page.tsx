@@ -1910,13 +1910,16 @@ export default function PlayGamePage() {
           })}
         </div>
 
-        {/* Finish Game */}
-        <button
-          onClick={finishGame}
-          className="mt-6 w-full rounded-md bg-green-900 px-4 py-3 text-white font-bold hover:bg-green-950"
-        >
-          Finish Game
-        </button>
+        {/* Finish Game — B9: hidden until this card has a score, so a fresh card doesn't
+            open on a button that locks it. */}
+        {scores.some((s) => s.grossScore != null) && (
+          <button
+            onClick={finishGame}
+            className="mt-6 w-full rounded-md bg-green-900 px-4 py-3 text-white font-bold hover:bg-green-950"
+          >
+            Finish Game
+          </button>
+        )}
       </main>
     </div>
   );

@@ -2448,6 +2448,17 @@ export function isPoolGameFullyScored(
   return true;
 }
 
+// Has ANY foursome posted ANY gross score? B9: the controls that end a round (hub
+// Close out, the card's Finish Game) stay hidden until there's something to end, so a
+// brand-new game doesn't open on its own exit. Same map shape as above.
+export function poolGameHasAnyScore(
+  game: PoolGame,
+  scoresByMatchup: Map<string, GameScore[]>,
+): boolean {
+  return game.teams.some((t) =>
+    (scoresByMatchup.get(t.matchupId) ?? []).some((s) => s.grossScore != null));
+}
+
 // ---------------------------------------------------------------------------
 // Persistence — mirrors tournament-state.ts (in-memory cache + Supabase).
 // Per-foursome scores reuse the existing game_scores table (keyed by matchupId)
