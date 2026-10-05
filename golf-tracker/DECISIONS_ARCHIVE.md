@@ -2320,3 +2320,26 @@ pain free and intuitive"). The plan is `.claude/plans/roadmap-2026-10.md`. His a
 4. **Match points lose the "+".** Holes-won counts are not a margin, so "+1.5" read like a lead for
    the losing side. The "+" stays on truly signed metrics (Nines, quota vs target). UI_CONVENTIONS §1
    is updated to match.
+
+### 5.ck — Home lists games by group with a live Continue on top; theme is part of branding; hide-holes in the wizard; branch ships (2026-10-05)
+
+Asked one at a time from NEXT_SESSION_PROMPT's "Waiting on Craig".
+
+1. **Home "Your golf": live on top, then by group.** Craig rejected all three offered shapes (open
+   list of 3 recent / Continue card / keep collapsed) with a question: "a person could be a part of
+   multiple groups, so shouldn't they be listed by groups?". Games already carry `sourceGroupId`, and
+   each group dashboard lists its 5 recent games. Re-asked, he picked: any LIVE game gets a Continue
+   card at the very top, whatever its group. Below, each group card shows its own latest game
+   inline (one tap to continue), then an "Other games" list for games made outside any group. The
+   full history stays on each group's page. Replaces the 2026-08-05 collapsed-by-default call. Not
+   built yet; it's a Phase B item (bars #2/#3).
+2. **§7 q4 closed as "not deliberate".** "This is just random. I want to talk through all design
+   decisions in the branding discussion." Dark = live / light = setup is NOT a rule. Theme, colour
+   and every visual-design call wait for the branding session (with name/icon, D2). Don't build a
+   theme direction before it. Whether the half-page-dark and login-background BUGS get fixed sooner
+   was not asked.
+3. **Hide-holes in the wizard: yes.** An unchecked checkbox on the wizard, shown only when each team
+   is its own foursome (never when teams span foursomes, §5.bw). The hub toggle stays.
+4. **Ship the branch.** Craig: push the branch, merge to main, push main (a live deploy), once the
+   full `npm run verify` exits 0. This lifts §5.ab for this branch only; the rule stands for the
+   next one.
