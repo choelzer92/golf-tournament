@@ -64,7 +64,9 @@ block.
 
 | # | Status | Last moved |
 |---|---|---|
-| 1–11 | not yet measured (the dedup audit sets the baseline) | n/a |
+| 4 | §5.cb visibility built + e2e (14cd287); F-104 A closes owner-less creates | 2026-10-05 |
+| 7 | D1, D3, D4 (light), D5 done; the icon/name and theme wait on branding / §7 q4 | 2026-10-05 |
+| others | not yet measured | n/a |
 
 ## 5. The one-time backlog comb
 

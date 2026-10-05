@@ -170,3 +170,10 @@ export async function buildTeams(page: Page, method: 'even' | 'deal' | 'list' = 
 export async function chooseMoney(page: Page, model: string) {
   await page.locator(`input[name="money-model"][value="${model}"]`).check();
 }
+
+/** F-104 (§5.ch): only a GHIN-login user creates a game. Sign this tab in as the sandbox
+ *  organizer (session only, so a test's localStorage checks are untouched) before Create. */
+export async function signInOrganizer(page: Page) {
+  await page.evaluate(() => sessionStorage.setItem('ghin_golfer',
+    JSON.stringify({ golfer_id: 1234567, first_name: 'Craig', last_name: 'Hoelzer' })));
+}

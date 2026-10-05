@@ -6,7 +6,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
   BASE, PHONE, EIGHT_PLAYERS, FOUR_PLAYERS, TWO_PLAYERS, resetBackend,
-  addPlayers, toScoringStep, chooseSolo, chooseMoney, buildTeams,
+  addPlayers, toScoringStep, chooseSolo, chooseMoney, buildTeams, signInOrganizer,
 } from './helpers';
 
 let shot = 0;
@@ -43,6 +43,7 @@ async function courseTees(page: Page, flow: string) {
 }
 
 async function createAndHub(page: Page, flow: string) {
+  await signInOrganizer(page);
   await page.getByRole('button', { name: 'Create Game' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await page.waitForLoadState('networkidle');

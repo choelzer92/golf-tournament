@@ -8,7 +8,7 @@
 
 import { test } from '@playwright/test';
 
-import { BASE, chooseStructure, chooseSolo, manualAddButton } from './helpers';
+import { BASE, chooseStructure, chooseSolo, manualAddButton, signInOrganizer } from './helpers';
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -106,6 +106,7 @@ test('walk 1: cold start — home, empty, then the wizard with NO group', async 
     if (/review|create/i.test(label)) break;
   }
 
+  await signInOrganizer(page);
   const create = page.getByRole('button', { name: /Create Game/ });
   if (await create.count()) {
     await create.click();

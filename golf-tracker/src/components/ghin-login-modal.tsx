@@ -6,10 +6,13 @@ import { saveGhinIdentity } from '@/lib/pool-identity';
 // Shown when a GHIN call fails because the 12-hour token expired. Lets the user
 // re-login in place (stores a fresh token + their GHIN identity), then fires
 // onDone so the caller can retry. Rendered only while `open` is true.
-export function GhinLoginModal({ open, onDoneAction, onCloseAction }: {
+export function GhinLoginModal({ open, onDoneAction, onCloseAction, title, message }: {
   open: boolean;
   onDoneAction: () => void;
   onCloseAction: () => void;
+  // Default copy is the expired-token case; a caller asking for a first login passes its own.
+  title?: string;
+  message?: string;
 }) {
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
@@ -48,10 +51,10 @@ export function GhinLoginModal({ open, onDoneAction, onCloseAction }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onCloseAction}>
       <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-lg font-bold text-gray-900">GHIN login expired</h2>
+          <h2 className="text-lg font-bold text-gray-900">{title ?? 'GHIN login expired'}</h2>
           <button onClick={onCloseAction} className="text-gray-400 hover:text-gray-700 text-xl leading-none">&times;</button>
         </div>
-        <p className="text-xs text-gray-500 mb-3">Your GHIN session timed out (they last ~12 hours). Log in again to continue.</p>
+        <p className="text-xs text-gray-500 mb-3">{message ?? 'Your GHIN session timed out (they last ~12 hours). Log in again to continue.'}</p>
         <form onSubmit={submit} className="space-y-2">
           <input
             type="text" value={user} onChange={(e) => setUser(e.target.value)}

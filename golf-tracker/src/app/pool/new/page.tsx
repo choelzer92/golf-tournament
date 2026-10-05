@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Player, CourseSelection } from '@/lib/game-state';
 import { PoolShareButton } from '@/components/pool-share';
+import { GhinLoginModal } from '@/components/ghin-login-modal';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import {
   type PoolGame,
@@ -107,6 +108,9 @@ export default function NewPoolGamePage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>('field');
   const [hydrated, setHydrated] = useState(false);
+  // F-104 (§5.ch): only a GHIN-login user organizes. Create asks a share-link visitor to log
+  // in first, so the game saves with an owner and shows up in their games.
+  const [createLogin, setCreateLogin] = useState(false);
 
   // Details
   const [name, setName] = useState('');
@@ -604,6 +608,7 @@ export default function NewPoolGamePage() {
   }
 
   function createPoolGame() {
+    if (getCreatorGhin() === null) { setCreateLogin(true); return; }
     const id = crypto.randomUUID();
     // Effective dollar split: manual override if set, else the standard for this
     // team count. Stored as pot fractions (compute engine multiplies by the pot).
@@ -1048,6 +1053,13 @@ export default function NewPoolGamePage() {
           />
         )}
       </main>
+      <GhinLoginModal
+        open={createLogin}
+        title="Log in to create the game"
+        message="Games are saved to the organizer's GHIN login, so you and your players can find this one again."
+        onDoneAction={() => { setCreateLogin(false); createPoolGame(); }}
+        onCloseAction={() => setCreateLogin(false)}
+      />
     </div>
   );
 }

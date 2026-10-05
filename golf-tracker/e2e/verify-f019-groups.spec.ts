@@ -5,7 +5,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed, goToGame, toScoringStep, buildTeams, manualAddButton } from './helpers';
+import { BASE, resetBackend, seed, goToGame, toScoringStep, buildTeams, manualAddButton, signInOrganizer } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -404,6 +404,7 @@ test.describe('F-019: the wizard builds real playing groups', () => {
     // On to money, then create — and the saved game must hold TWO teams with those tee times.
     await expect(page.getByRole('button', { name: /Next: Review/ })).toBeVisible();
     await page.getByRole('button', { name: /Next: Review/ }).click();
+    await signInOrganizer(page);
     await page.getByRole('button', { name: /Create Game/i }).click();
     await page.waitForURL(/\/pool\/[^/]+$/, { timeout: 15_000 });
 

@@ -6,7 +6,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { BASE, PHONE, addPlayers, EIGHT_PLAYERS, manualAddButton } from './helpers';
+import { BASE, PHONE, addPlayers, EIGHT_PLAYERS, manualAddButton, signInOrganizer } from './helpers';
 
 test.beforeEach(async ({ context, page }) => {
   await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
@@ -116,6 +116,7 @@ test.describe('F-045: bonuses are OFF on a fresh classic pool', () => {
 
   test('F-045: a created junk-off game folds the pot on its own page', async ({ page }) => {
     await walkToClassicMoneyStep(page);
+    await signInOrganizer(page);
     await page.getByRole('button', { name: 'Create Game' }).click();
     // Creating opens the new game's page (client-side navigation — assert the
     // URL rather than waiting for a load event). MUST be this game.

@@ -1428,7 +1428,7 @@ These are what the sweep found around the edges. Each is Craig's call or deliber
 
   Check first how the game row is merged on save (last write wins vs a per-field merge).
 
-### F-104 — A share-link visitor (no GHIN login) can create a game, and it saves with no owner (2026-10-01)  [P3] [start]
+### F-104 — A share-link visitor (no GHIN login) can create a game, and it saves with no owner (2026-10-01)  [P3] [start] — **FIXED 2026-10-05 (opt A):** Create opens a GHIN login first
 
 **Seen:** the GHIN dependency sweep, in code, not on screen. A `?key=` link grants `pool` access
 (`invite-gate.ts:52`), which allows `/pool*`, including `/pool/new`. A game made there gets

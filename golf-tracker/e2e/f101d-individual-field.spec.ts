@@ -6,7 +6,7 @@
 // - Each group's card says the rest of the field is on Standings.
 
 import { expect, test } from '@playwright/test';
-import { BASE, EIGHT_PLAYERS, PHONE, chooseSolo, fieldToGameStep, resetBackend, seed, toScoringStep } from './helpers';
+import { BASE, EIGHT_PLAYERS, PHONE, chooseSolo, fieldToGameStep, resetBackend, seed, toScoringStep, signInOrganizer } from './helpers';
 
 test.beforeEach(async ({ context, page }) => { await resetBackend(context, page); });
 
@@ -36,6 +36,7 @@ test('F-101 d: eight players play skins as individuals, on two tee groups', asyn
   await expect(page.getByText('Who’s playing together?').or(page.getByText("Who's playing together?"))).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/f101d-wizard-groups.png', fullPage: true });
   await page.getByRole('button', { name: /Next: Review & Create/ }).click();
+  await signInOrganizer(page);
   await page.getByRole('button', { name: 'Create Game' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await page.waitForLoadState('networkidle');

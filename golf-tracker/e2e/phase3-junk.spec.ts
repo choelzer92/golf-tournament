@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { BASE, resetBackend, seed, seedCard, goToGame, addPlayers, toScoringStep, buildTeams, FOUR_PLAYERS } from './helpers';
+import { BASE, resetBackend, seed, seedCard, goToGame, addPlayers, toScoringStep, buildTeams, FOUR_PLAYERS, signInOrganizer } from './helpers';
 
 // Phase 3 step 1 (§5.bq): junk is counted in POINTS on every engine and paid per point or as a
 // junk pot. The money math is pinned in src/test/phase3-junk-vocabulary.test.ts; these pins cover
@@ -71,6 +71,7 @@ test('step 2: two pairs with closest-to-pin — routed to the team engine, hub s
   await expect(page.locator('input[name="money-model"][value="per-hole"]')).toBeEnabled();
   expect(await page.locator('body').innerText()).not.toContain('Not built yet');
   await page.screenshot({ path: 'e2e/screenshots/phase3-pairs-ctp-money.png', fullPage: true });
+  await signInOrganizer(page);
   await page.getByRole('button', { name: 'Create Game' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await expect(page.getByRole('heading', { name: "How it's played" })).toBeVisible();

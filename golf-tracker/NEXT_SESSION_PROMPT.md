@@ -1,119 +1,83 @@
-# Next session: dedup-audit the 2026-10 roadmap, then polish → §5.cb visibility → first-time ease
+# Next session: land F-104, then Phase B (first-time ease), the event spine, then Phase A
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
-**State (2026-10-01; slice 1 = 7b53913, §5.cc skins = 3f9c591, docs = 15cd551):** branch `gate-speed-2026-09-27` (NOT merged, NOT pushed; §5.ab: never merge or push
-unbidden). The §5.bw session landed on it:
-- the plus-handicap sweep (F-102 a–k, §5.bx) and the F-100 A "+" chip;
-- §5.by Net | Gross on every format, and §5.bz, the e2e gate on a production-mode sandbox build (~5.6 min);
-- F-069 pin, and F-101 a (a30a20b), b (b0a188d), c (b7a7fc9) and d (1f432e8, §5.ca);
-- **Event spine slice 1** (the commit after 1f432e8): pure `lib/tournament-standings.ts`, with
-  `computeStandings` as its 2-team wrapper, and the owner written on new tournaments.
+Read `AGENTS.md`, `DECISIONS.md` (whole) and `BETA.md` first. Grep the archive only for the § you
+touch: §5.cg–§5.cj for this session's calls, §5.bu/§5.ce for the spine.
 
-Read `AGENTS.md` first, then `DECISIONS.md` whole. Grep the archive only for the § you touch
-(§5.ca skins, §5.bw big fields, §5.bu the spine).
+## State (2026-10-05)
 
-## Step 1: ask Craig outright (§5.bo). Don't build a guess.
+Branch `gate-speed-2026-09-27`: NOT merged, NOT pushed (§5.ab: never unbidden). Landed since 2026-10-01:
+- **Phase D quick polish:** D1 font (e4e2420), D4 (0325a4d), D3 (d7f199c), D5 (33af417), D2 starter
+  SVGs removed (aa105b7).
+- **Dedup audit + docs** (0254f26).
+- **A4:** one money formatter (12ac5b8).
+- **§5.cj:** match points drop the "+" (e81b572).
+- **§5.cb visibility** (14cd287): owner + players (GHIN or roster id) + source-group members.
+  Members see groups read-only; legacy owner-less events are visible to their players only.
+  Plan and "Built" notes: `.claude/plans/visibility-5cb.md`.
 
-0. **Ask Craig to confirm or edit the beta bar in `BETA.md` §1** (a DRAFT from 2026-10-01). After that it
-   filters all work: intake (§2), the session loop (§3), and the backlog comb (§5).
+- **F-104 opt A:** Create Game without a GHIN login opens a login modal first (the commit after
+  14cd287). `e2e/helpers.ts` `signInOrganizer` signs a tab in before Create.
 
-   Include proposed bar #11, multi-day events (§5.cf).
+On a low-memory day, run gates with `PW_WORKERS=1`. A reaped gate isn't a failure: don't restart it
+unasked.
 
-0b. **THEN the DEDUP AUDIT + the backlog comb (BETA.md §5) of `.claude/plans/roadmap-2026-10.md` (§5.cd).** Craig answered the
-   roadmap's calls, but wants every item confirmed as real remaining work before anything is built.
-   Follow the plan's "Dedup audit" section: give each item a verdict (DONE / PARTLY / OPEN / DECIDED
-   AGAINST) with evidence, fill in the table, re-rank, and show Craig. Use Explore agents per phase to
-   save context. Then build in his order: Phase D quick polish, then §5.cb visibility, then Phase B,
-   then Phase A. Also map the no-GHIN organizer's GHIN dependencies into options (don't build that).
+## Step 1: Craig's ask. Go through "Waiting on Craig" (below) ONE question at a time
 
-1. **F-103 a is DONE (§5.cc).** The skins board shows Leading, "N of M played" per open hole, and the pot's $ "if it ended now".
-2. **Visibility is DECIDED (§5.cb):** a pool or tournament is visible to its owner, every player in it
-   (by GHIN), and every member of its source group. Build it in `lib/` (pool-game + tournament-state list
-   functions), then wire `/home`, `/dashboard`, `/home/stats`, `/home/groups/[id]`, `/pool`. It widens
-   the pool's owner-only list, so the e2e pins on that need updating. **APPROVED 2026-10-01 (§5.cd): build it
-   right after the Phase D quick polish.**
-3. **Merge the branch?** It's his call (§5.ab). His phone walk is still wanted (§5.y).
+Use AskUserQuestion, one topic per question. Record each answer in-session: the DECISIONS_ARCHIVE
+entry plus the DECISIONS.md index line. Then continue with the list below.
 
-## Step 2: F-103 b and F-101 e
+## Then, in order (≤3 promoted per BETA.md §3)
 
-- **F-103 b:** the skins card header reads "Stroke Play · Best Net + Best Gross · Full Handicap".
-  Check it at 4 players first; it's probably pre-existing.
-- **F-101 e, scale at 144** (BACKLOG row). Covers:
-  - the linear `scoreAt`;
-  - rendering the board and the card at 144;
-  - the balancer deadline;
-  - palettes wrapping at 6;
-  - tied names wrapping;
-  - the printed card's team tags;
-  - "21th".
-- **Walk every screen you touch** at 32 and 144, and screenshot each one.
-- **F-103 c:** CTP across tee groups (suspected overwrite). Reproduce it with two tabs first.
+1. **Phase B, first-time ease (bars #1–3):**
+   1. B3 Send to players;
+   2. B9 hide close-out;
+   3. B1 Run it back.
 
-## Approved 2026-10-01 (§5.ce): investigate, then plan, then build
+   Details and the rest of the ranking (B4b/c, B7, B2, B5, B6, B8; B4a re-walk only) are in
+   `.claude/plans/roadmap-2026-10.md` "Re-ranked".
+2. **Event spine S2 (bar #11, a multi-day trip).** Tournament rounds go through `game-modes/`,
+   goldens first. Investigate, then write the plan into the roadmap (Phase E), then build. Before
+   S3/S4, settle the open question **Series vs S4** with Craig, after S2's investigation.
+3. **F-037 opt B (the only open P1, bar #9).** Two separate 2v2s at 8 players: a within-tee-group
+   setting. Write the goldens-first plan and **show Craig before building** (§5.ci).
 
-Do these after the dedup audit. Each gets an investigation, then a build plan written into the roadmap,
-then the build. BACKLOG has the details.
-- **Event spine S2:** tournament rounds through `game-modes/`, goldens first. Roadmap Phase E.
-- **F-063 C:** per-cell score rows plus an outbox. Roadmap Phase C. Show Craig the live migration
-  before it runs.
-- **Stroke vs match play handicap investigation:** report only. No math change without Craig.
+## After those
+- **Phase A remainder:**
+  - F-103 b.
+  - F-103 c, CTP across tee groups: last-write-wins risk in `setCtpWinner` (`play:2144`). Reproduce
+    with two tabs, then Craig picks B or C. Wrong money, bar #6.
+  - A5 doc hygiene: archive fixed findings, mark F-089/F-090/F-030/F-015 done, F-090 superseded by
+    e07ad10.
+- **F-063 C (bar #5):** per-cell score rows plus an outbox, roadmap Phase C. Show Craig the live
+  migration before it runs.
+- **Stroke vs match play handicap check (bar #6):** report only, no math change without Craig.
+- **JSON export (bar #8):** partial today (a CLI script plus a tournament button).
+- **D6 copy diet:** not started.
+- **End of each session:** groom BACKLOG (tag [beta #n] / [after-beta] per the comb), update
+  `BETA.md` §4, run the full `npm run verify` once in the background, and rewrite this file.
 
-## Parked
+## Waiting on Craig (don't guess)
+- **Home "Your golf":** option B, a Continue card on top, or the 3 most recent.
+- **§7 q4 theme direction (D4).** The D5 emoji→icons and the D2 app icon wait on branding too.
+  Craig wants to brainstorm names later, near beta ("GrudgeMatch" floated).
+- **Hide-holes in the wizard.**
+- **Series vs S4** (after S2's investigation).
+- **Merging the branch.** Craig walks it on a phone first (bar #10).
+- **No-GHIN organizer: DEFERRED (§5.ch).** It waits for §5c security; the map is
+  `.claude/plans/no-ghin-organizer.md`.
 
-- The course-data audit (parked by Craig).
-
-## Waiting on Craig
-
-- "Your golf" on Home: Craig leans to the 3 most recent. Option B (a Continue card for a live game,
-  then recent games with Run it back) was offered 2026-10-01 and is unanswered.
-- 2v2 "who plays whom" with 3+ teams: A two games / B a within-tee-group setting (recommended) /
-  C custom pairings / D B plus an overall layer. Offered 2026-10-01, unanswered.
-- Merging the branch (walk first, or merge now).
-- §7 q4.
-- The BACKLOG P3 hide-holes wizard question.
-- The items in Step 1.
-
-## Traps that keep biting
-
-- **Two gate tiers.** Run `npm run verify:quick` per commit:
-  - `VQ_BASE=HEAD` picks only uncommitted changes;
-  - `-- e2e/x.spec.ts` adds specs;
-  - `-- --list` shows the pick;
-  - a change to a shared lib picks 200+ specs, so it runs on the sandbox build.
-
-  `npm run verify` is the full gate, run ONCE before handoff, about 6.5 min on 3 workers.
-- **Never poll a gate.** Background it with `; echo "VERIFY_EXIT=$?" >> log`, end the turn, and read the
-  tail when notified.
-- **Do NOT edit app code while a gate runs.** Markdown is safe.
-- **Before a gate, kill hand-started dev servers.** Port 3000 is Craig's. Kill 3200 or 3201 by PID
-  (`netstat -ano | grep ":3200 .*LISTENING"` → `taskkill //PID <pid> //F //T`), never by `//IM node.exe`.
-- **`SANDBOX_BUILD` must always be defined** (inlined), so the real build dead-code-eliminates the fake.
-  `sandbox-seam.test.ts` and `no-sandbox-in-build.test.ts` guard it.
-- **A corrupted `.next/dev/types`** (tsc errors in generated files) is fixed with `rm -rf .next/dev/types`.
-- **The git root is one level up:** paths in `git add` are relative to golf-tracker/.
-- **Python edits:** write the script to `.claude/tmp_*.py`, run it, delete it. An apostrophe inside a
-  single-quoted TS string breaks the build (TS1005). Write "has not".
-- **Editor diagnostics lag behind edits.** Trust `npx tsc --noEmit`.
-- **Uncapped modes:** `playersMax` can be `Infinity` (team-2v2, skins, Stableford, low total, quota).
-  Use `testFieldMax(mode)` in tests and `playerRangeText` in copy.
-- **Skins across groups (§5.ca):** a hole is open until every tee group posts it. The context carries
-  `teeGroups` (only with 2+ groups) and `closed`.
-- **Side ids** go through `sideIdAt(i)`.
-- **Test cards must differ between players.** Use mod 7 with a per-player term at 144, or skins tie out.
-- **Wizard e2e:**
-  - Click the "Past games (for recent-course" seed card first, or the course step has no Sandbox National.
-  - Find the manual Add button with `manualAddButton`.
-  - The helpers are `addPlayers`, `fieldToGameStep`, `toScoringStep`, `chooseSolo` and `chooseMoney`.
-  - On phones, assert the step with "Step N of M · Name".
-- **Playwright strict mode:** use `exact: true` when one label prefixes another, and `.first()` for
-  repeated text.
-- **Sandbox:**
-  - The owner is always GHIN 1234567.
-  - The big-field seeds are "§5.bv: 32 players, 8 foursomes, 16 pairs" and
-    "F-101 d: Skins, 32 players, 8 foursomes (staggered)".
-- Plans go in the repo's `.claude/plans/`.
-
-## End the session by grooming BACKLOG.md
-
-Mark done, add discovered, promote next (§5.bc).
+## Settled this session (don't re-ask)
+- **§5.cg:** the beta bar is confirmed, with #11 multi-day ON it.
+- **§5.ch:** only GHIN logins organize.
+- **§5.ci:** F-104 opt A; legacy events visible to their players plus the app owner; branding later;
+  F-037 opt B.
+- **§5.cj:**
+  - members see their group's whole ledger;
+  - outside groups, money counts only games played;
+  - groups are read-only to members;
+  - a group's creator is NOT a member;
+  - match points carry no "+".
+- **Known edge (§5.cb notes):** an organizer who didn't play a non-group game they made still sees
+  its money, as before.
