@@ -1444,6 +1444,23 @@ the app owner sees it.
 Not yet reproduced on screen; walk it in the sandbox with a share link first. Tag: [beta #4]. An
 owner-less game breaks "every player finds their games".
 
+### F-105 — The wizard's "Share" sends the ORGANIZER link, not this game (2026-10-05)  [P2] [start]
+
+**Seen:** in code, while answering Craig ("is the share button available throughout the game set up
+process?"). Every wizard step has a header "Share" (`pool/new/page.tsx:715`, `PoolShareButton`). It
+shares `/pool?key=ORGANIZER_TOKEN`, a link to *create your own* games. The game being set up doesn't
+exist until Create, so there's nothing of it to share yet. A first-timer who taps Share mid-setup to
+invite their foursome sends friends a create-games link instead. After Create, the hub's Share opens
+the right sheet (the player scoring link first).
+
+**Part of the "when does sharing happen" design question** (B3, parked for the branding/design
+discussion, 2026-10-05). Options:
+- (A) Remove Share from the wizard. Sharing happens on the game, after Create.
+- (B) Relabel it "Invite a co-organizer", so it says what it sends.
+- (C) Make Create the share moment: "Create & send to players" opens the player link sheet (B3).
+
+A and C combine. Tag: [beta #1]. Craig's call.
+
 
 ---
 
