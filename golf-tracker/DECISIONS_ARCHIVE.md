@@ -2304,3 +2304,19 @@ pain free and intuitive"). The plan is `.claude/plans/roadmap-2026-10.md`. His a
    pair plays the other pair in its own foursome (the classic Saturday). It closes the only open P1
    (bar #9). This changes how team results pair up, so it goes goldens-first (§5.z); the build plan is
    shown before the build.
+
+---
+
+### 5.cj — §5.cb details: group money for members, member groups read-only, creator isn't a member, no "+" on match points (2026-10-01)
+
+1. **Money lens.** A group member sees the whole group's ledger: everyone's money in that group's
+   games, per §5h. Outside groups, a viewer counts only the games they played in. So the stats
+   Overall/game lens is limited to group games (for members) plus games played. It is not
+   "everything visible".
+2. **Members see their groups, read-only.** They see them in the /home groups list, the stats group
+   picker and the group dashboard. Only the creator renames, deletes or edits members.
+3. **Creating a group is NOT membership.** A creator who isn't in `playerIds` sees only the games
+   they own or played in, like anyone else. They still see and manage the group itself.
+4. **Match points lose the "+".** Holes-won counts are not a margin, so "+1.5" read like a lead for
+   the losing side. The "+" stays on truly signed metrics (Nines, quota vs target). UI_CONVENTIONS §1
+   is updated to match.

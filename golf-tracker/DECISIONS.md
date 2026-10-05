@@ -197,6 +197,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.cg | 2026-10-01: BETA.md bar CONFIRMED as written and binding (work moves a bar item or waits); multi-day events ARE bar #11, so Series vs S4 is on the beta path (still asked after S2's investigation) |
 | 5.ch | 2026-10-01: only GHIN-login users ORGANIZE for now (handicap refresh needs a GHIN token anyway); non-GHIN players keep scoring and seeing the leaderboard; the no-GHIN organizer moves to §5c security, [deferred]; GHIN stays the identity key for §5.cb |
 | 5.ci | 2026-10-01 (after the dedup audit): F-104 opt A (Create requires a GHIN login); legacy owner-less tournaments visible to their players + the app owner (replaces §5.bu's everyone); brand/name waits for a pre-beta-end branding session (GrudgeMatch floated), so D2 waits; F-037 / 2v2 pairings opt B within-tee-group (goldens-first, plan shown first) |
+| 5.cj | 2026-10-01: §5.cb details: members see the group's whole ledger (§5h), non-group money only for games played; members see their groups read-only; a group's creator is NOT a member for visibility; match points drop the "+" (UI_CONVENTIONS updated) |
 
 ---
 

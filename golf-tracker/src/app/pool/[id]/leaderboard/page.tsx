@@ -890,13 +890,15 @@ function IndividualLeaderboard({ id }: { id: string }) {
   // players. computePoolPlayerDetails returns one entry per group, in group order.
   const players = teamDetails.flatMap((td) => td.players);
 
-  // Signed points (9s/quota, match pts) read better with a leading +. But a
-  // stroke-total metric is a raw net/gross (e.g. 72) that must NOT be +-prefixed.
+  // Signed points (9s/quota) read better with a leading +. But a stroke-total metric is a raw
+  // net/gross (e.g. 72), and match points are a count of holes won (§5.cj: "+1.5" read like a
+  // lead for the losing side), so neither is +-prefixed.
   const isStrokeMetric = result?.metricLabel === 'net' || result?.metricLabel === 'gross';
+  const isHolesWon = result?.metricLabel === 'match pts';
   const fmtMetric = (n: number) => {
     const r = Math.round(n * 10) / 10;
     const s = r % 1 === 0 ? String(r) : r.toFixed(1);
-    return isStrokeMetric ? s : (r > 0 ? '+' : '') + s;
+    return isStrokeMetric || isHolesWon ? s : (r > 0 ? '+' : '') + s;
   };
   // Holes this game actually plays — the denominator for segment progress.
   const holesInPlay = getGameHoles(game).length || 18;

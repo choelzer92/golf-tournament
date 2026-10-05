@@ -105,9 +105,13 @@ const money = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}$${Math.round(M
 - Tone: `text-green-400` positive · `text-red-400` negative · `text-gray-500`
   zero. Zero is **grey, not green** — flat is not winning.
 
-**Metrics are not money.** Signed point metrics (9s, quota, match points) get a
-leading `+`; a raw stroke total (net/gross 72) must never be `+`-prefixed. See
-`isStrokeMetric` in the leaderboard.
+**Metrics are not money.** Signed point metrics (9s, quota) get a leading `+`.
+Two kinds are never `+`-prefixed:
+- a raw stroke total (net/gross 72);
+- match points, which are a count of holes won, not a margin. "+1.5" read like a lead for the
+  losing side (§5.cj).
+
+See `fmtMetric` in the leaderboard.
 
 **Handicaps:** display rounded whole strokes (`Math.round(playingHcap)`), but
 never round mid-calculation — round at the end, once. USGA allowance and
