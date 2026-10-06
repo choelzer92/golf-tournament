@@ -202,7 +202,11 @@ export function GuestSettleUp({ game }: { game: PoolGame }) {
 // auto-completes when the LAST foursome finishes, but that only fires if someone
 // taps it on the final card — the organizer needs a way to close the game out
 // regardless (and to reopen it if a score needs fixing).
-export function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: PoolGame) => void }) {
+export function GameCloseOut({ game, onSave, onRunItBack }: {
+  game: PoolGame; onSave: (g: PoolGame) => void;
+  /** B1 (§5.cm): start the next one from this game — offered once it's closed out. */
+  onRunItBack?: () => void;
+}) {
   const [fullyScored, setFullyScored] = useState<boolean | null>(null);
   // F-032: the fetched scores, kept so the who-pays-whom recap can settle this game.
   const [scoresByMatchup, setScoresByMatchup] = useState<Map<string, GameScore[]> | null>(null);
@@ -371,6 +375,20 @@ export function GameCloseOut({ game, onSave }: { game: PoolGame; onSave: (g: Poo
           >
             {isDone ? 'Reopen game' : 'Close out game'}
           </button>
+        </div>
+      )}
+
+      {/* B1 (§5.cm): the round's over — the next one starts here, same format, last time's
+          field and course pre-filled to keep or change. */}
+      {isDone && onRunItBack && asking === null && (
+        <div className="px-4 pb-4">
+          <button
+            onClick={onRunItBack}
+            className="w-full text-sm font-semibold rounded-md px-4 py-2.5 bg-green-700 text-white hover:bg-green-800"
+          >
+            Run it back
+          </button>
+          <p className="mt-1 text-xs text-gray-500 text-center">Same game again — change the players or course on the way.</p>
         </div>
       )}
     </section>

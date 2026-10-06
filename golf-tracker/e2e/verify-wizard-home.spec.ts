@@ -31,7 +31,7 @@ test.describe('group picker on wizard step 1 (§5.au: step 1 is the FIELD)', () 
 
     // The wizard OPENS on the field, groups first.
     await expect(page.getByText("Who's playing?")).toBeVisible();
-    const warriors = page.getByRole('button', { name: /Weekend Warriors/ }).first();
+    const warriors = page.getByRole('button', { name: /^Weekend Warriors\d+$/ }).first();
     await expect(warriors).toBeVisible();
 
     await warriors.click();
@@ -69,7 +69,7 @@ test.describe('group picker on wizard step 1 (§5.au: step 1 is the FIELD)', () 
 
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await page.getByRole('button', { name: /Tuesday Crew/ }).first().click();
+    await page.getByRole('button', { name: /^Tuesday Crew\d+$/ }).first().click();
     await expect(page.getByText(/Loaded “Tuesday Crew” — 8 players pre-selected/)).toBeVisible();
     await expect(page.getByText('8 selected')).toBeVisible();
   });

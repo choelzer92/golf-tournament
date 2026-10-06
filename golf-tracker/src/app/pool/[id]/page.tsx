@@ -21,6 +21,7 @@ import { SaveFormatModal, SharePanel } from './panels/share-panel';
 import { GameSettingsEditor, CtpEditor } from './panels/settings-editor';
 import { MoneySummary, GuestSettleUp, GameCloseOut } from './panels/money-panels';
 import { EditFoursomes, OversizedGroupPrompt, WolfRotationEditor } from './panels/field-editor';
+import { RERUN_SEED_KEY } from '@/lib/group-seed';
 
 // Pick a tee for a player, STRICTLY within their gender — mirrors the wizard
 // (src/app/pool/new/page.tsx). A course's men's and women's tees can share a
@@ -536,7 +537,16 @@ export default function PoolHubPage() {
             <CtpEditor game={game} onSave={persist} />
 
             {/* Close out / reopen — the explicit lifecycle control. */}
-            <GameCloseOut game={game} onSave={persist} />
+            <GameCloseOut
+              game={game}
+              onSave={persist}
+              onRunItBack={() => {
+                // A stale wizard draft must not mix into the rerun.
+                sessionStorage.removeItem('pool_wizard_draft');
+                sessionStorage.setItem(RERUN_SEED_KEY, game.id);
+                router.push('/pool/new');
+              }}
+            />
           </>
         )}
       </main>

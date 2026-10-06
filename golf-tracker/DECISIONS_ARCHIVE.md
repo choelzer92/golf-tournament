@@ -2358,3 +2358,24 @@ exist until Create (F-105). He then took the recommendation:
 - **On the hub, "Send to players" is the main (filled) button until any score exists.** Leaderboard
   goes secondary until then. Organizer only, since a guest on a scoring link already holds it.
 - The co-organizer (organizer) link stays inside the share sheet, as its secondary section.
+
+### 5.cm — Run it back copies the FORMAT; players and course are pre-filled but expected to change (B1, 2026-10-05)
+
+Asked where Run it back lives, what happens to teams, and which handicaps a rerun uses. Craig:
+
+- **Handicaps: today's GHIN index** (the field step's existing >24h refresh), never last game's snapshot.
+- **"Every former format should be easily reconfigured with new players chosen if required."**
+  Run it back can mean players + format, but "repeating a game format with different players
+  should be very easy."
+- **What gets copied, by how likely it is to change:** "the game format should be the most copied
+  aspect. players and course most likely to change, tees not as likely but still could change."
+  So the rerun locks in the format (mode, scoring, money, bonuses, handicap settings) and walks the
+  players and course steps with last time's choices pre-filled, one tap to keep and easy to change,
+  rather than jumping straight to Review. Tees carry over per player when the course is the same.
+- **Placement: both.** A "Run it back" button on a finished game's hub (organizer only; on the
+  Home group cards once Home-by-group is built, §5.ck), AND a "Start from…" list at the top of
+  New Game showing recent games next to saved formats, with "Start fresh". One mechanism behind
+  both.
+- **Teams: the same field keeps its teams.** If the players are unchanged, last time's pairings
+  come back, shown with today's combined handicaps and a Rebalance. If any player changed, the
+  teams are rebuilt with the usual methods (even / captains' deal / list).

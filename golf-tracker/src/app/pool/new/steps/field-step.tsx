@@ -72,8 +72,18 @@ export function FieldStep({
   useEffect(() => {
     // Scope the roster to this organizer (owner sees all; others see the shared
     // base roster plus their own saved players).
+    // B1 (§5.cm): a field that arrived pre-filled (Run it back) plays off TODAY's index — the
+    // roster's, once it loads and again after the GHIN refresh — never last game's snapshot.
+    const syncFieldToRoster = () => {
+      const roster = getRoster();
+      setPlayers((prev) => prev.map((p) => {
+        const rp = roster.find((r) => r.ghinNumber != null && r.ghinNumber === p.ghinNumber);
+        return rp && rp.handicapIndex != null && rp.handicapIndex !== p.handicapIndex ? { ...p, handicapIndex: rp.handicapIndex } : p;
+      }));
+    };
     hydrateRoster({ viewerGhin: getCreatorGhin(), isOwner: isAppOwner() }).then(async () => {
       setRosterResults(searchRoster(''));
+      syncFieldToRoster();
       // Groups share the same viewer scope. Best-effort — fails soft to empty.
       hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: isAppOwner() })
         .then(() => {
@@ -115,6 +125,7 @@ export function FieldStep({
       try {
         const changed = await refreshRosterHandicaps(token);
         setRosterResults(searchRoster(rosterQuery));
+        syncFieldToRoster();
         setRefreshNote(changed > 0 ? `Updated ${changed} handicap${changed === 1 ? '' : 's'} from GHIN.` : 'Handicaps up to date.');
       } catch {
         setRefreshNote('Could not refresh from GHIN — using saved handicaps.');

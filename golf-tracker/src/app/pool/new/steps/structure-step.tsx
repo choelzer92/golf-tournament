@@ -29,7 +29,7 @@ export function StructureStep({
   playerCount,
   structure, setStructure,
   sourceGroupId,
-  appliedFormat, formatDirty, onFormatEdited, summaryLine,
+  appliedFormat, appliedFromGame, formatDirty, onFormatEdited, summaryLine,
   onFormatChosen, onFormatCleared,
   onNext, onBack,
 }: {
@@ -40,6 +40,9 @@ export function StructureStep({
   setStructure: (shape: StructureShape) => void;
   sourceGroupId: string | undefined;
   appliedFormat: string | undefined;
+  /** B1 (§5.cm): the style came from a past game (Run it back), not a saved format — editing it
+      is the expected move, so the save-a-copy nudges stay quiet. */
+  appliedFromGame?: boolean;
   formatDirty: boolean;
   onFormatEdited: () => void;
   /** The F-021 one-line summary of the applied format (game · stakes · handicaps). */
@@ -175,7 +178,7 @@ export function StructureStep({
             rename it and it's a new style, the original untouched. */}
         {appliedFormat && (
           <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-            <p className="text-xs font-medium text-green-800">Your saved game style</p>
+            <p className="text-xs font-medium text-green-800">{appliedFromGame ? 'Same game as last time' : 'Your saved game style'}</p>
             <input
               type="text"
               value={name}
@@ -184,10 +187,10 @@ export function StructureStep({
               className="mt-0.5 w-full bg-transparent text-base font-semibold text-gray-900 border-0 border-b border-transparent px-0 py-0 focus:border-green-500 focus:outline-none focus:ring-0"
             />
             <p className="mt-1 text-xs text-gray-700">{summaryLine}</p>
-            {formatDirty && appliedFormat !== name.trim() && (
+            {!appliedFromGame && formatDirty && appliedFormat !== name.trim() && (
               <p className="mt-1 text-xs text-gray-500">↳ based on {appliedFormat}</p>
             )}
-            {formatDirty && appliedFormat === name.trim() && (
+            {!appliedFromGame && formatDirty && appliedFormat === name.trim() && (
               <p className="mt-1 text-xs text-amber-700">
                 Changed from your saved {appliedFormat} — rename it above to keep both.
               </p>

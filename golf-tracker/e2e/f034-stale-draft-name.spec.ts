@@ -25,7 +25,7 @@ test('F-034: a name auto-filled by one group is replaced by the next group — a
   // Round 1: start a game from Weekend Warriors, which auto-names the draft.
   await page.goto(`${BASE}/pool/new`);
   await expect(page.getByText("Who's playing?")).toBeVisible();
-  await page.getByRole('button', { name: /Weekend Warriors/ }).first().click();
+  await page.getByRole('button', { name: /^Weekend Warriors\d+$/ }).first().click();
   await expect(page.getByText(/Loaded “Weekend Warriors”/)).toBeVisible();
 
   // Abandon it: reopen the wizard in the same tab. The draft restores the name.
@@ -33,7 +33,7 @@ test('F-034: a name auto-filled by one group is replaced by the next group — a
   await expect(page.getByText("Who's playing?")).toBeVisible();
 
   // Round 2: pick a DIFFERENT group. The stale auto-fill must give way.
-  await page.getByRole('button', { name: /Tuesday Crew/ }).first().click();
+  await page.getByRole('button', { name: /^Tuesday Crew\d+$/ }).first().click();
   await expect(page.getByText(/Loaded “Tuesday Crew”/)).toBeVisible();
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await expect(page.getByText('How do you want to compete?')).toBeVisible();
@@ -45,7 +45,7 @@ test('F-034: a hand-typed name survives switching groups', async ({ context, pag
 
   await page.goto(`${BASE}/pool/new`);
   await expect(page.getByText("Who's playing?")).toBeVisible();
-  await page.getByRole('button', { name: /Weekend Warriors/ }).first().click();
+  await page.getByRole('button', { name: /^Weekend Warriors\d+$/ }).first().click();
   await expect(page.getByText(/Loaded “Weekend Warriors”/)).toBeVisible();
   await page.getByRole('button', { name: /Craig Hoelzer/ }).click();
   await page.getByRole('button', { name: /Jym Youngberg/ }).click();
@@ -58,7 +58,7 @@ test('F-034: a hand-typed name survives switching groups', async ({ context, pag
 
   await page.getByRole('button', { name: '← Back' }).click();
   await expect(page.getByText("Who's playing?")).toBeVisible();
-  await page.getByRole('button', { name: /Tuesday Crew/ }).first().click();
+  await page.getByRole('button', { name: /^Tuesday Crew\d+$/ }).first().click();
   await expect(page.getByText(/Loaded “Tuesday Crew”/)).toBeVisible();
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await expect(page.getByPlaceholder('e.g. Saturday Pool')).toHaveValue("Craig's Grudge Match");

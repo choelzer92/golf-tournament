@@ -16,6 +16,7 @@ import {
   foldJunkIntoOverall,
   DEFAULT_MATCH_CONFIG,
   savePoolGame,
+  fetchPoolGame,
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
   type CustomBonus,
@@ -51,7 +52,9 @@ import {
   type GroupDefaults,
   getGroupById,
 } from '@/lib/roster-groups';
-import { saveFormat } from '@/lib/pool-formats';
+import { saveFormat, rerunPlanFromGame, type RerunPlan } from '@/lib/pool-formats';
+import { RERUN_SEED_KEY } from '@/lib/group-seed';
+import { StartFromCard } from './steps/start-from';
 import {
   formatOfGame,
   persistedTeamScoring,
@@ -211,6 +214,11 @@ export default function NewPoolGamePage() {
   // format's own values is edited, which is what turns the title into "rename to fork" (§5.ax).
   const [appliedFormat, setAppliedFormat] = useState<string | undefined>(undefined);
   const [formatDirty, setFormatDirty] = useState(false);
+  // B1 Run it back (§5.cm): the past game this one started from. The format is applied like a
+  // saved one; the field, course and pairings are pre-fills — the teams come back only while the
+  // field is still last time's (any change rebuilds them). A ref: read at step transitions.
+  const rerunRef = useRef<RerunPlan | null>(null);
+  const [appliedFromGame, setAppliedFromGame] = useState(false);
 
   // Teams
   const [teams, setTeams] = useState<PoolTeam[]>([]);
@@ -353,8 +361,11 @@ export default function NewPoolGamePage() {
   // applied, else the §5.bk recommendation — pre-selected, never forced.
   useEffect(() => {
     if (step !== 'structure' || structure || players.length < 2) return;
+    // B1: a rerun's own shape while the count still adds up (3 + 3 + 2 stays 3 + 3 + 2).
+    const rr = rerunRef.current;
+    const fromRerun = rr && rr.shape.teamSizes.reduce((s, k) => s + k, 0) === players.length ? rr.shape : null;
     const fromDefaults = formatShapeRef.current ? structureForDefaults(formatShapeRef.current, players.length) : null;
-    const shape = fromDefaults ?? recommendedStructure(players.length);
+    const shape = fromRerun ?? fromDefaults ?? recommendedStructure(players.length);
     if (shape) pickStructure(shape, 'auto');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, structure, players.length]);
@@ -431,6 +442,14 @@ export default function NewPoolGamePage() {
         if (seed.name && seed.name.trim()) { setName(seed.name); setAppliedFormat(seed.name.trim()); }
         if (seed.defaults) applyGroupDefaults(seed.defaults);
         markFormatSeedApplied(true);
+      }
+    } catch {}
+    // B1 (§5.cm): Run it back from a finished game's hub — consumed once.
+    try {
+      const rerunId = sessionStorage.getItem(RERUN_SEED_KEY);
+      if (rerunId) {
+        sessionStorage.removeItem(RERUN_SEED_KEY);
+        startFromGame(rerunId);
       }
     } catch {}
     setHydrated(true);
@@ -542,6 +561,8 @@ export default function NewPoolGamePage() {
   function chooseFormat(f: RosterGroup) {
     setName(f.name);
     setAppliedFormat(f.name.trim());
+    setAppliedFromGame(false);
+    rerunRef.current = null;
     setFormatDirty(false);
     applyGroupDefaults(f.defaults);
     // applyGroupDefaults leaves gameMode untouched when the format doesn't carry one —
@@ -552,12 +573,52 @@ export default function NewPoolGamePage() {
     markFormatSeedApplied(true);
   }
 
+  // B1 Run it back (§5.cm): start from a past game. The FORMAT applies exactly as a saved one does;
+  // the field, course, tees and pairings are pre-filled for the organizer to keep or change.
+  // Handicaps come from today's roster (the field step re-reads them), never last game's.
+  function applyRerun(plan: RerunPlan) {
+    rerunRef.current = plan;
+    setName(plan.name);
+    setAppliedFormat(plan.name.trim());
+    setAppliedFromGame(true);
+    setFormatDirty(false);
+    applyGroupDefaults(plan.defaults);
+    if (typeof plan.defaults.gameMode !== 'string') setGameMode(undefined);
+    markFormatSeedApplied(true);
+    setPositionSplitText(plan.positionSplitText);
+    setHolesPlaying(plan.holesPlaying);
+    setNineHandicapBasis(plan.nineHandicapBasis);
+    setHideHoles(plan.hideHoles);
+    setCourse(plan.course);
+    setSourceGroupId(plan.sourceGroupId);
+    setLockedGroups(plan.lockedGroups);
+    if (typeof plan.useCaptains === 'boolean') setUseCaptains(plan.useCaptains);
+    if (typeof plan.balanceExcludeCaptains === 'boolean') setBalanceExcludeCaptains(plan.balanceExcludeCaptains);
+    // Today's index where the roster has one already (the field step re-reads it on load and after
+    // its GHIN refresh, whichever lands last).
+    setPlayers(plan.players.map((p) => {
+      const rp = p.ghinNumber != null ? getRosterPlayerByGhin(p.ghinNumber) : undefined;
+      return rp && rp.handicapIndex != null ? { ...p, handicapIndex: rp.handicapIndex } : { ...p };
+    }));
+    // The shape is picked on the structure step (last time's, while the count still fits).
+    setStructure(undefined);
+    setTeams([]);
+    setSideTeams([]);
+    setTeamBuild(undefined);
+  }
+
+  function startFromGame(id: string) {
+    fetchPoolGame(id).then((g) => { if (g) applyRerun(rerunPlanFromGame(g)); }).catch(() => {});
+  }
+
   // §5.av: picking a raw mode after a format means "configure fresh" — drop the summary
   // and its name, back to the ordinary form. (Tweaking a format's VALUES is different:
   // that keeps the summary and invites a rename — §5.ax.)
   function clearAppliedFormat() {
     if (appliedFormat && name.trim() === appliedFormat) setName('');
     setAppliedFormat(undefined);
+    setAppliedFromGame(false);
+    rerunRef.current = null;
     setFormatDirty(false);
     markFormatSeedApplied(false);
   }
@@ -735,6 +796,7 @@ export default function NewPoolGamePage() {
             sourceGroupId={sourceGroupId}
             // F-021: when a saved format was applied, this step confirms rather than re-asks.
             appliedFormat={appliedFormat}
+            appliedFromGame={appliedFromGame}
             formatDirty={formatDirty}
             onFormatEdited={() => setFormatDirty(true)}
             summaryLine={summaryLine}
@@ -773,6 +835,7 @@ export default function NewPoolGamePage() {
             handicapBasis={handicapBasis}
             setHandicapBasis={setHandicapBasis}
             appliedFormat={appliedFormat}
+            appliedFromGame={appliedFromGame}
             formatDirty={formatDirty}
             onFormatEdited={() => setFormatDirty(true)}
             name={name}
@@ -794,6 +857,11 @@ export default function NewPoolGamePage() {
             onNext={() => setStep('tees')}
             onBack={() => setStep('scoring')}
           />
+        )}
+
+        {/* B1 (§5.cm): any recent game is a place to start — before the field. */}
+        {step === 'field' && players.length === 0 && !appliedFormat && (
+          <StartFromCard onGame={startFromGame} />
         )}
 
         {step === 'field' && (
@@ -848,9 +916,25 @@ export default function NewPoolGamePage() {
                 playerIds: players.map((p) => p.id),
                 matchupId: crypto.randomUUID(),
               }];
+              // B1 (§5.cm): a rerun whose field is still last time's gets last time's teams and
+              // tee sheet back (fresh score keys, no tee times); any change in the field rebuilds.
+              const rr = rerunRef.current;
+              const sameIds = (a: string[], b: string[]) => a.length === b.length && a.every((id) => b.includes(id));
+              const rerunKeeps = !!rr && sameIds(rr.players.map((p) => p.id), players.map((p) => p.id));
+              const sameSizes = (a: number[], b: number[]) => a.length === b.length && a.every((k, i) => k === b[i]);
+              const lastGroups = (): PoolTeam[] => rr!.teeGroups.map((g) => ({
+                id: crypto.randomUUID(),
+                name: g.name,
+                playerIds: [...g.playerIds],
+                matchupId: crypto.randomUUID(),
+                teeTime: '',
+                ...(g.captainId ? { captainId: g.captainId } : {}),
+              }));
               // Everyone for themselves past four (F-101 d): a balanced tee sheet, asked on Groups.
               const fieldGroups = () => {
-                setTeams(proposePlayingGroups(players, course, parseAllowance(handicapAllowance), handicapBasis));
+                setTeams(rerunKeeps && rr!.teeGroups.length > 1
+                  ? lastGroups()
+                  : proposePlayingGroups(players, course, parseAllowance(handicapAllowance), handicapBasis));
                 setStep('groups');
               };
               if (isSolo) {
@@ -862,6 +946,12 @@ export default function NewPoolGamePage() {
               }
               if (alignedFlow) {
                 // Every team is its own tee group: the foursome builder makes teams AND tee sheet.
+                if (rerunKeeps && teams.length === 0
+                  && sameSizes(rr!.teeGroups.map((g) => g.playerIds.length), shapeNow.teamSizes)) {
+                  setTeams(lastGroups());
+                  setCaptainIds(rr!.teeGroups.map((g) => g.captainId ?? ''));
+                  setTeamBuild(rr!.teamBuild);
+                }
                 setStep('teams');
                 return;
               }
@@ -875,6 +965,24 @@ export default function NewPoolGamePage() {
                 if (needsPlayingGroups) { fieldGroups(); return; }
                 setTeams(singleGroup());
                 setStep('create');
+                return;
+              }
+              if (rerunKeeps && sideTeams.length === 0 && rr!.sides
+                && sameSizes(rr!.sides.map((s) => s.playerIds.length), structure!.teamSizes)) {
+                // Last time's partners, and the tee sheet they walked (the teams step keeps a tee
+                // sheet whose sides are unchanged).
+                setSideTeams(rr!.sides.map((s) => ({
+                  id: crypto.randomUUID(),
+                  name: s.name ?? '',
+                  playerIds: [...s.playerIds],
+                  matchupId: crypto.randomUUID(),
+                  ...(s.captainId ? { captainId: s.captainId } : {}),
+                })));
+                setSides(rr!.sides);
+                setTeams(lastGroups());
+                sideCaptainsTouched.current = true;
+                setSideCaptainsState(rr!.sides.some((s) => !!s.captainId));
+                setStep('teams');
                 return;
               }
               // Someone left the field since the teams were built: drop them, keep the rest.
