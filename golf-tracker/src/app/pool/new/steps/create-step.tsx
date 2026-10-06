@@ -100,7 +100,7 @@ export function CreateStep({
   entryPerPlayerText, setEntryPerPlayer, positionSplitText, setPositionSplitText,
   junkValues, setJunkValues, customBonuses, setCustomBonuses,
   matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
-  sides, modeSettings, setModeSettings, strokeMethod, onSaveFormat,
+  sides, modeSettings, setModeSettings, strokeMethod, hideHoles, onSaveFormat,
   onCreate, onBack,
 }: {
   name: string;
@@ -148,6 +148,8 @@ export function CreateStep({
   /** Merges the given keys into the mode settings (the sides engine's stakes live there). */
   setModeSettings: (v: SettingsBag) => void;
   strokeMethod: 'full' | 'off-the-low';
+  /** §5.ck: present only when each team is its own foursome. */
+  hideHoles?: { checked: boolean; onChange: (v: boolean) => void };
   onSaveFormat: () => Promise<void>;
   onCreate: () => void; onBack: () => void;
 }) {
@@ -800,6 +802,21 @@ export function CreateStep({
         </div>
         )}
       </div>
+
+      {hideHoles && (
+        <label className="mt-6 flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+            checked={hideHoles.checked}
+            onChange={(e) => hideHoles.onChange(e.target.checked)}
+          />
+          <span>
+            <span className="block text-sm font-medium text-gray-800">Hide holes until all groups finish</span>
+            <span className="block text-xs text-gray-500">The leaderboard reveals a hole only after every foursome has completed it — so a later group can&apos;t see the standings before they play. Scorecards are unaffected.</span>
+          </span>
+        </label>
+      )}
 
       <button
         onClick={onCreate}

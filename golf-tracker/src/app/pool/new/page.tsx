@@ -127,6 +127,9 @@ export default function NewPoolGamePage() {
   const [entryPerPlayer, setEntryPerPlayer] = useState('25');
   const [handicapAllowance, setHandicapAllowance] = useState('100');
   const [strokeMethod, setStrokeMethod] = useState<'full' | 'off-the-low'>('off-the-low');
+  // §5.ck: hide holes until every group finishes — offered only when each team is its own
+  // foursome (alignedFlow); off by default, never when teams span foursomes (§5.bw).
+  const [hideHoles, setHideHoles] = useState(false);
   // Handicap basis: 'course' (off the tee, default) or 'index' (raw handicap index).
   const [handicapBasis, setHandicapBasis] = useState<'course' | 'index'>('course');
   // Pot legs in dollars; null until the Review step auto-fills from team count.
@@ -389,6 +392,7 @@ export default function NewPoolGamePage() {
         if (typeof data.entryPerPlayer === 'string') setEntryPerPlayer(data.entryPerPlayer);
         if (typeof data.handicapAllowance === 'string') setHandicapAllowance(data.handicapAllowance);
         if (data.strokeMethod === 'full' || data.strokeMethod === 'off-the-low') setStrokeMethod(data.strokeMethod);
+        if (typeof data.hideHoles === 'boolean') setHideHoles(data.hideHoles);
         if (data.handicapBasis === 'course' || data.handicapBasis === 'index') setHandicapBasis(data.handicapBasis);
         if (typeof data.balanceExcludeCaptains === 'boolean') setBalanceExcludeCaptains(data.balanceExcludeCaptains);
         if (typeof data.useCaptains === 'boolean') setUseCaptains(data.useCaptains);
@@ -439,11 +443,11 @@ export default function NewPoolGamePage() {
       draftVersion: DRAFT_VERSION, structure, compareBy, moneyModel,
       name, autoNamedFrom, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step, sides,
-      holesPlaying, nineHandicapBasis,
+      holesPlaying, nineHandicapBasis, hideHoles,
     }));
   }, [hydrated, structure, compareBy, moneyModel, name, autoNamedFrom, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step, sides,
-      holesPlaying, nineHandicapBasis]);
+      holesPlaying, nineHandicapBasis, hideHoles]);
 
   // The current format settings, packaged as a group's defaults (for "save field
   // as a group"). Only the format — the member list is saved separately.
@@ -663,7 +667,7 @@ export default function NewPoolGamePage() {
       junkValues,
       customBonuses: customBonuses.length > 0 ? customBonuses : undefined,
       ctpWinners: {},
-      hideHolesUntilAllFinish: undefined,
+      hideHolesUntilAllFinish: alignedFlow && hideHoles ? true : undefined,
       status: 'active',
       // 9-hole support (absent/'18' = full 18, every existing game). nineHandicapBasis
       // only matters when a nine is chosen.
@@ -1046,6 +1050,7 @@ export default function NewPoolGamePage() {
             modeSettings={container === 'sides' ? sidesSettings : modeSettings}
             setModeSettings={(v) => setModeSettings({ ...modeSettings, ...v })}
             strokeMethod={strokeMethod}
+            hideHoles={alignedFlow ? { checked: hideHoles, onChange: setHideHoles } : undefined}
             onSaveFormat={saveCurrentFormat}
             onCreate={createPoolGame}
             onBack={() => setStep(needsPlayingGroups ? 'groups' : isSolo ? 'tees' : 'teams')}
