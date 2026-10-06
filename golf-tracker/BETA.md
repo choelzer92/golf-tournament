@@ -66,6 +66,10 @@ block.
 |---|---|---|
 | 4 | §5.cb visibility built + e2e (14cd287); F-104 A closes owner-less creates | 2026-10-05 |
 | 7 | D1, D3, D4 (light), D5 done; the icon/name and theme wait on branding / §7 q4 | 2026-10-05 |
+| 1 | B3 + F-105: Create is the share moment (745688c); B9: Close out / Finish hidden until a score exists (f7fe1ec); hide-holes in the wizard (477b1f9). The persona walk with tap counts is not done yet | 2026-10-05 |
+| 3 | B1 Run it back built (97fe68e, d99a8db): hub button on a finished game + "Start from a recent game". It's 1 tap plus Next × 6 rather than 2, because Craig chose to walk the steps (§5.cm). Not yet measured by a persona walk | 2026-10-05 |
+| 9 | F-037 is the only open P1; reframed as Team → Match (§5.cn, `.claude/plans/team-match.md`), six questions open, not built | 2026-10-05 |
+| 11 | S2 investigation and plan in `.claude/plans/spine-s2.md`; Series vs S4 still open | 2026-10-05 |
 | others | not yet measured | n/a |
 
 ## 5. The one-time backlog comb

@@ -2386,3 +2386,30 @@ Asked where Run it back lives, what happens to teams, and which handicaps a reru
   fit). Saved formats have the same gap; fixing them is a follow-on, not done here.
 - **Start-from lists recent games only.** Saved formats are not repeated there — the field
   step's "Your groups" row already offers them.
+
+### 5.cn — F-037: the question is matches → teams, not "two 2v2s" (DIRECTION, 2026-10-06; design open)
+
+Asked the opt B plan's questions (`.claude/plans/f037-opt-b.md`); Craig reframed rather than picked:
+- **Entry:** "what does it mean when there are more than 8 players? Wouldn't it be foursomes v
+  foursomes, or matchups? So setting the matchup size decides it? Need to think about this
+  critically." → no "Two 2 v 2 matches" row yet; design the general shape first.
+- **Pot:** the usual case is two matches **between two teams** — the matches' results add up
+  to a team total that settles the pot; players often run their own side games inside a match.
+  (The plan's "each match its own pot" was the wrong model.)
+- **Junk:** in-match, but most of the time the points are **summed by team** for the final tally.
+- **Strokes:** off the low **per match** when there really are separate matches. "This is the
+  crux: how many matches, and how do they contribute to the overall game."
+
+Consequence: the plan's S1 (per-foursome compute, merged) holds; its pot/settlement and
+entry-point slices are rewritten around Team → Match → side games. Not built. Next step is a
+design note answering the crux for 8, 12 and 16 players, shown to Craig before any code.
+- **2026-10-06 follow-up:** Craig asked what a "team" is and whether there can be more than 2.
+  His default for how matches count is **match play / holes won** ("in my mind the same as match
+  points"), and it must be **easily adjustable** to other ways of counting. Open: the
+  holes-won vs match-points distinction (they can disagree, see the chat example), and 3+ teams.
+- **Default = match points** (Craig, 2026-10-06): each match is 1 / ½ / 0 for the team, whatever
+  the margin (Ryder Cup). Holes won (summed margin) and net strokes are the easy-to-pick
+  alternatives. A team = a set of players whose match results roll up to the pot; 3+ teams are
+  allowed where the counts divide into a fair rotation (3 teams of 4 with 2v2 → A v B, B v C,
+  C v A), else the app suggests pairings the organizer can swap. Still open for the design note:
+  what happens when counts don't divide, and how ties in team points settle the pot.
