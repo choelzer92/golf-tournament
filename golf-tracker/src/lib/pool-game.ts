@@ -348,6 +348,14 @@ export function dollarsToPotSplit(d: PoolLegDollars): PoolPotSplit {
   return { front: d.front / total, back: d.back / total, overall: d.overall / total, junk: d.junk / total };
 }
 
+// The inverse, for Run it back (§5.cm): last time's fractions scaled to this pot, to the cent.
+// Rounding residue lands on OVERALL so the legs still total the pot exactly.
+export function carriedSplitDollars(split: PoolPotSplit, pot: number): PoolLegDollars {
+  const c = (f: number) => Math.round(f * pot * 100) / 100;
+  const front = c(split.front), back = c(split.back), junk = c(split.junk);
+  return { front, back, overall: Math.round((pot - front - back - junk) * 100) / 100, junk };
+}
+
 export type PoolLegKey = 'front' | 'back' | 'overall' | 'junk';
 
 export interface PoolTeamLegStanding {

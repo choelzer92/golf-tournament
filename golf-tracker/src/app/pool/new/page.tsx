@@ -586,6 +586,9 @@ export default function NewPoolGamePage() {
     if (typeof plan.defaults.gameMode !== 'string') setGameMode(undefined);
     markFormatSeedApplied(true);
     setPositionSplitText(plan.positionSplitText);
+    // The pot split re-fills on the Create step: last time's when the team count matches.
+    setPotDollars(null);
+    setPotEdited(false);
     setHolesPlaying(plan.holesPlaying);
     setNineHandicapBasis(plan.nineHandicapBasis);
     setHideHoles(plan.hideHoles);
@@ -1159,6 +1162,7 @@ export default function NewPoolGamePage() {
             setModeSettings={(v) => setModeSettings({ ...modeSettings, ...v })}
             strokeMethod={strokeMethod}
             hideHoles={alignedFlow ? { checked: hideHoles, onChange: setHideHoles } : undefined}
+            carriedPotSplit={rerunRef.current && rerunRef.current.teamCount === teams.length ? rerunRef.current.potSplit : undefined}
             onSaveFormat={saveCurrentFormat}
             onCreate={createPoolGame}
             onBack={() => setStep(needsPlayingGroups ? 'groups' : isSolo ? 'tees' : 'teams')}

@@ -2379,3 +2379,10 @@ Asked where Run it back lives, what happens to teams, and which handicaps a reru
 - **Teams: the same field keeps its teams.** If the players are unchanged, last time's pairings
   come back, shown with today's combined handicaps and a Rebalance. If any player changed, the
   teams are rebuilt with the usual methods (even / captains' deal / list).
+- **Pot split: carried when the team count matches** (asked after the walk, 2026-10-05). The
+  walk showed a 25%-each game rerun at the 2-team standard ($70/$70/$40/$20) — the same game
+  paying differently. Craig: same number of teams → last time's split (fractions, scaled to
+  this pot, cents residue on OVERALL); different count → the standard (the old amounts may not
+  fit). Saved formats have the same gap; fixing them is a follow-on, not done here.
+- **Start-from lists recent games only.** Saved formats are not repeated there — the field
+  step's "Your groups" row already offers them.

@@ -14,6 +14,8 @@ import {
   foldJunkIntoOverall,
   getPoolPlayingHandicap,
   poolSplitDollarsForTeams,
+  carriedSplitDollars,
+  type PoolPotSplit,
 } from '@/lib/pool-game';
 import type { GameSide } from '@/lib/game-modes/sides';
 import { getGameMode, fitExplanation, formatSummaryLine, playerRangeText, type SettingsBag } from '@/lib/game-modes';
@@ -94,7 +96,7 @@ const JUNK_FIELDS: { key: keyof PoolJunkValues; label: string; hint: string }[] 
 ];
 
 export function CreateStep({
-  name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited,
+  name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited, carriedPotSplit,
   container, blockedReason, moneyModel, setMoneyModel, moneyOptions,
   matchConfig, handicapBasis, nine, holesPlaying, gameMode,
   entryPerPlayerText, setEntryPerPlayer, positionSplitText, setPositionSplitText,
@@ -113,6 +115,8 @@ export function CreateStep({
   setPotDollars: (d: PotDollars | null) => void;
   potEdited: boolean;
   setPotEdited: (b: boolean) => void;
+  /** Run it back (§5.cm): last time's split, given only when the team count matches. */
+  carriedPotSplit?: PoolPotSplit;
   /** The routed container (lib/game-structure.ts). The user never sees this word; it decides
       which money blocks render. 'unexpressible' = no engine carries what was asked. */
   container: Container | 'unexpressible';
@@ -175,13 +179,16 @@ export function CreateStep({
   const [bonusesOpened, setBonusesOpened] = useState(() => !junkIsOff(junkValues));
   const junkShown = bonusesOpened || !junkIsOff(junkValues);
 
-  // Auto-fill the dollar split from the team-count standard, unless the user has
-  // edited it. Re-runs if the number of teams changes or bonuses toggle.
+  // Auto-fill the dollar split from the team-count standard — or, on Run it back with the same
+  // team count, from last time's split scaled to this pot — unless the user has edited it.
+  // Re-runs if the number of teams changes or bonuses toggle.
+  const carriedKey = carriedPotSplit ? JSON.stringify(carriedPotSplit) : '';
   useEffect(() => {
     if (potEdited) return;
-    const std = poolSplitDollarsForTeams(teams.length);
+    const std = carriedPotSplit ? carriedSplitDollars(carriedPotSplit, pot) : poolSplitDollarsForTeams(teams.length);
     setPotDollars(legDollarsToStrings(junkShown ? std : foldJunkIntoOverall(std)));
-  }, [teams.length, potEdited, setPotDollars, junkShown]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- carriedKey stands in for carriedPotSplit
+  }, [teams.length, potEdited, setPotDollars, junkShown, carriedKey, pot]);
 
   const effective: PotDollars = potDollars ?? legDollarsToStrings(poolSplitDollarsForTeams(teams.length));
   const splitTotal = potDollarsTotal(effective);

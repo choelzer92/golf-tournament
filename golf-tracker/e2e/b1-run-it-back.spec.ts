@@ -57,6 +57,8 @@ test('B1: Run it back from a closed game — same format, field, course and team
   await expect(page.getByRole('button', { name: 'Send to players' })).toBeVisible();
   await expect(page.getByText('Close out game')).toHaveCount(0);
   const body = await page.locator('main').innerText();
+  // Same team count → last time's pot split (25% each of $200), not the 2-team standard 70/70/40/20.
+  expect(body).toMatch(/FRONT 9\W*\$50\W*BACK 9\W*\$50\W*OVERALL 18\W*\$50\W*JUNK\W*\$50/);
   for (const n of ['Craig', 'Jym', 'Dave', 'Rick', 'Sam', 'Tony', 'Will', 'Gary']) expect(body).toContain(n);
   await page.screenshot({ path: 'e2e/screenshots/b1-new-hub.png', fullPage: true });
 

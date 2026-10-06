@@ -2,7 +2,7 @@
 // roster_groups row tagged `defaults.kind === 'format'` (usually with no players),
 // so it rides the existing groups table + GHIN scoping with NO migration. These
 // are thin helpers over roster-groups.ts; the group cache/hydration is shared.
-import type { PoolGame } from './pool-game';
+import type { PoolGame, PoolPotSplit } from './pool-game';
 import type { GroupDefaults, RosterGroup } from './roster-groups';
 import { getGroups, getViewableGroups, upsertGroup, getGroupById, setGroupOwner } from './roster-groups';
 import { getCreatorGhin } from './pool-identity';
@@ -99,6 +99,10 @@ export interface RerunPlan {
   holesPlaying: '18' | 'front9' | 'back9';
   nineHandicapBasis: '18' | '9';
   positionSplitText: string;
+  /** Last time's pot split (fractions) and the team count it was set for — carried only when
+   *  the new game has the same number of teams (§5.cm); otherwise the standard fills it. */
+  potSplit: PoolPotSplit;
+  teamCount: number;
   hideHoles: boolean;
   sourceGroupId?: string;
   lockedGroups: string[][];
@@ -129,6 +133,8 @@ export function rerunPlanFromGame(game: PoolGame): RerunPlan {
     holesPlaying: game.holesPlaying ?? '18',
     nineHandicapBasis: game.nineHandicapBasis ?? '18',
     positionSplitText: (game.positionSplit?.length ? game.positionSplit : [100]).join(', '),
+    potSplit: { ...game.potSplit },
+    teamCount: game.teams.length,
     hideHoles: !!game.hideHolesUntilAllFinish,
     sourceGroupId: game.sourceGroupId,
     lockedGroups: game.lockedGroups ?? [],

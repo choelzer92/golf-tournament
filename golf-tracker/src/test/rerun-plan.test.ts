@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { rerunPlanFromGame } from '@/lib/pool-formats';
+import { carriedSplitDollars } from '@/lib/pool-game';
 import { makeGame } from './fixtures';
 
 describe('rerunPlanFromGame', () => {
@@ -53,5 +54,29 @@ describe('rerunPlanFromGame', () => {
     expect(plan.holesPlaying).toBe('18');
     expect(plan.nineHandicapBasis).toBe('18');
     expect(plan.positionSplitText).toBe('100');
+  });
+});
+
+describe('carriedSplitDollars (Run it back keeps the old pot split, §5.cm)', () => {
+  it('carries the split and the team count it was set for', () => {
+    const game = makeGame({ indexes: [2, 4, 6, 8, 10, 12, 14, 16], teamCount: 2 });
+    game.potSplit = { front: 0.25, back: 0.25, overall: 0.25, junk: 0.25 };
+    const plan = rerunPlanFromGame(game);
+    expect(plan.potSplit).toEqual(game.potSplit);
+    expect(plan.teamCount).toBe(2);
+  });
+
+  it('scales the fractions to this pot', () => {
+    expect(carriedSplitDollars({ front: 0.25, back: 0.25, overall: 0.25, junk: 0.25 }, 200))
+      .toEqual({ front: 50, back: 50, overall: 50, junk: 50 });
+    expect(carriedSplitDollars({ front: 0.35, back: 0.35, overall: 0.3, junk: 0 }, 160))
+      .toEqual({ front: 56, back: 56, overall: 48, junk: 0 });
+  });
+
+  it('always totals the pot exactly — the residue lands on overall', () => {
+    for (const pot of [100, 140, 175, 199, 333]) {
+      const d = carriedSplitDollars({ front: 1 / 3, back: 1 / 3, overall: 1 / 6, junk: 1 / 6 }, pot);
+      expect(Math.round((d.front + d.back + d.overall + d.junk) * 100) / 100).toBe(pot);
+    }
   });
 });
