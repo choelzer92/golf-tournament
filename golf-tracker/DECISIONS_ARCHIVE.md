@@ -2413,3 +2413,27 @@ design note answering the crux for 8, 12 and 16 players, shown to Craig before a
   allowed where the counts divide into a fair rotation (3 teams of 4 with 2v2 → A v B, B v C,
   C v A), else the app suggests pairings the organizer can swap. Still open for the design note:
   what happens when counts don't divide, and how ties in team points settle the pot.
+
+### 5.co — Team → Match: the six design questions answered (2026-10-08)
+
+Asked one at a time from `.claude/plans/team-match.md` (§5.bo). Approves the note's slices T0–T4.
+1. **Counts that don't rotate fairly** (16 as 4 × 4, 2v2): **A** — the app suggests pairings
+   and the organizer swaps them. Not refused, and not deferred to multi-day.
+2. **A tie in team points:** **configurable**. Push (the pot splits) is the default; tiebreakers
+   (holes won, total net, …) can be added as options. Craig: "this should be configurable, push
+   default but other tie breakers able to be added".
+3. **Money from team points:** **configurable**. The likely default is winner-takes-the-pot,
+   paid evenly to its players, but the pot can be split down the places (2nd gets something
+   too). Craig: "this should all be configured, likely option 1, but could be split up where
+   more than 1st place is paid". $ per point of margin stays available as a choice.
+4. **Nassau inside a match:** the default is **1 point per match**. A setting switches to legs
+   (front / back / overall), and **the points per leg are adjustable** (not always 1 each).
+5. **Where it's asked:** as proposed. The Compete step asks for teams as today, then shows
+   "Head-to-head matches? Size 1 v 1 / 2 v 2" only when there are 2+ teams and the size divides
+   each team. It's off by default, so the usual game is unchanged.
+6. **Who meets whom:** **A** — the app builds the tee groups from the matches, so each match
+   plays together. The organizer can still swap players.
+
+Every new knob is a `FormatSetting` with a default and a `showIf` (north star: configurable ≠
+complicated). Build order: T0 goldens → T1 pure roll-up → T2 storage + leaderboard/scorecard →
+T3 wizard/hub + e2e → T4 per-match strokes after the GHIN side-by-side.
