@@ -2437,3 +2437,10 @@ Asked one at a time from `.claude/plans/team-match.md` (§5.bo). Approves the no
 Every new knob is a `FormatSetting` with a default and a `showIf` (north star: configurable ≠
 complicated). Build order: T0 goldens → T1 pure roll-up → T2 storage + leaderboard/scorecard →
 T3 wizard/hub + e2e → T4 per-match strokes after the GHIN side-by-side.
+- **Follow-up, money with matches on (2026-10-08):** every money model stays ("isn't the point
+  to make it as configurable as possible?"). Pot is the default when matches are turned on.
+  - **Pot:** the team with the most match points takes it, split down the places by `potSplit`.
+  - **$ per point:** the team-point margin × $.
+  - **Fixed front / back / overall:** each nine is its own bet, won by the team that won more of
+    the matches ON THAT NINE.
+  - **$ per hole:** holes won minus holes lost, summed across the team's matches, × $.
