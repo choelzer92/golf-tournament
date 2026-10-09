@@ -219,6 +219,35 @@ const SCENARIOS: Scenario[] = [
   // team ({id:'st1', name:'Group', playerIds: everybody}), which is exactly the shape F-019 is
   // about. These three seed what a real day of golf looks like — separate tee times, separate
   // scorecards, and sides whose members SPAN them.
+  // F-037 (§5.co): the same Hogs v Dawgs field as head-to-head 2v2 MATCHES, one per foursome.
+  // Group 1: Craig & Jym (par, +1) v Dave & Rick (+2, +3) — Hogs by 2 a hole. Group 2: the Hogs'
+  // pair (+1, +3) v the Dawgs' (+2, +2) — Hogs by 1 a hole. Hogs win both matches, 2–0, and take
+  // the $40 pot ($20 a team): Hogs +$20, Dawgs −$20.
+  {
+    key: 'hogs-v-dawgs-matches',
+    label: 'F-037: Hogs v Dawgs as two 2 v 2 matches',
+    detail: 'Two teams of 4, a 2 v 2 match in each foursome; match points roll up to the team pot. Hogs win both: +$20 / −$20.',
+    build: () => {
+      const ps = players([0, 0, 0, 0, 0, 0, 0, 0]);
+      const game = baseGame({
+        players: ps,
+        name: 'Hogs v Dawgs — matches',
+        gameMode: 'team-2v2',
+        sides: [
+          { id: 'a', name: 'The Hogs', playerIds: ['sp1', 'sp2', 'sp5', 'sp6'] },
+          { id: 'b', name: 'The Dawgs', playerIds: ['sp3', 'sp4', 'sp7', 'sp8'] },
+        ],
+        modeSettings: { format: 'best-ball', scoring: 'stroke', result: 'match', moneyModel: 'pot', sideBuyIn: 20, potSplit: '100', matchSize: 2 },
+        teams: [
+          { id: 'st1', name: 'Group 1', playerIds: ['sp1', 'sp2', 'sp3', 'sp4'], matchupId: 'sm1', teeTime: '8:10' },
+          { id: 'st2', name: 'Group 2', playerIds: ['sp5', 'sp6', 'sp7', 'sp8'], matchupId: 'sm2', teeTime: '8:20' },
+        ],
+      });
+      saveGameScores('sm1', scores(['sp1', 'sp2', 'sp3', 'sp4'], [0, 1, 2, 3], ALL18));
+      saveGameScores('sm2', scores(['sp5', 'sp6', 'sp7', 'sp8'], [1, 3, 2, 2], ALL18));
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
   {
     key: 'hogs-v-dawgs-two-groups',
     label: 'F-101 a: Hogs v Dawgs, 4 v 4 across two foursomes',

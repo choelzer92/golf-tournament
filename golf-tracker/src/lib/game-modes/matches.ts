@@ -249,12 +249,19 @@ export function computeMatchGame(
     const overall = legs.length === 1 ? legs[0] : legs.find((l) => l.key === 'overall');
     lines.push({
       id: m.id,
-      units: m.units.map((u, k) => ({
-        teamId: u.teamId,
-        name: r.sideLabels?.find((x) => x.id === u.teamId)?.name ?? u.teamId,
-        playerIds: u.playerIds,
-        thru: unitThru[k],
-      })),
+      units: m.units.map((u, k) => {
+        const b = r.sideBreakdown?.find((x) => x.id === u.teamId);
+        return {
+          teamId: u.teamId,
+          name: r.sideLabels?.find((x) => x.id === u.teamId)?.name ?? u.teamId,
+          playerIds: u.playerIds,
+          thru: unitThru[k],
+          values: b?.values ?? ctx.holes.map(() => null),
+          total: b?.total ?? 0,
+          place: b?.place ?? 0,
+          status: b?.status ?? '–',
+        };
+      }),
       legs,
       winner: overall && overall.thru > 0 && !overall.voided ? overall.winner : null,
       points: Object.fromEntries(m.units.map((u, k) => [u.teamId, counted[k]])),
@@ -398,15 +405,19 @@ export function computeMatchGame(
   const teamLegs: TeamLegLine[] = legKeys.map((key) => {
     const v = legPts[key];
     const inLeg = teams.map((_, t) => legStarted[key][t]);
-    const playedThru = Math.max(0, ...lines.map((l) => (l.legs.length === 1 ? l.legs[0] : l.legs.find((x) => x.key === key))?.thru ?? 0));
-    const holes = Math.max(0, ...lines.map((l) => (l.legs.length === 1 ? l.legs[0] : l.legs.find((x) => x.key === key))?.holes ?? 0));
+    // A team leg is as far along as its SLOWEST match ("5 of 9 holes" until every match has
+    // finished the nine), which is what close-out asks about; voided when the group voided it.
+    const matchLegs = lines.map((l) => (l.legs.length === 1 ? l.legs[0] : l.legs.find((x) => x.key === key)));
+    const playedThru = Math.min(...matchLegs.map((l) => l?.thru ?? 0));
+    const holes = Math.max(0, ...matchLegs.map((l) => l?.holes ?? 0));
+    const voided = matchLegs.some((l) => l?.voided);
     if (!inLeg.some(Boolean)) return { key, label: legLabel(key), status: '–', winner: null, leaders: [], thru: 0, holes };
     const top = Math.max(...teams.map((_, t) => (inLeg[t] ? v[t] : -Infinity)));
     const leaders = teams.filter((_, t) => inLeg[t] && v[t] === top).map((x) => x.id);
     const status = teams.length === 2
       ? `${names[0]} ${fmt(v[0])}–${fmt(v[1])}`
       : teams.map((_, t) => `${names[t]} ${fmt(v[t])}`).join(' · ');
-    return { key, label: legLabel(key), status, winner: leaders.length === 1 ? leaders[0] : null, leaders, thru: playedThru, holes };
+    return { key, label: legLabel(key), status, winner: leaders.length === 1 ? leaders[0] : null, leaders, thru: playedThru, holes, ...(voided ? { voided } : {}) };
   });
 
   const standings = [...stand].sort((x, y) => (x.place === 0 ? Infinity : x.place) - (y.place === 0 ? Infinity : y.place));

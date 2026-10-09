@@ -1144,6 +1144,41 @@ function IndividualLeaderboard({ id }: { id: string }) {
               <WolfBreakdown lines={result.wolfHoles} />
             )}
 
+            {/* Head-to-head matches (F-037, §5.co): one row per match — who plays whom, and where
+                the match stands. Each match is a 2v2 (or singles) of its own; the team totals in
+                Standings above are these matches added up. */}
+            {result.matches && result.matches.length > 0 && (
+              <div className="bg-gray-800 rounded-xl overflow-hidden" data-testid="match-board">
+                <div className="px-4 py-2 border-b border-gray-700">
+                  <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Matches</p>
+                </div>
+                <div className="divide-y divide-gray-700/30">
+                  {result.matches.map((m, i) => {
+                    const overall = m.legs.length === 1 ? m.legs[0] : m.legs.find((l) => l.key === 'overall');
+                    const thru = Math.min(...m.units.map((u) => u.thru));
+                    return (
+                      <div key={m.id} className="px-4 py-2.5 flex items-center justify-between gap-3" data-testid="match-row">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-200">
+                            {m.units.map((u, k) => (
+                              <span key={u.teamId}>
+                                {k > 0 && <span className="text-gray-500"> v </span>}
+                                <span className={sideTone(u.teamId, sideOrder)}>{u.name}</span>
+                              </span>
+                            ))}
+                          </p>
+                          <p className="text-[10px] text-gray-500">Match {i + 1}{thru > 0 ? ` · thru ${thru}` : ''}</p>
+                        </div>
+                        <p className={`text-sm font-medium text-right whitespace-nowrap ${m.winner ? sideTone(m.winner, sideOrder) : 'text-gray-400'}`}>
+                          {overall && overall.thru > 0 ? overall.status : 'Not started'}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Front / Back / Overall breakdown (2v2 team games) — Nassau-style.
                 A 9-hole game collapses to ONE leg (team-game.ts), so derive the
                 caption from the legs actually present instead of hardcoding

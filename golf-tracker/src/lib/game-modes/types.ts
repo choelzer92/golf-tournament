@@ -173,7 +173,9 @@ export interface WolfHoleLine {
 // counting unit (match points, holes won, or score to par), keyed by team id.
 export interface MatchLine {
   id: string;
-  units: { teamId: string; name: string; playerIds: string[]; thru: number }[];
+  // `values`/`total`/`place`/`status`: the unit's scorecard row WITHIN the match (the same fields as
+  // a side's `sideBreakdown` entry), so the card draws "your match only".
+  units: { teamId: string; name: string; playerIds: string[]; thru: number; values: (number | null)[]; total: number; place: number; status: string }[];
   legs: TeamLegLine[];
   winner: string | null;
   points: Record<string, number>;
