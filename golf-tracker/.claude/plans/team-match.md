@@ -64,3 +64,18 @@ Building the roll-up here is most of what the multi-day trip needs, and argues a
 - **T3:** wizard + hub entry (Q5), sandbox seeds, e2e tagged F-037 on both `isModeEngineGame`
   branches, then a screenshot walk.
 - **T4:** per-match strokes off the low, after the GHIN side-by-side.
+
+## Status (2026-10-09)
+
+- **Questions answered** (§5.co plus the money follow-up), so T0–T4 are approved.
+- **T0:** `src/test/f037-pairings-golden.test.ts`, green on the old code.
+- **T1:** `src/lib/game-modes/matches.ts`, with `matchesOf` and `computeMatchGame` hooked at the top of the team engine's
+  `compute`. Goldens are in `src/test/f037-matches.test.ts` (25 cases). Five §5.z mutations were tried and each turned it
+  red: unit leak, halves, tiebreak, per-hole sign, legs counting.
+  - Matches are read from the tee sheet. A foursome holding two teams pairs in tee-sheet order; a one-team foursome
+    pairs across groups (foursome v foursome, two teams only). A shape that can't be paired returns null, and the
+    game computes field-wide as before. T3's wizard must not offer such a shape.
+  - The settings (`MATCH_SETTINGS`) are not in the team engine's schema yet, so no surface shows them. That's T3.
+  - Not covered yet: `carryover` under per-hole with matches (ignored), and per-match strokes off the low (T4).
+  - The result carries `matches: MatchLine[]` and team-level `teamLegs` ("X 2–0"), with no `sideBreakdown`. The
+    scorecard's per-match rows are T2.

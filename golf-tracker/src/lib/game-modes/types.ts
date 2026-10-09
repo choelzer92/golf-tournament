@@ -168,6 +168,18 @@ export interface WolfHoleLine {
 
 // The individual-game result. Discriminated by `kind` so the leaderboard can
 // branch once against the team PoolResult.
+// One head-to-head match inside a team game (F-037, §5.cn/§5.co): two units, one per team, scored
+// by the team engine on just those players. `points` is what the match gave each team in the game's
+// counting unit (match points, holes won, or score to par), keyed by team id.
+export interface MatchLine {
+  id: string;
+  units: { teamId: string; name: string; playerIds: string[]; thru: number }[];
+  legs: TeamLegLine[];
+  winner: string | null;
+  points: Record<string, number>;
+  holesWon: Record<string, number>;
+}
+
 export interface IndividualResult {
   kind: 'individual';
   gameModeId: string;
@@ -178,6 +190,8 @@ export interface IndividualResult {
   moneyModel: 'per-point' | 'pot';
   // Side games only: front/back/overall breakdown for the leaderboard.
   teamLegs?: TeamLegLine[];
+  // Team games with head-to-head matches on (F-037): one line per match. Absent = no matches.
+  matches?: MatchLine[];
   // The first two sides' names. LEGACY VIEW, kept because several surfaces read it and a
   // two-side game is still the norm. For a 3+ side game it names only the first two — read
   // `sideLabels` instead.
