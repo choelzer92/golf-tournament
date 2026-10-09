@@ -1,8 +1,8 @@
 import type { FormatSetting } from '../formats';
-import { distributePot } from '../pool-game';
+import { distributePot, type PoolGame } from '../pool-game';
 import type { GameModeContext, IndividualResult, MatchLine, PlayerStanding, PotSliceLine, TeamLegLine } from './types';
 import { boolSetting, junkPayout, numberSetting, parseVector, settleJunkForSides, stringSetting, tallyJunkForSides } from './settings';
-import { settleRoundRobin, settleWinnerTakes, type GameSide } from './sides';
+import { settleRoundRobin, settleWinnerTakes, sidesOfGame, type GameSide } from './sides';
 import { ballsPerHole, evenValueOnHole, type TeamFormat } from './team-scoring';
 
 // TEAM → MATCH → MONEY (F-037, DECISIONS.md §5.cn / §5.co).
@@ -53,24 +53,30 @@ export function matchSizeOf(settings: GameModeContext['settings']): number {
 }
 
 /**
- * The matches a game's tee sheet holds at `size` players a side, or null when it holds none (size
- * 0 = off) or a shape that can't be paired. Inside a foursome holding two teams, each team's
- * players there are cut into units of `size` and paired in tee-sheet order (A's first unit v B's
- * first). A tee group holding ONE team is itself a unit-maker for a match ACROSS groups
+ * The matches a game's tee sheet holds at `size` players a side. Inside a foursome holding two
+ * teams, each team's players there are cut into units of `size` and paired in tee-sheet order (A's
+ * first unit v B's first). A tee group holding ONE team makes units for a match ACROSS groups
  * (foursome v foursome), paired with the other team's in order — two teams only.
+ *
+ * A shape that can't be paired is a PROBLEM, worded for the organizer: it must never be stored
+ * (§5.ac, Craig 2026-10-09 — "should not be possible"), so every surface that changes teams, tee
+ * groups or the match size asks `matchShapeProblem` first.
  */
-export function matchesOf(teams: GameSide[], teeGroups: string[][], size: number): Match[] | null {
-  if (!(size >= 1)) return null;
+export function pairMatches(
+  teams: { id: string; playerIds: string[] }[], teeGroups: string[][], size: number,
+): { matches: Match[] } | { problem: string } {
+  if (!(size >= 1)) return { problem: 'Head-to-head matches are off.' };
   const teamIdx = new Map<string, number>();
   teams.forEach((t, i) => t.playerIds.forEach((id) => teamIdx.set(id, i)));
+  const each = size === 1 ? 'one player' : `${size} players`;
 
   const pairs: [MatchUnit, MatchUnit][] = [];
   const across = new Map<number, MatchUnit[]>();
-  for (const group of teeGroups) {
+  for (const [g, group] of teeGroups.entries()) {
     const byTeam = new Map<number, string[]>();
     for (const id of group) {
       const t = teamIdx.get(id);
-      if (t === undefined) return null;          // a player on no team can't be in a match
+      if (t === undefined) return { problem: `Everyone in Group ${g + 1} needs a team.` };
       byTeam.set(t, [...(byTeam.get(t) ?? []), id]);
     }
     const unitsOf = (t: number): MatchUnit[] | null => {
@@ -81,26 +87,48 @@ export function matchesOf(teams: GameSide[], teeGroups: string[][], size: number
     const present = [...byTeam.keys()].sort((x, y) => x - y);
     if (present.length === 1) {
       const u = unitsOf(present[0]);
-      if (!u) return null;
+      if (!u) return { problem: `Group ${g + 1} can't be split into matches of ${each} a side.` };
       across.set(present[0], [...(across.get(present[0]) ?? []), ...u]);
     } else if (present.length === 2) {
       const ua = unitsOf(present[0]);
       const ub = unitsOf(present[1]);
-      if (!ua || !ub || ua.length !== ub.length) return null;
+      if (!ua || !ub || ua.length !== ub.length) {
+        return { problem: `Group ${g + 1} needs the same number of players from each team, ${each} a match.` };
+      }
       ua.forEach((u, k) => pairs.push([u, ub[k]]));
     } else {
-      return null;
+      return { problem: `Group ${g + 1} has players from ${present.length} teams; a match is between two.` };
     }
   }
   if (across.size > 0) {
     const keys = [...across.keys()].sort((x, y) => x - y);
-    if (keys.length !== 2) return null;
-    const [ua, ub] = [across.get(keys[0])!, across.get(keys[1])!];
-    if (ua.length !== ub.length) return null;
+    const [ua, ub] = [across.get(keys[0])!, across.get(keys[1] ?? -1) ?? []];
+    if (keys.length !== 2 || ua.length !== ub.length) {
+      return { problem: 'Groups holding one team need a group from the other team to play.' };
+    }
     ua.forEach((u, k) => pairs.push([u, ub[k]]));
   }
-  if (pairs.length === 0) return null;
-  return pairs.map((units, i) => ({ id: `M${i + 1}`, units }));
+  if (pairs.length === 0) return { problem: 'No matches to play.' };
+  return { matches: pairs.map((units, i) => ({ id: `M${i + 1}`, units })) };
+}
+
+export function matchesOf(teams: { id: string; playerIds: string[] }[], teeGroups: string[][], size: number): Match[] | null {
+  const r = pairMatches(teams, teeGroups, size);
+  return 'matches' in r ? r.matches : null;
+}
+
+/**
+ * Why this game's teams and tee sheet can't be played as head-to-head matches, or null when they
+ * can (or matches are off). Pure: the wizard, the hub's team and tee-group edits and a late
+ * player's join call it BEFORE writing, so a game that can't be paired is never saved.
+ */
+export function matchShapeProblem(game: PoolGame): string | null {
+  const size = matchSizeOf(game.modeSettings ?? {});
+  if (size === 0) return null;
+  const teams = sidesOfGame(game);
+  if (teams.length < 2) return 'Head-to-head matches need two or more teams.';
+  const r = pairMatches(teams, game.teams.map((t) => t.playerIds), size);
+  return 'problem' in r ? r.problem : null;
 }
 
 type LegKey = 'front' | 'back' | 'overall';
@@ -147,7 +175,7 @@ export function computeMatchGame(
   const thru = zeros();
   const legPts: Record<LegKey, number[]> = { front: zeros(), back: zeros(), overall: zeros() };
   const legStarted: Record<LegKey, boolean[]> = { front: teams.map(() => false), back: teams.map(() => false), overall: teams.map(() => false) };
-  const holesMargin: { a: number; b: number; margin: number }[] = [];
+  const perHoleMoney = zeros();
   let nineOnly: 'front' | 'back' | null = null;
   let thruHole = 0;
   const lines: MatchLine[] = [];
@@ -160,7 +188,11 @@ export function computeMatchGame(
       scores: ctx.scores.filter((x) => ids.has(x.playerId)),
       sides: m.units.map((u) => ({ id: u.teamId, playerIds: u.playerIds })),
       subTeams: { a: m.units[0].playerIds, b: m.units[1].playerIds },
-      settings: { ...bag, matchSize: 0, moneyModel: 'per-point', dollarsPerPoint: 0, junkEnabled: false },
+      // Money off — except $ per hole, which the engine settles INSIDE the match, carry-ties
+      // included (a halved hole carries only within the match it was halved in).
+      settings: moneyModel === 'per-hole'
+        ? { ...bag, matchSize: 0, junkEnabled: false }
+        : { ...bag, matchSize: 0, moneyModel: 'per-point', dollarsPerPoint: 0, junkEnabled: false },
       teeGroups: undefined,
       pot: 0,
     };
@@ -210,7 +242,9 @@ export function computeMatchGame(
       holesWon[t] += won[k];
       toPar[t] += par[k];
     });
-    holesMargin.push({ a: ui[0], b: ui[1], margin: won[0] - won[1] });
+    if (moneyModel === 'per-hole') {
+      m.units.forEach((u, k) => { perHoleMoney[ui[k]] += r.standings.find((x) => x.playerId === u.teamId.toUpperCase())?.moneyNet ?? 0; });
+    }
 
     const overall = legs.length === 1 ? legs[0] : legs.find((l) => l.key === 'overall');
     lines.push({
@@ -279,12 +313,9 @@ export function computeMatchGame(
       add(settleRoundRobin(values, (v) => v, (mine, theirs) => (higher ? mine - theirs : theirs - mine) * dollars));
     }
   } else if (moneyModel === 'per-hole') {
-    // Holes won minus holes lost in each match, × $, summed across the team's matches.
-    const dollars = n('dollarsPerHole');
-    for (const h of holesMargin) {
-      money[h.a] += h.margin * dollars;
-      money[h.b] -= h.margin * dollars;
-    }
+    // Holes won minus holes lost in each match, × $ (carry-ties if set), summed across the team's
+    // matches — settled by the engine inside each match, above.
+    add(perHoleMoney);
   } else if (moneyModel === 'legs') {
     // Each nine is its own bet, won by the team that won more of the matches ON THAT NINE.
     const payEach = s('legsPayout') === 'pay-each';

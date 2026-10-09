@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { computeGameResult } from '@/lib/game-modes/result';
-import { matchesOf } from '@/lib/game-modes/matches';
+import { matchesOf, matchShapeProblem } from '@/lib/game-modes/matches';
 import type { GameSide } from '@/lib/game-modes/sides';
 import type { GameScore } from '@/lib/game-state';
 import type { IndividualResult } from '@/lib/game-modes/types';
@@ -255,5 +255,49 @@ describe('F-037 T1 — invariants', () => {
     if (r.kind !== 'individual') throw new Error('expected the team engine');
     expect(r.matches).toBeUndefined();
     expect(Object.fromEntries(r.standings.map((s) => [s.playerId.toLowerCase(), s.moneyNet]))).toEqual({ a: 10, b: -30, c: -30, d: 50 });
+  });
+});
+
+describe('F-037 — carry ties apply INSIDE each match (Craig 2026-10-09)', () => {
+  it('$2 a hole, carry on: M1 a 2+2, b 1+7 carried = $16 → X −12; M2 c 1+2 = $6, d 1+7, 1, 1 = $20 → X −14; X −26, Y +26', () => {
+    // M1: holes 1, 2 a (no carry); 3–9 halved (carry 7); 10 b takes 8 holes = $16; 11–18 halved, dead.
+    // M2: 1, 2 halved (carry 2); 3 c takes 3 = $6; 4–10 halved (carry 7); 11 d takes 8 = $16; 12, 13 d $2 each.
+    expect(money(run({ moneyModel: 'per-hole', carryover: true }))).toEqual({ x: -26, y: 26 });
+  });
+
+  it('carry off is the plain margin (unchanged): X −2, Y +2', () => {
+    expect(money(run({ moneyModel: 'per-hole', carryover: false }))).toEqual({ x: -2, y: 2 });
+  });
+});
+
+describe('F-037 — a shape that cannot be paired is a problem, never a game (§5.ac, Craig 2026-10-09)', () => {
+  const game = (groups: string[][], matchSize: number) => makeGame({
+    gameMode: 'team-2v2', indexes: Array(8).fill(0),
+    teams: groups.map((ids, i) => makeTeam(i + 1, ids)), sides: TEAMS,
+    modeSettings: { matchSize },
+  });
+
+  it('a pairable sheet, or matches off, has no problem', () => {
+    expect(matchShapeProblem(game([G1, G2], 2))).toBeNull();
+    expect(matchShapeProblem(game([G1, G2], 1))).toBeNull();
+    expect(matchShapeProblem(game([['p1', 'p3', 'p4', 'p7'], ['p5', 'p2', 'p6', 'p8']], 0))).toBeNull();
+  });
+
+  it('a split pair says which group and why', () => {
+    expect(matchShapeProblem(game([['p1', 'p3', 'p4', 'p7'], ['p5', 'p2', 'p6', 'p8']], 2)))
+      .toBe('Group 1 needs the same number of players from each team, 2 players a match.');
+  });
+
+  it('three teams in one foursome', () => {
+    const g = makeGame({
+      gameMode: 'team-2v2', indexes: [0, 0, 0, 0],
+      sides: [{ id: 'a', playerIds: ['p1', 'p2'] }, { id: 'b', playerIds: ['p3'] }, { id: 'c', playerIds: ['p4'] }],
+      modeSettings: { matchSize: 1 },
+    });
+    expect(matchShapeProblem(g)).toBe('Group 1 has players from 3 teams; a match is between two.');
+  });
+
+  it('size 3 cannot divide a foursome of 2 + 2', () => {
+    expect(matchShapeProblem(game([G1, G2], 3))).toMatch(/^Group 1 /);
   });
 });

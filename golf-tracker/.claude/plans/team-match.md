@@ -73,9 +73,14 @@ Building the roll-up here is most of what the multi-day trip needs, and argues a
   `compute`. Goldens are in `src/test/f037-matches.test.ts` (25 cases). Five §5.z mutations were tried and each turned it
   red: unit leak, halves, tiebreak, per-hole sign, legs counting.
   - Matches are read from the tee sheet. A foursome holding two teams pairs in tee-sheet order; a one-team foursome
-    pairs across groups (foursome v foursome, two teams only). A shape that can't be paired returns null, and the
-    game computes field-wide as before. T3's wizard must not offer such a shape.
+    pairs across groups (foursome v foursome, two teams only).
+  - **A shape that can't be paired must not be possible** (Craig, 2026-10-09; §5.ac). `matchShapeProblem(game)` gives
+    the organizer-worded reason. T3 must call it in every write path: wizard, hub team/tee-group swaps, match size,
+    and a late player. The engine's field-wide fallback is only a backstop.
+  - **OPEN for Craig at T3:** a player joining at the turn into a matches game (a 9th player in a 2v2), and how
+    they fit a match.
   - The settings (`MATCH_SETTINGS`) are not in the team engine's schema yet, so no surface shows them. That's T3.
-  - Not covered yet: `carryover` under per-hole with matches (ignored), and per-match strokes off the low (T4).
+  - Carry-ties under $ per hole apply INSIDE each match (Craig, 2026-10-09), settled by the engine's own carry code.
+  - Not covered yet: per-match strokes off the low (T4).
   - The result carries `matches: MatchLine[]` and team-level `teamLegs` ("X 2–0"), with no `sideBreakdown`. The
     scorecard's per-match rows are T2.
