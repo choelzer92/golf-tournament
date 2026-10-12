@@ -1,3 +1,4 @@
+import type { SeriesStamp } from './series';
 import type { Player, GameScore, CourseSelection, TeeSetOption } from './game-state';
 import type { TwoBestBallsVariant } from './formats';
 import { calcCourseHandicap, applyAllowance, nineHoleIndex, formatHandicap } from './game-state';
@@ -198,6 +199,9 @@ export interface PoolGame {
   nineHandicapBasis?: '18' | '9';
   handicapsRefreshedAt?: string;               // ISO time this game's handicaps were last pulled from GHIN
   createdByGhin?: number;                       // GHIN number of the organizer who created it (for their history)
+  // The EVENT (a Series) this game is one round of: DECISIONS.md §5.cu. ABSENT on every
+  // ordinary game. An event is the set of games sharing series.id; see lib/series.ts.
+  series?: SeriesStamp;
   sourceGroupId?: string;                       // the saved group this game was created FROM (exact stats/ledger link; absent = made outside a group). See lib/stats-ledger.ts
   lockedGroups?: string[][];                    // player-id groups kept on the same team through auto-balance
   teamBuild?: PoolTeamBuild;                     // how the current teams were built (for the read-only "how these were built" summary)
