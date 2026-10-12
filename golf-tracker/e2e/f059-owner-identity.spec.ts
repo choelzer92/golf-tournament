@@ -23,8 +23,9 @@ test('F-059: the app owner (full access + owner GHIN) still sees everything', as
   await expect(page.getByText(/Welcome back, Craig/)).toBeVisible();
   // All groups, all games, and the owner-only feedback read-back link.
   await expect(page.getByText('Weekend Warriors')).toBeVisible();
-  await page.getByRole('button', { name: /Your golf/ }).click();
-  await expect(page.getByText('Warriors — Week 1')).toBeVisible();
+  // §5.ck: each group card carries its latest game; games outside a group are listed below.
+  await expect(page.getByTestId('group-card').filter({ hasText: 'Weekend Warriors' }).getByText('Warriors — Saturday 2v2')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Other games' }).getByText('Untagged Saturday')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Read feedback notes →' })).toBeVisible();
 });
 
@@ -43,8 +44,7 @@ test('F-059: a code-holding MEMBER sees exactly their own — not everyone\'s', 
   await expect(page.getByText(/Welcome back, Jym/)).toBeVisible();
   // Craig's groups and games are NOT Jym's to see.
   await expect(page.getByText('Weekend Warriors')).toHaveCount(0);
-  await page.getByRole('button', { name: /Your golf/ }).click();
-  await expect(page.getByText('Warriors — Week 1')).toHaveCount(0);
+  for (const n of ['Warriors — Week 1', 'Warriors — Saturday 2v2', 'Untagged Saturday']) await expect(page.getByText(n)).toHaveCount(0);
   // The owner-only feedback read-back hides, and the page itself refuses.
   await expect(page.getByRole('button', { name: 'Read feedback notes →' })).toHaveCount(0);
   await page.goto(`${BASE}/home/feedback`);

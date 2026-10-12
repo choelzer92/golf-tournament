@@ -22,10 +22,16 @@ test.beforeEach(async ({ context, page }) => {
 
 test('§5.cb: home lists his group games, a game he played, and the old event he was in', async ({ page }) => {
   await expect(page.getByText(/Welcome back, Jym/)).toBeVisible();
-  await page.getByRole('button', { name: /Your golf/ }).click();
-  for (const name of VISIBLE) await expect(page.getByText(name).first()).toBeVisible();
+  // §5.ck: Home shows each group's latest game on its card and everything else below; the
+  // group's full history is on its page. Together they're everything he may see.
+  const home = await page.locator('main').innerText();
   for (const name of HIDDEN) await expect(page.getByText(name)).toHaveCount(0);
   await page.screenshot({ path: 'e2e/screenshots/5cb-home-member.png', fullPage: true });
+  await page.goto(`${BASE}/home/groups/g-weekend-warriors`);
+  await expect(page.getByRole('heading', { name: 'Weekend Warriors' })).toBeVisible();
+  const group = await page.locator('main').innerText();
+  for (const name of VISIBLE) expect(home.includes(name) || group.includes(name), name).toBe(true);
+  for (const name of HIDDEN) expect(group).not.toContain(name);
 });
 
 test('§5.cj: he sees his group (read-only), not one he isn\'t in', async ({ page }) => {

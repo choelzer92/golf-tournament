@@ -222,6 +222,7 @@ export interface TournamentListItem {
   teamBName: string;
   teamAPoints: number;
   teamBPoints: number;
+  sourceGroupId?: string;   // §5.ck: Home lists games under their group
 }
 
 export interface TournamentGameContext {
@@ -370,6 +371,7 @@ export function getTournamentList(filter?: (t: Tournament) => boolean): Tourname
       teamBName: t.teams[1].name,
       teamAPoints: standings.teamAPoints,
       teamBPoints: standings.teamBPoints,
+      sourceGroupId: t.sourceGroupId,
     });
   }
   return list;
