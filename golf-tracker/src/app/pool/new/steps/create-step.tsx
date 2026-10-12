@@ -1,5 +1,6 @@
 'use client';
 
+import { matchesOf, matchSizeOf } from '@/lib/game-modes/match-pairing';
 import { useState, useEffect } from 'react';
 import type { CourseSelection, Player } from '@/lib/game-state';
 import {
@@ -233,6 +234,10 @@ export function CreateStep({
     setPotDollars({ ...effective, [key]: value });
   }
 
+  // F-037: a matches game names its matches, as the hub's label does.
+  const matchCount = container === 'sides' ? (matchesOf(sides ?? [], teams, matchSizeOf(modeSettings))?.length ?? 0) : 0;
+  const matchCountLabel = matchCount > 0 ? ` · ${matchCount} match${matchCount === 1 ? '' : 'es'}` : '';
+
   return (
     <div>
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
@@ -249,7 +254,7 @@ export function CreateStep({
           <p className="text-sm text-gray-500">
             {container === 'individual'
               ? mode!.name
-              : `${structureLabel({ kind: 'teams', teamSizes: (container === 'sides' ? (sides ?? []) : teams).map((t) => t.playerIds.length) })} · ${MONEY_WORD[moneyModel]}`}
+              : `${structureLabel({ kind: 'teams', teamSizes: (container === 'sides' ? (sides ?? []) : teams).map((t) => t.playerIds.length) })} · ${MONEY_WORD[moneyModel]}${matchCountLabel}`}
           </p>
           <p className="text-lg font-bold text-gray-900">{name}</p>
           {container === 'individual' && <p className="text-xs text-gray-500 mt-0.5">{mode!.description}</p>}

@@ -517,20 +517,15 @@ export default function PoolHubPage() {
                 const lines = matchLinesByGroup(sidesOfGame(game), game.teams, matchSizeOf(game.modeSettings ?? {}),
                   (id) => (game.players.find((p) => p.id === id)?.name ?? '?').split(' ')[0]);
                 return game.teams.map((team, g) => (
-                  <div key={team.id}>
-                    <FoursomeCard
-                      team={team}
-                      players={playersForTeam(team)}
-                      game={game}
-                      detail={detailForTeam(team.id)}
-                      onEnterScores={() => enterScores(team)}
-                    />
-                    {lines.get(g) && (
-                      <p className="mt-1 px-1 text-xs text-gray-600" data-testid="group-match-line">
-                        {team.name}: {lines.get(g)!.join(' · ')}
-                      </p>
-                    )}
-                  </div>
+                  <FoursomeCard
+                    key={team.id}
+                    team={team}
+                    players={playersForTeam(team)}
+                    game={game}
+                    detail={detailForTeam(team.id)}
+                    onEnterScores={() => enterScores(team)}
+                    matchLines={lines.get(g)}
+                  />
                 ));
               })()}
               {game.teams.length === 0 && (

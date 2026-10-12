@@ -160,12 +160,15 @@ export function FoursomeCard({
   game,
   detail,
   onEnterScores,
+  matchLines,
 }: {
   team: PoolTeam;
   players: Player[];
   game: PoolGame;
   detail: PoolTeamDetail | undefined;
   onEnterScores: () => void;
+  /** F-037 / §5.cq (C): who plays whom in this tee group ("Craig v Dave"). */
+  matchLines?: string[];
 }) {
   const [showStrokes, setShowStrokes] = useState(false);
 
@@ -177,6 +180,9 @@ export function FoursomeCard({
           <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{team.teeTime}</span>
         )}
       </div>
+      {matchLines && matchLines.length > 0 && (
+        <p className="-mt-1 mb-2 text-xs text-gray-600" data-testid="group-match-line">{matchLines.join(' · ')}</p>
+      )}
       <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3">
         {players.map((p) => {
           // Show STROKES RECEIVED in this game (accounts for off-the-low),

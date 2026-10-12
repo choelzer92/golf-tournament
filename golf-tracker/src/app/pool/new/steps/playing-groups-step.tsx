@@ -112,11 +112,11 @@ export function PlayingGroupsStep({
         gets its own tee time and scorecard.{' '}
         {/* F-071: teams are built BEFORE this step now, so the independence reads the other way
             round — partners are together by default, and mixing is the organizer's move. */}
-        <span className="text-gray-500">
+        {!matchesNote && <span className="text-gray-500">
           {partnerTeams && partnerTeams.length > 0
             ? 'Partners walk together to start — move anyone to mix the groups; a partner can be in the other group.'
             : 'Your teams come next, and a partner can be in the other group.'}
-        </span>
+        </span>}
       </p>
 
       {/* The shape choice. Only shown when there IS one — at 4 or 7 players exactly one shape
