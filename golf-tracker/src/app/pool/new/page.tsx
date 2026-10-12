@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Player, CourseSelection } from '@/lib/game-state';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
@@ -17,6 +17,9 @@ import {
   DEFAULT_MATCH_CONFIG,
   savePoolGame,
   fetchPoolGame,
+  hydratePoolGames,
+  getPoolGameListForGhin,
+  getSeriesRounds,
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
   type CustomBonus,
@@ -54,7 +57,9 @@ import {
   getGroupById,
 } from '@/lib/roster-groups';
 import { saveFormat, rerunPlanFromGame, type RerunPlan } from '@/lib/pool-formats';
-import { RERUN_SEED_KEY } from '@/lib/group-seed';
+import { RERUN_SEED_KEY, EVENT_SEED_KEY, type EventSeed } from '@/lib/group-seed';
+import { nextRoundStamp, seriesSummaries, type SeriesStamp, type SeriesSummary } from '@/lib/series';
+import { EventField, type EventChoice } from './steps/event-field';
 import { StartFromCard } from './steps/start-from';
 import {
   formatOfGame,
@@ -134,6 +139,12 @@ export default function NewPoolGamePage() {
   // §5.ck: hide holes until every group finishes — offered only when each team is its own
   // foursome (alignedFlow); off by default, never when teams span foursomes (§5.bw).
   const [hideHoles, setHideHoles] = useState(false);
+  // §5.cv: is this game a round of an EVENT? Asked on Review; seeded by "Start an event" /
+  // "Add round N". `myEvents` lists the organizer's events for "Add to …".
+  const [eventChoice, setEventChoice] = useState<EventChoice>({ kind: 'none' });
+  const [myEvents, setMyEvents] = useState<SeriesSummary[]>([]);
+  const eventSeedRef = useRef<EventSeed | null>(null);
+  const today = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
   // Handicap basis: 'course' (off the tee, default) or 'index' (raw handicap index).
   const [handicapBasis, setHandicapBasis] = useState<'course' | 'index'>('course');
   // Pot legs in dollars; null until the Review step auto-fills from team count.
@@ -455,6 +466,7 @@ export default function NewPoolGamePage() {
         if (data.course) setCourse(data.course);
         if (data.holesPlaying === '18' || data.holesPlaying === 'front9' || data.holesPlaying === 'back9') setHolesPlaying(data.holesPlaying);
         if (data.nineHandicapBasis === '18' || data.nineHandicapBasis === '9') setNineHandicapBasis(data.nineHandicapBasis);
+        if (data.eventChoice && typeof data.eventChoice.kind === 'string') setEventChoice(data.eventChoice);
         // Intentionally NOT restoring players/teams/step: the day's field is a
         // fresh per-game selection (the roster is the durable store), so every
         // new game starts with nobody selected. Name/course/config still restore.
@@ -472,6 +484,17 @@ export default function NewPoolGamePage() {
         if (seed.name && seed.name.trim()) { setName(seed.name); setAppliedFormat(seed.name.trim()); }
         if (seed.defaults) applyGroupDefaults(seed.defaults);
         markFormatSeedApplied(true);
+      }
+    } catch {}
+    // §5.cv: an event seed — consumed once. "Add round N" resolves its default date once the
+    // events load (below); "Start an event" opens the new-event choice straight away.
+    try {
+      const raw = sessionStorage.getItem(EVENT_SEED_KEY);
+      if (raw) {
+        sessionStorage.removeItem(EVENT_SEED_KEY);
+        const seed = JSON.parse(raw) as EventSeed;
+        eventSeedRef.current = seed;
+        if (seed.mode === 'new') setEventChoice({ kind: 'new', name: '', date: new Date().toLocaleDateString('en-CA') });
       }
     } catch {}
     // B1 (§5.cm): Run it back from a finished game's hub — consumed once.
@@ -492,11 +515,30 @@ export default function NewPoolGamePage() {
       draftVersion: DRAFT_VERSION, structure, compareBy, moneyModel,
       name, autoNamedFrom, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step, sides,
-      holesPlaying, nineHandicapBasis, hideHoles,
+      holesPlaying, nineHandicapBasis, hideHoles, eventChoice,
     }));
   }, [hydrated, structure, compareBy, moneyModel, name, autoNamedFrom, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step, sides,
-      holesPlaying, nineHandicapBasis, hideHoles]);
+      holesPlaying, nineHandicapBasis, hideHoles, eventChoice]);
+
+  // The organizer's events, for "Add to …" (§5.cv). A co-organizer adding a round to an event
+  // someone else started still gets that event listed.
+  useEffect(() => {
+    const me = getCreatorGhin();
+    hydratePoolGames().then(() => {
+      const mine = me != null ? seriesSummaries(getPoolGameListForGhin(me)) : [];
+      const seed = eventSeedRef.current;
+      if (seed?.mode === 'add') {
+        const target = mine.find((e) => e.id === seed.seriesId) ?? seriesSummaries(getSeriesRounds(seed.seriesId))[0];
+        if (target) {
+          if (!mine.some((e) => e.id === target.id)) mine.unshift(target);
+          setEventChoice({ kind: 'add', seriesId: target.id, date: target.nextDate });
+        }
+        eventSeedRef.current = null;
+      }
+      setMyEvents(mine);
+    }).catch(() => {});
+  }, []);
 
   // The current format settings, packaged as a group's defaults (for "save field
   // as a group"). Only the format — the member list is saved separately.
@@ -738,6 +780,16 @@ export default function NewPoolGamePage() {
         }));
     const teamIds = (sidesForRoute ?? teams).map((s) => s.playerIds);
     const routed = routedFields(draft, route, teamIds, modeSettings, { sides: sidesForRoute, junkValues });
+    // §5.cu: the event stamp. A new event is created by its first round; a further round
+    // continues the event's seq (nextRoundStamp), whatever date it's played.
+    let series: SeriesStamp | undefined;
+    if (eventChoice.kind === 'new') {
+      series = { id: 's-' + crypto.randomUUID(), name: eventChoice.name.trim() || name.trim() || 'Event', rollup: 'money', seq: 1, date: eventChoice.date };
+    } else if (eventChoice.kind === 'add') {
+      const rounds = getSeriesRounds(eventChoice.seriesId);
+      if (rounds.length === 0) return;
+      series = nextRoundStamp(rounds, eventChoice.date);
+    }
     const game: PoolGame = {
       id,
       name: name || 'Pool Game',
@@ -771,6 +823,7 @@ export default function NewPoolGamePage() {
       createdByGhin: getCreatorGhin() ?? undefined,
       // Exact stats/ledger link when this game was built from a saved group.
       sourceGroupId,
+      series,
       // Persist pairing locks onto the game so they can be reused/edited when the
       // organizer reopens it (locks live on the game, not just the wizard).
       lockedGroups: container === 'classic' && lockedGroups.length > 0 ? lockedGroups : undefined,
@@ -800,6 +853,7 @@ export default function NewPoolGamePage() {
 
     savePoolGame(game);
     sessionStorage.removeItem(WIZARD_KEY);
+    // An event's standings are one tap from the round's hub, so the hub stays the landing.
     // §5.cl: Create is the share moment — the hub opens on the player-link sheet.
     router.push('/pool/' + game.id + '?send=1');
   }
@@ -1217,6 +1271,7 @@ export default function NewPoolGamePage() {
             hideHoles={alignedFlow ? { checked: hideHoles, onChange: setHideHoles } : undefined}
             carriedPotSplit={rerunRef.current && rerunRef.current.teamCount === teams.length ? rerunRef.current.potSplit : undefined}
             onSaveFormat={saveCurrentFormat}
+            eventField={<EventField choice={eventChoice} setChoice={setEventChoice} events={myEvents} today={today} />}
             onCreate={createPoolGame}
             onBack={() => setStep(needsPlayingGroups ? 'groups' : isSolo ? 'tees' : 'teams')}
           />

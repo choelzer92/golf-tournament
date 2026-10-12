@@ -20,7 +20,7 @@ import { setAccessCookie } from '@/lib/invite-gate';
 import { saveGhinIdentity } from '@/lib/pool-identity';
 import type { GameScore, Player, CourseSelection } from '@/lib/game-state';
 import {
-  SANDBOX_GHIN, groupRows, groups as makeGroups, ledgerSeason,
+  SANDBOX_GHIN, groupRows, groups as makeGroups, ledgerSeason, eventWeekend, EVENT_ID,
   rosterPlayers, rosterRows,
 } from '@/test/fixtures-domain';
 
@@ -873,6 +873,23 @@ const SCENARIOS: Scenario[] = [
         for (const [mid, scores] of scoresByMatchup) saveGameScores(mid, scores);
       }
       return { goTo: '/home/groups/g-weekend-warriors' };
+    },
+  },
+  {
+    key: 'event-weekend',
+    label: 'Event — Myrtle 2026: 4 rounds over 3 days (36 on Saturday), Sunday live',
+    detail: 'A Series (§5.cu/§5.cv): the Weekend Warriors trip. Friday pool, Saturday skins + pool, Sunday 2v2 live thru 9. Lands on the event standings: Total = finished rounds, Projected = with Sunday.',
+    buildDomain: () => {
+      signInAsOrganizer();
+      const roster = rosterPlayers(61);
+      const gs = makeGroups(roster);
+      void seedTable('players', rosterRows(roster));
+      void seedTable('roster_groups', groupRows(gs));
+      for (const { game, scoresByMatchup } of [...ledgerSeason(roster), ...eventWeekend(roster)]) {
+        savePoolGame(game);
+        for (const [mid, scores] of scoresByMatchup) saveGameScores(mid, scores);
+      }
+      return { goTo: '/event/' + EVENT_ID };
     },
   },
   {

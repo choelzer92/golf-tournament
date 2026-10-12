@@ -1,7 +1,7 @@
 'use client';
 
 import { formatHandicapIndex } from '@/lib/game-state';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { canEditGroup, getGroupIdsForGhin, getViewer, hydrateGroups, getGroupById, addGroupMember, removeGroupMember, renameGroup, deleteGroup, type RosterGroup } from '@/lib/roster-groups';
 import { hydrateRoster, searchRoster, getRosterPlayerById, rosterDisplayName, type RosterPlayer } from '@/lib/roster';
@@ -14,15 +14,15 @@ import {
 } from '@/lib/stats-ledger';
 import { isAppOwner } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
-import { POOL_GROUP_SEED_KEY, TOURNAMENT_GROUP_SEED_KEY, FORMAT_SEED_KEY } from '@/lib/group-seed';
+import { POOL_GROUP_SEED_KEY, FORMAT_SEED_KEY, EVENT_SEED_KEY, type EventSeed } from '@/lib/group-seed';
 import { money } from '@/lib/money-format';
 
 // Group detail — the hub for one saved group, reached from /home. Shows the
-// members and lets you (1) start a casual round, (2) start a tournament, or
+// members and lets you (1) start a casual round, (2) start an event (§5.cv), or
 // (3) add/remove members. Starting a game drops a session "seed" (the group id)
 // that the pool / tournament wizard consumes on the relevant step — so a group
 // carries its people (and, for pool, its saved format) straight into a new game.
-// See POOL_GROUP_SEED_KEY / TOURNAMENT_GROUP_SEED_KEY in lib/group-seed.
+// See POOL_GROUP_SEED_KEY / EVENT_SEED_KEY in lib/group-seed.
 
 export default function GroupDetailPage() {
   const router = useRouter();
@@ -141,6 +141,16 @@ export default function GroupDetailPage() {
   // pick one first (or "New/custom"); otherwise go straight in on the group's
   // single baked-in default (today's behavior).
   function startCasualRound() {
+    eventRef.current = false;
+    if (groupFormats.length > 0) { setShowFormatPicker(true); return; }
+    launchCasual(null);
+  }
+
+  // §5.cv: "Start an event" is a casual round that opens Review on "new event, round 1". The
+  // group's players and its usual format seed it, exactly as a casual round (§5.cf).
+  const eventRef = useRef(false);
+  function startEvent() {
+    eventRef.current = true;
     if (groupFormats.length > 0) { setShowFormatPicker(true); return; }
     launchCasual(null);
   }
@@ -151,6 +161,12 @@ export default function GroupDetailPage() {
   // (members only; configure settings in the wizard).
   function launchCasual(format: RosterGroup | null) {
     sessionStorage.setItem(POOL_GROUP_SEED_KEY, groupId);
+    if (eventRef.current) {
+      const seed: EventSeed = { mode: 'new' };
+      sessionStorage.setItem(EVENT_SEED_KEY, JSON.stringify(seed));
+    } else {
+      sessionStorage.removeItem(EVENT_SEED_KEY);
+    }
     if (format?.defaults) {
       sessionStorage.setItem(FORMAT_SEED_KEY, JSON.stringify({ name: format.name, defaults: format.defaults }));
     } else {
@@ -187,11 +203,6 @@ export default function GroupDetailPage() {
     if (!confirm(`Delete group “${group.name}”? Past games, money, and your saved players are unaffected.`)) return;
     await deleteGroup(group.id);
     router.push('/home');
-  }
-
-  function startTournament() {
-    sessionStorage.setItem(TOURNAMENT_GROUP_SEED_KEY, groupId);
-    router.push('/tournament/new');
   }
 
   async function addMember(rp: RosterPlayer) {
@@ -308,12 +319,14 @@ export default function GroupDetailPage() {
                 {groupFormats.length > 0 ? 'Pick one of this group’s formats — or start fresh.' : 'Members and this group’s saved settings pre-loaded.'}
               </p>
             </button>
+            {/* §5.cv Q3: an Event (a Series of ordinary games) replaces the legacy multi-round
+                builder for new play. Existing tournaments stay reachable from their own pages. */}
             <button
-              onClick={startTournament}
+              onClick={startEvent}
               className="flex-1 rounded-lg bg-green-900 px-6 py-5 text-white text-left hover:bg-green-950 shadow-md"
             >
-              <p className="font-bold text-lg">Multi-round event</p>
-              <p className="text-sm text-green-100 mt-0.5">Members pre-filled; split into teams and add rounds.</p>
+              <p className="font-bold text-lg">Start an event</p>
+              <p className="text-sm text-green-100 mt-0.5">Several rounds, like a trip. The money adds up and settles at the end.</p>
             </button>
           </div>
         </section>

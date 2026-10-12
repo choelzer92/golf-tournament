@@ -383,3 +383,44 @@ export function ledgerSeason(roster: RosterPlayer[]): SeededGame[] {
     }),
   ];
 }
+
+/**
+ * An EVENT (a Series, §5.cu/§5.cv): Weekend Warriors at Myrtle, four rounds over three days.
+ * Friday is a two-team pool of 8, Saturday is 36 holes (morning skins for four, an afternoon
+ * pool), and Sunday is live through 9 (a 2v2 where side A leads). Every round carries the
+ * same series id, its own seq and its play date. The seeded "createdAt" order is deliberately
+ * NOT the play order: Saturday's afternoon round was set up first.
+ */
+export const EVENT_ID = 's-myrtle-2026';
+export function eventWeekend(roster: RosterPlayer[]): SeededGame[] {
+  const stamp = (seq: number, date: string) => ({ id: EVENT_ID, name: 'Myrtle 2026', rollup: 'money' as const, seq, date });
+  const fri = completedPool({
+    id: 'ev-1', name: 'Friday pool', playedAt: '2026-10-16T13:00:00.000Z',
+    roster, teamCount: 2, entryPerPlayer: 20, offsets: [0, 1], sourceGroupId: 'g-weekend-warriors',
+  });
+  const satAm = completedModeGame({
+    id: 'ev-2', name: 'Saturday AM skins', playedAt: '2026-10-17T12:00:00.000Z',
+    roster: roster.slice(2), gameMode: 'skins',
+    modeSettings: { moneyModel: 'per-skin', skinValue: 5, carryover: true },
+    offsets: [0, 1, 1, 2], sourceGroupId: 'g-weekend-warriors',
+  });
+  const satPm = completedPool({
+    id: 'ev-3', name: 'Saturday PM pool', playedAt: '2026-10-15T20:00:00.000Z',
+    roster: [...roster.slice(4, 8), ...roster.slice(0, 4)], teamCount: 2, entryPerPlayer: 20, offsets: [0, 2],
+    sourceGroupId: 'g-weekend-warriors',
+  });
+  const sun = completedModeGame({
+    id: 'ev-4', name: 'Sunday 2v2', playedAt: '2026-10-18T13:00:00.000Z',
+    roster, gameMode: 'team-2v2',
+    sides: [{ id: 'a', playerIds: [roster[0].id, roster[3].id] }, { id: 'b', playerIds: [roster[1].id, roster[2].id] }],
+    modeSettings: { format: 'best-ball', scoring: 'stroke', result: 'total', moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 20 },
+    offsets: [0, 1, 1, 0], sourceGroupId: 'g-weekend-warriors',
+  });
+  fri.game.series = stamp(1, '2026-10-16');
+  satAm.game.series = stamp(2, '2026-10-17');
+  satPm.game.series = stamp(3, '2026-10-17');
+  sun.game.series = stamp(4, '2026-10-18');
+  sun.game.status = 'active';
+  sun.scoresByMatchup = sun.scoresByMatchup.map(([mid, sc]) => [mid, sc.filter((s) => s.hole <= 9)]);
+  return [fri, satAm, satPm, sun];
+}

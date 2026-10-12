@@ -1,4 +1,4 @@
-import type { SeriesStamp } from './series';
+import { seriesGames, type SeriesStamp } from './series';
 import type { Player, GameScore, CourseSelection, TeeSetOption } from './game-state';
 import type { TwoBestBallsVariant } from './formats';
 import { calcCourseHandicap, applyAllowance, nineHoleIndex, formatHandicap } from './game-state';
@@ -2556,6 +2556,9 @@ export interface PoolGameListItem {
   groupSizes: number[];
   sideSizes: number[];
   money?: string;
+  // §5.ck / §5.cu: Home groups games by their group, and an event's rounds by their stamp.
+  sourceGroupId?: string;
+  series?: SeriesStamp;
 }
 
 // All pool games (newest first). Owner/dashboard view.
@@ -2603,9 +2606,16 @@ export function getPoolGameList(filter?: (g: PoolGame) => boolean): PoolGameList
       groupSizes: g.teams.map((t) => t.playerIds.length),
       sideSizes: g.gameMode ? sidesOfGame(g).map((s) => s.playerIds.length) : [],
       money: g.gameMode ? String(g.modeSettings?.moneyModel ?? 'legs') : g.moneyMode,
+      sourceGroupId: g.sourceGroupId,
+      series: g.series,
     });
   }
   return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+// One event's rounds (§5.cu), from the cache, in play order. Hydrate first.
+export function getSeriesRounds(seriesId: string): PoolGame[] {
+  return seriesGames([...poolGameCache.values()], seriesId);
 }
 
 // Only the games created by a given GHIN number (an organizer's own history).

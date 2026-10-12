@@ -108,6 +108,39 @@ export function nextRoundStamp(rounds: SeriesGameLike[], date: string): SeriesSt
   return { id: first.id, name: latest.name, rollup: first.rollup, seq, date };
 }
 
+/** YYYY-MM-DD plus `days`, calendar-safe (no time zone involved: noon UTC never crosses a date). */
+export function addDays(date: string, days: number): string {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** "Sat Oct 17" for a YYYY-MM-DD: the event's column headers and hints. */
+export function shortDate(date: string): string {
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC',
+  });
+}
+
+/** An event as a picker lists it: name, how many rounds, and the date the next one defaults to. */
+export interface SeriesSummary {
+  id: string;
+  name: string;
+  roundCount: number;
+  lastDate: string;
+  nextDate: string;       // the day after the latest round; a 36-hole day changes it by hand
+}
+
+export function seriesSummaries(games: SeriesGameLike[]): SeriesSummary[] {
+  const out: SeriesSummary[] = [];
+  for (const [id, rounds] of groupBySeries(games)) {
+    const last = rounds[rounds.length - 1].series!;
+    const latest = rounds.reduce((a, b) => (b.series!.seq > a.series!.seq ? b : a)).series!;
+    out.push({ id, name: latest.name, roundCount: rounds.length, lastDate: last.date, nextDate: addDays(last.date, 1) });
+  }
+  return out.sort((a, b) => b.lastDate.localeCompare(a.lastDate));
+}
+
 /** The event's money standings. */
 export function seriesStandings(inputs: SeriesRoundInput[]): SeriesStandings {
   const ordered = [...inputs].sort(byPlayOrder);

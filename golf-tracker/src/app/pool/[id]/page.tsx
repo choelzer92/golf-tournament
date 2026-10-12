@@ -24,6 +24,7 @@ import { GameSettingsEditor, CtpEditor } from './panels/settings-editor';
 import { MoneySummary, GuestSettleUp, GameCloseOut } from './panels/money-panels';
 import { EditFoursomes, OversizedGroupPrompt, WolfRotationEditor } from './panels/field-editor';
 import { RERUN_SEED_KEY } from '@/lib/group-seed';
+import { EventBanner } from '@/components/event-banner';
 
 // Pick a tee for a player, STRICTLY within their gender — mirrors the wizard
 // (src/app/pool/new/page.tsx). A course's men's and women's tees can share a
@@ -413,6 +414,8 @@ export default function PoolHubPage() {
             <button type="button" onClick={() => setRefused(null)} className="text-xs font-medium text-amber-800 hover:underline">Dismiss</button>
           </div>
         )}
+        {/* §5.cv: a round of an event says so, links its standings, and adds the next round. */}
+        <EventBanner game={game} organizer={!poolOnly} />
         {/* Leaderboard + Teams + Scorecards CTAs. §5.cl: before any score, the organizer's
             filled button is "Send to players" and Leaderboard steps back to an outline. */}
         <div className="flex flex-wrap justify-center gap-3">

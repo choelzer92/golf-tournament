@@ -23,6 +23,7 @@ import { computeGameResult } from './game-modes/result';
 import { sidesForCompute } from './game-modes/context';
 import { sideMembers } from './game-modes/sides';
 import type { RosterGroup } from './roster-groups';
+import type { SeriesRoundInput } from './series';
 
 // One player's money + activity in ONE finished game.
 export interface GamePlayerNet {
@@ -76,7 +77,7 @@ export interface SettlementTransfer {
 // (like the leaderboard) and splits each team's net evenly across its players —
 // pool's own perPersonNet convention. NOTE: no anti-sandbag concealment here;
 // a finished game reveals every hole, and the ledger only counts finished games.
-async function poolGameLedger(game: PoolGame): Promise<GameLedger> {
+async function fetchPoolScores(game: PoolGame): Promise<Map<string, GameScore[]>> {
   const matchupIds = Array.from(new Set(game.teams.map((t) => t.matchupId)));
   const scoresByMatchup = new Map<string, GameScore[]>();
   await Promise.all(
@@ -85,6 +86,11 @@ async function poolGameLedger(game: PoolGame): Promise<GameLedger> {
       if (scores) scoresByMatchup.set(mid, scores as GameScore[]);
     }),
   );
+  return scoresByMatchup;
+}
+
+async function poolGameLedger(game: PoolGame): Promise<GameLedger> {
+  const scoresByMatchup = await fetchPoolScores(game);
 
   // F-068: ONE reducer for every engine (perPlayerNets, below). This used to call
   // computePoolResult — the CLASSIC engine — on every game regardless of gameMode, so a
@@ -403,4 +409,22 @@ export function settleUp(rollups: PlayerRollup[]): SettlementTransfer[] {
     if (d.remaining <= EPS) di++;
   }
   return transfers;
+}
+
+// An event's rounds reduced to the inputs lib/series.ts rolls up (§5.cu). Every round is
+// computed, live ones too: seriesStandings keeps a live round out of TOTAL (it's Projected),
+// so the split between real and projected money lives in one pure place.
+export async function seriesRoundInputs(rounds: PoolGame[]): Promise<SeriesRoundInput[]> {
+  return Promise.all(
+    rounds
+      .filter((g) => g.series)
+      .map(async (g) => ({
+        gameId: g.id,
+        gameName: g.name,
+        date: g.series!.date,
+        seq: g.series!.seq,
+        status: g.status,
+        nets: g.status === 'setup' ? [] : perPlayerNets(g, await fetchPoolScores(g)),
+      })),
+  );
 }

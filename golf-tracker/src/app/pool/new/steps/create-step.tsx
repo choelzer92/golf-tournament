@@ -1,7 +1,7 @@
 'use client';
 
 import { matchesOf, matchSizeOf } from '@/lib/game-modes/match-pairing';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import type { CourseSelection, Player } from '@/lib/game-state';
 import {
   type PoolTeam,
@@ -107,7 +107,7 @@ export function CreateStep({
   junkValues, setJunkValues, customBonuses, setCustomBonuses,
   matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
   sides, modeSettings, setModeSettings, strokeMethod, hideHoles, onSaveFormat,
-  onCreate, onBack,
+  eventField, onCreate, onBack,
 }: {
   name: string;
   entryPerPlayer: number;
@@ -159,6 +159,8 @@ export function CreateStep({
   /** §5.ck: present only when each team is its own foursome. */
   hideHoles?: { checked: boolean; onChange: (v: boolean) => void };
   onSaveFormat: () => Promise<void>;
+  /** "Part of an event?" (§5.cv), rendered just above Create. */
+  eventField?: ReactNode;
   onCreate: () => void; onBack: () => void;
 }) {
   // Rendering follows the ROUTED container, not a picked mode: an aligned pot is the classic pool,
@@ -832,6 +834,8 @@ export function CreateStep({
           </span>
         </label>
       )}
+
+      {eventField}
 
       <button
         onClick={onCreate}
