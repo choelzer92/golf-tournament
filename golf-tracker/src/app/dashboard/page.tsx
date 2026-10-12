@@ -172,13 +172,24 @@ export default function DashboardPage() {
       const data = await res.json();
       if (!res.ok) { setError(data.error); return; }
 
+      // F-110: Link fills in YOUR missing index. It never replaces who you are: the stored
+      // golfer keeps its GHIN number and name (getCreatorGhin reads them), so Create, Start
+      // from and the event picker keep working. Someone else's number is refused.
+      const me = getCreatorGhin();
+      if (me != null && me !== Number(ghinInput)) {
+        setError('That isn’t your GHIN number. Enter your own to show your index.');
+        return;
+      }
+      const stored = JSON.parse(sessionStorage.getItem('ghin_golfer') ?? '{}') as Record<string, unknown>;
       const updatedGolfer = {
+        ...stored,
+        ghin: me ?? Number(ghinInput),
+        first_name: stored.first_name ?? data.golfer.first_name,
+        last_name: stored.last_name ?? data.golfer.last_name,
         handicap_index: data.golfer.handicap_index ?? data.golfer.hi_value ?? null,
         clubs: data.golfer.clubs || [],
-        first_name: data.golfer.first_name,
-        last_name: data.golfer.last_name,
       };
-      setGolfer(updatedGolfer);
+      setGolfer(updatedGolfer as Golfer);
       sessionStorage.setItem('ghin_golfer', JSON.stringify(updatedGolfer));
     } catch {
       setError('Failed to look up golfer');
