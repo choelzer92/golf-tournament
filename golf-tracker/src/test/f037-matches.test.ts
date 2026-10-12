@@ -17,6 +17,7 @@ import { matchesOf, matchShapeProblem, matchSizesFor, suggestMatches, teeGroupsF
 import type { GameSide } from '@/lib/game-modes/sides';
 import type { GameScore } from '@/lib/game-state';
 import type { IndividualResult } from '@/lib/game-modes/types';
+import { buildHcapMap, poolStrokeMap } from '@/lib/pool-game';
 import { makeGame, makeTeam, scoresFor, TEST_PARS } from './fixtures';
 
 const G1 = ['p1', 'p2', 'p3', 'p4'];
@@ -349,4 +350,54 @@ describe('F-037 T3 — building the tee sheet FROM the matches (§5.co Q1, Q6)',
       expect(read.map((m) => m.units.map((u) => u.playerIds.join(',')).sort().join(' v ')).sort()).toEqual(want);
     });
   }
+});
+
+// T4 (§5.cn): under OFF THE LOW, strokes come off the low player IN EACH MATCH, not the field.
+// Indexes (CH == index): M1 x p1 2, p2 4 v y p3 6, p4 8; M2 x p5 10, p6 12 v y p7 14, p8 16.
+//   Field low 2:  p5..p8 get 8, 10, 12, 14.      Per match:  M1 0, 2, 4, 6;  M2 0, 2, 4, 6.
+// Everyone pars every hole except p8 bogeys 3–6 (SI == hole, so strokes fall on holes 1..n).
+//   M1 (same either way): x best −1 on 1–2; y best −1 on 1–6 → y wins 3, 4, 5, 6 = 4 holes.
+//   M2 per match: x −1 on 1–2 (p6); y: p7 −1 on 1–4, p8 net par on 3–6 → y wins 3, 4 = 2 holes.
+//   M2 field-wide: x −1 on 1–10 (p6); y: p7 −1 on 1–12, p8 −1 on 13–14 → y wins 11–14 = 4 holes.
+describe('F-037 T4 — strokes off the low PER MATCH', () => {
+  const idx = [2, 4, 6, 8, 10, 12, 14, 16];
+  const t4Game = (strokeMethod: 'off-the-low' | 'full', matchSize = 2) => makeGame({
+    gameMode: 'team-2v2', indexes: idx, strokeMethod,
+    teams: [makeTeam(1, G1), makeTeam(2, G2)], sides: TEAMS,
+    modeSettings: { format: 'best-ball', scoring: 'stroke', result: 'match', moneyModel: 'per-point', dollarsPerPoint: 1, matchCounting: 'holes', junkEnabled: false, matchSize },
+  });
+  const t4Scores = () => new Map<string, GameScore[]>([
+    ['m1', G1.flatMap((id) => scoresFor(id, ALL.map((h) => TEST_PARS[h - 1])))],
+    ['m2', G2.flatMap((id) => scoresFor(id, ALL.map((h) => TEST_PARS[h - 1] + (id === 'p8' && h >= 3 && h <= 6 ? 1 : 0))))],
+  ]);
+  const holes = (g: ReturnType<typeof t4Game>) => {
+    const r = computeGameResult(g, t4Scores());
+    if (r.kind !== 'individual') throw new Error('expected the team engine');
+    return r.matches ? r.matches.map((m) => m.holesWon.y) : null;
+  };
+
+  it('the stroke map takes each match\'s low: 0 / 2 / 4 / 6 in both matches', () => {
+    const map = buildHcapMap(t4Game('off-the-low'));
+    expect(['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'].map((id) => map.get(id))).toEqual([0, 2, 4, 6, 0, 2, 4, 6]);
+  });
+
+  it('M2 is decided on its own low: y wins 2 holes (field-wide it would be 4)', () => {
+    expect(holes(t4Game('off-the-low'))).toEqual([4, 2]);
+  });
+
+  it('COMPAT: matches off keeps the field low (8 / 10 / 12 / 14 in group 2)', () => {
+    const map = buildHcapMap(t4Game('off-the-low', 0));
+    expect(['p5', 'p6', 'p7', 'p8'].map((id) => map.get(id))).toEqual([8, 10, 12, 14]);
+  });
+
+  it('COMPAT: full handicap is untouched by matches — everyone plays their own course handicap', () => {
+    const map = buildHcapMap(t4Game('full'));
+    expect(['p1', 'p5', 'p8'].map((id) => map.get(id))).toEqual([2, 10, 16]);
+    expect(holes(t4Game('full'))).toEqual([4, 4]);
+  });
+
+  it('the scorecard\'s stroke dots read the same map as the money (one source, AGENTS.md)', () => {
+    const g = t4Game('off-the-low');
+    expect(poolStrokeMap(g)).toEqual(buildHcapMap(g));
+  });
 });

@@ -11,6 +11,7 @@ import {
   type ScoreBasis, type TeamFormat,
 } from './game-modes/team-scoring';
 import { sidesOfGame, type GameSide } from './game-modes/sides';
+import { matchesOf, matchSizeOf } from './game-modes/match-pairing';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -807,6 +808,19 @@ export function buildHcapMap(game: PoolGame): Map<string, number> {
   const low = Math.min(...rounded.values());
   const adjusted = new Map<string, number>();
   for (const [id, h] of rounded) adjusted.set(id, h - low);
+  // F-037 T4 (§5.cn): in head-to-head matches the strokes come off the low player IN EACH MATCH —
+  // the match-play rule — not the field's. Same rounded values, same round-then-subtract order; only
+  // the low changes. Everything that gives strokes reads this map (the engine, the card's dots), so
+  // dots and money move together.
+  const matches = matchSizeOf(game.modeSettings ?? {}) > 0
+    ? matchesOf(sidesOfGame(game), game.teams.map((t) => t.playerIds), matchSizeOf(game.modeSettings ?? {}))
+    : null;
+  for (const m of matches ?? []) {
+    const ids = m.units.flatMap((u) => u.playerIds).filter((id) => rounded.has(id));
+    if (ids.length === 0) continue;
+    const matchLow = Math.min(...ids.map((id) => rounded.get(id)!));
+    for (const id of ids) adjusted.set(id, rounded.get(id)! - matchLow);
+  }
   return adjusted;
 }
 
@@ -1384,7 +1398,8 @@ export function captainsDealTeams(
 // the organizer sees on the cards (raw course handicap looked wrong to him in an
 // off-the-low game). Swapping players between teams never changes the field low
 // (it's over the whole field), so this map is invariant under any swap and can be
-// computed once and reused for every simulated arrangement.
+// computed once and reused for every simulated arrangement. (Exception: a head-to-head matches
+// game plays off each MATCH's low (F-037 T4), so there a swap can move the map.)
 export function poolStrokeMap(game: PoolGame): Map<string, number> {
   return buildHcapMap(game);
 }
