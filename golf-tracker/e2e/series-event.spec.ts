@@ -145,5 +145,23 @@ test('§5.cv: a guest on a round\'s link can open the event standings, but canno
   await expect(guest.getByRole('heading', { name: 'Myrtle 2026' })).toBeVisible();
   await expect(guest.getByTestId('event-standings')).toBeVisible();
   await expect(guest.getByRole('button', { name: /Add round/ })).toHaveCount(0);
+  await expect(guest.getByRole('button', { name: 'Rename' })).toHaveCount(0);
   await ctx.close();
+});
+
+test('§5.cw b: the organizer renames the event; every round carries the new name', async ({ page }) => {
+  await page.goto(`${BASE}${EVENT}`);
+  await expect(page.getByRole('heading', { name: 'Myrtle 2026' })).toBeVisible();
+  await page.getByRole('button', { name: 'Rename' }).click();
+  await page.getByLabel('Event name').fill('Myrtle Beach Boys Trip');
+  await page.screenshot({ path: 'e2e/screenshots/event-rename.png', fullPage: true });
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('heading', { name: 'Myrtle Beach Boys Trip' })).toBeVisible();
+
+  // Saved on every round, not just the screen: a reload and the first round's hub agree.
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Myrtle Beach Boys Trip' })).toBeVisible();
+  await page.getByRole('region', { name: 'Rounds' }).getByRole('button', { name: /^Round 1 ·/ }).click();
+  await page.waitForURL(/\/pool\/[^/]+$/);
+  await expect(page.getByTestId('event-banner')).toContainText('Myrtle Beach Boys Trip · Round 1 of 4');
 });

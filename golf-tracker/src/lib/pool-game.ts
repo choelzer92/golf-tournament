@@ -2618,6 +2618,16 @@ export function getSeriesRounds(seriesId: string): PoolGame[] {
   return seriesGames([...poolGameCache.values()], seriesId);
 }
 
+// §5.cw b: rename an event = rewrite the name on every round's stamp (§5.cu). Each round is
+// re-read first so a stale cached copy never overwrites a newer save; its own name is untouched.
+export async function renameSeries(seriesId: string, name: string): Promise<void> {
+  await Promise.all(getSeriesRounds(seriesId).map(async (r) => {
+    const fresh = (await fetchPoolGame(r.id)) ?? r;
+    if (fresh.series?.id !== seriesId || fresh.series.name === name) return;
+    savePoolGame({ ...fresh, series: { ...fresh.series, name } });
+  }));
+}
+
 // Only the games created by a given GHIN number (an organizer's own history).
 export function getPoolGameListForGhin(ghinNumber: number): PoolGameListItem[] {
   return getPoolGameList().filter((g) => g.createdByGhin === ghinNumber);

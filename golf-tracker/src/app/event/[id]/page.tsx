@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { hydratePoolGames, getSeriesRounds, getPoolGameList, type PoolGame } from '@/lib/pool-game';
+import { hydratePoolGames, getSeriesRounds, getPoolGameList, renameSeries, type PoolGame } from '@/lib/pool-game';
 import { seriesRoundInputs } from '@/lib/stats-ledger';
 import { seriesStandings, shortDate, type SeriesStandings } from '@/lib/series';
 import { money } from '@/lib/money-format';
@@ -23,6 +23,9 @@ export default function EventPage() {
   const [standings, setStandings] = useState<SeriesStandings | null>(null);
   const [organizer, setOrganizer] = useState(false);
   useEffect(() => { setOrganizer(getAccessLevel() !== 'pool'); }, []);
+  // §5.cw b: the organizer renames the event here; every round's stamp is rewritten.
+  const [renaming, setRenaming] = useState(false);
+  const [renameText, setRenameText] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +54,14 @@ export default function EventPage() {
     );
   }
 
+  async function doRename(current: string) {
+    const next = renameText.trim();
+    if (!next || next === current) { setRenaming(false); return; }
+    await renameSeries(id, next);
+    setRounds(getSeriesRounds(id));
+    setRenaming(false);
+  }
+
   const latest = rounds[rounds.length - 1];
   const name = rounds.reduce((a, b) => (b.series!.seq > a.series!.seq ? b : a)).series!.name;
   const finished = rounds.filter((r) => r.status === 'completed').length;
@@ -62,7 +73,31 @@ export default function EventPage() {
         <div className="max-w-3xl mx-auto px-4 py-4">
           <button onClick={() => router.push('/home')} className="text-sm text-green-200 hover:text-white">← Home</button>
           <p className="mt-1 text-xs font-medium uppercase tracking-wide text-green-200">Event</p>
-          <h1 className="text-xl font-bold">{name}</h1>
+          {renaming ? (
+            <form className="flex gap-2 mt-1" onSubmit={(e) => { e.preventDefault(); void doRename(name); }}>
+              <input
+                autoFocus
+                aria-label="Event name"
+                value={renameText}
+                onChange={(e) => setRenameText(e.target.value)}
+                className="flex-1 min-w-0 rounded-md bg-white px-2 py-1 text-base font-bold text-gray-900"
+              />
+              <button type="submit" className="text-sm font-medium text-green-200 hover:text-white">Save</button>
+              <button type="button" onClick={() => setRenaming(false)} className="text-sm text-green-200 hover:text-white">Cancel</button>
+            </form>
+          ) : (
+            <div className="flex items-baseline justify-between gap-3">
+              <h1 className="text-xl font-bold">{name}</h1>
+              {organizer && (
+                <button
+                  onClick={() => { setRenameText(name); setRenaming(true); }}
+                  className="text-sm text-green-200 hover:text-white shrink-0"
+                >
+                  Rename
+                </button>
+              )}
+            </div>
+          )}
           <p className="text-sm text-green-100">
             {rounds.length} {rounds.length === 1 ? 'round' : 'rounds'} · {finished} finished
           </p>
