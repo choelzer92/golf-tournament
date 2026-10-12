@@ -2471,3 +2471,53 @@ hub edits re-sort that order, so opponents could change silently. Craig picked t
 - **(C)** show the pairings on each tee-group card.
 An edit that leaves a foursome's stored pairings invalid is a shape problem: refused with the reason
 (§5.ac), never re-paired silently. 2 v 2 is unaffected (one pair per team per foursome).
+
+### 5.cr — Multi-day trip (bar #11) is built as a SERIES of ordinary games (2026-10-12)
+
+Asked Series vs S4 (open since §5.cf). Craig picked **Series first** (the S2 recommendation,
+`.claude/plans/spine-s2.md` §7):
+- **The shape:** `Series { gameIds, sourceGroupId, rollup: 'money' | 'points' }`. Each day is an
+  ordinary pool game, on any mode, N-way, with teams that can change daily.
+- **Cumulative money:** the sum of each game's per-player `moneyNet` (the F-068 split). No
+  money-engine change.
+- **Ryder-Cup points:** later, as a rollup option. Team → Match (§5.co) is the per-day roll-up.
+- **S3 becomes unnecessary.** S2 shrinks to convergence plus freeze (S2.0–S2.6 in parallel; S2.7/S2.8
+  deferred). Legacy tournaments stay on the legacy engine for now. S4 later reduces to "a
+  tournament row is read as a Series" plus the vocabulary collapse (§5.cb).
+
+The two live-money findings (mixed-tee stroke index; the ledger on nine/split rounds, live T0) were
+reported to Craig the same day, not fixed. They are S2 questions 2 and 3.
+
+### 5.cs — S2 engine questions (2026-10-12, asked one at a time from `spine-s2.md` §6)
+
+- **Q1 Existing tournaments:** A. Each is stamped legacy and keeps computing exactly as today; only
+  new tournaments use the shared engine. No live number moves silently.
+- **Q2 Mixed tees:** A. New rounds use each player's OWN tee's stroke index (the pool, the card
+  dots, the GHIN card).
+- **Q3 The ledger on nine/split rounds:** Craig, asked why it doubles: "i thought there were
+  options to use the correct calculation either choosing between the 18 hole prorated rankings or
+  the 9 hole course and slope ratings calculation that is usga and ghin certified? this should be
+  fool proof and exact. we need to fix this".
+  - **The cause (verified in code):** the ledger's `getMoneyGamePlayingHandicap`
+    (`money-games.ts:91`) always uses the 18-hole Total-rating course handicap and allocates it over
+    the played holes. It ignores the round's nine basis, which scoring's `getPlayerEffectiveHcap`
+    honours.
+  - **The decision: FIX IT** so the ledger uses the same handicap function as scoring.
+  - **The pin:** a test asserts ledger strokes == scorecard strokes for 18 / front / back / split ×
+    both bases.
+  - **T0:** the ledger is computed at read time, so the fix moves T0's displayed money only when
+    the branch merges. T0's before/after is shown to Craig first.
+  - This is a bug fix inside the legacy engine, and Craig asked for it explicitly, so it isn't
+    covered by Q1's "legacy stays as-is".
+- **Q4 Two-best-balls Stableford:** A. Each ball earns its own points against par (the pool's rule).
+- **Q5 Custom Stableford scale + scramble flat %:** A. Both become team-engine settings, with defaults
+  unchanged and `showIf`.
+- **Q6 Split format:** B now. Split rounds stay legacy; it gets built later as "several games on one
+  round" (§5.cp), which also covers the late player.
+- **Q7 Nassau stake:** A. Per player, as tournaments mean it. Equal team sizes are required, or the
+  stake is prorated so it stays zero-sum.
+- **Q8 Skins ledger:** A. The pool's rules for new rounds: a skin is decided once every group has
+  posted, and the ante is refunded with no winner. The carry across days stays at the event level.
+- **Q9 No-rating tee:** A. The index stands in everywhere (F-023).
+- **Q10 Live corpus:** YES. Run `scripts/export-backup.mjs` once, after re-checking that it is
+  SELECT-only, and keep the export local (git-ignored).
