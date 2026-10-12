@@ -207,3 +207,23 @@ describe('membership and the next round', () => {
     expect(nextRoundStamp(seriesGames(games, 's-myrtle'), '2026-10-17').seq).toBe(3);
   });
 });
+
+describe('§5.cw a: a live round with no score yet is NOT STARTED', () => {
+  const base = weekend().filter((r) => r.gameId !== 'sun-2');
+
+  it('reads upcoming, never projected, and its nets are ignored', () => {
+    // A round set up ahead saves as active; nets of all zeros (nobody scored) or stale ones must not show.
+    const s = seriesStandings(base.map((r) => (r.gameId === 'sun' ? { ...r, scored: false } : r)));
+    expect(s.rounds.find((r) => r.gameId === 'sun')!.state).toBe('upcoming');
+    expect(s.hasProjected).toBe(false);
+    expect(s.rows.every((r) => r.byRound.sun === undefined && r.projected === r.total)).toBe(true);
+  });
+
+  it('scored (or unknown) stays projected', () => {
+    for (const scored of [true, undefined]) {
+      const s = seriesStandings(base.map((r) => (r.gameId === 'sun' ? { ...r, scored } : r)));
+      expect(s.rounds.find((r) => r.gameId === 'sun')!.state).toBe('projected');
+      expect(s.hasProjected).toBe(true);
+    }
+  });
+});

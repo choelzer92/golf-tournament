@@ -7,7 +7,10 @@ import {
   getPoolGameList,
   getPoolGameListVisibleTo,
   hydratePoolGames,
+  loadPoolGame,
+  type PoolGame,
 } from '@/lib/pool-game';
+import { unstartedGameIds } from '@/lib/stats-ledger';
 import { gameListSubtitle } from '@/lib/game-modes/result';
 import { buildHomeFeed, type FeedItem, type HomeFeed } from '@/lib/home-feed';
 import { shortDate } from '@/lib/series';
@@ -41,7 +44,7 @@ const OTHER_SHOWN = 5;
 const dateOf = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
 // One feed item as a row: what it is, its name, and one line saying where it stands.
-function describe(item: FeedItem): { pill: string; pillClass: string; name: string; status: 'setup' | 'active' | 'completed'; line: string; href: string } {
+function describe(item: FeedItem, unstarted: Set<string>): { pill: string; pillClass: string; name: string; status: 'setup' | 'active' | 'completed'; line: string; href: string } {
   if (item.kind === 'event') {
     const done = item.rounds.filter((r) => r.status === 'completed').length;
     return {
@@ -62,7 +65,9 @@ function describe(item: FeedItem): { pill: string; pillClass: string; name: stri
   }
   const g = item.game;
   return {
-    pill: 'Game', pillClass: 'bg-blue-100 text-blue-700', name: g.name, status: g.status,
+    // §5.cw a: live with no score yet reads "not started".
+    pill: 'Game', pillClass: 'bg-blue-100 text-blue-700', name: g.name,
+    status: g.status === 'active' && unstarted.has(g.id) ? 'setup' : g.status,
     line: `${dateOf(g.createdAt)} · ${gameListSubtitle(g)}`,
     href: `/pool/${g.id}`,
   };
@@ -73,6 +78,7 @@ export default function HomePage() {
   const [ready, setReady] = useState(false);
   const [name, setName] = useState<string | null>(null);
   const [feed, setFeed] = useState<HomeFeed | null>(null);
+  const [unstarted, setUnstarted] = useState<Set<string>>(new Set());
   const [groups, setGroups] = useState<RosterGroup[]>([]);
   // §5.ck: the "Other games" list shows the newest few; the rest are one tap away.
   const [allOther, setAllOther] = useState(false);
@@ -105,13 +111,20 @@ export default function HomePage() {
       hydrateTournaments(),
       hydrateGroups({ viewerGhin: ghin, isOwner }).catch(() => []),
       hydrateRoster({ viewerGhin: ghin, isOwner }).catch(() => []),
-    ]).then(() => {
+    ]).then(async () => {
       const viewer = getViewer(ghin);
       const visibleGroups = getViewablePlayerGroups();
+      const games = isOwner ? getPoolGameList() : getPoolGameListVisibleTo(viewer);
+      // §5.cw a: a live game with no score yet (set up ahead) gets no Continue card.
+      const liveGames = games.filter((g) => g.status === 'active')
+        .map((g) => loadPoolGame(g.id)).filter((g): g is PoolGame => !!g);
+      const notStarted = await unstartedGameIds(liveGames).catch(() => new Set<string>());
+      setUnstarted(notStarted);
       setFeed(buildHomeFeed(
-        isOwner ? getPoolGameList() : getPoolGameListVisibleTo(viewer),
+        games,
         isOwner ? getTournamentList() : getTournamentListVisibleTo(viewer),
         new Set(visibleGroups.map((g) => g.id)),
+        notStarted,
       ));
       setGroups(visibleGroups);
       setReady(true);
@@ -302,7 +315,7 @@ export default function HomePage() {
             <div className="space-y-2">
               {groups.map((grp) => {
                 const latest = feed.latestByGroup.get(grp.id);
-                const d = latest ? describe(latest) : null;
+                const d = latest ? describe(latest, unstarted) : null;
                 return (
                   <div key={grp.id} className="bg-white rounded-lg shadow" data-testid="group-card">
                     <button
@@ -350,7 +363,7 @@ export default function HomePage() {
           ) : (
             <div className="space-y-2">
               {(allOther ? feed.other : feed.other.slice(0, OTHER_SHOWN)).map((item) => {
-                const d = describe(item);
+                const d = describe(item, unstarted);
                 return (
                   <button
                     key={item.key}

@@ -2,7 +2,8 @@
 // list items the caller already loaded.
 //
 //   1. LIVE: every live game gets a Continue card at the very top, whatever its group. A live
-//      round of an event says which event.
+//      round of an event says which event. A live game with no score yet (a round set up a day
+//      ahead) is NOT STARTED: no Continue card, and it doesn't make its event live (§5.cw a).
 //   2. BY GROUP: each group the viewer can see shows its latest item inline: an event (its
 //      rounds collapsed into one) or a single game.
 //   3. OTHER: everything made outside a visible group, newest first, events collapsed.
@@ -33,9 +34,10 @@ export function buildHomeFeed(
   games: PoolGameListItem[],
   tournaments: TournamentListItem[],
   visibleGroupIds: Set<string>,
+  unstarted: Set<string> = new Set(),
 ): HomeFeed {
   const live = games
-    .filter((g) => g.status === 'active')
+    .filter((g) => g.status === 'active' && !unstarted.has(g.id))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map((g) => ({ game: g, event: g.series }));
 
@@ -57,7 +59,7 @@ export function buildHomeFeed(
         seriesId,
         name: latest.series!.name,
         rounds,
-        live: rounds.some((r) => r.status === 'active'),
+        live: rounds.some((r) => r.status === 'active' && !unstarted.has(r.id)),
         at: rounds.map((r) => r.createdAt).sort().pop()!,
       },
       groupId: rounds[0].sourceGroupId,

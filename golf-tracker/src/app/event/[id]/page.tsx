@@ -156,7 +156,10 @@ export default function EventPage() {
           <div className="space-y-2">
             {rounds.map((r, i) => {
               const item = listItems.get(r.id);
-              const state = r.status === 'completed' ? 'Final' : r.status === 'active' ? 'Live' : 'Not started';
+              // §5.cw a: a live round with no score yet reads "Not started" (the standings know).
+              const st = standings?.rounds.find((x) => x.gameId === r.id)?.state
+                ?? (r.status === 'completed' ? 'final' : r.status === 'active' ? 'projected' : 'upcoming');
+              const state = st === 'final' ? 'Final' : st === 'projected' ? 'Live' : 'Not started';
               return (
                 <button
                   key={r.id}
@@ -166,7 +169,7 @@ export default function EventPage() {
                 >
                   <span className="flex justify-between gap-2 text-sm font-medium text-gray-900">
                     <span>Round {i + 1} · {r.name}</span>
-                    <span className={r.status === 'active' ? 'text-amber-700' : 'text-gray-500'}>{state}</span>
+                    <span className={st === 'projected' ? 'text-amber-700' : 'text-gray-500'}>{state}</span>
                   </span>
                   <span className="block text-xs text-gray-500">
                     {shortDate(r.series!.date)}{r.course ? ` · ${r.course.courseName}` : ''}{item ? ` · ${gameListSubtitle(item)}` : ''}

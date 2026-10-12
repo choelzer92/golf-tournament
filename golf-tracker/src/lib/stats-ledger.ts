@@ -418,13 +418,30 @@ export async function seriesRoundInputs(rounds: PoolGame[]): Promise<SeriesRound
   return Promise.all(
     rounds
       .filter((g) => g.series)
-      .map(async (g) => ({
-        gameId: g.id,
-        gameName: g.name,
-        date: g.series!.date,
-        seq: g.series!.seq,
-        status: g.status,
-        nets: g.status === 'setup' ? [] : perPlayerNets(g, await fetchPoolScores(g)),
-      })),
+      .map(async (g) => {
+        const scores = g.status === 'setup' ? new Map<string, GameScore[]>() : await fetchPoolScores(g);
+        return {
+          gameId: g.id,
+          gameName: g.name,
+          date: g.series!.date,
+          seq: g.series!.seq,
+          status: g.status,
+          scored: hasAnyGross(scores),
+          nets: g.status === 'setup' ? [] : perPlayerNets(g, scores),
+        };
+      }),
   );
+}
+
+const hasAnyGross = (scores: Map<string, GameScore[]>) =>
+  [...scores.values()].some((list) => list.some((s) => s.grossScore != null));
+
+/** §5.cw a: the live games with no score posted yet (a round set up ahead). Home gives them no
+ *  Continue card. Fetches scores for the games passed, so pass only the live ones. */
+export async function unstartedGameIds(games: PoolGame[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  await Promise.all(games.map(async (g) => {
+    if (!hasAnyGross(await fetchPoolScores(g))) out.add(g.id);
+  }));
+  return out;
 }

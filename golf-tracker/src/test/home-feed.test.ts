@@ -47,3 +47,25 @@ describe('buildHomeFeed', () => {
     expect(feed.other.some((i) => i.key === 'pool:w-old')).toBe(false);
   });
 });
+
+describe('§5.cw a: a live round with no score yet is NOT STARTED', () => {
+  const games = [
+    g('r1', '2026-10-16T00:00:00Z', { sourceGroupId: 'g1', series: ev(1, '2026-10-16') }),
+    g('r2', '2026-10-16T01:00:00Z', { sourceGroupId: 'g1', series: ev(2, '2026-10-17'), status: 'active' }),
+    g('solo', '2026-10-16T02:00:00Z', { status: 'active' }),
+  ];
+
+  it('gets no Continue card and does not make its event live', () => {
+    const feed = buildHomeFeed(games, [], new Set(['g1']), new Set(['r2']));
+    expect(feed.live.map((l) => l.game.id)).toEqual(['solo']);
+    const latest = feed.latestByGroup.get('g1')!;
+    expect(latest.kind === 'event' && latest.live).toBe(false);
+  });
+
+  it('the first score makes it live again', () => {
+    const feed = buildHomeFeed(games, [], new Set(['g1']));
+    expect(feed.live.map((l) => l.game.id)).toEqual(['solo', 'r2']);
+    const latest = feed.latestByGroup.get('g1')!;
+    expect(latest.kind === 'event' && latest.live).toBe(true);
+  });
+});

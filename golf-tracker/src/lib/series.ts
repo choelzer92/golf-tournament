@@ -11,7 +11,7 @@
 // Money: each round settles on its own engine, unchanged. The event's TOTAL is the sum
 // of each FINISHED round's per-player net (the F-068 split, stats-ledger perPlayerNets).
 // A live round is shown separately as PROJECTED and never enters TOTAL or the settle-up
-// (§5.cv Q5). A player who sits a round out simply has no net in it.
+// (§5.cv Q5). A live round with no score yet is NOT STARTED, like a setup one (§5.cw a). A player who sits a round out simply has no net in it.
 //
 // Pure: no persistence, no clock. The caller supplies each round's nets.
 
@@ -43,6 +43,9 @@ export interface SeriesRoundInput {
   date: string;
   seq: number;
   status: 'setup' | 'active' | 'completed';
+  /** Any score posted yet? A live round with none is NOT STARTED (§5.cw a): a round set up a
+   *  day ahead saves as active. Absent = assume scored. */
+  scored?: boolean;
   nets: { playerId: string; playerName: string; net: number }[];
 }
 
@@ -141,6 +144,12 @@ export function seriesSummaries(games: SeriesGameLike[]): SeriesSummary[] {
   return out.sort((a, b) => b.lastDate.localeCompare(a.lastDate));
 }
 
+/** Where a round stands: finished, live with scores, or not started (setup, or live with none). */
+export function roundState(r: { status: SeriesRoundInput['status']; scored?: boolean }): SeriesRoundState {
+  if (r.status === 'completed') return 'final';
+  return r.status === 'active' && r.scored !== false ? 'projected' : 'upcoming';
+}
+
 /** The event's money standings. */
 export function seriesStandings(inputs: SeriesRoundInput[]): SeriesStandings {
   const ordered = [...inputs].sort(byPlayOrder);
@@ -150,7 +159,7 @@ export function seriesStandings(inputs: SeriesRoundInput[]): SeriesStandings {
     gameName: r.gameName,
     date: r.date,
     label: `R${i + 1}`,
-    state: r.status === 'completed' ? 'final' : r.status === 'active' ? 'projected' : 'upcoming',
+    state: roundState(r),
   }));
 
   const dates: { date: string; gameIds: string[] }[] = [];
@@ -164,7 +173,7 @@ export function seriesStandings(inputs: SeriesRoundInput[]): SeriesStandings {
   let hasProjected = false;
   for (const r of ordered) {
     // An upcoming round has no money yet. It's a column, but nobody's played it.
-    if (r.status === 'setup') continue;
+    if (roundState(r) === 'upcoming') continue;
     const final = r.status === 'completed';
     for (const n of r.nets) {
       const row = rowsById.get(n.playerId) ?? {

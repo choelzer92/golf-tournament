@@ -110,6 +110,15 @@ test('§5.cv Q4: "+ Add round 5" from the live round copies it and lands as roun
   await page.waitForURL(new RegExp(`${EVENT}$`));
   await expect(page.getByText('5 rounds · 3 finished')).toBeVisible();
   await expect(page.getByTestId('event-standings').getByText('Mon, Oct 19')).toBeVisible();
+
+  // §5.cw a: round 5 was set up ahead and has no score, so it reads "Not started", not live,
+  // and Home gives it no Continue card (only Sunday's live round has one).
+  await expect(page.getByTestId('event-standings').getByRole('columnheader', { name: /R5.*not started/ })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Rounds' }).getByRole('button', { name: /^Round 5 ·.*Not started/ })).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/event-round-not-started.png', fullPage: true });
+  await page.goto(`${BASE}/home`);
+  await expect(page.getByText(/Welcome back, Craig/)).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Continue' }).getByText('▶ Continue')).toHaveCount(1);
 });
 
 test('§5.cv Q2: a new game (even one copied from a round) starts as no event, and becomes round 1 of a new one at Review', async ({ page }) => {
