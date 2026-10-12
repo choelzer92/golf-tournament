@@ -1464,6 +1464,59 @@ A and C combine. Tag: [beta #1]. **Craig picked A + C (§5.cl).**
 
 ---
 
+### F-110 — The dashboard's GHIN "Link" wipes the signed-in identity for the session (2026-10-12)  [P2] [beta #4]
+
+**Observation:** the `/dashboard` header shows an "Enter GHIN #" + Link form only when the signed-in
+user's own index is empty (`dashboard/page.tsx` ~206). `lookupHandicap` (~157) overwrites
+`sessionStorage.ghin_golfer` with `{handicap_index, clubs, first_name, last_name}`. That object has no
+`ghin`/`golfer_id`, and `readGolfer()` reads session before local (`pool-identity.ts:45`), so
+`getCreatorGhin()` returns null until sign-out. Games created after a Link get no `createdByGhin`,
+and the viewer sees only owner-less rows (§5.cb). The same family of bug as the pool login loop.
+Typing someone ELSE's number also renames "you" to them. It is not a general lookup.
+
+**Options:** (A) keep the GHIN number in the stored object (`ghin: Number(ghinInput)`) and only
+replace the index, never the identity; (B) make it a read-only lookup that never writes the session.
+**Reproduced in the sandbox 2026-10-12** (a throwaway probe, not kept). The setup was a login whose
+handicap lookup failed, which is the only way the index comes back empty
+(`api/ghin/login/route.ts` falls back to the bare login identity), or a golfer with no index yet.
+After Link, the stored record is `{"handicap_index":"8.1","clubs":[],"first_name":"Craig","last_name":"Hoelzer"}`,
+with no number. Then: (1) **Create is refused** with "Log in to create the game" (`pool/new/page.tsx:750`)
+although the user IS logged in; (2) "Start from a recent game" disappears (`start-from.tsx:17`
+lists by `getCreatorGhin()`); (3) "Part of an event? → Add to …" lists none of their events
+(`page.tsx:527`). Signing out and in clears it.
+
+### F-109 — `/dashboard` inventory: what retiring it would remove (2026-10-12)  [P3] [beta #7] — **investigation for §5.cw d**
+
+Craig (§5.cw d): retirement ON HOLD; "the ghin and course search are extremely necessary". Sweep:
+
+| On `/dashboard` | Anywhere else reachable from Home? |
+|---|---|
+| Own index in the header; GHIN "Link" when it's empty (see F-110) | No. Home shows the name, not the index. The nearest GHIN search is the add-player panel (roster, wizard field step). It can only be reached through an EDITABLE group, and it adds people |
+| **Course Lookup**: search, then each tee's yardage, par, CR/Slope for 18/F9/B9, course HCP from your index, and a par/yards/stroke-index hole table | **No.** The wizard and solo searches only PICK a course and tee (a tee `<select>`); no rating, slope or hole table is shown anywhere |
+| Money Game (`/money-game`) | No other link at all |
+| New Game (`/game/new`) | Only a `/game/play` fallback |
+| New Tournament (`/tournament/new`) | Replaced by Start an event (§5.cv); also "Duplicate Format" on a legacy tournament |
+| Pool Game, Solo | Yes (Home) |
+| Import Tournament | No. It's the only `importTournament` caller, while Export still exists on `/tournament/[id]` |
+| Tournament and pool game lists | Yes (the Home feed and group pages) |
+| Share organizer link | On `/pool` only |
+
+**About 20 redirects point at `/dashboard`.** The ones that matter: the **pool hub's back button for
+every full user** (`pool/[id]/page.tsx:393`); the legacy tournament header (`tournament/[id]:168`);
+every "not found" fallback (pool hub, leaderboard, scorecards, teams; tournament pages); `/game/play`
+End/finish (F-066). Three e2e specs use the route (f059, visibility-5cb, verify-wizard-home). The legacy
+pages `/game/play` and `/tournament/[id]` must stay whatever is chosen, because Home lists old rows.
+
+**Options:**
+- (A) Keep `/dashboard` as is. Point the pool hub's back button and the not-found fallbacks at Home
+  (the user came from Home).
+- (B) Keep `/dashboard`, but slim it into "Lookups": GHIN and Course Lookup stay; the legacy creators
+  and Import leave. Repoint the back buttons and fallbacks to Home.
+- (C) Move the two lookups to a Home-linked page (`/home/lookup`), redirect `/dashboard` to Home, and
+  repoint the ~20 redirects. Import goes, or moves next to Export.
+In every option the lookups survive. The course reference could also live INSIDE the wizard's tee
+step (show CR/Slope/holes there), but that's additive, not a replacement.
+
 ### F-108 — The shared stroke allocator caps strokes at 2 a hole, so a course handicap over 36 loses strokes (2026-10-12)  [P2] [beta #6] — **OPEN, Craig's call (handicap math)**
 
 **Seen:** in code, while writing the S2 Q3 ledger goldens. `strokesOnHole` (`lib/strokes.ts`) returns
