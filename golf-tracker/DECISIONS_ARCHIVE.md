@@ -2462,3 +2462,12 @@ Consequences:
 - **New capability, not built: several games on one round sharing its scores** (per-nine games,
   different teams per game). Logged in BACKLOG. It sits next to the side-games layer of
   Team → Match and the Series (bar #11), so shape it with those.
+
+### 5.cq — Singles pairings are STORED and SHOWN, never read from list order (F-107 A + C, 2026-10-12)
+
+F-107: 1 v 1 matches inside a foursome were paired by the order the players are listed in, and some
+hub edits re-sort that order, so opponents could change silently. Craig picked the recommendation:
+- **(A)** store who plays whom explicitly on the tee group, so list order carries no meaning;
+- **(C)** show the pairings on each tee-group card.
+An edit that leaves a foursome's stored pairings invalid is a shape problem: refused with the reason
+(§5.ac), never re-paired silently. 2 v 2 is unaffected (one pair per team per foursome).

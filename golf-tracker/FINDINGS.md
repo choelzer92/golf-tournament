@@ -1464,7 +1464,25 @@ A and C combine. Tag: [beta #1]. **Craig picked A + C (§5.cl).**
 
 ---
 
-### F-106 — The swap tool previews strokes from a map computed once, but a matches game's strokes can move with a swap (2026-10-12)  [P2] [beta #6] — **TO FIX** (Craig, 2026-10-12: "i would need that fixed in order to fulfill our beta standards")
+### F-107 — Singles matches are paired by ORDER inside a foursome, and hub edits re-sort that order (2026-10-12)  [P2] [beta #6] — **OPEN**
+
+**Seen:** in code, while fixing F-106. `pairMatches` (`game-modes/match-pairing.ts`) pairs 1 v 1 matches
+in tee-sheet order: A's first player in the foursome against B's first. The hub's swap
+(`field-editor.tsx` `swapPlayers` → `orderIds`, captain first), and possibly other tee-group edits,
+re-sort a foursome's player list. A swap can therefore change who plays whom in singles without
+anyone choosing it. Each pairing still validates and the money still settles; the opponents just
+move silently. 2 v 2 isn't affected, because a team has one pair per foursome.
+
+**Options:**
+- (A) Store the singles pairing explicitly (a `matchOrder` on the tee group, or per-match ids), so
+  order stops carrying meaning.
+- (B) Keep order as the pairing, and make every hub edit preserve each team's order inside a foursome.
+- (C) Show "who plays whom" on the tee-group card, so any change is visible.
+
+C is worth doing whichever of A or B is chosen. A is the structural fix (§2 "prefer structural
+guarantees").
+
+### F-106 — The swap tool previews strokes from a map computed once, but a matches game's strokes can move with a swap (2026-10-12)  [P2] [beta #6] — **FIXED 2026-10-12:** `rankSwapCandidates` recomputes strokes per arrangement (`strokesAfter`) and skips swaps that would unpair the matches. Asked for by Craig, 2026-10-12: "i would need that fixed in order to fulfill our beta standards"
 
 **Seen:** in code, while building F-037 T4. `poolStrokeMap(game)` is computed once in `EditFoursomes`
 (`panels/field-editor.tsx:33`) and in the swap panel (`:855`, `useMemo`). It's reused for every
