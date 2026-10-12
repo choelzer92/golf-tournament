@@ -2521,3 +2521,17 @@ reported to Craig the same day, not fixed. They are S2 questions 2 and 3.
 - **Q9 No-rating tee:** A. The index stands in everywhere (F-023).
 - **Q10 Live corpus:** YES. Run `scripts/export-backup.mjs` once, after re-checking that it is
   SELECT-only, and keep the export local (git-ignored).
+- **Q3 follow-up, split rounds (2026-10-12).** Craig asked what was wrong with T0's round 3 ("do you
+  understand what that game was?"), and it was investigated before going on.
+  - **The round:** an 18-hole round whose TOURNAMENT POINTS split at the turn (front 2v2 best ball,
+    back four singles). The money games (Nassau 75%, skins 50%) are 18-hole bets on top of it.
+  - **The old ledger:** it took scoring's per-nine re-ranked holes (1–9 twice) and applied the full
+    18-hole money handicap over "18 holes". About double strokes for every player under 18 (Craig
+    14 vs 7).
+  - **The first fix (per-nine 9-hole handicaps):** differed from the 18-hole standard by one stroke
+    for 3 players on T0.
+  - **Craig:** "I feel like option 1 is the way, but if they want to play by 9 hole ratings, that
+    should be chooseable".
+  - **The rule:** money games on a split round default to the **18-hole course handicap on the
+    card's 18-hole stroke index**. A tournament money setting chooses **per-nine 9-hole ratings**
+    instead. A true 9-hole round uses the 9-hole rating.

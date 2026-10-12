@@ -1464,6 +1464,23 @@ A and C combine. Tag: [beta #1]. **Craig picked A + C (§5.cl).**
 
 ---
 
+### F-108 — The shared stroke allocator caps strokes at 2 a hole, so a course handicap over 36 loses strokes (2026-10-12)  [P2] [beta #6] — **OPEN, Craig's call (handicap math)**
+
+**Seen:** in code, while writing the S2 Q3 ledger goldens. `strokesOnHole` (`lib/strokes.ts`) returns
+at most 2: `if (n >= numHoles * 2) return 2 * sign`. A course handicap of 40 should get 3 strokes on
+stroke index 1–4 and 2 on the rest (40 in total). It gets 2 everywhere (36), losing 4 strokes. The
+same applies on a nine above 18. WHS indexes go to 54, so beginners' course handicaps can exceed 36.
+Every engine uses this one allocator: the pool, sides, tournament scoring and the ledger. The plus
+side mirrors it (a plus give-back past 36 is just as capped, but no real index gets there).
+
+**Options:**
+- (A) Allocate the full handicap: `floor(n / numHoles)` strokes on every hole, plus one more on the
+  hardest `n % numHoles`. This is the WHS rule and needs no cap.
+- (B) Keep the cap, deliberately (some groups play a max of 2 a hole), as a setting.
+
+A is the Rules. The stroke vs match play check (§5.ce, bar #6) should cover it. Goldens are written
+first, and a GHIN-app side-by-side for a CH ≥ 37 player is needed before the change (§5.ba).
+
 ### F-107 — Singles matches are paired by ORDER inside a foursome, and hub edits re-sort that order (2026-10-12)  [P2] [beta #6] — **FIXED 2026-10-12 (§5.cq, A + C):** pairings are stored on the tee group (`singles`) and shown on every card; a stale pairing is refused with the reason
 
 **Seen:** in code, while fixing F-106. `pairMatches` (`game-modes/match-pairing.ts`) pairs 1 v 1 matches

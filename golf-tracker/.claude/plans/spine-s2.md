@@ -189,3 +189,36 @@ Implications:
 - **Recommendation: Series (Option A) for bar #11 now, designed as the Event spine's container** (its
   rollup is what S4 needed). Keep S2.0–S2.6 in parallel, and defer S2.7/S2.8 and S3 until the
   Series is in use. Craig's call; not picked unasked.
+
+## 8. Q3 ledger fix: T0 before / after (2026-10-12, §5.cs)
+
+**T0 is "Hogs and Dawgs" (7b747949), round 3 at Glenmore.** It's an 18-hole round whose tournament
+points split at the turn: a front-nine 2v2 best ball, then back-nine singles. The money games are a
+team Nassau (best net, 75%, $10/$10/$5) and skins (50%, net to par, cross-round).
+
+**Cause.** The old ledger used the per-nine re-ranked holes (1–9 twice) with the full 18-hole money
+handicap over 18 holes. Every player under an 18 money handicap got about double strokes (Craig 14
+vs 7, Jake 6 vs 3).
+
+**Rule (Craig).** Split rounds default to the 18-hole handicap on the card's stroke index. Per-nine
+9-hole ratings are an option (`moneyGames.splitRoundHandicap`).
+
+**Net $ (export of 2026-10-12, computed by the app's own code via `src/test/ledger-corpus.test.ts`):**
+
+| Player | Before | After (18-hole default) |
+|---|---|---|
+| Craig Hoelzer | +41.11 | −5.00 |
+| Nicholas Burns | +32.22 | +47.22 |
+| Alex Ross | +16.11 | +8.89 |
+| Jake Enterlin | −3.33 | −13.89 |
+| Chris Casey | −7.78 | −22.78 |
+| Keith Hoelzer | −10.56 | −10.56 |
+| Michael Smith | −21.11 | +7.22 |
+| Micajah Lacy | −21.11 | −0.56 |
+| Nicholas Bodner | −25.56 | −10.56 |
+
+- **What moved:** only round 3. Its Nassau went from A / B / push to A / push / A, and 16 of its 18
+  skin holes changed hands.
+- **What didn't:** rounds 1 and 2 are identical, and both totals are $0.
+- **The other money tournaments:** Bloody Sunday, Ryder Cup and Shindig are unchanged.
+- **When it shows:** the ledger is computed at read time, so this takes effect when the branch merges.

@@ -98,6 +98,7 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 
 | Item | Size | Source |
 |---|---|---|
+| **F-108 [beta #6]: the stroke allocator caps at 2 a hole** (CH > 36 loses strokes). Option A is the Rules (no cap); **Craig's call**, with a GHIN side-by-side first | S | F-108 |
 | ~~**F-106 [beta #6]: the swap preview recomputes strokes per arrangement**~~ DONE 2026-10-12 | S | F-106, Craig 2026-10-12 |
 | ~~**F-107 [beta #6]: singles pairings ride on tee-sheet order**~~ DONE 2026-10-12 (§5.cq A + C) | S–M | F-107 |
 | ~~**F-107 polish [beta #7]: the hub's who-plays-whom line sits under each tee-group card;**~~ DONE 2026-10-12 — move it inside the card | S | F-107 walk |
