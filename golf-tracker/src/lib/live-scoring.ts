@@ -84,13 +84,33 @@ function getPlayerTee(player: Player, round: TournamentRound): TeeSetOption | nu
   return round.course.teeSets.find((t) => t.id === round.defaultTeeId) || round.course.teeSets[0] || null;
 }
 
-function getPlayerEffectiveHcap(player: Player, round: TournamentRound, holes: HoleData[], holeNumber?: number): number {
+// The round's course handicap for a player — the ONE function scoring and the money ledger share
+// (§5.cs Q3), so both honour the round's basis: 18 holes, a nine on its 9-hole rating (or half the
+// 18-hole course handicap when the tee has none), each nine of a split round on its own rating, or
+// the index basis. The ledger passes its own allowance, and asks for the index to stand in when the
+// tee has no rating (F-023, §5.cs Q9); scoring passes neither, so its numbers are unchanged.
+export function getRoundCourseHandicap(
+  player: Player, round: TournamentRound,
+  opts: { allowance?: number; holeNumber?: number; noRating?: 'zero' | 'index'; full18?: boolean } = {},
+): number {
+  return getPlayerEffectiveHcap(player, round, [], opts.holeNumber, opts);
+}
+
+function getPlayerEffectiveHcap(
+  player: Player, round: TournamentRound, holes: HoleData[], holeNumber?: number,
+  opts: { allowance?: number; noRating?: 'zero' | 'index'; full18?: boolean } = {},
+): number {
   // null = index unknown; 0 = genuine scratch (and negatives = plus golfers).
   // Treating 0 as "no handicap" skipped the slope/rating conversion for scratch
   // and plus players, whose course handicap is a real (often negative) number.
   if (player.handicapIndex == null || Number.isNaN(player.handicapIndex)) return 0;
-  const allowance = getActiveAllowance(round, holeNumber);
-  const is9 = round.holesPlaying === 'front9' || round.holesPlaying === 'back9' || !!round.splitFormat;
+  const allowance = opts.allowance ?? getActiveAllowance(round, holeNumber);
+  // `full18`: an 18-hole bet on a split round (the money ledger's default) plays the 18-hole basis.
+  const is9 = round.holesPlaying === 'front9' || round.holesPlaying === 'back9' || (!!round.splitFormat && !opts.full18);
+  // No tee or no rating: 0 strokes for scoring (today's rule), the index for the ledger.
+  const unrated = () => (opts.noRating === 'index'
+    ? applyAllowance(is9 ? nineHoleIndex(player.handicapIndex!) : player.handicapIndex!, allowance)
+    : 0);
 
   if (round.handicapBasis === 'index') {
     const index = is9 ? nineHoleIndex(player.handicapIndex) : player.handicapIndex;
@@ -98,7 +118,7 @@ function getPlayerEffectiveHcap(player: Player, round: TournamentRound, holes: H
   }
 
   const playerTee = getPlayerTee(player, round);
-  if (!playerTee) return 0;
+  if (!playerTee) return unrated();
 
   if (is9) {
     const ratingType = round.splitFormat
@@ -119,7 +139,7 @@ function getPlayerEffectiveHcap(player: Player, round: TournamentRound, holes: H
     }
 
     const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');
-    if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return 0;
+    if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return unrated();
     // No 9-hole rating on this tee: halve the 18-hole COURSE handicap first, then
     // apply the allowance to that halved value (see applyAllowance for the order).
     const full = applyAllowance(
@@ -130,7 +150,7 @@ function getPlayerEffectiveHcap(player: Player, round: TournamentRound, holes: H
   }
 
   const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');
-  if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return 0;
+  if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) return unrated();
   const result = applyAllowance(
     calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar),
     allowance,

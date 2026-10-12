@@ -803,6 +803,42 @@ const SCENARIOS: Scenario[] = [
       return { game, goTo: (id) => `/pool/${id}/leaderboard` };
     },
   },
+  // §5.cs Q3 (Craig 2026-10-12): money games on a SPLIT round default to the 18-hole handicap; the
+  // Money Games editor offers each nine's 9-hole rating instead, and only when a round is split.
+  {
+    key: 'tournament-split-money',
+    label: '§5.cs: a tournament with a split round and money games',
+    detail: 'One 18-hole round whose points switch from best ball to singles at the turn, with a team Nassau. Edit Money Games to see the split-round handicap choice.',
+    buildDomain: () => {
+      signInAsOrganizer();
+      const ps: Player[] = [
+        { id: 'tx1', name: 'Craig Hoelzer', handicapIndex: 9.2, ghinNumber: SANDBOX_GHIN },
+        { id: 'tx2', name: 'Jym Youngberg', handicapIndex: 12 },
+        { id: 'tx3', name: 'Dave Miller', handicapIndex: 8.5 },
+        { id: 'tx4', name: 'Rick Tanaka', handicapIndex: 14.8 },
+      ];
+      const c = course();
+      const round = {
+        id: 'tx-r1', name: 'Split round', dayLabel: 'Day 1', formatId: 'match-play', teamMode: 'best-ball',
+        course: c, holesPlaying: '18', groupingMode: 'cross-team', scoringMethod: 'match-play',
+        pointsForWin: 1, pointsForTie: 0.5, pointsForLoss: 0, handicapAllowance: 90, strokeMethod: 'off-the-low',
+        handicapBasis: 'course', defaultTeeId: c.teeSets[0].id, bonuses: [], status: 'pending',
+        matchups: [{ id: 'tx-m1', groupLabel: 'Group 1', playerIds: ps.map((p) => p.id), teamAPlayerIds: ['tx1', 'tx2'], teamBPlayerIds: ['tx3', 'tx4'], gameId: null, result: null }],
+        splitFormat: {
+          formatId: 'match-play', teamMode: 'individual', scoringMethod: 'match-play', pointsForWin: 1, pointsForTie: 0.5,
+          pointsForLoss: 0, handicapAllowance: 100, strokeMethod: 'off-the-low',
+          pairings: [{ playerIds: ['tx1', 'tx3'] }, { playerIds: ['tx2', 'tx4'] }],
+        },
+      } as unknown as Tournament['rounds'][number];
+      saveTournament({
+        id: 'tx-split', name: 'Split Round Money', mode: 'team-event', players: ps,
+        teams: [{ id: 'tx-a', name: 'Aces', playerIds: ['tx1', 'tx2'] }, { id: 'tx-b', name: 'Bogeys', playerIds: ['tx3', 'tx4'] }],
+        rounds: [round], status: 'active', createdByGhin: SANDBOX_GHIN,
+        moneyGames: { teamNassau: { frontAmount: 10, backAmount: 10, overallAmount: 5, method: 'best-net', allowance: 75 } },
+      } as Tournament);
+      return { goTo: '/tournament/tx-split' };
+    },
+  },
   {
     key: 'ledger-season',
     label: 'Season ledger — 7 completed games (pools, a 2v2, skins), 61-player roster',
