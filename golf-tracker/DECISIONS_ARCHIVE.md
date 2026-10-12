@@ -2544,3 +2544,35 @@ n mod numHoles. A plus handicap mirrors that, from the easiest hole. Up to 2 × 
 18, 18 on a nine) the numbers are identical to before, so no live game with a course handicap ≤ 36
 moves. A GHIN-app side-by-side for a CH ≥ 37 player stays on the backlog as a confirmation (§5.ba).
 Craig then asked to merge and push the branch, and to continue in a new session.
+
+### 5.cu — Series storage: each game carries the stamp; the unit is a ROUND, not a day (2026-10-12)
+
+Asked Q1 of `.claude/plans/series.md`. Craig picked **stamp each game**: `PoolGame.series =
+{id, name, rollup}` inside the game's existing `data` jsonb. That means no migration and no new
+roster_groups kind. A Series is the set of games that share `series.id`. Creating a trip creates its
+first game. Craig added: "this needs to be principled, understanding that there are more than 1
+round on certain days sometimes." So the member is a GAME (a round), never "a day":
+- a day can hold several rounds (36 holes);
+- one round can carry two games (§5.cp);
+- each counts once;
+- the rollup columns are rounds, grouped under their date;
+- the order is an explicit sequence number in the stamp, not inferred from timestamps;
+- "Next day" is **"Add a round"**, and the new round asks its date (default the next day).
+
+### 5.cv — Series design answers: on screen it's an EVENT; it replaces the legacy builder; Home-by-group ships with it (2026-10-12)
+
+Asked Q2–Q6 of `.claude/plans/series.md`, one at a time.
+- **Q2, the entry point: both.** "Start an event" on the group page seeds the wizard with the group's
+  players and its usual format (§5.cf). The wizard's Review step also has an optional "Part of an
+  event?" field (new, named / add to an existing one), so an event doesn't need a saved group.
+- **Q3: it REPLACES Home's legacy "Multi-round event".** New multi-round play goes through the Series
+  only. Existing tournaments stay reachable and keep computing (§5.cs Q1). Craig: "i think we call it
+  something other than a trip". Asked, he picked **"Event"** for the on-screen name. Code says Series.
+- **Q4, the next round:** Craig first asked "what is this add a round? isnt that for events?" Yes:
+  it only appears on a round that belongs to an event. Re-asked, he picked the **event screen + every
+  round's hub** (organizer only, live or finished), so a 36-hole day's afternoon round can be set up
+  at lunch.
+- **Q5, a live round:** "yes, and call this projected". TOTAL counts only finished rounds (real
+  money; settle-up uses it). The live round's column and a second total are labelled **Projected**.
+- **Q6, Home:** build §5.ck Home-by-group IN this branch, with events in it. A group card shows its
+  latest event or game; the Continue card on a live round links to the round and its event.
