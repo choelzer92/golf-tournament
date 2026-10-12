@@ -1,5 +1,6 @@
 'use client';
 
+import { matchSizeOf } from '@/lib/game-modes/matches';
 import { useState, useEffect, useMemo } from 'react';
 import { type Player, type TeeSetOption, parseGhinIndex, type GameScore, formatHandicapIndex, formatHandicap } from '@/lib/game-state';
 import { type PoolGame, type PoolTeam, getPoolPlayingHandicap, gameNineBasis, balanceTeamsWithCaptains, captainsDealTeams, balanceTeamsWithLocks, pickCaptains, sortPlayerIdsByHcap, groupShapesFor, groupShapeLabel, dealBalancedIntoShape, TEE_GROUP_SHAPE_OPTS, orderPlayerIdsWithCaptain, teeOptionsForPlayer, playerTeeGenderMismatch, rankSwapCandidates, teamHandicapSpread, poolStrokeMap } from '@/lib/pool-game';
@@ -728,6 +729,17 @@ export function AddPlayerPanel({
     } finally {
       setGhinLoading(false);
     }
+  }
+
+  // §5.cp (Craig, 2026-10-12): a late player never joins a head-to-head match — no team plays an
+  // extra ball. The matches carry on as they are; a second game for the rest of the round is the
+  // answer, and isn't built yet.
+  if (matchSizeOf(game.modeSettings ?? {}) > 0) {
+    return (
+      <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2" data-testid="add-player-matches">
+        <p className="text-sm text-gray-700">This game plays head-to-head matches, so players can&apos;t be added one at a time — every match stays even.</p>
+      </div>
+    );
   }
 
   return (

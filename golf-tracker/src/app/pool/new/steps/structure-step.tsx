@@ -31,6 +31,7 @@ export function StructureStep({
   sourceGroupId,
   appliedFormat, appliedFromGame, formatDirty, onFormatEdited, summaryLine,
   onFormatChosen, onFormatCleared,
+  matchSize = 0, matchSizes = [], setMatchSize,
   onNext, onBack,
 }: {
   name: string; setName: (s: string) => void;
@@ -49,6 +50,11 @@ export function StructureStep({
   summaryLine: string;
   onFormatChosen: (f: RosterGroup) => void;
   onFormatCleared: () => void;
+  /** F-037 (§5.co Q5): head-to-head matches inside the teams — the sizes this split allows (none =
+      the question isn't asked), the current pick (0 = off) and the setter. */
+  matchSize?: number;
+  matchSizes?: number[];
+  setMatchSize?: (size: number) => void;
   onNext: () => void;
   onBack: () => void;
 }) {
@@ -144,7 +150,12 @@ export function StructureStep({
             {o.recommended && !disabled && <span className="ml-2 text-xs font-normal text-green-700">the usual</span>}
             {disabled && <span className="ml-2 text-xs font-normal text-gray-400">needs {soloMin} or more players</span>}
           </span>
-          <span className={`block text-xs ${disabled ? 'text-gray-400' : 'text-gray-500'}`}>{o.detail}</span>
+          <span className={`block text-xs ${disabled ? 'text-gray-400' : 'text-gray-500'}`}>
+            {/* With matches on, the chosen split's foursomes are matches, not whole teams (F-037). */}
+            {selected && matchSize > 0
+              ? (matchSize === 1 ? 'Teams split into singles matches, two to a foursome' : 'Teams split into 2 v 2 matches, one per foursome')
+              : o.detail}
+          </span>
         </span>
       </label>
     );
@@ -295,6 +306,30 @@ export function StructureStep({
               Other split… <span className="text-xs font-normal text-gray-500">({other.map((o) => o.teamSizes.join(' + ')).slice(0, 2).join(', ')}{other.length > 2 ? ', …' : ''})</span>
             </button>
           )}
+        {/* F-037 (§5.co Q5): only once there are 2+ teams the size divides. Off by default, so
+            the usual game never sees more than this one optional question. */}
+        {structure?.kind === 'teams' && matchSizes.length > 0 && setMatchSize && (
+          <div className="mt-4 pt-3 border-t">
+            <p className="text-sm font-medium text-gray-800">Head-to-head matches?</p>
+            <p className="text-xs text-gray-500 mb-2">Players meet the other team inside their foursome; each match won adds a point to the team.</p>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Head-to-head matches">
+              {[0, ...matchSizes].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  role="radio"
+                  aria-checked={matchSize === s}
+                  onClick={() => setMatchSize(s)}
+                  className={`rounded-md border px-3 py-2 text-sm min-h-[44px] ${
+                    matchSize === s ? 'border-green-600 bg-green-50 font-medium text-green-900' : 'border-gray-300 bg-white text-gray-800 hover:border-green-400'
+                  }`}
+                >
+                  {s === 0 ? 'No' : s === 1 ? '1 v 1' : '2 v 2'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         </div>
       </div>
 

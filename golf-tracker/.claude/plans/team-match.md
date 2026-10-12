@@ -84,3 +84,24 @@ Building the roll-up here is most of what the multi-day trip needs, and argues a
   - Not covered yet: per-match strokes off the low (T4).
   - The result carries `matches: MatchLine[]` and team-level `teamLegs` ("X 2–0"), with no `sideBreakdown`. The
     scorecard's per-match rows are T2.
+
+- **T2 (04cb3ff):**
+  - The board has a Matches block, and the team legs show match wins per nine.
+  - The card shows your match only.
+  - A team leg's thru is its slowest match's, so close-out asks about the right legs.
+  - Seed: `hogs-v-dawgs-matches`.
+- **T3:**
+  - **Compete step:** "Head-to-head matches?" (No / 1 v 1 / 2 v 2) via `matchSizesFor`.
+    - Turning it on sets the defaults: pot, best ball, hole by hole.
+  - **Tee sheet:** `teeGroupsFromMatches` builds it, using `suggestMatches` for fair pairings (§5.co Q1, Q6).
+  - **Groups step:** says the foursomes are matches and blocks Next with `matchSheetProblem`.
+  - **Money step and hub:** the match settings render generically; the hub hides the match size where no size fits.
+  - **Hub refusals:**
+    - `persist()` refuses any edit that unpairs the game and shows why.
+    - Add player is refused (§5.cp).
+  - **Label:** reads "· N matches".
+  - **Not done in T3:**
+    - The board's empty state hides the matches before the first score (it's the shared empty state).
+    - Review's own label omits "· N matches".
+- **T4 (per-match strokes off the low): BLOCKED** until a GHIN-app side-by-side of a four-ball match exists
+  (§5.ba, §5.ce). Strokes are field-wide today, the same as without matches.

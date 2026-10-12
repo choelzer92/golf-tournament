@@ -35,6 +35,9 @@ const SIDES_STAKES_KEYS = new Set([
   // schema fields (F-096 A, §5.bs — three full-width rows with hints were a screen and a half).
   // Phase 3 step 3: how losers pay with 3+ teams, and carry-ties for $/hole.
   'legsPayout', 'pointsPayout', 'carryover',
+  // F-037 (§5.co): how a match counts toward the team, Nassau legs, team tiebreak. Shown only with
+  // matches on (showIf); the match SIZE itself is asked on the Compete step.
+  'matchCounting', 'matchNassau', 'matchPtsFront', 'matchPtsBack', 'matchPtsOverall', 'teamTiebreak',
 ]);
 // HOW JUNK PAYS — asked UNDER the bonus grid it depends on (F-093 A, §5.bs), not above it in the
 // stakes. Junk POINTS (birdie / eagle / albatross / all-par / closest) come from that shared grid

@@ -1,5 +1,6 @@
 'use client';
 
+import { matchSizeOf, matchSizesFor } from '@/lib/game-modes/matches';
 import { useState, useEffect } from 'react';
 import { type Player } from '@/lib/game-state';
 import { type PoolGame, type PoolJunkValues, type PoolMoneyMode, getPar3Holes, defaultSubTeams, DEFAULT_MATCH_CONFIG, DEFAULT_MATCH_POINTS, DEFAULT_JUNK_VALUES, poolSplitDollarsForTeams, dollarsToPotSplit } from '@/lib/pool-game';
@@ -221,6 +222,10 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
               hideKeys={[
                 ...(sidesOfGame(game).length < 3 ? Array.from(MULTI_TEAM_ONLY_KEYS) : []),
                 ...(isGross(game.handicapAllowance) ? GROSS_HIDES : []),
+                // F-037: head-to-head matches only where the teams can be split into them (or to turn
+                // them off). Turning them on still has to pass the tee-sheet check on save.
+                ...(indMode.id === 'team-2v2' && matchSizeOf(modeSettings) === 0
+                  && matchSizesFor(sidesOfGame(game).map((s) => s.playerIds.length)).length === 0 ? ['matchSize'] : []),
               ]}
             />
           </div>

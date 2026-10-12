@@ -10,6 +10,7 @@ import { fromLegacySubTeams, sideOfPlayer, sidesOfGame } from '@/lib/game-modes/
 import { getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorName } from '@/lib/pool-identity';
 import { getGameMode } from '@/lib/game-modes';
+import { matchShapeProblem } from '@/lib/game-modes/matches';
 import { gameKindLabel } from '@/lib/game-structure';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 import { FeedbackButton } from '@/components/feedback-box';
@@ -78,6 +79,8 @@ export default function PoolHubPage() {
   // so "Send to players" leads the hub. null = still checking (keep the usual row).
   const matchupKey = game ? Array.from(new Set(game.teams.map((t) => t.matchupId))).join(',') : '';
   const [hasScores, setHasScores] = useState<boolean | null>(null);
+  // F-037 (§5.co, §5.ac): the last edit refused because the matches would no longer pair, and why.
+  const [refused, setRefused] = useState<string | null>(null);
   useEffect(() => {
     if (!game || !matchupKey) return;
     let cancelled = false;
@@ -129,7 +132,13 @@ export default function PoolHubPage() {
     return teamDetails.find((d) => d.teamId === teamId);
   }
 
+  // EVERY hub write goes through here, so this is where an unpairable head-to-head game is refused
+  // (F-037, Craig 2026-10-09: "should not be possible"): team swaps, tee-group moves, an added or
+  // removed player, the match size. Nothing is saved; the reason shows above the panels.
   function persist(updated: PoolGame) {
+    const problem = matchShapeProblem(updated);
+    if (problem) { setRefused(problem); return; }
+    setRefused(null);
     savePoolGame(updated);
     setGame(updated);
   }
@@ -397,6 +406,12 @@ export default function PoolHubPage() {
       />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+        {refused && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 flex items-start justify-between gap-3" role="alert">
+            <p className="text-sm text-amber-900">Not saved — this game plays head-to-head matches. {refused}</p>
+            <button type="button" onClick={() => setRefused(null)} className="text-xs font-medium text-amber-800 hover:underline">Dismiss</button>
+          </div>
+        )}
         {/* Leaderboard + Teams + Scorecards CTAs. §5.cl: before any score, the organizer's
             filled button is "Send to players" and Leaderboard steps back to an outline. */}
         <div className="flex flex-wrap justify-center gap-3">

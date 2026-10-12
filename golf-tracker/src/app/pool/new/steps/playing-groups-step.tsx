@@ -8,7 +8,7 @@ import { proposePlayingGroups } from './shared';
 
 export function PlayingGroupsStep({
   course, players, teams, setTeams, handicapAllowance, handicapBasis, nine, onNext, onBack,
-  partnerTeams, nextLabel = 'Next: Review & Create',
+  partnerTeams, nextLabel = 'Next: Review & Create', blockedReason, matchesNote,
 }: {
   course: CourseSelection | null;
   players: Player[];
@@ -21,6 +21,12 @@ export function PlayingGroupsStep({
    *  walk together) and only falls back to a balanced deal when no packing of that shape exists. */
   partnerTeams?: string[][];
   nextLabel?: string;
+  /** F-037 (§5.co): why this tee sheet can't be saved (a head-to-head game that no longer pairs),
+   *  or null. Next stays off and the reason shows, so an unpairable game is never created. */
+  blockedReason?: string | null;
+  /** F-037: the tee sheet was built FROM the matches — say so, and drop the shape buttons (a
+   *  re-pack would break the pairings). */
+  matchesNote?: string;
 }) {
   // The player being moved. Tap a player, then tap the group to move them to — the same
   // two-tap idiom the sides step already uses, so there's one gesture to learn.
@@ -113,7 +119,8 @@ export function PlayingGroupsStep({
 
       {/* The shape choice. Only shown when there IS one — at 4 or 7 players exactly one shape
           fits, and offering a single button is noise. */}
-      {shapes.length > 1 && (
+      {matchesNote && <p className="mb-3 text-xs text-gray-600">{matchesNote}</p>}
+      {shapes.length > 1 && !matchesNote && (
         <div className="bg-white rounded-lg shadow p-4 mb-4">
           <p className="text-sm font-medium text-gray-800 mb-1">How do they split?</p>
           <p className="text-xs text-gray-500 mb-3">
@@ -206,9 +213,15 @@ export function PlayingGroupsStep({
         </div>
       )}
 
+      {blockedReason && (
+        <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2" role="alert">
+          <p className="text-xs font-medium text-amber-800">{blockedReason}</p>
+        </div>
+      )}
+
       <button
         onClick={onNext}
-        disabled={!canProceed}
+        disabled={!canProceed || !!blockedReason}
         className="w-full mt-4 rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800 disabled:opacity-50"
       >
         {nextLabel}

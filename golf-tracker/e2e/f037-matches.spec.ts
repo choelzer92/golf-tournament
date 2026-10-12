@@ -3,7 +3,9 @@
 // own match. Seed: Hogs win both matches → 2–0, the $40 pot: Hogs +$20, Dawgs −$20.
 
 import { expect, test, type Page } from '@playwright/test';
-import { BASE, PHONE, resetBackend, seed } from './helpers';
+import {
+  BASE, EIGHT_PLAYERS, PHONE, buildTeams, chooseStructure, closeSendSheet, fieldToGameStep, resetBackend, seed, signInOrganizer, toScoringStep,
+} from './helpers';
 
 const SEED = 'F-037: Hogs v Dawgs as two 2 v 2 matches';
 
@@ -57,4 +59,86 @@ test('F-037: each group\'s card shows only its own match, ranked within it', asy
   expect(line('Sam & Tony')).toContain('1st');
   expect(line('Will & Gary')).toContain('2nd');
   expect(body).not.toContain('Dave & Rick');
+});
+
+test('F-037: eight players pick 2 teams of 4 with 2 v 2 matches, and Create builds two matches', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  // A recent course to pick (the course step lists it without a GHIN search).
+  const card = page.locator('div.bg-white', { hasText: 'Past games (for recent-course' });
+  await card.getByRole('button', { name: 'Seed' }).click();
+  await expect(card.getByText('Seeded ✓')).toBeVisible();
+  await page.goto(`${BASE}/pool/new`);
+  await page.waitForLoadState('networkidle');
+  await fieldToGameStep(page, EIGHT_PLAYERS);
+  await chooseStructure(page, 'teams:4+4');
+
+  // §5.co Q5: the question shows once there are 2+ teams, off by default.
+  const matches = page.getByRole('radiogroup', { name: 'Head-to-head matches' });
+  await expect(matches).toBeVisible();
+  await expect(matches.getByRole('radio', { name: 'No' })).toHaveAttribute('aria-checked', 'true');
+  await matches.getByRole('radio', { name: '2 v 2' }).click();
+  await expect(matches.getByRole('radio', { name: '2 v 2' })).toHaveAttribute('aria-checked', 'true');
+  // The chosen split now describes matches, not "each team plays as its own foursome".
+  await expect(page.getByText('Teams split into 2 v 2 matches, one per foursome')).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/f037-wizard-compete.png', fullPage: true });
+
+  await toScoringStep(page);
+  await page.getByRole('button', { name: /Next: Select Course/ }).click();
+  await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+  await page.getByRole('button', { name: 'Next: Set Tees' }).click();
+  await page.getByRole('button', { name: 'Next: Teams' }).click();
+  await buildTeams(page, 'list');
+  await page.getByRole('button', { name: 'Next: Groups' }).click();
+
+  // §5.co Q6: the tee sheet was built FROM the matches — one 2 v 2 per foursome.
+  await expect(page.getByText(/Each foursome plays a 2 v 2 match between two teams/)).toBeVisible();
+  // The tee sheet pairs, so nothing blocks Next (an unpairable one would name the group and why).
+  await expect(page.getByText(/needs the same number of players/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Next: Review & Create/ })).toBeEnabled();
+  await page.screenshot({ path: 'e2e/screenshots/f037-wizard-groups.png', fullPage: true });
+  await page.getByRole('button', { name: /Next: Review & Create/ }).click();
+
+  // §5.co follow-up: switching matches on makes the pot the money default; the match questions
+  // sit with the stakes.
+  await expect(page.locator('input[name="money-model"][value="pot"]')).toBeChecked();
+  await expect(page.getByText('A match counts')).toBeVisible();
+  // Four-ball is the matches default: best ball, hole by hole — not the classic pool's net + gross.
+  await expect(page.getByText(/best ball/i).first()).toBeVisible();
+  await expect(page.getByText(/best net \+ best gross/)).toHaveCount(0);
+  await page.screenshot({ path: 'e2e/screenshots/f037-wizard-money.png', fullPage: true });
+  await signInOrganizer(page);
+  await page.getByRole('button', { name: 'Create & send to players' }).click();
+  await page.waitForURL(/\/pool\/(?!new$)[^/?]+$/, { timeout: 15_000 });
+  await closeSendSheet(page);
+  await expect(page.getByRole('heading', { name: 'Tee groups' })).toBeVisible();
+  await expect(page.getByText(/2 teams of 4 · pot · 2 matches/).first()).toBeVisible();
+
+  const id = new URL(page.url()).pathname.split('/').pop()!;
+  await page.goto(`${BASE}/pool/${id}/leaderboard`);
+  await page.waitForURL(/\/leaderboard/);
+  // The label is read from the STORED tee sheet through `matchesOf`, so "2 matches" proves the
+  // created game pairs. Before any score the board keeps its usual empty state.
+  await expect(page.getByText('2 teams of 4 · pot · 2 matches')).toBeVisible();
+  await expect(page.getByText('No scores yet.')).toBeVisible();
+});
+
+test('F-037: no matches question for everyone-for-themselves', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await page.goto(`${BASE}/pool/new`);
+  await page.waitForLoadState('networkidle');
+  await fieldToGameStep(page, EIGHT_PLAYERS);
+  await chooseStructure(page, 'solo');
+  await expect(page.getByText('How do you want to compete?')).toBeVisible();
+  await expect(page.getByRole('radiogroup', { name: 'Head-to-head matches' })).toHaveCount(0);
+});
+
+test('F-037 / §5.cp: Add player is refused in a matches game, with the reason', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  const id = await seed(page, SEED);
+  await page.goto(`${BASE}/pool/${id}`);
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByRole('heading', { name: 'Tee groups' })).toBeVisible();
+  await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+  await expect(page.getByTestId('add-player-matches')).toContainText('head-to-head matches');
+  await page.screenshot({ path: 'e2e/screenshots/f037-hub-add-refused.png', fullPage: true });
 });

@@ -20,7 +20,16 @@ import { ballsPerHole, evenValueOnHole, type TeamFormat } from './team-scoring';
 // The match settings. Read with the shared setting readers; T3 adds them to the team engine's
 // schema (with showIf) so the wizard and hub render them.
 export const MATCH_SETTINGS: FormatSetting[] = [
-  { key: 'matchSize', label: 'Head-to-head matches', type: 'number', defaultValue: 0, hint: 'Players a side in each match: 1 = singles, 2 = 2 v 2. 0 = off (every team against every team).' },
+  {
+    key: 'matchSize', label: 'Head-to-head matches', type: 'select',
+    options: [
+      { value: '0', label: 'Off — every team against every team' },
+      { value: '1', label: '1 v 1 — singles' },
+      { value: '2', label: '2 v 2 — pairs' },
+    ],
+    defaultValue: '0',
+    hint: 'Each match is played inside a foursome; the matches add up to the team total.',
+  },
   {
     key: 'matchCounting', label: 'A match counts', type: 'select',
     options: [
@@ -29,11 +38,12 @@ export const MATCH_SETTINGS: FormatSetting[] = [
       { value: 'strokes', label: 'Net strokes (score to par)' },
     ],
     defaultValue: 'points',
+    showIf: { key: 'matchSize', in: ['1', '2'] },
   },
-  { key: 'matchNassau', label: 'Front / back / overall in each match', type: 'toggle', defaultValue: false, hint: 'Each match is three points instead of one: the front nine, the back nine and the 18.' },
-  { key: 'matchPtsFront', label: 'Front 9 (points)', type: 'number', defaultValue: 1, showIf: { key: 'matchNassau', in: ['true'] } },
-  { key: 'matchPtsBack', label: 'Back 9 (points)', type: 'number', defaultValue: 1, showIf: { key: 'matchNassau', in: ['true'] } },
-  { key: 'matchPtsOverall', label: 'Overall 18 (points)', type: 'number', defaultValue: 1, showIf: { key: 'matchNassau', in: ['true'] } },
+  { key: 'matchNassau', label: 'Front / back / overall in each match', type: 'toggle', defaultValue: false, hint: 'Each match is three points instead of one: the front nine, the back nine and the 18.', showIf: { key: 'matchSize', in: ['1', '2'] } },
+  { key: 'matchPtsFront', label: 'Front 9 (points)', type: 'number', defaultValue: 1, showIf: [{ key: 'matchSize', in: ['1', '2'] }, { key: 'matchNassau', in: ['true'] }] },
+  { key: 'matchPtsBack', label: 'Back 9 (points)', type: 'number', defaultValue: 1, showIf: [{ key: 'matchSize', in: ['1', '2'] }, { key: 'matchNassau', in: ['true'] }] },
+  { key: 'matchPtsOverall', label: 'Overall 18 (points)', type: 'number', defaultValue: 1, showIf: [{ key: 'matchSize', in: ['1', '2'] }, { key: 'matchNassau', in: ['true'] }] },
   {
     key: 'teamTiebreak', label: 'Teams tied on points', type: 'select',
     options: [
@@ -42,6 +52,7 @@ export const MATCH_SETTINGS: FormatSetting[] = [
       { value: 'strokes', label: 'Best net strokes' },
     ],
     defaultValue: 'push',
+    showIf: { key: 'matchSize', in: ['1', '2'] },
   },
 ];
 
@@ -123,11 +134,14 @@ export function matchesOf(teams: { id: string; playerIds: string[] }[], teeGroup
  * player's join call it BEFORE writing, so a game that can't be paired is never saved.
  */
 export function matchShapeProblem(game: PoolGame): string | null {
-  const size = matchSizeOf(game.modeSettings ?? {});
+  return matchSheetProblem(sidesOfGame(game), game.teams.map((t) => t.playerIds), matchSizeOf(game.modeSettings ?? {}));
+}
+
+/** The same check on raw teams + tee groups, for a game not yet built (the wizard). */
+export function matchSheetProblem(teams: { id: string; playerIds: string[] }[], teeGroups: string[][], size: number): string | null {
   if (size === 0) return null;
-  const teams = sidesOfGame(game);
   if (teams.length < 2) return 'Head-to-head matches need two or more teams.';
-  const r = pairMatches(teams, game.teams.map((t) => t.playerIds), size);
+  const r = pairMatches(teams, teeGroups, size);
   return 'problem' in r ? r.problem : null;
 }
 
@@ -435,4 +449,82 @@ export function computeMatchGame(
     potSlices: potSlices.length > 0 ? potSlices : undefined,
     junkSides: junk ? junk.sides.map((x) => ({ ...x, name: names[teams.findIndex((t) => t.id === x.id)] ?? x.id })) : undefined,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Building a game AS matches (T3): which sizes to offer, and the tee sheet that plays them.
+// ---------------------------------------------------------------------------
+
+/**
+ * Who meets whom, SUGGESTED (§5.co Q1): each team's players cut into units of `size`, then paired
+ * greedily — the team with the most units left meets the team it has met least (most units left
+ * breaking that tie, then board order). Three teams of 4 at 2 v 2 rotate A v B, C v A, B v C; four
+ * teams of 4 meet two of the other three each. Null when some unit would be left without an
+ * opponent from another team.
+ */
+export function suggestMatches(teams: string[][], size: number): string[][][] | null {
+  if (!(size >= 1) || teams.length < 2) return null;
+  const left = teams.map((t) => {
+    if (t.length % size !== 0) return null;
+    return Array.from({ length: t.length / size }, (_, k) => t.slice(k * size, (k + 1) * size));
+  });
+  if (left.some((u) => u === null)) return null;
+  const units = left as string[][][];
+  const met = teams.map(() => teams.map(() => 0));
+  const out: string[][][] = [];
+  for (;;) {
+    const open = units.map((u, i) => i).filter((i) => units[i].length > 0);
+    if (open.length === 0) return out;
+    if (open.length === 1) return null;
+    const a = open.reduce((b, i) => (units[i].length > units[b].length ? i : b), open[0]);
+    const rivals = open.filter((i) => i !== a);
+    const b = rivals.reduce((best, i) => {
+      if (met[a][i] !== met[a][best]) return met[a][i] < met[a][best] ? i : best;
+      return units[i].length > units[best].length ? i : best;
+    }, rivals[0]);
+    out.push([units[a].shift()!, units[b].shift()!]);
+    met[a][b] += 1;
+    met[b][a] += 1;
+  }
+}
+
+/**
+ * The tee sheet that plays the suggested matches (§5.co Q6: the app builds the tee groups from the
+ * matches). A 2 v 2 is one foursome; singles go two to a foursome, matches between the same two
+ * teams together where possible. Each group lists the two units in match order, so `pairMatches`
+ * reads back exactly these matches. Null when the teams can't be paired at this size.
+ */
+export function teeGroupsFromMatches(teams: string[][], size: number): string[][] | null {
+  if (size > 2) return null;
+  const matches = suggestMatches(teams, size);
+  if (!matches) return null;
+  if (size === 2) return matches.map(([a, b]) => [...a, ...b]);
+  const teamOf = new Map<string, number>();
+  teams.forEach((t, i) => t.forEach((id) => teamOf.set(id, i)));
+  const key = (m: string[][]) => m.map((u) => teamOf.get(u[0])!).sort((x, y) => x - y).join('-');
+  const sorted = matches.map((m, i) => ({ m, i })).sort((x, y) => (key(x.m) < key(y.m) ? -1 : key(x.m) > key(y.m) ? 1 : x.i - y.i));
+  const groups: string[][] = [];
+  for (let k = 0; k < sorted.length; k += 2) {
+    const pair = sorted.slice(k, k + 2).map((x) => x.m);
+    // Two singles in one foursome read back by team, in order: A's 1st v B's 1st, A's 2nd v B's 2nd —
+    // only when both singles are between the same two teams. Otherwise they need their own groups.
+    if (pair.length === 2 && key(pair[0]) === key(pair[1])) {
+      const [first, second] = pair;
+      const aTeam = teamOf.get(first[0][0])!;
+      const side = (m: string[][], t: number) => m.find((u) => teamOf.get(u[0]) === t)!;
+      const bTeam = teamOf.get(first.find((u) => teamOf.get(u[0]) !== aTeam)![0])!;
+      groups.push([...side(first, aTeam), ...side(second, aTeam), ...side(first, bTeam), ...side(second, bTeam)]);
+    } else {
+      pair.forEach((m) => groups.push(m.flat()));
+    }
+  }
+  return groups;
+}
+
+/** The match sizes the Compete step offers for these team sizes: 1 v 1 and 2 v 2 where the size
+ *  divides every team, is smaller than every team (equal is the ordinary team game), and pairs. */
+export function matchSizesFor(teamSizes: number[]): number[] {
+  if (teamSizes.length < 2) return [];
+  return [1, 2].filter((s) => teamSizes.every((k) => k % s === 0 && k > s)
+    && suggestMatches(teamSizes.map((k, t) => Array.from({ length: k }, (_, i) => `${t}:${i}`)), s) !== null);
 }

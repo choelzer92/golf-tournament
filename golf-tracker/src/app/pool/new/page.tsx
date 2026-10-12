@@ -41,6 +41,7 @@ import {
   structureOptionLabel,
 } from '@/lib/game-structure';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
+import { matchSheetProblem, matchSizeOf, matchSizesFor, teeGroupsFromMatches } from '@/lib/game-modes/matches';
 import {
   getRosterPlayerByGhin,
   getRosterPlayerById,
@@ -253,10 +254,14 @@ export default function NewPoolGamePage() {
 
   // ---- The routing layer (lib/game-structure.ts) reads the wizard's answers -------------------
   const isSolo = structure?.kind === 'solo';
+  // F-037 (§5.co Q5): head-to-head matches, asked on the Compete step. On, the teams share
+  // foursomes — each foursome holds a match — so the aligned (team = foursome) flow is off.
+  const matchSize = structure?.kind === 'teams' ? matchSizeOf(modeSettings) : 0;
+  const matchSizes = structure?.kind === 'teams' ? matchSizesFor(structure.teamSizes) : [];
   // Every team is its own tee group under the default tee sheet (two teams of 4, 3 + 3 + 2, 3 + 2):
   // those games build their teams with the foursome builder (captains, locks, methods) and the
   // teams ARE the tee sheet. Smaller teams (pairs, singles) share foursomes: the sides editor.
-  const alignedFlow = !!structure && structure.kind === 'teams' && defaultTeeSheetFacts(structure.teamSizes).aligned;
+  const alignedFlow = !!structure && structure.kind === 'teams' && matchSize === 0 && defaultTeeSheetFacts(structure.teamSizes).aligned;
   const isWithinGroup = !!structure && structure.kind === 'teams' && !alignedFlow;
   // F-019: teams that share foursomes need REAL tee groups once more than four can't walk
   // together; the 'groups' step asks (proposed partners-together, §5.bm Q2). At four or fewer
@@ -270,7 +275,8 @@ export default function NewPoolGamePage() {
   const shapeNow: StructureShape = structure
     ? (isWithinGroup && sidesShape ? { kind: 'teams', teamSizes: sidesShape } : structure)
     : { kind: 'teams', teamSizes: [] };
-  const teeFacts = isSolo
+  const teeFacts = isSolo || matchSize > 0
+    // Matches: each match side walks together in its foursome, which is what one-ball formats need.
     ? { aligned: false, teamsTogether: true }
     : alignedFlow
       ? { aligned: true, teamsTogether: true }
@@ -283,6 +289,7 @@ export default function NewPoolGamePage() {
     scoring: { format: teamFormat, basis: teamScoreBasis, compareBy },
     ...teeFacts,
     moneyModel,
+    ...(matchSize > 0 ? { matchSize } : {}),
     // The classic pot carries its front/back/overall legs itself; a shared-foursome pot is one prize.
     bonuses: {
       junk: !junkIsOff(junkValues) || modeSettings.junkEnabled === true,
@@ -319,6 +326,23 @@ export default function NewPoolGamePage() {
     parseFloat(entryPerPlayer) || 0,
     { allowance: parseAllowance(handicapAllowance), strokeMethod, handicapBasis },
   );
+
+  // F-037: turn head-to-head matches on (size) or off (0). The teams and tee sheet are rebuilt for
+  // the new shape, and switching ON makes the pot the money default (§5.co follow-up).
+  function setMatchSize(size: number) {
+    if (size === matchSize) return;
+    setModeSettings({ ...modeSettings, matchSize: String(size) });
+    setSides(undefined);
+    setTeams([]);
+    setSideTeams([]);
+    // Head-to-head pairs play four-ball by default: best ball, net strokes, hole by hole (singles
+    // are the same with one ball). The scoring step still offers every format that fits.
+    if (size > 0) {
+      setMoneyModel('pot');
+      setTeamFormat('best-ball'); setTeamScoreBasis('stroke'); setCompareBy('match');
+    }
+    if (appliedFormat) setFormatDirty(true);
+  }
 
   // Pick a structure. A USER pick resets scoring + money to the shape's defaults (today's pool for
   // aligned teams: best net + best gross, strokes, total, pot — the golden path; a match for
@@ -807,6 +831,9 @@ export default function NewPoolGamePage() {
             setName={setName}
             structure={structure}
             setStructure={(shape) => pickStructure(shape, 'user')}
+            matchSize={matchSize}
+            matchSizes={matchSizes}
+            setMatchSize={setMatchSize}
             // §5.av: saved formats are choices at the game step — picking one fills
             // everything; picking a shape afterwards edits the format (§5.ax).
             onFormatChosen={chooseFormat}
@@ -1057,7 +1084,14 @@ export default function NewPoolGamePage() {
                 && sides.every((s, i) => sameSet(s.playerIds, nextSides[i].playerIds));
               const teamsCoverField = teams.length > 0 && sameSet(teams.flatMap((t) => t.playerIds), players.map((p) => p.id));
               setSides(nextSides);
-              if (!(sameSides && teamsCoverField)) {
+              // F-037 (§5.co Q6): head-to-head matches BUILD the tee sheet — a foursome per 2 v 2,
+              // two singles to a foursome — in match order (no handicap re-sort: order is pairing).
+              const matchGroups = matchSize > 0 ? teeGroupsFromMatches(built.map((t) => t.playerIds), matchSize) : null;
+              if (matchGroups && !(sameSides && teamsCoverField)) {
+                setTeams(matchGroups.map((playerIds, i) => ({
+                  id: crypto.randomUUID(), name: `Group ${i + 1}`, playerIds, matchupId: crypto.randomUUID(), teeTime: '',
+                })));
+              } else if (!(sameSides && teamsCoverField)) {
                 setTeams(needsPlayingGroups
                   ? proposeTeeGroups(built.map((t) => t.playerIds)).map((playerIds, i) => ({
                     id: crypto.randomUUID(),
@@ -1091,6 +1125,9 @@ export default function NewPoolGamePage() {
             nine={wizardNine}
             onNext={() => setStep('create')}
             onBack={() => setStep(everyoneAlone ? 'tees' : 'teams')}
+            // F-037: a matches game can't be created on a tee sheet that doesn't pair (§5.ac).
+            matchesNote={matchSize > 0 ? `Each foursome plays a ${matchSize === 1 ? 'pair of singles' : '2 v 2 match'} between two teams. Move a player and the matches follow the groups.` : undefined}
+            blockedReason={matchSheetProblem(sides ?? [], teams.map((t) => t.playerIds), matchSize)}
           />
         )}
 

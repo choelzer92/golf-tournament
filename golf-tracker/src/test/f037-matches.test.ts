@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { computeGameResult } from '@/lib/game-modes/result';
-import { matchesOf, matchShapeProblem } from '@/lib/game-modes/matches';
+import { matchesOf, matchShapeProblem, matchSizesFor, suggestMatches, teeGroupsFromMatches } from '@/lib/game-modes/matches';
 import type { GameSide } from '@/lib/game-modes/sides';
 import type { GameScore } from '@/lib/game-state';
 import type { IndividualResult } from '@/lib/game-modes/types';
@@ -300,4 +300,53 @@ describe('F-037 — a shape that cannot be paired is a problem, never a game (§
   it('size 3 cannot divide a foursome of 2 + 2', () => {
     expect(matchShapeProblem(game([G1, G2], 3))).toMatch(/^Group 1 /);
   });
+});
+
+describe('F-037 T3 — building the tee sheet FROM the matches (§5.co Q1, Q6)', () => {
+  const team = (t: string, n: number) => Array.from({ length: n }, (_, i) => `${t}${i + 1}`);
+  const asTeams = (ts: string[][]): GameSide[] => ts.map((ids, i) => ({ id: String.fromCharCode(97 + i), playerIds: ids }));
+
+  it('offers 1 v 1 and 2 v 2 only where they divide every team and are smaller than it', () => {
+    expect(matchSizesFor([4, 4])).toEqual([1, 2]);
+    expect(matchSizesFor([2, 2])).toEqual([1]);
+    expect(matchSizesFor([4, 4, 4])).toEqual([1, 2]);
+    expect(matchSizesFor([3, 3])).toEqual([1]);
+    expect(matchSizesFor([1, 1, 1, 1])).toEqual([]);
+    expect(matchSizesFor([8])).toEqual([]);
+    expect(matchSizesFor([4, 2, 2])).toEqual([1]);
+  });
+
+  it('three teams of 4 at 2 v 2 rotate: every team meets both others once', () => {
+    const ts = [team('a', 4), team('b', 4), team('c', 4)];
+    const m = suggestMatches(ts, 2)!;
+    const meet = m.map(([x, y]) => [x[0][0], y[0][0]].sort().join(''));
+    expect(meet.sort()).toEqual(['ab', 'ac', 'bc']);
+  });
+
+  it('four teams of 4 at 2 v 2: four matches, each team meets two different teams', () => {
+    const ts = [team('a', 4), team('b', 4), team('c', 4), team('d', 4)];
+    const m = suggestMatches(ts, 2)!;
+    expect(m).toHaveLength(4);
+    for (const t of 'abcd') {
+      const opp = m.filter(([x, y]) => x[0][0] === t || y[0][0] === t).map(([x, y]) => (x[0][0] === t ? y[0][0] : x[0][0]));
+      expect(new Set(opp).size, `team ${t} meets two different teams`).toBe(2);
+    }
+  });
+
+  for (const [label, sizes, size] of [
+    ['2 teams of 4, 2 v 2', [4, 4], 2], ['2 teams of 4, singles', [4, 4], 1], ['3 teams of 4, 2 v 2', [4, 4, 4], 2],
+    ['4 teams of 4, 2 v 2', [4, 4, 4, 4], 2], ['2 teams of 2, singles', [2, 2], 1], ['3 teams of 2, singles', [2, 2, 2], 1],
+    ['2 teams of 8, 2 v 2', [8, 8], 2],
+  ] as [string, number[], number][]) {
+    it(`${label}: the built tee sheet reads back as the suggested matches, in foursomes`, () => {
+      const ts = sizes.map((k, i) => team(String.fromCharCode(97 + i), k));
+      const groups = teeGroupsFromMatches(ts, size)!;
+      expect(groups.every((g) => g.length <= 4)).toBe(true);
+      expect(groups.flat().sort()).toEqual(ts.flat().sort());
+      const read = matchesOf(asTeams(ts), groups, size)!;
+      expect(read, 'pairable').not.toBeNull();
+      const want = suggestMatches(ts, size)!.map((m) => m.map((u) => u.join(',')).sort().join(' v ')).sort();
+      expect(read.map((m) => m.units.map((u) => u.playerIds.join(',')).sort().join(' v ')).sort()).toEqual(want);
+    });
+  }
 });
