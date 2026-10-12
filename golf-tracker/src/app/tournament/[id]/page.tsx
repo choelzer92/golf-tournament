@@ -621,6 +621,9 @@ function MoneyGamesConfig({ tournament, onSave }: { tournament: Tournament; onSa
   const [antePerRound, setAntePerRound] = useState(String(mg?.skins?.antePerRound ?? 20));
   const [carryover, setCarryover] = useState(mg?.skins?.carryover ?? true);
   const [skinsAllowance, setSkinsAllowance] = useState(String(mg?.skins?.allowance ?? 50));
+  // §5.cs Q3: money strokes on a split round — the 18-hole standard, or each nine's 9-hole rating.
+  const hasSplitRound = tournament.rounds.some((r) => !!r.splitFormat);
+  const [splitHcap, setSplitHcap] = useState<'18' | 'per-nine'>(mg?.splitRoundHandicap ?? '18');
 
   function save() {
     const moneyGames: TournamentMoneyGames = {};
@@ -642,6 +645,7 @@ function MoneyGamesConfig({ tournament, onSave }: { tournament: Tournament; onSa
         allowance: parseFloat(skinsAllowance) || 50,
       };
     }
+    if (hasSplitRound && splitHcap === 'per-nine') moneyGames.splitRoundHandicap = 'per-nine';
     onSave({ ...tournament, moneyGames: (nassauEnabled || skinsEnabled) ? moneyGames : undefined });
     setExpanded(false);
   }
@@ -714,6 +718,17 @@ function MoneyGamesConfig({ tournament, onSave }: { tournament: Tournament; onSa
               </div>
             )}
           </div>
+
+          {hasSplitRound && (nassauEnabled || skinsEnabled) && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1" htmlFor="split-hcap">On split rounds, money strokes use</label>
+              <select id="split-hcap" value={splitHcap} onChange={(e) => setSplitHcap(e.target.value as '18' | 'per-nine')}
+                className="w-full border rounded px-2 py-1 text-sm">
+                <option value="18">18-hole handicap (standard)</option>
+                <option value="per-nine">Each nine&apos;s 9-hole rating</option>
+              </select>
+            </div>
+          )}
 
           {/* Skins */}
           <div>

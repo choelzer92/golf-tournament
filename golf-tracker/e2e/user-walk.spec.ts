@@ -107,7 +107,7 @@ test('walk 1: cold start — home, empty, then the wizard with NO group', async 
   }
 
   await signInOrganizer(page);
-  const create = page.getByRole('button', { name: /Create Game/ });
+  const create = page.getByRole('button', { name: /Create & send to players/ });
   if (await create.count()) {
     await create.click();
     await page.waitForURL(/\/pool\/[^/]+$/, { timeout: 10_000 }).catch(() => {});

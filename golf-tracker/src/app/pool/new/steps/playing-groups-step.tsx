@@ -8,7 +8,7 @@ import { proposePlayingGroups } from './shared';
 
 export function PlayingGroupsStep({
   course, players, teams, setTeams, handicapAllowance, handicapBasis, nine, onNext, onBack,
-  partnerTeams, nextLabel = 'Next: Review & Create',
+  partnerTeams, nextLabel = 'Next: Review & Create', blockedReason, matchesNote, groupLines,
 }: {
   course: CourseSelection | null;
   players: Player[];
@@ -21,6 +21,14 @@ export function PlayingGroupsStep({
    *  walk together) and only falls back to a balanced deal when no packing of that shape exists. */
   partnerTeams?: string[][];
   nextLabel?: string;
+  /** F-037 (§5.co): why this tee sheet can't be saved (a head-to-head game that no longer pairs),
+   *  or null. Next stays off and the reason shows, so an unpairable game is never created. */
+  blockedReason?: string | null;
+  /** F-037: the tee sheet was built FROM the matches — say so, and drop the shape buttons (a
+   *  re-pack would break the pairings). */
+  matchesNote?: string;
+  /** F-037 / §5.cq (C): who plays whom in each group, by tee-group id. */
+  groupLines?: Record<string, string[]>;
 }) {
   // The player being moved. Tap a player, then tap the group to move them to — the same
   // two-tap idiom the sides step already uses, so there's one gesture to learn.
@@ -104,16 +112,17 @@ export function PlayingGroupsStep({
         gets its own tee time and scorecard.{' '}
         {/* F-071: teams are built BEFORE this step now, so the independence reads the other way
             round — partners are together by default, and mixing is the organizer's move. */}
-        <span className="text-gray-500">
+        {!matchesNote && <span className="text-gray-500">
           {partnerTeams && partnerTeams.length > 0
             ? 'Partners walk together to start — move anyone to mix the groups; a partner can be in the other group.'
             : 'Your teams come next, and a partner can be in the other group.'}
-        </span>
+        </span>}
       </p>
 
       {/* The shape choice. Only shown when there IS one — at 4 or 7 players exactly one shape
           fits, and offering a single button is noise. */}
-      {shapes.length > 1 && (
+      {matchesNote && <p className="mb-3 text-xs text-gray-600">{matchesNote}</p>}
+      {shapes.length > 1 && !matchesNote && (
         <div className="bg-white rounded-lg shadow p-4 mb-4">
           <p className="text-sm font-medium text-gray-800 mb-1">How do they split?</p>
           <p className="text-xs text-gray-500 mb-3">
@@ -151,7 +160,12 @@ export function PlayingGroupsStep({
         {teams.map((team) => (
           <div key={team.id} className="bg-white rounded-lg shadow p-4">
             <div className="flex items-center justify-between gap-3 mb-2">
-              <p className="font-semibold text-gray-900">{team.name}</p>
+              <div className="min-w-0">
+                <p className="font-semibold text-gray-900">{team.name}</p>
+                {groupLines?.[team.id]?.map((l) => (
+                  <p key={l} className="text-xs text-gray-600" data-testid="group-match-line">{l}</p>
+                ))}
+              </div>
               <label className="flex items-center gap-1.5 text-xs text-gray-500">
                 Tee time
                 <input
@@ -206,9 +220,15 @@ export function PlayingGroupsStep({
         </div>
       )}
 
+      {blockedReason && (
+        <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2" role="alert">
+          <p className="text-xs font-medium text-amber-800">{blockedReason}</p>
+        </div>
+      )}
+
       <button
         onClick={onNext}
-        disabled={!canProceed}
+        disabled={!canProceed || !!blockedReason}
         className="w-full mt-4 rounded-md bg-green-700 px-4 py-3 text-white font-medium hover:bg-green-800 disabled:opacity-50"
       >
         {nextLabel}

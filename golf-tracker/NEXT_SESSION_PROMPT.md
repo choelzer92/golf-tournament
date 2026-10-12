@@ -1,83 +1,82 @@
-# Next session: land F-104, then Phase B (first-time ease), the event spine, then Phase A
+# Next session: the Series (multi-day trip, bar #11), then S2 convergence
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
 Read `AGENTS.md`, `DECISIONS.md` (whole) and `BETA.md` first. Grep the archive only for the § you
-touch: §5.cg–§5.cj for this session's calls, §5.bu/§5.ce for the spine.
+touch: §5.co–§5.ct for this session's calls, §5.cf/§5.cr for the Series.
 
-## State (2026-10-05)
+## State (2026-10-12)
 
-Branch `gate-speed-2026-09-27`: NOT merged, NOT pushed (§5.ab: never unbidden). Landed since 2026-10-01:
-- **Phase D quick polish:** D1 font (e4e2420), D4 (0325a4d), D3 (d7f199c), D5 (33af417), D2 starter
-  SVGs removed (aa105b7).
-- **Dedup audit + docs** (0254f26).
-- **A4:** one money formatter (12ac5b8).
-- **§5.cj:** match points drop the "+" (e81b572).
-- **§5.cb visibility** (14cd287): owner + players (GHIN or roster id) + source-group members.
-  Members see groups read-only; legacy owner-less events are visible to their players only.
-  Plan and "Built" notes: `.claude/plans/visibility-5cb.md`.
+Branch `phase-b-2026-10-05` was **merged to main and pushed on Craig's word** at the end of the
+session, after a green full `npm run verify` (`.claude/verify-2026-10-12-final.log`). Start the next
+work on a NEW feature branch (§5.ab). Landed:
 
-- **F-104 opt A:** Create Game without a GHIN login opens a login modal first (the commit after
-  14cd287). `e2e/helpers.ts` `signInOrganizer` signs a tab in before Create.
+- **F-037 Team → Match** (§5.co; T0–T4, polish):
+  - the Compete step asks "Head-to-head matches? No / 1 v 1 / 2 v 2";
+  - the tee sheet is built from fair suggested pairings;
+  - match points (or holes won / net strokes) roll up to team totals;
+  - all four money models; tiebreaks; Nassau legs with points per leg;
+  - off the low per match (T4);
+  - an unpairable sheet is refused everywhere.
+- **F-106:** the swap preview recomputes strokes per arrangement.
+- **F-107 (§5.cq):** singles pairings are stored on the tee group and shown on every card.
+- **§5.cp:** a late player never joins a match. The answer is a second game on the round (BACKLOG, not built).
+- **§5.cr:** the multi-day trip is a **Series** of ordinary games. §5.cs: the S2 questions are answered.
+- **The ledger fix (S2 Q3):**
+  - money strokes follow the round's real handicap;
+  - split rounds default to the 18-hole handicap on the card's stroke index, with per-nine as a
+    Money Games choice;
+  - T0's round 3 had about double strokes;
+  - the before/after is in `.claude/plans/spine-s2.md` §8. Craig verified the cause.
+- **F-108 (§5.ct):** no 2-strokes-a-hole cap. The maximum index is 54.0. No live player-round moved.
+- **Read-only corpus harnesses**, skipped without an export:
+  - `src/test/ledger-corpus.test.ts`
+  - `src/test/strokes-corpus.test.ts`
+  - Run them with `LEDGER_CORPUS=backups/<stamp>` after `node scripts/export-backup.mjs` (Q10 yes).
 
-On a low-memory day, run gates with `PW_WORKERS=1`. A reaped gate isn't a failure: don't restart it
-unasked.
+## Step 1: the Series, design note first, then build (bar #11)
 
-## Step 1: Craig's ask. Go through "Waiting on Craig" (below) ONE question at a time
+The shape is `Series { gameIds, sourceGroupId, rollup: 'money' | 'points' }` (§5.cr). Each day is
+an ordinary game; cumulative money is the sum of per-player `moneyNet` (the F-068 split). Write a
+short design note in `.claude/plans/` covering:
+- create a trip from a group's preferences (§5.cf);
+- add a day (Run it back fits, §5.cm);
+- the rollup screen;
+- where it lives on Home (§5.ck group cards);
+- a points rollup later (Ryder Cup, built on Team → Match).
 
-Use AskUserQuestion, one topic per question. Record each answer in-session: the DECISIONS_ARCHIVE
-entry plus the DECISIONS.md index line. Then continue with the list below.
+Ask Craig what's his call, ONE question at a time, then build goldens first.
 
-## Then, in order (≤3 promoted per BETA.md §3)
+## Step 2: S2 convergence (S2.0–S2.6), after or in parallel
 
-1. **Phase B, first-time ease (bars #1–3):**
-   1. B3 Send to players;
-   2. B9 hide close-out;
-   3. B1 Run it back.
+Plan: `.claude/plans/spine-s2.md` §6 and §7. The answers are in §5.cs and cover NEW rows only; legacy
+tournaments keep computing as today (Q1):
+- Q2: each player's own tee;
+- Q4: per-ball two-best-balls Stableford;
+- Q5: scale + scramble % settings;
+- Q7: a per-player Nassau stake;
+- Q8: the pool's skins rules;
+- Q9: the index stands in.
 
-   Details and the rest of the ranking (B4b/c, B7, B2, B5, B6, B8; B4a re-walk only) are in
-   `.claude/plans/roadmap-2026-10.md` "Re-ranked".
-2. **Event spine S2 (bar #11, a multi-day trip).** Tournament rounds go through `game-modes/`,
-   goldens first. Investigate, then write the plan into the roadmap (Phase E), then build. Before
-   S3/S4, settle the open question **Series vs S4** with Craig, after S2's investigation.
-3. **F-037 opt B (the only open P1, bar #9).** Two separate 2v2s at 8 players: a within-tee-group
-   setting. Write the goldens-first plan and **show Craig before building** (§5.ci).
+Split rounds stay legacy (Q6 → §5.cp). Run both corpus harnesses before and after every slice.
 
-## After those
-- **Phase A remainder:**
-  - F-103 b.
-  - F-103 c, CTP across tee groups: last-write-wins risk in `setCtpWinner` (`play:2144`). Reproduce
-    with two tabs, then Craig picks B or C. Wrong money, bar #6.
-  - A5 doc hygiene: archive fixed findings, mark F-089/F-090/F-030/F-015 done, F-090 superseded by
-    e07ad10.
-- **F-063 C (bar #5):** per-cell score rows plus an outbox, roadmap Phase C. Show Craig the live
-  migration before it runs.
-- **Stroke vs match play handicap check (bar #6):** report only, no math change without Craig.
-- **JSON export (bar #8):** partial today (a CLI script plus a tournament button).
-- **D6 copy diet:** not started.
-- **End of each session:** groom BACKLOG (tag [beta #n] / [after-beta] per the comb), update
-  `BETA.md` §4, run the full `npm run verify` once in the background, and rewrite this file.
+## Then
+- The persona walks with tap counts (bars #1–#3).
+- F-063 C (bar #5), the stroke vs match play check (bar #6), the JSON export (bar #8).
+- Saved formats keeping their pot split (BACKLOG, Craig's call; ask).
+- GHIN-app side-by-sides, as confirmations:
+  - a four-ball match off the low (T4);
+  - a CH ≥ 37 player (F-108).
+- **End of each session:** groom BACKLOG, update `BETA.md` §4, run the full `npm run verify` once,
+  and rewrite this file.
 
 ## Waiting on Craig (don't guess)
-- **Home "Your golf":** option B, a Continue card on top, or the 3 most recent.
-- **§7 q4 theme direction (D4).** The D5 emoji→icons and the D2 app icon wait on branding too.
-  Craig wants to brainstorm names later, near beta ("GrudgeMatch" floated).
-- **Hide-holes in the wizard.**
-- **Series vs S4** (after S2's investigation).
-- **Merging the branch.** Craig walks it on a phone first (bar #10).
-- **No-GHIN organizer: DEFERRED (§5.ch).** It waits for §5c security; the map is
-  `.claude/plans/no-ghin-organizer.md`.
+- **The Series design questions** (Step 1).
+- **Saved formats carrying the pot split.**
+- **His phone walk of F-037** (which closes the P1).
+- **Branding/design session:** the theme, the icon, the name.
+- **No-GHIN organizer: DEFERRED (§5.ch).**
 
-## Settled this session (don't re-ask)
-- **§5.cg:** the beta bar is confirmed, with #11 multi-day ON it.
-- **§5.ch:** only GHIN logins organize.
-- **§5.ci:** F-104 opt A; legacy events visible to their players plus the app owner; branding later;
-  F-037 opt B.
-- **§5.cj:**
-  - members see their group's whole ledger;
-  - outside groups, money counts only games played;
-  - groups are read-only to members;
-  - a group's creator is NOT a member;
-  - match points carry no "+".
-- **Known edge (§5.cb notes):** an organizer who didn't play a non-group game they made still sees
-  its money, as before.
+## Settled (don't re-ask)
+§5.co (all six Team → Match answers + money), §5.cp, §5.cq, §5.cr, §5.cs (Q1–Q10 + the split-round
+rule), §5.ct. Earlier: see DECISIONS.md.

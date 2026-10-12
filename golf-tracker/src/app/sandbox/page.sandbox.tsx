@@ -219,6 +219,35 @@ const SCENARIOS: Scenario[] = [
   // team ({id:'st1', name:'Group', playerIds: everybody}), which is exactly the shape F-019 is
   // about. These three seed what a real day of golf looks like — separate tee times, separate
   // scorecards, and sides whose members SPAN them.
+  // F-037 (§5.co): the same Hogs v Dawgs field as head-to-head 2v2 MATCHES, one per foursome.
+  // Group 1: Craig & Jym (par, +1) v Dave & Rick (+2, +3) — Hogs by 2 a hole. Group 2: the Hogs'
+  // pair (+1, +3) v the Dawgs' (+2, +2) — Hogs by 1 a hole. Hogs win both matches, 2–0, and take
+  // the $40 pot ($20 a team): Hogs +$20, Dawgs −$20.
+  {
+    key: 'hogs-v-dawgs-matches',
+    label: 'F-037: Hogs v Dawgs as two 2 v 2 matches',
+    detail: 'Two teams of 4, a 2 v 2 match in each foursome; match points roll up to the team pot. Hogs win both: +$20 / −$20.',
+    build: () => {
+      const ps = players([0, 0, 0, 0, 0, 0, 0, 0]);
+      const game = baseGame({
+        players: ps,
+        name: 'Hogs v Dawgs — matches',
+        gameMode: 'team-2v2',
+        sides: [
+          { id: 'a', name: 'The Hogs', playerIds: ['sp1', 'sp2', 'sp5', 'sp6'] },
+          { id: 'b', name: 'The Dawgs', playerIds: ['sp3', 'sp4', 'sp7', 'sp8'] },
+        ],
+        modeSettings: { format: 'best-ball', scoring: 'stroke', result: 'match', moneyModel: 'pot', sideBuyIn: 20, potSplit: '100', matchSize: 2 },
+        teams: [
+          { id: 'st1', name: 'Group 1', playerIds: ['sp1', 'sp2', 'sp3', 'sp4'], matchupId: 'sm1', teeTime: '8:10' },
+          { id: 'st2', name: 'Group 2', playerIds: ['sp5', 'sp6', 'sp7', 'sp8'], matchupId: 'sm2', teeTime: '8:20' },
+        ],
+      });
+      saveGameScores('sm1', scores(['sp1', 'sp2', 'sp3', 'sp4'], [0, 1, 2, 3], ALL18));
+      saveGameScores('sm2', scores(['sp5', 'sp6', 'sp7', 'sp8'], [1, 3, 2, 2], ALL18));
+      return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
   {
     key: 'hogs-v-dawgs-two-groups',
     label: 'F-101 a: Hogs v Dawgs, 4 v 4 across two foursomes',
@@ -772,6 +801,42 @@ const SCENARIOS: Scenario[] = [
       saveGameScores('sm1', scores(['sp1', 'sp2', 'sp3', 'sp4'], [-1, -1, -1, -1], ALL18));
       saveGameScores('sm2', scores(['sp5', 'sp6', 'sp7', 'sp8'], [1, 1, 1, 1], ALL18));
       return { game, goTo: (id) => `/pool/${id}/leaderboard` };
+    },
+  },
+  // §5.cs Q3 (Craig 2026-10-12): money games on a SPLIT round default to the 18-hole handicap; the
+  // Money Games editor offers each nine's 9-hole rating instead, and only when a round is split.
+  {
+    key: 'tournament-split-money',
+    label: '§5.cs: a tournament with a split round and money games',
+    detail: 'One 18-hole round whose points switch from best ball to singles at the turn, with a team Nassau. Edit Money Games to see the split-round handicap choice.',
+    buildDomain: () => {
+      signInAsOrganizer();
+      const ps: Player[] = [
+        { id: 'tx1', name: 'Craig Hoelzer', handicapIndex: 9.2, ghinNumber: SANDBOX_GHIN },
+        { id: 'tx2', name: 'Jym Youngberg', handicapIndex: 12 },
+        { id: 'tx3', name: 'Dave Miller', handicapIndex: 8.5 },
+        { id: 'tx4', name: 'Rick Tanaka', handicapIndex: 14.8 },
+      ];
+      const c = course();
+      const round = {
+        id: 'tx-r1', name: 'Split round', dayLabel: 'Day 1', formatId: 'match-play', teamMode: 'best-ball',
+        course: c, holesPlaying: '18', groupingMode: 'cross-team', scoringMethod: 'match-play',
+        pointsForWin: 1, pointsForTie: 0.5, pointsForLoss: 0, handicapAllowance: 90, strokeMethod: 'off-the-low',
+        handicapBasis: 'course', defaultTeeId: c.teeSets[0].id, bonuses: [], status: 'pending',
+        matchups: [{ id: 'tx-m1', groupLabel: 'Group 1', playerIds: ps.map((p) => p.id), teamAPlayerIds: ['tx1', 'tx2'], teamBPlayerIds: ['tx3', 'tx4'], gameId: null, result: null }],
+        splitFormat: {
+          formatId: 'match-play', teamMode: 'individual', scoringMethod: 'match-play', pointsForWin: 1, pointsForTie: 0.5,
+          pointsForLoss: 0, handicapAllowance: 100, strokeMethod: 'off-the-low',
+          pairings: [{ playerIds: ['tx1', 'tx3'] }, { playerIds: ['tx2', 'tx4'] }],
+        },
+      } as unknown as Tournament['rounds'][number];
+      saveTournament({
+        id: 'tx-split', name: 'Split Round Money', mode: 'team-event', players: ps,
+        teams: [{ id: 'tx-a', name: 'Aces', playerIds: ['tx1', 'tx2'] }, { id: 'tx-b', name: 'Bogeys', playerIds: ['tx3', 'tx4'] }],
+        rounds: [round], status: 'active', createdByGhin: SANDBOX_GHIN,
+        moneyGames: { teamNassau: { frontAmount: 10, backAmount: 10, overallAmount: 5, method: 'best-net', allowance: 75 } },
+      } as Tournament);
+      return { goTo: '/tournament/tx-split' };
     },
   },
   {

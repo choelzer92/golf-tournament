@@ -177,3 +177,11 @@ export async function signInOrganizer(page: Page) {
   await page.evaluate(() => sessionStorage.setItem('ghin_golfer',
     JSON.stringify({ golfer_id: 1234567, first_name: 'Craig', last_name: 'Hoelzer' })));
 }
+
+/** §5.cl: Create lands on the hub with the player-link sheet open. Close it so the hub is
+ *  usable. Tolerant on purpose (a `pool`-access tab never gets the sheet); the strict check
+ *  that it opens lives in b3-send-to-players.spec.ts. */
+export async function closeSendSheet(page: Page) {
+  const close = page.getByRole('button', { name: 'Close' });
+  await close.waitFor({ state: 'visible', timeout: 5_000 }).then(() => close.click()).catch(() => {});
+}

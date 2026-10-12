@@ -413,7 +413,16 @@ export default function PlayGamePage() {
       if (Array.isArray(cached)) byMatchup.set(t.matchupId, cached);
     }
     const result = computeGameResult(poolGame, byMatchup);
-    return result.kind === 'individual' ? result.sideBreakdown ?? null : null;
+    if (result.kind !== 'individual') return null;
+    // Head-to-head matches (F-037, §5.co): the card shows YOUR match only — the units of the
+    // match(es) with a player in this group, each ranked within its match.
+    if (result.matches) {
+      const mine = new Set(poolGame.teams.find((t) => t.matchupId === poolCtx.matchupId)?.playerIds ?? []);
+      return result.matches
+        .filter((m) => m.units.some((u) => u.playerIds.some((id) => mine.has(id))))
+        .flatMap((m) => m.units.map((u) => ({ id: `${m.id}-${u.teamId}`, name: u.name, values: u.values, total: u.total, place: u.place, status: u.status })));
+    }
+    return result.sideBreakdown ?? null;
   })();
 
   // Manual bonuses (sandies, barkies, …) the app can't read off a scorecard. The SCORER
@@ -1910,13 +1919,16 @@ export default function PlayGamePage() {
           })}
         </div>
 
-        {/* Finish Game */}
-        <button
-          onClick={finishGame}
-          className="mt-6 w-full rounded-md bg-green-900 px-4 py-3 text-white font-bold hover:bg-green-950"
-        >
-          Finish Game
-        </button>
+        {/* Finish Game — B9: hidden until this card has a score, so a fresh card doesn't
+            open on a button that locks it. */}
+        {scores.some((s) => s.grossScore != null) && (
+          <button
+            onClick={finishGame}
+            className="mt-6 w-full rounded-md bg-green-900 px-4 py-3 text-white font-bold hover:bg-green-950"
+          >
+            Finish Game
+          </button>
+        )}
       </main>
     </div>
   );

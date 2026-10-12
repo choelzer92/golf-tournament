@@ -21,7 +21,7 @@ import {
 import { getGameMode, type IndividualResult } from '@/lib/game-modes';
 import { gameKindLabel } from '@/lib/game-structure';
 import type { TeamFormat } from '@/lib/game-modes/team-scoring';
-import type { WolfHoleLine, NassauLegLine, JunkLine, PotSliceLine, SettingsBag } from '@/lib/game-modes/types';
+import type { WolfHoleLine, NassauLegLine, JunkLine, MatchLine, PotSliceLine, SettingsBag } from '@/lib/game-modes/types';
 import { JUNK_SETTINGS, junkPayout, numberSetting } from '@/lib/game-modes/settings';
 import { computeGameResult, isModeEngineGame } from '@/lib/game-modes/result';
 import { defaultSideLabel, sideOfPlayer, sidesOfGame } from '@/lib/game-modes/sides';
@@ -808,6 +808,43 @@ function fmtPace(n: number): string {
 // tension, but it does make it more visible, so it stays worth resolving.
 const SIDE_TONES = ['text-blue-300', 'text-red-300', 'text-amber-300', 'text-emerald-300', 'text-fuchsia-300', 'text-cyan-300'];
 
+// Head-to-head matches (F-037, §5.co): one row per match — who plays whom, and where the match
+// stands. Each match is a 2v2 (or singles) of its own; the team totals in Standings are these
+// matches added up. Shown before the first score too, so the pairings are known from Create.
+function MatchBoard({ matches, sideOrder }: { matches: MatchLine[]; sideOrder: string[] }) {
+  return (
+    <div className="bg-gray-800 rounded-xl overflow-hidden" data-testid="match-board">
+      <div className="px-4 py-2 border-b border-gray-700">
+        <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Matches</p>
+      </div>
+      <div className="divide-y divide-gray-700/30">
+        {matches.map((m, i) => {
+          const overall = m.legs.length === 1 ? m.legs[0] : m.legs.find((l) => l.key === 'overall');
+          const thru = Math.min(...m.units.map((u) => u.thru));
+          return (
+            <div key={m.id} className="px-4 py-2.5 flex items-center justify-between gap-3" data-testid="match-row">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-200">
+                  {m.units.map((u, k) => (
+                    <span key={u.teamId}>
+                      {k > 0 && <span className="text-gray-500"> v </span>}
+                      <span className={sideTone(u.teamId, sideOrder)}>{u.name}</span>
+                    </span>
+                  ))}
+                </p>
+                <p className="text-[10px] text-gray-500">Match {i + 1}{thru > 0 ? ` · thru ${thru}` : ''}</p>
+              </div>
+              <p className={`text-sm font-medium text-right whitespace-nowrap ${m.winner ? sideTone(m.winner, sideOrder) : 'text-gray-400'}`}>
+                {overall && overall.thru > 0 ? overall.status : 'Not started'}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function sideTone(sideId: string, order: string[]): string {
   const idx = order.indexOf(sideId);
   // Unknown side (stale id) falls back to neutral rather than colouring it as side A.
@@ -982,7 +1019,13 @@ function IndividualLeaderboard({ id }: { id: string }) {
 
       <main className="max-w-4xl mx-auto px-2 py-4 space-y-4">
         {!result || result.thruHole === 0 ? (
-          <div className="text-center py-12 text-gray-500">No scores yet.</div>
+          <>
+            <div className="text-center py-12 text-gray-500">No scores yet.</div>
+            {/* F-037: a matches game says who plays whom from the moment it's created. */}
+            {result?.kind === 'individual' && result.matches && result.matches.length > 0 && (
+              <MatchBoard matches={result.matches} sideOrder={sideOrder} />
+            )}
+          </>
         ) : (
           <>
             {/* Standings */}
@@ -1143,6 +1186,11 @@ function IndividualLeaderboard({ id }: { id: string }) {
             {result.wolfHoles && result.wolfHoles.length > 0 && (
               <WolfBreakdown lines={result.wolfHoles} />
             )}
+
+            {/* Head-to-head matches (F-037, §5.co): one row per match — who plays whom, and where
+                the match stands. Each match is a 2v2 (or singles) of its own; the team totals in
+                Standings above are these matches added up. */}
+            {result.matches && result.matches.length > 0 && <MatchBoard matches={result.matches} sideOrder={sideOrder} />}
 
             {/* Front / Back / Overall breakdown (2v2 team games) — Nassau-style.
                 A 9-hole game collapses to ONE leg (team-game.ts), so derive the

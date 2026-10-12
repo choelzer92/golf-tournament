@@ -24,6 +24,7 @@ import {
   type PoolMoneyMode,
 } from './pool-game';
 import { getGameMode } from './game-modes';
+import { matchesOf, matchSizeOf } from './game-modes/matches';
 import { persistedSides, sideIdAt, sidesOfGame, type GameSide } from './game-modes/sides';
 import {
   isOneBall,
@@ -108,6 +109,8 @@ export interface StructureDraft {
   aligned: boolean;
   teamsTogether: boolean;
   moneyModel: MoneyModel;
+  /** Head-to-head matches (F-037, §5.co): players a side in each match; absent / 0 = off. */
+  matchSize?: number;
   /** Which bonuses the game plays — informational since Phase 3 (§5.bq): junk, closest-to-pin and
    *  hand-tracked bonuses are junk points on EVERY engine, so none of them routes. Captains and
    *  hiding holes until every group finishes used to be here too; both are capabilities of both
@@ -409,6 +412,8 @@ export interface GameKindFacts {
   sideSizes: number[];
   /** `moneyMode` for a classic pool, `modeSettings.moneyModel` for a team game; ignored for solo. */
   money?: string;
+  /** Head-to-head matches in play (F-037) — absent when matches are off. */
+  matchCount?: number;
 }
 
 export function gameKindFactsOf(game: PoolGame): GameKindFacts {
@@ -418,7 +423,15 @@ export function gameKindFactsOf(game: PoolGame): GameKindFacts {
     groupSizes: game.teams.map((t) => t.playerIds.length),
     sideSizes: sidesOfGame(game).map((s) => s.playerIds.length),
     money: game.gameMode ? String(game.modeSettings?.moneyModel ?? 'legs') : game.moneyMode,
+    ...matchCountOf(game),
   };
+}
+
+function matchCountOf(game: PoolGame): { matchCount?: number } {
+  const size = matchSizeOf(game.modeSettings ?? {});
+  if (size === 0) return {};
+  const m = matchesOf(sidesOfGame(game), game.teams, size);
+  return m ? { matchCount: m.length } : {};
 }
 
 /**
@@ -439,7 +452,11 @@ export function gameKindLabelFrom(f: GameKindFacts): string {
     const sizes = f.sideSizes.length > 0 ? f.sideSizes : f.groupSizes;
     const money = MONEY_WORD[(f.money ?? 'legs') as MoneyModel] ?? f.money ?? '';
     const head = sizes.length > 0 ? structureLabel({ kind: 'teams', teamSizes: sizes }) : players;
-    const groups = f.groupSizes.length > 1 ? ` · ${f.groupSizes.length} groups` : '';
+    // Head-to-head matches name what the foursomes are for ("· 2 matches"), which says more than the
+    // tee-time count (F-037).
+    const groups = f.matchCount
+      ? ` · ${f.matchCount} match${f.matchCount === 1 ? '' : 'es'}`
+      : f.groupSizes.length > 1 ? ` · ${f.groupSizes.length} groups` : '';
     return [head, money].filter(Boolean).join(' · ') + groups;
   }
   const head = f.groupSizes.length > 0 ? structureLabel({ kind: 'teams', teamSizes: f.groupSizes }) : players;
@@ -504,6 +521,14 @@ export function routeContainer(draft: StructureDraft): Route {
   }
   if (needsTwoScores(draft.scoring.format) && sizes.some((k) => k < 2)) {
     return { container: 'unexpressible', reason: UNEXPRESSIBLE.needTeams('Two-ball formats') };
+  }
+  // F-037: in head-to-head matches the scoring unit is the match side, not the whole team, so a
+  // singles match plays one ball a side — and only the team engine plays matches.
+  if (draft.matchSize && draft.matchSize > 0) {
+    if (draft.matchSize < 2 && (needsTwoScores(draft.scoring.format) || isOneBall(draft.scoring.format))) {
+      return { container: 'unexpressible', reason: 'Singles matches play one ball a side — pick best ball.' };
+    }
+    return { container: 'sides', gameMode: 'team-2v2', moneyModel: draft.moneyModel };
   }
 
   const classicCan = !singles && draft.aligned

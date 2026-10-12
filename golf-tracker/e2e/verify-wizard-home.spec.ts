@@ -31,7 +31,7 @@ test.describe('group picker on wizard step 1 (§5.au: step 1 is the FIELD)', () 
 
     // The wizard OPENS on the field, groups first.
     await expect(page.getByText("Who's playing?")).toBeVisible();
-    const warriors = page.getByRole('button', { name: /Weekend Warriors/ }).first();
+    const warriors = page.getByRole('button', { name: /^Weekend Warriors\d+$/ }).first();
     await expect(warriors).toBeVisible();
 
     await warriors.click();
@@ -69,7 +69,7 @@ test.describe('group picker on wizard step 1 (§5.au: step 1 is the FIELD)', () 
 
     await page.goto(`${BASE}/pool/new`);
     await page.waitForLoadState('networkidle');
-    await page.getByRole('button', { name: /Tuesday Crew/ }).first().click();
+    await page.getByRole('button', { name: /^Tuesday Crew\d+$/ }).first().click();
     await expect(page.getByText(/Loaded “Tuesday Crew” — 8 players pre-selected/)).toBeVisible();
     await expect(page.getByText('8 selected')).toBeVisible();
   });
@@ -349,7 +349,7 @@ test.describe('manual bonuses on the scorecard', () => {
     await seed(page, 'Manual bonuses');
     await page.getByRole('button', { name: /enter scores/i }).first().click();
     await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
-    await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+    await expect(page.getByText(/^Hole \d+$/).first()).toBeVisible();
 
     // A toggle exists for EVERY player on the hole, not just the logged-in one.
     const sandies = page.getByRole('button', { name: /Sandie/ });

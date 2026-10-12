@@ -493,7 +493,7 @@ answer back may simply be "update: they're there now / clearer once the branch s
 
 ---
 
-### F-037 — Eight players who want "two separate 2v2 best-balls" can't say so — and Craig can't tell what IS possible  [P1] [start]
+### F-037 — Eight players who want "two separate 2v2 best-balls" can't say so — and Craig can't tell what IS possible  [P1] [start] — **BUILT 2026-10-12 (§5.co, Team → Match T0–T4):** Compete asks "Head-to-head matches? 1 v 1 / 2 v 2"; the tee sheet is built from the matches; match points roll up to team totals. Craig's phone walk is still wanted before this is closed
 
 **Reported:** Craig, 2026-09-10 — "how would I run 4v4 if it's not a pool? like 2v2 and
 2v2? I'm confused at why I can only choose pools" and "once I've chosen a player pool, I
@@ -1444,8 +1444,73 @@ the app owner sees it.
 Not yet reproduced on screen; walk it in the sandbox with a share link first. Tag: [beta #4]. An
 owner-less game breaks "every player finds their games".
 
+### F-105 — The wizard's "Share" sends the ORGANIZER link, not this game (2026-10-05)  [P2] [start] — **DECIDED 2026-10-05 (§5.cl): A + C**, built with B3
+
+**Seen:** in code, while answering Craig ("is the share button available throughout the game set up
+process?"). Every wizard step has a header "Share" (`pool/new/page.tsx:715`, `PoolShareButton`). It
+shares `/pool?key=ORGANIZER_TOKEN`, a link to *create your own* games. The game being set up doesn't
+exist until Create, so there's nothing of it to share yet. A first-timer who taps Share mid-setup to
+invite their foursome sends friends a create-games link instead. After Create, the hub's Share opens
+the right sheet (the player scoring link first).
+
+**Part of the "when does sharing happen" design question** (B3, parked for the branding/design
+discussion, 2026-10-05). Options:
+- (A) Remove Share from the wizard. Sharing happens on the game, after Create.
+- (B) Relabel it "Invite a co-organizer", so it says what it sends.
+- (C) Make Create the share moment: "Create & send to players" opens the player link sheet (B3).
+
+A and C combine. Tag: [beta #1]. **Craig picked A + C (§5.cl).**
+
 
 ---
+
+### F-108 — The shared stroke allocator caps strokes at 2 a hole, so a course handicap over 36 loses strokes (2026-10-12)  [P2] [beta #6] — **OPEN, Craig's call (handicap math)**
+
+**Seen:** in code, while writing the S2 Q3 ledger goldens. `strokesOnHole` (`lib/strokes.ts`) returns
+at most 2: `if (n >= numHoles * 2) return 2 * sign`. A course handicap of 40 should get 3 strokes on
+stroke index 1–4 and 2 on the rest (40 in total). It gets 2 everywhere (36), losing 4 strokes. The
+same applies on a nine above 18. WHS indexes go to 54, so beginners' course handicaps can exceed 36.
+Every engine uses this one allocator: the pool, sides, tournament scoring and the ledger. The plus
+side mirrors it (a plus give-back past 36 is just as capped, but no real index gets there).
+
+**Options:**
+- (A) Allocate the full handicap: `floor(n / numHoles)` strokes on every hole, plus one more on the
+  hardest `n % numHoles`. This is the WHS rule and needs no cap.
+- (B) Keep the cap, deliberately (some groups play a max of 2 a hole), as a setting.
+
+A is the Rules. The stroke vs match play check (§5.ce, bar #6) should cover it. Goldens are written
+first, and a GHIN-app side-by-side for a CH ≥ 37 player is needed before the change (§5.ba).
+
+### F-107 — Singles matches are paired by ORDER inside a foursome, and hub edits re-sort that order (2026-10-12)  [P2] [beta #6] — **FIXED 2026-10-12 (§5.cq, A + C):** pairings are stored on the tee group (`singles`) and shown on every card; a stale pairing is refused with the reason
+
+**Seen:** in code, while fixing F-106. `pairMatches` (`game-modes/match-pairing.ts`) pairs 1 v 1 matches
+in tee-sheet order: A's first player in the foursome against B's first. The hub's swap
+(`field-editor.tsx` `swapPlayers` → `orderIds`, captain first), and possibly other tee-group edits,
+re-sort a foursome's player list. A swap can therefore change who plays whom in singles without
+anyone choosing it. Each pairing still validates and the money still settles; the opponents just
+move silently. 2 v 2 isn't affected, because a team has one pair per foursome.
+
+**Options:**
+- (A) Store the singles pairing explicitly (a `matchOrder` on the tee group, or per-match ids), so
+  order stops carrying meaning.
+- (B) Keep order as the pairing, and make every hub edit preserve each team's order inside a foursome.
+- (C) Show "who plays whom" on the tee-group card, so any change is visible.
+
+C is worth doing whichever of A or B is chosen. A is the structural fix (§2 "prefer structural
+guarantees").
+
+### F-106 — The swap tool previews strokes from a map computed once, but a matches game's strokes can move with a swap (2026-10-12)  [P2] [beta #6] — **FIXED 2026-10-12:** `rankSwapCandidates` recomputes strokes per arrangement (`strokesAfter`) and skips swaps that would unpair the matches. Asked for by Craig, 2026-10-12: "i would need that fixed in order to fulfill our beta standards"
+
+**Seen:** in code, while building F-037 T4. `poolStrokeMap(game)` is computed once in `EditFoursomes`
+(`panels/field-editor.tsx:33`) and in the swap panel (`:855`, `useMemo`). It's reused for every
+simulated arrangement, on the stated assumption that a swap never moves the field low. Since T4,
+off the low in a matches game takes the low PER MATCH, so moving a player can change a match's low,
+and with it every stroke count in that match. The preview could then show numbers a stroke or two
+off what the card and money use after the swap. Money and the card are unaffected, because they
+read the saved game.
+
+**Fix:** simulate on the arrangement. For each candidate, recompute `poolStrokeMap` on the would-be
+game (teams/sides swapped), so the preview uses the exact map the saved game will.
 
 ### F-100 — A plus index can't be typed on an iPhone: the decimal keypad has no "+" or "−"  [P2] [start]
 

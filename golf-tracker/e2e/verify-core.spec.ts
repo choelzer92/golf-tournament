@@ -35,7 +35,7 @@ test.describe('2v2 side names (the "Team A" bug)', () => {
     // vacuously on the hub (which never contained "Team A" to begin with) — it did
     // exactly that before this guard was added.
     await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
-    await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+    await expect(page.getByText(/^Hole \d+$/).first()).toBeVisible();
 
     const body = await page.locator('body').innerText();
     expect(body).not.toContain('Team A');

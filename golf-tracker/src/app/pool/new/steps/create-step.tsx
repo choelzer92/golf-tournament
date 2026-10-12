@@ -1,5 +1,6 @@
 'use client';
 
+import { matchesOf, matchSizeOf } from '@/lib/game-modes/match-pairing';
 import { useState, useEffect } from 'react';
 import type { CourseSelection, Player } from '@/lib/game-state';
 import {
@@ -14,6 +15,8 @@ import {
   foldJunkIntoOverall,
   getPoolPlayingHandicap,
   poolSplitDollarsForTeams,
+  carriedSplitDollars,
+  type PoolPotSplit,
 } from '@/lib/pool-game';
 import type { GameSide } from '@/lib/game-modes/sides';
 import { getGameMode, fitExplanation, formatSummaryLine, playerRangeText, type SettingsBag } from '@/lib/game-modes';
@@ -33,6 +36,9 @@ const SIDES_STAKES_KEYS = new Set([
   // schema fields (F-096 A, §5.bs — three full-width rows with hints were a screen and a half).
   // Phase 3 step 3: how losers pay with 3+ teams, and carry-ties for $/hole.
   'legsPayout', 'pointsPayout', 'carryover',
+  // F-037 (§5.co): how a match counts toward the team, Nassau legs, team tiebreak. Shown only with
+  // matches on (showIf); the match SIZE itself is asked on the Compete step.
+  'matchCounting', 'matchNassau', 'matchPtsFront', 'matchPtsBack', 'matchPtsOverall', 'teamTiebreak',
 ]);
 // HOW JUNK PAYS — asked UNDER the bonus grid it depends on (F-093 A, §5.bs), not above it in the
 // stakes. Junk POINTS (birdie / eagle / albatross / all-par / closest) come from that shared grid
@@ -94,13 +100,13 @@ const JUNK_FIELDS: { key: keyof PoolJunkValues; label: string; hint: string }[] 
 ];
 
 export function CreateStep({
-  name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited,
+  name, entryPerPlayer, players, teams, course, handicapAllowance, potDollars, setPotDollars, potEdited, setPotEdited, carriedPotSplit,
   container, blockedReason, moneyModel, setMoneyModel, moneyOptions,
   matchConfig, handicapBasis, nine, holesPlaying, gameMode,
   entryPerPlayerText, setEntryPerPlayer, positionSplitText, setPositionSplitText,
   junkValues, setJunkValues, customBonuses, setCustomBonuses,
   matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
-  sides, modeSettings, setModeSettings, strokeMethod, onSaveFormat,
+  sides, modeSettings, setModeSettings, strokeMethod, hideHoles, onSaveFormat,
   onCreate, onBack,
 }: {
   name: string;
@@ -113,6 +119,8 @@ export function CreateStep({
   setPotDollars: (d: PotDollars | null) => void;
   potEdited: boolean;
   setPotEdited: (b: boolean) => void;
+  /** Run it back (§5.cm): last time's split, given only when the team count matches. */
+  carriedPotSplit?: PoolPotSplit;
   /** The routed container (lib/game-structure.ts). The user never sees this word; it decides
       which money blocks render. 'unexpressible' = no engine carries what was asked. */
   container: Container | 'unexpressible';
@@ -148,6 +156,8 @@ export function CreateStep({
   /** Merges the given keys into the mode settings (the sides engine's stakes live there). */
   setModeSettings: (v: SettingsBag) => void;
   strokeMethod: 'full' | 'off-the-low';
+  /** §5.ck: present only when each team is its own foursome. */
+  hideHoles?: { checked: boolean; onChange: (v: boolean) => void };
   onSaveFormat: () => Promise<void>;
   onCreate: () => void; onBack: () => void;
 }) {
@@ -173,13 +183,16 @@ export function CreateStep({
   const [bonusesOpened, setBonusesOpened] = useState(() => !junkIsOff(junkValues));
   const junkShown = bonusesOpened || !junkIsOff(junkValues);
 
-  // Auto-fill the dollar split from the team-count standard, unless the user has
-  // edited it. Re-runs if the number of teams changes or bonuses toggle.
+  // Auto-fill the dollar split from the team-count standard — or, on Run it back with the same
+  // team count, from last time's split scaled to this pot — unless the user has edited it.
+  // Re-runs if the number of teams changes or bonuses toggle.
+  const carriedKey = carriedPotSplit ? JSON.stringify(carriedPotSplit) : '';
   useEffect(() => {
     if (potEdited) return;
-    const std = poolSplitDollarsForTeams(teams.length);
+    const std = carriedPotSplit ? carriedSplitDollars(carriedPotSplit, pot) : poolSplitDollarsForTeams(teams.length);
     setPotDollars(legDollarsToStrings(junkShown ? std : foldJunkIntoOverall(std)));
-  }, [teams.length, potEdited, setPotDollars, junkShown]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- carriedKey stands in for carriedPotSplit
+  }, [teams.length, potEdited, setPotDollars, junkShown, carriedKey, pot]);
 
   const effective: PotDollars = potDollars ?? legDollarsToStrings(poolSplitDollarsForTeams(teams.length));
   const splitTotal = potDollarsTotal(effective);
@@ -221,6 +234,10 @@ export function CreateStep({
     setPotDollars({ ...effective, [key]: value });
   }
 
+  // F-037: a matches game names its matches, as the hub's label does.
+  const matchCount = container === 'sides' ? (matchesOf(sides ?? [], teams, matchSizeOf(modeSettings))?.length ?? 0) : 0;
+  const matchCountLabel = matchCount > 0 ? ` · ${matchCount} match${matchCount === 1 ? '' : 'es'}` : '';
+
   return (
     <div>
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
@@ -237,7 +254,7 @@ export function CreateStep({
           <p className="text-sm text-gray-500">
             {container === 'individual'
               ? mode!.name
-              : `${structureLabel({ kind: 'teams', teamSizes: (container === 'sides' ? (sides ?? []) : teams).map((t) => t.playerIds.length) })} · ${MONEY_WORD[moneyModel]}`}
+              : `${structureLabel({ kind: 'teams', teamSizes: (container === 'sides' ? (sides ?? []) : teams).map((t) => t.playerIds.length) })} · ${MONEY_WORD[moneyModel]}${matchCountLabel}`}
           </p>
           <p className="text-lg font-bold text-gray-900">{name}</p>
           {container === 'individual' && <p className="text-xs text-gray-500 mt-0.5">{mode!.description}</p>}
@@ -801,12 +818,27 @@ export function CreateStep({
         )}
       </div>
 
+      {hideHoles && (
+        <label className="mt-6 flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+            checked={hideHoles.checked}
+            onChange={(e) => hideHoles.onChange(e.target.checked)}
+          />
+          <span>
+            <span className="block text-sm font-medium text-gray-800">Hide holes until all groups finish</span>
+            <span className="block text-xs text-gray-500">The leaderboard reveals a hole only after every foursome has completed it — so a later group can&apos;t see the standings before they play. Scorecards are unaffected.</span>
+          </span>
+        </label>
+      )}
+
       <button
         onClick={onCreate}
         disabled={!!blockedReason}
         className="mt-6 w-full rounded-md bg-green-700 px-4 py-3 text-white font-bold text-lg hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Create Game
+        Create &amp; send to players
       </button>
       {blockedReason && (
         <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">

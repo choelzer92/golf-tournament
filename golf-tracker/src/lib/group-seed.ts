@@ -14,3 +14,7 @@ export const TOURNAMENT_GROUP_SEED_KEY = 'tournament_group_seed';
 // format. Value is JSON { name?, defaults }. Matches the literal the pool wizard
 // and /pool/formats already use; centralized here so all callers share it.
 export const FORMAT_SEED_KEY = 'pool_format_seed';
+
+// B1 Run it back (§5.cm): a past game's id. The pool wizard reads it on mount, pre-fills the
+// game's format, field, course and pairings (rerunPlanFromGame), and clears it — once.
+export const RERUN_SEED_KEY = 'pool_rerun_seed';

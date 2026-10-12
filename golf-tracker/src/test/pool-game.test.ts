@@ -20,6 +20,7 @@ import {
   getFieldLow,
   getGameHoles,
   isPoolGameFullyScored,
+  poolGameHasAnyScore,
   captainsDealTeams,
   customBonusCountsForTeam,
   balanceTeamsWithCaptains,
@@ -1367,6 +1368,27 @@ describe('isPoolGameFullyScored', () => {
     expect(isPoolGameFullyScored(nineGame, map)).toBe(true);
     // The same scores do NOT complete an 18-hole game.
     expect(isPoolGameFullyScored(twoFoursomes(), map)).toBe(false);
+  });
+});
+
+// B9: Close out / Finish Game stay hidden until a score exists.
+describe('poolGameHasAnyScore', () => {
+  const game = twoFoursomes();
+
+  it('is false with no scores, or only blank cells', () => {
+    expect(poolGameHasAnyScore(game, new Map())).toBe(false);
+    // Typed number, but a cleared cell can come back null from storage — the guard the engine already uses.
+    const blank = flatRound(team1, 0).map((s) => ({ ...s, grossScore: null })) as unknown as GameScore[];
+    expect(poolGameHasAnyScore(game, new Map([['m1', blank]]))).toBe(false);
+  });
+
+  it('is true once any player in any foursome has one gross score', () => {
+    const one = flatRound(team2, 0).filter((s) => s.playerId === team2[0] && s.hole === 1);
+    expect(poolGameHasAnyScore(game, new Map([['m2', one]]))).toBe(true);
+  });
+
+  it('ignores scores under a matchup that is not one of this game’s foursomes', () => {
+    expect(poolGameHasAnyScore(game, new Map([['other', flatRound(team1, 0)]]))).toBe(false);
   });
 });
 

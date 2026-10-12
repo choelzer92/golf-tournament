@@ -5,7 +5,7 @@
 // Verbatim moves — test titles and assertions unchanged. Shared plumbing: ./helpers.
 
 import { expect, test } from '@playwright/test';
-import { BASE, resetBackend, seed, goToGame, toScoringStep, buildTeams, manualAddButton, signInOrganizer } from './helpers';
+import { BASE, resetBackend, seed, goToGame, toScoringStep, buildTeams, manualAddButton, signInOrganizer, closeSendSheet } from './helpers';
 
 // Grant invite-gate access + empty the fake backend before every test.
 test.beforeEach(async ({ context, page }) => {
@@ -199,7 +199,7 @@ test.describe('F-019: the scorecard agrees with the leaderboard across groups', 
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: /enter scores/i }).first().click();
     await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
-    await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+    await expect(page.getByText(/^Hole \d+$/).first()).toBeVisible();
 
     const cardBody = await page.locator('body').innerText();
     // The card names all four sides (it reads them from the engine).
@@ -405,8 +405,9 @@ test.describe('F-019: the wizard builds real playing groups', () => {
     await expect(page.getByRole('button', { name: /Next: Review/ })).toBeVisible();
     await page.getByRole('button', { name: /Next: Review/ }).click();
     await signInOrganizer(page);
-    await page.getByRole('button', { name: /Create Game/i }).click();
+    await page.getByRole('button', { name: /Create & send to players/ }).click();
     await page.waitForURL(/\/pool\/[^/]+$/, { timeout: 15_000 });
+    await closeSendSheet(page);
 
     // The teams sheet must show two groups with those tee times — the sheet Craig was looking at.
     // Navigate by CLICKING, not page.goto: the fake backend lives in this tab's JS heap for a

@@ -11,6 +11,7 @@ import {
   type ScoreBasis, type TeamFormat,
 } from './game-modes/team-scoring';
 import { sidesOfGame, type GameSide } from './game-modes/sides';
+import { matchesOf, matchSizeOf } from './game-modes/match-pairing';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -23,6 +24,9 @@ export interface PoolTeam {
   teeTime?: string;   // "HH:MM" — earliest tee time holds CTP by default
   matchupId: string;  // key into game_scores for this foursome's scores
   captainId?: string; // the team's captain (a saved role, shown across the app)
+  // Head-to-head SINGLES (F-107, §5.cq): who plays whom when this foursome holds two 1 v 1 matches,
+  // as [player, player] pairs. Stored so the order of `playerIds` carries no meaning.
+  singles?: string[][];
 }
 
 export interface PoolJunkValues {
@@ -346,6 +350,14 @@ export function dollarsToPotSplit(d: PoolLegDollars): PoolPotSplit {
   const total = d.front + d.back + d.overall + d.junk;
   if (total <= 0) return { ...DEFAULT_POT_SPLIT };
   return { front: d.front / total, back: d.back / total, overall: d.overall / total, junk: d.junk / total };
+}
+
+// The inverse, for Run it back (§5.cm): last time's fractions scaled to this pot, to the cent.
+// Rounding residue lands on OVERALL so the legs still total the pot exactly.
+export function carriedSplitDollars(split: PoolPotSplit, pot: number): PoolLegDollars {
+  const c = (f: number) => Math.round(f * pot * 100) / 100;
+  const front = c(split.front), back = c(split.back), junk = c(split.junk);
+  return { front, back, overall: Math.round((pot - front - back - junk) * 100) / 100, junk };
 }
 
 export type PoolLegKey = 'front' | 'back' | 'overall' | 'junk';
@@ -799,6 +811,19 @@ export function buildHcapMap(game: PoolGame): Map<string, number> {
   const low = Math.min(...rounded.values());
   const adjusted = new Map<string, number>();
   for (const [id, h] of rounded) adjusted.set(id, h - low);
+  // F-037 T4 (§5.cn): in head-to-head matches the strokes come off the low player IN EACH MATCH —
+  // the match-play rule — not the field's. Same rounded values, same round-then-subtract order; only
+  // the low changes. Everything that gives strokes reads this map (the engine, the card's dots), so
+  // dots and money move together.
+  const matches = matchSizeOf(game.modeSettings ?? {}) > 0
+    ? matchesOf(sidesOfGame(game), game.teams, matchSizeOf(game.modeSettings ?? {}))
+    : null;
+  for (const m of matches ?? []) {
+    const ids = m.units.flatMap((u) => u.playerIds).filter((id) => rounded.has(id));
+    if (ids.length === 0) continue;
+    const matchLow = Math.min(...ids.map((id) => rounded.get(id)!));
+    for (const id of ids) adjusted.set(id, rounded.get(id)! - matchLow);
+  }
   return adjusted;
 }
 
@@ -1376,7 +1401,8 @@ export function captainsDealTeams(
 // the organizer sees on the cards (raw course handicap looked wrong to him in an
 // off-the-low game). Swapping players between teams never changes the field low
 // (it's over the whole field), so this map is invariant under any swap and can be
-// computed once and reused for every simulated arrangement.
+// computed once and reused for every simulated arrangement. (Exception: a head-to-head matches
+// game plays off each MATCH's low (F-037 T4), so there a swap can move the map.)
 export function poolStrokeMap(game: PoolGame): Map<string, number> {
   return buildHcapMap(game);
 }
@@ -1405,6 +1431,9 @@ export interface SwapCandidate {
   resultingSpread: number; // team-total spread AFTER this 1-for-1 swap
   currentSpread: number;   // spread BEFORE any swap (same for every candidate)
   delta: number;           // resultingSpread − currentSpread (negative = fairer)
+  /** Every player's strokes AFTER this swap — what the card and money will use once it's saved.
+   *  Differs from today's map only where the low moves with a swap (head-to-head matches, F-106). */
+  strokesAfter: Map<string, number>;
 }
 
 // For a chosen player, rank every 1-for-1 swap partner on the OTHER teams by how
@@ -1421,9 +1450,11 @@ export function rankSwapCandidates(
   const fromTeam = teams.find((t) => t.playerIds.includes(playerId));
   if (!fromTeam) return [];
 
-  // One stroke map for the whole field; a swap can't change it (field low is
-  // over everyone), so reuse it for the base and every simulated arrangement.
+  // Today's strokes for the base spread. Each simulated arrangement gets its OWN map below: off a
+  // field low a swap can't move it, but a head-to-head matches game plays off each MATCH's low
+  // (F-037 T4), so a swap can (F-106) — the preview must use the map the saved game will.
   const hcapById = poolStrokeMap(game);
+  const matchSize = matchSizeOf(game.modeSettings ?? {});
   const currentSpread = teamHandicapSpread(teams, hcapById);
   const candidates: SwapCandidate[] = [];
 
@@ -1436,8 +1467,13 @@ export function rankSwapCandidates(
         if (t.id === other.id) return { ...t, playerIds: t.playerIds.map((id) => (id === otherPid ? playerId : id)) };
         return t;
       });
-      const resultingSpread = teamHandicapSpread(simulated, hcapById);
+      const after = { ...game, teams: simulated };
+      // A swap that leaves the matches unpairable would be refused on save (§5.ac) — don't offer it.
+      if (matchSize > 0 && !matchesOf(sidesOfGame(after), simulated, matchSize)) continue;
+      const strokesAfter = poolStrokeMap(after);
+      const resultingSpread = teamHandicapSpread(simulated, strokesAfter);
       candidates.push({
+        strokesAfter,
         playerId: otherPid,
         teamId: other.id,
         teamName: other.name,
@@ -2446,6 +2482,17 @@ export function isPoolGameFullyScored(
     }
   }
   return true;
+}
+
+// Has ANY foursome posted ANY gross score? B9: the controls that end a round (hub
+// Close out, the card's Finish Game) stay hidden until there's something to end, so a
+// brand-new game doesn't open on its own exit. Same map shape as above.
+export function poolGameHasAnyScore(
+  game: PoolGame,
+  scoresByMatchup: Map<string, GameScore[]>,
+): boolean {
+  return game.teams.some((t) =>
+    (scoresByMatchup.get(t.matchupId) ?? []).some((s) => s.grossScore != null));
 }
 
 // ---------------------------------------------------------------------------

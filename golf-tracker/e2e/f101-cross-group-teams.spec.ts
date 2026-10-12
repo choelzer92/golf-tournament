@@ -15,7 +15,7 @@ async function cardRow(page: Page, id: string, group: number, team: string): Pro
   await page.goto(`${BASE}/pool/${id}`);
   await page.getByRole('button', { name: /enter scores/i }).nth(group - 1).click();
   await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
-  await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+  await expect(page.getByText(/^Hole \d+$/).first()).toBeVisible();
   const body = await page.locator('body').innerText();
   return body.split('\n').find((l) => l.trim().startsWith(team)) ?? '';
 }

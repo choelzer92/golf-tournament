@@ -1,5 +1,6 @@
 'use client';
 
+import { matchSizeOf } from '@/lib/game-modes/match-pairing';
 import { useState } from 'react';
 import { type Player, formatHandicapIndex, formatHandicap } from '@/lib/game-state';
 import { type PoolGame, type PoolTeam, type PoolTeamDetail, getFieldLow, distinctRankingsForPlayers, summarizeTeamBuild } from '@/lib/pool-game';
@@ -66,6 +67,17 @@ export function FieldLowBanner({ game }: { game: PoolGame }) {
   const low = getFieldLow(game);
   // A gross game (§5.by) has no low man: nobody plays off anyone.
   if (!low || game.handicapAllowance === 0) return null;
+
+  // F-037 T4: head-to-head matches play off the low IN EACH MATCH, so there is no one low man.
+  if (low.applies && matchSizeOf(game.modeSettings ?? {}) > 0) {
+    return (
+      <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+        <p className="text-sm text-green-900">
+          <span className="font-semibold">Off the low, match by match:</span> the low player in each match plays to scratch — the others play the difference.
+        </p>
+      </div>
+    );
+  }
 
   if (low.applies) {
     return (
@@ -148,12 +160,15 @@ export function FoursomeCard({
   game,
   detail,
   onEnterScores,
+  matchLines,
 }: {
   team: PoolTeam;
   players: Player[];
   game: PoolGame;
   detail: PoolTeamDetail | undefined;
   onEnterScores: () => void;
+  /** F-037 / §5.cq (C): who plays whom in this tee group ("Craig v Dave"). */
+  matchLines?: string[];
 }) {
   const [showStrokes, setShowStrokes] = useState(false);
 
@@ -165,6 +180,9 @@ export function FoursomeCard({
           <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{team.teeTime}</span>
         )}
       </div>
+      {matchLines && matchLines.length > 0 && (
+        <p className="-mt-1 mb-2 text-xs text-gray-600" data-testid="group-match-line">{matchLines.join(' · ')}</p>
+      )}
       <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3">
         {players.map((p) => {
           // Show STROKES RECEIVED in this game (accounts for off-the-low),

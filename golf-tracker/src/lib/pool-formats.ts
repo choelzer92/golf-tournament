@@ -2,10 +2,13 @@
 // roster_groups row tagged `defaults.kind === 'format'` (usually with no players),
 // so it rides the existing groups table + GHIN scoping with NO migration. These
 // are thin helpers over roster-groups.ts; the group cache/hydration is shared.
-import type { PoolGame } from './pool-game';
+import type { PoolGame, PoolPotSplit } from './pool-game';
 import type { GroupDefaults, RosterGroup } from './roster-groups';
 import { getGroups, getViewableGroups, upsertGroup, getGroupById, setGroupOwner } from './roster-groups';
 import { getCreatorGhin } from './pool-identity';
+import { getGameMode } from './game-modes';
+import { sidesOfGame, type GameSide } from './game-modes/sides';
+import type { StructureShape } from './game-structure';
 
 // A group's attached formats (resolved to the RosterGroup format rows), in the
 // order they were attached. Skips ids that no longer resolve to a format.
@@ -74,6 +77,70 @@ export function formatFromGame(game: PoolGame): GroupDefaults {
     strokeMethod: game.strokeMethod,
     handicapBasis: game.handicapBasis,
     matchConfig: game.matchConfig,
+  };
+}
+
+// B1 Run it back (§5.cm): what a rerun carries BEYOND the format — last time's field, course,
+// structure, pairings and tee sheet — as pre-fills the organizer walks and can change. The format
+// is the part copied for sure; players and course are the parts most likely to change. Score keys
+// (matchupId) and tee times are NOT carried: the wizard issues fresh ones, so a rerun can never
+// open on the old game's scores. Handicaps are re-read from the roster (today's index) by the
+// wizard, never frozen here.
+export interface RerunPlan {
+  name: string;
+  defaults: GroupDefaults;
+  shape: StructureShape;
+  players: PoolGame['players'];
+  course: PoolGame['course'];
+  /** Last time's tee groups (for an aligned game these ARE the teams). */
+  teeGroups: { name: string; playerIds: string[]; captainId?: string }[];
+  /** Last time's sides when teams shared foursomes; absent otherwise. */
+  sides?: GameSide[];
+  holesPlaying: '18' | 'front9' | 'back9';
+  nineHandicapBasis: '18' | '9';
+  positionSplitText: string;
+  /** Last time's pot split (fractions) and the team count it was set for — carried only when
+   *  the new game has the same number of teams (§5.cm); otherwise the standard fills it. */
+  potSplit: PoolPotSplit;
+  teamCount: number;
+  hideHoles: boolean;
+  sourceGroupId?: string;
+  lockedGroups: string[][];
+  useCaptains?: boolean;
+  balanceExcludeCaptains?: boolean;
+  teamBuild?: PoolGame['teamBuild'];
+}
+
+export function rerunPlanFromGame(game: PoolGame): RerunPlan {
+  const n = game.players.length;
+  const category = getGameMode(game.gameMode)?.category;
+  const sides = category === 'team-within-group' ? sidesOfGame(game) : [];
+  const shape: StructureShape = category === 'individual'
+    ? { kind: 'solo', teamSizes: Array.from({ length: n }, () => 1) }
+    : sides.length >= 2
+      ? { kind: 'teams', teamSizes: sides.map((s) => s.playerIds.length) }
+      : { kind: 'teams', teamSizes: game.teams.map((t) => t.playerIds.length) };
+  return {
+    name: game.name,
+    defaults: formatFromGame(game),
+    shape,
+    players: game.players,
+    course: game.course,
+    teeGroups: game.teams.map((t) => ({
+      name: t.name, playerIds: [...t.playerIds], ...(t.captainId ? { captainId: t.captainId } : {}),
+    })),
+    sides: sides.length >= 2 ? sides : undefined,
+    holesPlaying: game.holesPlaying ?? '18',
+    nineHandicapBasis: game.nineHandicapBasis ?? '18',
+    positionSplitText: (game.positionSplit?.length ? game.positionSplit : [100]).join(', '),
+    potSplit: { ...game.potSplit },
+    teamCount: game.teams.length,
+    hideHoles: !!game.hideHolesUntilAllFinish,
+    sourceGroupId: game.sourceGroupId,
+    lockedGroups: game.lockedGroups ?? [],
+    useCaptains: game.useCaptains,
+    balanceExcludeCaptains: game.balanceExcludeCaptains,
+    teamBuild: game.teamBuild,
   };
 }
 

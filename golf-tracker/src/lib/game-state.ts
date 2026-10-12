@@ -148,8 +148,13 @@ export function parseGhinIndex(raw: unknown): number | null {
   const isPlus = s.startsWith('+');
   const n = parseFloat(isPlus ? s.slice(1) : s);
   if (isNaN(n)) return null;
-  return isPlus ? -n : n;
+  // WHS: a Handicap Index never exceeds 54.0 (Craig 2026-10-12, §5.ct). A higher entry is capped
+  // there, and the index box says so, so a typo is visible rather than silently played.
+  return isPlus ? -n : Math.min(n, MAX_HANDICAP_INDEX);
 }
+
+/** The highest Handicap Index the World Handicap System issues. */
+export const MAX_HANDICAP_INDEX = 54;
 
 // The inverse, for display: a plus index is stored negative (see parseGhinIndex) but golfers
 // and GHIN write it "+2.1". Everything else prints as it always has.

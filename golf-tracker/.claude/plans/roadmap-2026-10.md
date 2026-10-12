@@ -197,16 +197,16 @@ An Explore agent per phase keeps the context small. Then re-rank what's left and
 | A3 F-101 e | OPEN | Linear `scoreAt` (`context.ts:90`). `Date.now()+800` deadline (`pool-game.ts:1118`). Palettes mod 6. "21th" is only at `team-game.ts:798`. |
 | A4 money formats | OPEN | `home/stats:44` (no +). `home/groups/[id]:333` (no +, cents, inline template). `fmtMetric` adds + to match pts (`leaderboard:895`). |
 | A5 doc hygiene | OPEN (the doc itself) | F-089, F-030 B and F-015 are done. F-090 was SUPERSEDED by e07ad10. About 54 fixed findings are still in the live file. BACKLOG rows 22 and 26, the Team Competition row and the "Sides / Match" row are stale. |
-| B1 Run it back | OPEN | The parts exist: `formatFromGame` and the format seed. The draft skips players. |
+| B1 Run it back | **DONE 2026-10-05** | 97fe68e + d99a8db (§5.cm): hub button on a finished game + "Start from a recent game"; the pot split is carried when the team count matches. |
 | B2 The usual | PARTLY | Scoring collapses already when a format is applied (F-021). Missing: "last game" after Players. |
-| B3 Send to players | OPEN | Create runs `router.push`. Leaderboard is the primary button; Share is a small link. |
+| B3 Send to players | **DONE 2026-10-05** | 745688c (§5.cl, F-105): Create is the share moment. |
 | B4a Sides re-asks split | PROBABLY STALE (pre-F-071) | Re-walk it before building. |
 | B4b / B4c | OPEN | `canProceed` needs everyone assigned (`teams-step:326`). "Captains' deal" is listed even with "No captains" set. |
 | B5 Adding players | PARTLY | Group members come first. Missing: recents, pasting names, and removing the duplicate list (`field-step:478`). |
 | B6 Guest remembers group | OPEN | Guests see My Games (`[id]:350`). |
 | B7 Plain words | OPEN | Every site is listed in the notes. |
 | B8 Group courses | PARTLY | "Played recently" is the organizer's last 5 games, not per group and not by frequency. |
-| B9 Hide Finish / Close out | OPEN | Both always render. `fullyScored` exists; an "any score" check doesn't. |
+| B9 Hide Finish / Close out | **DONE 2026-10-05** | f7fe1ec: both hidden until a score exists. |
 | C1 F-063 C | OPEN | Each matchup is still one JSONB array. Option A is done (bd2db4d). No outbox. |
 | C2 Offline | PARTLY | **The roadmap was wrong:** `sw.js` already caches the shell and static assets, and is registered in prod. The gap is data and queued writes (C1). The `manifest.ts` comment is stale. |
 | C3 Live-scoring pass | OPEN | |

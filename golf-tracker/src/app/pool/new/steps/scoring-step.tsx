@@ -22,7 +22,7 @@ export function ScoringStep({
   teamFormat, setTeamFormat, teamScoreBasis, setTeamScoreBasis, compareBy, setCompareBy,
   formatUnavailable,
   handicapAllowance, setHandicapAllowance, strokeMethod, setStrokeMethod, handicapBasis, setHandicapBasis,
-  appliedFormat, formatDirty, onFormatEdited, name, setName, summaryLine,
+  appliedFormat, appliedFromGame, formatDirty, onFormatEdited, name, setName, summaryLine,
   onNext, onBack,
 }: {
   structure: StructureShape;
@@ -39,6 +39,9 @@ export function ScoringStep({
   strokeMethod: 'full' | 'off-the-low'; setStrokeMethod: (v: 'full' | 'off-the-low') => void;
   handicapBasis: 'course' | 'index'; setHandicapBasis: (v: 'course' | 'index') => void;
   appliedFormat: string | undefined;
+  /** B1 (§5.cm): the style came from a past game (Run it back), not a saved format — editing it
+      is the expected move, so the save-a-copy nudges stay quiet. */
+  appliedFromGame?: boolean;
   formatDirty: boolean;
   onFormatEdited: () => void;
   /** The F-021 card (title + summary) repeats here so an edit's consequence — "Changed from your
@@ -114,7 +117,7 @@ export function ScoringStep({
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
         {appliedFormat && (
           <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-            <p className="text-xs font-medium text-green-800">Your saved game style</p>
+            <p className="text-xs font-medium text-green-800">{appliedFromGame ? 'Same game as last time' : 'Your saved game style'}</p>
             <input
               type="text"
               value={name}
@@ -123,10 +126,10 @@ export function ScoringStep({
               className="mt-0.5 w-full bg-transparent text-base font-semibold text-gray-900 border-0 border-b border-transparent px-0 py-0 focus:border-green-500 focus:outline-none focus:ring-0"
             />
             <p className="mt-1 text-xs text-gray-700">{summaryLine}</p>
-            {formatDirty && appliedFormat !== name.trim() && (
+            {!appliedFromGame && formatDirty && appliedFormat !== name.trim() && (
               <p className="mt-1 text-xs text-gray-500">↳ based on {appliedFormat}</p>
             )}
-            {formatDirty && appliedFormat === name.trim() && (
+            {!appliedFromGame && formatDirty && appliedFormat === name.trim() && (
               <p className="mt-1 text-xs text-amber-700">
                 Changed from your saved {appliedFormat} — rename it above to keep both.
               </p>

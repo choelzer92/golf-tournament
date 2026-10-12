@@ -20,7 +20,9 @@ export function strokesOnHole(playingHcap: number, holeHandicap: number, numHole
   // Receiving counts from the hardest hole; giving counts from the easiest.
   const rank = rounded > 0 ? holeHandicap : numHoles + 1 - holeHandicap;
   const sign = rounded > 0 ? 1 : -1;
-  if (n >= numHoles * 2) return 2 * sign;
-  if (n > numHoles) return (rank <= n - numHoles ? 2 : 1) * sign;
-  return rank <= n ? sign : 0;
+  // The FULL handicap (F-108, §5.ct): floor(n / holes) on every hole, plus one more on the hardest
+  // n mod holes. There used to be a cap at 2 a hole, which silently dropped strokes past CH 36 on
+  // 18 (18 on a nine); below that this is the old allocation exactly.
+  const k = Math.floor(n / numHoles) + (rank <= n % numHoles ? 1 : 0);
+  return k === 0 ? 0 : k * sign;   // never −0
 }

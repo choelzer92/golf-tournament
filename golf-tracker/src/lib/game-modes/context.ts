@@ -137,5 +137,6 @@ export function buildGameModeContext(
 
   return { players, holes, scores, settings, pot, playingHcap, strokesOnHole, grossOnHole, netOnHole, subTeams, sides, rawCourseHcap, gross: game.handicapAllowance === 0, wolfDecisions: game.wolfDecisions, wolfOrder: wolfOrder && wolfOrder.length > 0 ? wolfOrder : undefined, voidedLegs: game.voidedLegs,
     ctpWinners: game.ctpWinners, customBonuses: game.customBonuses, bonusMarks: game.bonusMarks,
-    ...(teeGroups.length > 1 ? { teeGroups } : {}), closed: game.status === 'completed' };
+    ...(teeGroups.length > 1 ? { teeGroups } : {}), closed: game.status === 'completed',
+    matchSheet: groups.map((t) => ({ playerIds: t.playerIds.filter((id) => playerIdSet.has(id)), ...(t.singles ? { singles: t.singles } : {}) })) };
 }

@@ -124,6 +124,12 @@ export interface SkinsConfig {
 export interface TournamentMoneyGames {
   teamNassau?: TeamNassauConfig;
   skins?: SkinsConfig;
+  // A SPLIT round (§5.cs Q3) is 18 holes whose tournament points change format at the turn; the
+  // money games on it are 18-hole bets. '18' (absent = this): the 18-hole course handicap on the
+  // card's 18-hole stroke index — the standard. 'per-nine': each nine on its own 9-hole rating, as
+  // the tournament's front and back matches are. Craig 2026-10-12: option 1, "but if they want to
+  // play by 9 hole ratings, that should be chooseable".
+  splitRoundHandicap?: '18' | 'per-nine';
 }
 
 export interface SideGameTeam {

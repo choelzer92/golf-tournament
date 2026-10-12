@@ -6,7 +6,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { BASE, PHONE, addPlayers, EIGHT_PLAYERS, manualAddButton, signInOrganizer } from './helpers';
+import { BASE, PHONE, addPlayers, EIGHT_PLAYERS, manualAddButton, signInOrganizer, closeSendSheet } from './helpers';
 
 test.beforeEach(async ({ context, page }) => {
   await context.addCookies([{ name: 'golf_access', value: 'full', url: BASE }]);
@@ -117,10 +117,11 @@ test.describe('F-045: bonuses are OFF on a fresh classic pool', () => {
   test('F-045: a created junk-off game folds the pot on its own page', async ({ page }) => {
     await walkToClassicMoneyStep(page);
     await signInOrganizer(page);
-    await page.getByRole('button', { name: 'Create Game' }).click();
+    await page.getByRole('button', { name: 'Create & send to players' }).click();
     // Creating opens the new game's page (client-side navigation — assert the
     // URL rather than waiting for a load event). MUST be this game.
     await expect(page).toHaveURL(/\/pool\/(?!new$)[a-z0-9-]+$/i, { timeout: 20_000 });
+    await closeSendSheet(page);
     await expect(page.getByRole('heading', { name: 'No Bonus Pool' })).toBeVisible();
 
     // The game page's Pot panel follows the fold: 70/70/60 and no $0 junk leg.

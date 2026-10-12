@@ -228,7 +228,7 @@ test.describe('F-006: the scorecard for a generalized team format', () => {
     await goToGame(page, id);
     await page.getByRole('button', { name: /enter scores/i }).first().click();
     await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
-    await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+    await expect(page.getByText(/^Hole \d+$/).first()).toBeVisible();
 
     // ONE entry card for the foursome, listing all four players — not four separate cards.
     await expect(page.getByText('(Craig, Jym, Dave, Rick)')).toBeVisible();
@@ -286,7 +286,7 @@ test.describe('F-006: the scorecard for a generalized team format', () => {
     await goToGame(page, id);
     await page.getByRole('button', { name: /enter scores/i }).first().click();
     await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
-    await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+    await expect(page.getByText(/^Hole \d+$/).first()).toBeVisible();
 
     // Still four separate player entry cards, no shared team entry, no team-name relabel.
     await expect(page.getByText('(Craig, Jym, Dave, Rick)')).toHaveCount(0);
@@ -316,7 +316,7 @@ test.describe('F-006: a GUEST on a share link scores a scramble correctly', () =
 
     await guest.getByRole('button', { name: /enter scores/i }).first().click();
     await guest.waitForURL(/\/game\/play/, { timeout: 15_000 });
-    await expect(guest.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+    await expect(guest.getByText(/^Hole \d+$/).first()).toBeVisible();
 
     // One shared entry for the foursome, named after the team, on the team handicap.
     await expect(guest.getByText('(Craig, Jym, Dave, Rick)')).toBeVisible();
@@ -575,7 +575,7 @@ test.describe('F-013: the scorecard with three sides', () => {
     await page.goto(`${BASE}/pool/${id}`);
     await page.getByRole('button', { name: /enter scores/i }).first().click();
     await page.waitForURL(/\/game\/play/, { timeout: 15_000 });
-    await expect(page.getByRole('button', { name: 'Finish Game' })).toBeVisible();
+    await expect(page.getByText(/^Hole \d+$/).first()).toBeVisible();
 
     const body = await page.locator('body').innerText();
     // All three sides have a row, named as the leaderboard names them.

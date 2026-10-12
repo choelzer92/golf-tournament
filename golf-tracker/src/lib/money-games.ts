@@ -1,7 +1,7 @@
 import type { Player, GameScore, TeeSetOption } from './game-state';
 import type { Tournament, TournamentRound, SkinsConfig, TeamNassauConfig } from './tournament-state';
 import { loadGameScores } from './tournament-state';
-import { getHoleDataForRound } from './live-scoring';
+import { getHoleDataForRound, getRoundCourseHandicap } from './live-scoring';
 import { calcCourseHandicap, applyAllowance } from './game-state';
 import { strokesOnHole } from './strokes';
 
@@ -88,27 +88,35 @@ function getPlayerTee(player: Player, round: TournamentRound): TeeSetOption | nu
   return round.course.teeSets.find((t) => t.id === round.defaultTeeId) || round.course.teeSets[0] || null;
 }
 
-export function getMoneyGamePlayingHandicap(player: Player, round: TournamentRound, allowance: number): number {
-  // null = index unknown; 0 = genuine scratch, negative = plus golfer. Both have
-  // a real course handicap, so only a null/NaN index short-circuits to 0.
-  if (player.handicapIndex == null || Number.isNaN(player.handicapIndex)) return 0;
+// The ledger's playing handicap: the round's course handicap from the SAME function scoring uses
+// (live-scoring `getRoundCourseHandicap`), at the money game's own allowance, never off the low.
+// It used the 18-hole course handicap on every round, so a nine or a split round got about double
+// the strokes the round was scored on (§5.cs Q3, Craig 2026-10-12: "this should be fool proof and
+// exact"). `holeNumber` picks the nine on a split round; a tee with no rating lets the index stand in.
+export function getMoneyGamePlayingHandicap(
+  player: Player, round: TournamentRound, allowance: number, holeNumber?: number, perNine = true,
+): number {
+  return getRoundCourseHandicap(player, round, { allowance, holeNumber, noRating: 'index', full18: !perNine });
+}
 
-  const playerTee = getPlayerTee(player, round);
-  if (!playerTee) {
-    // Fallback if no course data: the index stands in for the course handicap.
-    return applyAllowance(player.handicapIndex, allowance);
-  }
+// A split round's money games play each nine on its 9-hole rating only when the tournament says so;
+// by default they are 18-hole bets (Craig 2026-10-12, `TournamentMoneyGames.splitRoundHandicap`).
+function splitPerNine(round: TournamentRound, tournament: Tournament): boolean {
+  return !!round.splitFormat && tournament.moneyGames?.splitRoundHandicap === 'per-nine';
+}
 
-  const totalRating = playerTee.ratings?.find((r) => r.type === 'Total');
-  if (!totalRating || !totalRating.slopeRating || !totalRating.courseRating) {
-    return applyAllowance(player.handicapIndex, allowance);
-  }
+// The holes the ledger plays: scoring's (a nine re-ranked 1–9; a per-nine split re-ranked per nine),
+// except an 18-hole bet on a split round, which keeps the CARD's 18-hole stroke index.
+function ledgerHoles(round: TournamentRound, tournament: Tournament): ReturnType<typeof getHoleDataForRound> {
+  if (!round.splitFormat || splitPerNine(round, tournament) || !round.course) return getHoleDataForRound(round);
+  const tee = round.course.teeSets.find((t) => t.id === round.defaultTeeId) || round.course.teeSets[0];
+  return tee ? [...tee.holes].sort((a, b) => a.number - b.number).map((h) => ({ number: h.number, par: h.par, handicap: h.handicap })) : [];
+}
 
-  const courseHcap = calcCourseHandicap(player.handicapIndex, totalRating.slopeRating, totalRating.courseRating, playerTee.totalPar);
-  if (isNaN(courseHcap)) return 0;
-
-  // USGA/GHIN order: allowance on the unrounded Course Handicap (see applyAllowance).
-  return applyAllowance(courseHcap, allowance);
+// Holes the ledger spreads a handicap over: 9 for each nine of a per-nine split round (each with its
+// own 9-hole handicap, as scoring does); otherwise the holes in play.
+function ledgerNumHoles(round: TournamentRound, tournament: Tournament, holes: { number: number }[]): number {
+  return splitPerNine(round, tournament) ? 9 : holes.length;
 }
 
 // The shared allocator (lib/strokes.ts): a plus handicap gives strokes back on the easiest
@@ -164,7 +172,7 @@ export function computeTeamNassau(
   tournament: Tournament,
   config: TeamNassauConfig
 ): RoundNassauResult | null {
-  const holes = getHoleDataForRound(round);
+  const holes = ledgerHoles(round, tournament);
   if (holes.length === 0) return null;
 
   const teamAPlayerIds = getTeamPlayersInRound(round, tournament.teams[0].playerIds);
@@ -175,14 +183,18 @@ export function computeTeamNassau(
   if (allScores.length === 0) return null;
 
   const allowance = config.allowance;
-  const numHoles = holes.length;
+  const numHoles = ledgerNumHoles(round, tournament, holes);
 
   // Pre-compute playing handicaps for all players
   const hcapMap = new Map<string, number>();
+  // A split round's back nine is handicapped on its own rating (§5.cs Q3).
+  const hcapBack = new Map<string, number>();
+  const hcapOn = (id: string, holeNo: number) => ((splitPerNine(round, tournament) && holeNo > 9) ? hcapBack : hcapMap).get(id) ?? 0;
   for (const pid of [...teamAPlayerIds, ...teamBPlayerIds]) {
     const player = tournament.players.find((p) => p.id === pid);
     if (player) {
-      hcapMap.set(pid, getMoneyGamePlayingHandicap(player, round, allowance));
+      hcapMap.set(pid, getMoneyGamePlayingHandicap(player, round, allowance, 1, splitPerNine(round, tournament)));
+      hcapBack.set(pid, getMoneyGamePlayingHandicap(player, round, allowance, 10, splitPerNine(round, tournament)));
     }
   }
 
@@ -194,7 +206,7 @@ export function computeTeamNassau(
     for (const hole of legHoles) {
       let bestNet: number | null = null;
       for (const playerId of teamIds) {
-        const hcap = hcapMap.get(playerId) ?? 0;
+        const hcap = hcapOn(playerId, hole.number);
         const net = getPlayerNetOnHole(playerId, hole.number, hole.handicap, hcap, numHoles, allScores);
         if (net !== null && (bestNet === null || net < bestNet)) {
           bestNet = net;
@@ -259,7 +271,7 @@ export function computeRoundBestNets(
   tournament: Tournament,
   allowance: number
 ): RoundBestNets | null {
-  const holes = getHoleDataForRound(round);
+  const holes = ledgerHoles(round, tournament);
   if (holes.length === 0) return null;
 
   const teamAPlayerIds = getTeamPlayersInRound(round, tournament.teams[0].playerIds);
@@ -269,13 +281,20 @@ export function computeRoundBestNets(
   const allScores = getAllScoresForRound(round);
   if (allScores.length === 0) return null;
 
-  const numHoles = holes.length;
+  const numHoles = ledgerNumHoles(round, tournament, holes);
 
   const hcapMap = new Map<string, number>();
+
+  // A split round's back nine is handicapped on its own rating (§5.cs Q3).
+
+  const hcapBack = new Map<string, number>();
+
+  const hcapOn = (id: string, holeNo: number) => ((splitPerNine(round, tournament) && holeNo > 9) ? hcapBack : hcapMap).get(id) ?? 0;
   for (const pid of [...teamAPlayerIds, ...teamBPlayerIds]) {
     const player = tournament.players.find((p) => p.id === pid);
     if (player) {
-      hcapMap.set(pid, getMoneyGamePlayingHandicap(player, round, allowance));
+      hcapMap.set(pid, getMoneyGamePlayingHandicap(player, round, allowance, 1, splitPerNine(round, tournament)));
+      hcapBack.set(pid, getMoneyGamePlayingHandicap(player, round, allowance, 10, splitPerNine(round, tournament)));
     }
   }
 
@@ -288,13 +307,13 @@ export function computeRoundBestNets(
     let bestB: number | null = null;
 
     for (const pid of teamAPlayerIds) {
-      const hcap = hcapMap.get(pid) ?? 0;
+      const hcap = hcapOn(pid, hole.number);
       const net = getPlayerNetOnHole(pid, hole.number, hole.handicap, hcap, numHoles, allScores);
       if (net !== null && (bestA === null || net < bestA)) bestA = net;
     }
 
     for (const pid of teamBPlayerIds) {
-      const hcap = hcapMap.get(pid) ?? 0;
+      const hcap = hcapOn(pid, hole.number);
       const net = getPlayerNetOnHole(pid, hole.number, hole.handicap, hcap, numHoles, allScores);
       if (net !== null && (bestB === null || net < bestB)) bestB = net;
     }
@@ -344,23 +363,27 @@ export function computeSkins(
 
   for (let ri = 0; ri < tournament.rounds.length; ri++) {
     const round = tournament.rounds[ri];
-    const holes = getHoleDataForRound(round);
+    const holes = ledgerHoles(round, tournament);
     if (holes.length === 0) continue;
 
     const allScores = getAllScoresForRound(round);
     if (allScores.length === 0) continue;
 
     const playersInRound = getPlayersInRound(round);
-    const numHoles = holes.length;
+    const numHoles = ledgerNumHoles(round, tournament, holes);
     const allowance = config.allowance;
 
     // Pre-compute playing handicaps
     const hcapMap = new Map<string, number>();
+    // A split round's back nine is handicapped on its own rating (§5.cs Q3).
+    const hcapBack = new Map<string, number>();
+    const hcapOn = (id: string, holeNo: number) => ((splitPerNine(round, tournament) && holeNo > 9) ? hcapBack : hcapMap).get(id) ?? 0;
     for (const pid of playersInRound) {
       playerRoundCount.set(pid, (playerRoundCount.get(pid) || 0) + 1);
       const player = tournament.players.find((p) => p.id === pid);
       if (player) {
-        hcapMap.set(pid, getMoneyGamePlayingHandicap(player, round, allowance));
+        hcapMap.set(pid, getMoneyGamePlayingHandicap(player, round, allowance, 1, splitPerNine(round, tournament)));
+        hcapBack.set(pid, getMoneyGamePlayingHandicap(player, round, allowance, 10, splitPerNine(round, tournament)));
       }
     }
 
@@ -368,7 +391,7 @@ export function computeSkins(
       const playerScores: { playerId: string; netToPar: number }[] = [];
 
       for (const pid of playersInRound) {
-        const hcap = hcapMap.get(pid) ?? 0;
+        const hcap = hcapOn(pid, hole.number);
         const net = getPlayerNetOnHole(pid, hole.number, hole.handicap, hcap, numHoles, allScores);
         if (net !== null) {
           playerScores.push({ playerId: pid, netToPar: net - hole.par });
@@ -610,7 +633,7 @@ export function computeRoundPlayerDetails(
   tournament: Tournament,
   allowance: number
 ): RoundPlayerDetails | null {
-  const holes = getHoleDataForRound(round);
+  const holes = ledgerHoles(round, tournament);
   if (holes.length === 0) return null;
 
   const teamAPlayerIds = getTeamPlayersInRound(round, tournament.teams[0].playerIds);
@@ -621,13 +644,20 @@ export function computeRoundPlayerDetails(
   const allScores = getAllScoresForRound(round);
   if (allScores.length === 0) return null;
 
-  const numHoles = holes.length;
+  const numHoles = ledgerNumHoles(round, tournament, holes);
 
   const hcapMap = new Map<string, number>();
+
+  // A split round's back nine is handicapped on its own rating (§5.cs Q3).
+
+  const hcapBack = new Map<string, number>();
+
+  const hcapOn = (id: string, holeNo: number) => ((splitPerNine(round, tournament) && holeNo > 9) ? hcapBack : hcapMap).get(id) ?? 0;
   for (const pid of allPlayerIds) {
     const player = tournament.players.find((p) => p.id === pid);
     if (player) {
-      hcapMap.set(pid, getMoneyGamePlayingHandicap(player, round, allowance));
+      hcapMap.set(pid, getMoneyGamePlayingHandicap(player, round, allowance, 1, splitPerNine(round, tournament)));
+      hcapBack.set(pid, getMoneyGamePlayingHandicap(player, round, allowance, 10, splitPerNine(round, tournament)));
     }
   }
 
@@ -639,12 +669,12 @@ export function computeRoundPlayerDetails(
     let bestA: number | null = null;
     let bestB: number | null = null;
     for (const pid of teamAPlayerIds) {
-      const hcap = hcapMap.get(pid) ?? 0;
+      const hcap = hcapOn(pid, hole.number);
       const net = getPlayerNetOnHole(pid, hole.number, hole.handicap, hcap, numHoles, allScores);
       if (net !== null && (bestA === null || net < bestA)) bestA = net;
     }
     for (const pid of teamBPlayerIds) {
-      const hcap = hcapMap.get(pid) ?? 0;
+      const hcap = hcapOn(pid, hole.number);
       const net = getPlayerNetOnHole(pid, hole.number, hole.handicap, hcap, numHoles, allScores);
       if (net !== null && (bestB === null || net < bestB)) bestB = net;
     }
@@ -668,7 +698,7 @@ export function computeRoundPlayerDetails(
 
     for (let i = 0; i < holes.length; i++) {
       const hole = holes[i];
-      const strokes = getMoneyStrokesOnHole(playingHcap, hole.handicap, numHoles);
+      const strokes = getMoneyStrokesOnHole(hcapOn(pid, hole.number), hole.handicap, numHoles);
       if (strokes > 0) strokeHoles.push(hole.number);
 
       const score = allScores.find((s) => s.playerId === pid && s.hole === hole.number);

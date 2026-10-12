@@ -10,6 +10,7 @@ import {
 import {
   ballsPerHole, evenValueOnHole, isOneBall, teamValueOnHole, type ScoreBasis, type TeamFormat,
 } from './team-scoring';
+import { computeMatchGame, MATCH_SETTINGS } from './matches';
 
 // 2-vs-2 within one foursome. The group's players are split into two SIDES
 // (ctx.subTeams). Each hole yields one team score per side by the chosen FORMAT;
@@ -158,6 +159,8 @@ const SETTINGS: FormatSetting[] = [
     hint: 'Junk points when every player on the team makes par or better on a hole. 0 = not played.',
     showIf: { key: 'junkEnabled', in: ['true'] },
   },
+  // Head-to-head matches (F-037, §5.co): off by default; the rest show only once matches are on.
+  ...MATCH_SETTINGS,
 ];
 
 // The ONE place a side gets its display name. Custom name if set, else the side's players'
@@ -247,6 +250,14 @@ export function sideNamesForGame(
 }
 
 function compute(ctx: GameModeContext): IndividualResult {
+  // F-037 (§5.co): with head-to-head matches on, the game is its matches rolled up to teams. Each
+  // match is this same function on its two units, with matches, money and junk switched off.
+  const asMatches = computeMatchGame(ctx, {
+    schema: SETTINGS,
+    compute,
+    teamName: (side) => sideNameFrom(ctx.players, side.playerIds, side.id, side.name, allSidesAreSolo(ctx.sides ?? [])),
+  });
+  if (asMatches) return asMatches;
   const format = stringSetting(SETTINGS, ctx.settings, 'format');
   const scoring = stringSetting(SETTINGS, ctx.settings, 'scoring');  // 'stableford' | 'stroke'
   const result = stringSetting(SETTINGS, ctx.settings, 'result');    // 'match' | 'total'

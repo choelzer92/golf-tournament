@@ -2343,3 +2343,204 @@ Asked one at a time from NEXT_SESSION_PROMPT's "Waiting on Craig".
 4. **Ship the branch.** Craig: push the branch, merge to main, push main (a live deploy), once the
    full `npm run verify` exits 0. This lifts §5.ab for this branch only; the rule stands for the
    next one.
+
+### 5.cl — Create is the share moment: "Create & send to players" (F-105 + B3, 2026-10-05)
+
+Craig first parked B3 for the design discussion ("share should happen when the game rules have been
+finalized"), asked what fits his aim, then asked whether Share is available during setup. It is, but
+the wizard's header Share sends the ORGANIZER link (create-your-own-games), because the game doesn't
+exist until Create (F-105). He then took the recommendation:
+
+- **Remove Share from the wizard.**
+- **The last button becomes "Create & send to players"**: it creates the game and lands on the hub
+  with the player-link sheet already open. Review & Create IS the finalization. The link opens the
+  live game, so a later rule tweak reaches players without a re-send.
+- **On the hub, "Send to players" is the main (filled) button until any score exists.** Leaderboard
+  goes secondary until then. Organizer only, since a guest on a scoring link already holds it.
+- The co-organizer (organizer) link stays inside the share sheet, as its secondary section.
+
+### 5.cm — Run it back copies the FORMAT; players and course are pre-filled but expected to change (B1, 2026-10-05)
+
+Asked where Run it back lives, what happens to teams, and which handicaps a rerun uses. Craig:
+
+- **Handicaps: today's GHIN index** (the field step's existing >24h refresh), never last game's snapshot.
+- **"Every former format should be easily reconfigured with new players chosen if required."**
+  Run it back can mean players + format, but "repeating a game format with different players
+  should be very easy."
+- **What gets copied, by how likely it is to change:** "the game format should be the most copied
+  aspect. players and course most likely to change, tees not as likely but still could change."
+  So the rerun locks in the format (mode, scoring, money, bonuses, handicap settings) and walks the
+  players and course steps with last time's choices pre-filled, one tap to keep and easy to change,
+  rather than jumping straight to Review. Tees carry over per player when the course is the same.
+- **Placement: both.** A "Run it back" button on a finished game's hub (organizer only; on the
+  Home group cards once Home-by-group is built, §5.ck), AND a "Start from…" list at the top of
+  New Game showing recent games next to saved formats, with "Start fresh". One mechanism behind
+  both.
+- **Teams: the same field keeps its teams.** If the players are unchanged, last time's pairings
+  come back, shown with today's combined handicaps and a Rebalance. If any player changed, the
+  teams are rebuilt with the usual methods (even / captains' deal / list).
+- **Pot split: carried when the team count matches** (asked after the walk, 2026-10-05). The
+  walk showed a 25%-each game rerun at the 2-team standard ($70/$70/$40/$20) — the same game
+  paying differently. Craig: same number of teams → last time's split (fractions, scaled to
+  this pot, cents residue on OVERALL); different count → the standard (the old amounts may not
+  fit). Saved formats have the same gap; fixing them is a follow-on, not done here.
+- **Start-from lists recent games only.** Saved formats are not repeated there — the field
+  step's "Your groups" row already offers them.
+
+### 5.cn — F-037: the question is matches → teams, not "two 2v2s" (DIRECTION, 2026-10-06; design open)
+
+Asked the opt B plan's questions (`.claude/plans/f037-opt-b.md`); Craig reframed rather than picked:
+- **Entry:** "what does it mean when there are more than 8 players? Wouldn't it be foursomes v
+  foursomes, or matchups? So setting the matchup size decides it? Need to think about this
+  critically." → no "Two 2 v 2 matches" row yet; design the general shape first.
+- **Pot:** the usual case is two matches **between two teams** — the matches' results add up
+  to a team total that settles the pot; players often run their own side games inside a match.
+  (The plan's "each match its own pot" was the wrong model.)
+- **Junk:** in-match, but most of the time the points are **summed by team** for the final tally.
+- **Strokes:** off the low **per match** when there really are separate matches. "This is the
+  crux: how many matches, and how do they contribute to the overall game."
+
+Consequence: the plan's S1 (per-foursome compute, merged) holds; its pot/settlement and
+entry-point slices are rewritten around Team → Match → side games. Not built. Next step is a
+design note answering the crux for 8, 12 and 16 players, shown to Craig before any code.
+- **2026-10-06 follow-up:** Craig asked what a "team" is and whether there can be more than 2.
+  His default for how matches count is **match play / holes won** ("in my mind the same as match
+  points"), and it must be **easily adjustable** to other ways of counting. Open: the
+  holes-won vs match-points distinction (they can disagree, see the chat example), and 3+ teams.
+- **Default = match points** (Craig, 2026-10-06): each match is 1 / ½ / 0 for the team, whatever
+  the margin (Ryder Cup). Holes won (summed margin) and net strokes are the easy-to-pick
+  alternatives. A team = a set of players whose match results roll up to the pot; 3+ teams are
+  allowed where the counts divide into a fair rotation (3 teams of 4 with 2v2 → A v B, B v C,
+  C v A), else the app suggests pairings the organizer can swap. Still open for the design note:
+  what happens when counts don't divide, and how ties in team points settle the pot.
+
+### 5.co — Team → Match: the six design questions answered (2026-10-08)
+
+Asked one at a time from `.claude/plans/team-match.md` (§5.bo). Approves the note's slices T0–T4.
+1. **Counts that don't rotate fairly** (16 as 4 × 4, 2v2): **A** — the app suggests pairings
+   and the organizer swaps them. Not refused, and not deferred to multi-day.
+2. **A tie in team points:** **configurable**. Push (the pot splits) is the default; tiebreakers
+   (holes won, total net, …) can be added as options. Craig: "this should be configurable, push
+   default but other tie breakers able to be added".
+3. **Money from team points:** **configurable**. The likely default is winner-takes-the-pot,
+   paid evenly to its players, but the pot can be split down the places (2nd gets something
+   too). Craig: "this should all be configured, likely option 1, but could be split up where
+   more than 1st place is paid". $ per point of margin stays available as a choice.
+4. **Nassau inside a match:** the default is **1 point per match**. A setting switches to legs
+   (front / back / overall), and **the points per leg are adjustable** (not always 1 each).
+5. **Where it's asked:** as proposed. The Compete step asks for teams as today, then shows
+   "Head-to-head matches? Size 1 v 1 / 2 v 2" only when there are 2+ teams and the size divides
+   each team. It's off by default, so the usual game is unchanged.
+6. **Who meets whom:** **A** — the app builds the tee groups from the matches, so each match
+   plays together. The organizer can still swap players.
+
+Every new knob is a `FormatSetting` with a default and a `showIf` (north star: configurable ≠
+complicated). Build order: T0 goldens → T1 pure roll-up → T2 storage + leaderboard/scorecard →
+T3 wizard/hub + e2e → T4 per-match strokes after the GHIN side-by-side.
+- **Follow-up, money with matches on (2026-10-08):** every money model stays ("isn't the point
+  to make it as configurable as possible?"). Pot is the default when matches are turned on.
+  - **Pot:** the team with the most match points takes it, split down the places by `potSplit`.
+  - **$ per point:** the team-point margin × $.
+  - **Fixed front / back / overall:** each nine is its own bet, won by the team that won more of
+    the matches ON THAT NINE.
+  - **$ per hole:** holes won minus holes lost, summed across the team's matches, × $.
+
+### 5.cp — A late player never joins an existing match; the answer is a second game on the same round (2026-10-12)
+
+Asked during F-037 T3 (§5.co): a 9th player arrives at the turn in a game of 2 v 2 matches. Craig:
+"this seems rare, and really not something that would make sense". He rejected a third ball in a
+pair ("better than allowing one team to have an additional player"). Instead:
+- **The existing matches carry on** on the scores already posted.
+- **The organizer sets up a different game for the rest of the round**, for example 3 v 3 matches
+  for the back nine. Its teams can be completely different, and each game pays out on its own
+  sides. "Maybe there would be a way to have that 2 v 2 match continue based on scores, and add a
+  separate 3 v 3 game to the same round?"
+
+Consequences:
+- **T3 interim:** the hub's Add player in a game with matches on is REFUSED, with a plain reason
+  (`matchShapeProblem`). The player is never put in a match.
+- **New capability, not built: several games on one round sharing its scores** (per-nine games,
+  different teams per game). Logged in BACKLOG. It sits next to the side-games layer of
+  Team → Match and the Series (bar #11), so shape it with those.
+
+### 5.cq — Singles pairings are STORED and SHOWN, never read from list order (F-107 A + C, 2026-10-12)
+
+F-107: 1 v 1 matches inside a foursome were paired by the order the players are listed in, and some
+hub edits re-sort that order, so opponents could change silently. Craig picked the recommendation:
+- **(A)** store who plays whom explicitly on the tee group, so list order carries no meaning;
+- **(C)** show the pairings on each tee-group card.
+An edit that leaves a foursome's stored pairings invalid is a shape problem: refused with the reason
+(§5.ac), never re-paired silently. 2 v 2 is unaffected (one pair per team per foursome).
+
+### 5.cr — Multi-day trip (bar #11) is built as a SERIES of ordinary games (2026-10-12)
+
+Asked Series vs S4 (open since §5.cf). Craig picked **Series first** (the S2 recommendation,
+`.claude/plans/spine-s2.md` §7):
+- **The shape:** `Series { gameIds, sourceGroupId, rollup: 'money' | 'points' }`. Each day is an
+  ordinary pool game, on any mode, N-way, with teams that can change daily.
+- **Cumulative money:** the sum of each game's per-player `moneyNet` (the F-068 split). No
+  money-engine change.
+- **Ryder-Cup points:** later, as a rollup option. Team → Match (§5.co) is the per-day roll-up.
+- **S3 becomes unnecessary.** S2 shrinks to convergence plus freeze (S2.0–S2.6 in parallel; S2.7/S2.8
+  deferred). Legacy tournaments stay on the legacy engine for now. S4 later reduces to "a
+  tournament row is read as a Series" plus the vocabulary collapse (§5.cb).
+
+The two live-money findings (mixed-tee stroke index; the ledger on nine/split rounds, live T0) were
+reported to Craig the same day, not fixed. They are S2 questions 2 and 3.
+
+### 5.cs — S2 engine questions (2026-10-12, asked one at a time from `spine-s2.md` §6)
+
+- **Q1 Existing tournaments:** A. Each is stamped legacy and keeps computing exactly as today; only
+  new tournaments use the shared engine. No live number moves silently.
+- **Q2 Mixed tees:** A. New rounds use each player's OWN tee's stroke index (the pool, the card
+  dots, the GHIN card).
+- **Q3 The ledger on nine/split rounds:** Craig, asked why it doubles: "i thought there were
+  options to use the correct calculation either choosing between the 18 hole prorated rankings or
+  the 9 hole course and slope ratings calculation that is usga and ghin certified? this should be
+  fool proof and exact. we need to fix this".
+  - **The cause (verified in code):** the ledger's `getMoneyGamePlayingHandicap`
+    (`money-games.ts:91`) always uses the 18-hole Total-rating course handicap and allocates it over
+    the played holes. It ignores the round's nine basis, which scoring's `getPlayerEffectiveHcap`
+    honours.
+  - **The decision: FIX IT** so the ledger uses the same handicap function as scoring.
+  - **The pin:** a test asserts ledger strokes == scorecard strokes for 18 / front / back / split ×
+    both bases.
+  - **T0:** the ledger is computed at read time, so the fix moves T0's displayed money only when
+    the branch merges. T0's before/after is shown to Craig first.
+  - This is a bug fix inside the legacy engine, and Craig asked for it explicitly, so it isn't
+    covered by Q1's "legacy stays as-is".
+- **Q4 Two-best-balls Stableford:** A. Each ball earns its own points against par (the pool's rule).
+- **Q5 Custom Stableford scale + scramble flat %:** A. Both become team-engine settings, with defaults
+  unchanged and `showIf`.
+- **Q6 Split format:** B now. Split rounds stay legacy; it gets built later as "several games on one
+  round" (§5.cp), which also covers the late player.
+- **Q7 Nassau stake:** A. Per player, as tournaments mean it. Equal team sizes are required, or the
+  stake is prorated so it stays zero-sum.
+- **Q8 Skins ledger:** A. The pool's rules for new rounds: a skin is decided once every group has
+  posted, and the ante is refunded with no winner. The carry across days stays at the event level.
+- **Q9 No-rating tee:** A. The index stands in everywhere (F-023).
+- **Q10 Live corpus:** YES. Run `scripts/export-backup.mjs` once, after re-checking that it is
+  SELECT-only, and keep the export local (git-ignored).
+- **Q3 follow-up, split rounds (2026-10-12).** Craig asked what was wrong with T0's round 3 ("do you
+  understand what that game was?"), and it was investigated before going on.
+  - **The round:** an 18-hole round whose TOURNAMENT POINTS split at the turn (front 2v2 best ball,
+    back four singles). The money games (Nassau 75%, skins 50%) are 18-hole bets on top of it.
+  - **The old ledger:** it took scoring's per-nine re-ranked holes (1–9 twice) and applied the full
+    18-hole money handicap over "18 holes". About double strokes for every player under 18 (Craig
+    14 vs 7).
+  - **The first fix (per-nine 9-hole handicaps):** differed from the 18-hole standard by one stroke
+    for 3 players on T0.
+  - **Craig:** "I feel like option 1 is the way, but if they want to play by 9 hole ratings, that
+    should be chooseable".
+  - **The rule:** money games on a split round default to the **18-hole course handicap on the
+    card's 18-hole stroke index**. A tournament money setting chooses **per-nine 9-hole ratings**
+    instead. A true 9-hole round uses the 9-hole rating.
+
+### 5.ct — F-108: the stroke allocator gives the FULL handicap, with no 2-a-hole cap (2026-10-12)
+
+Craig: "i think the F-108 should be fixed". Option A, the WHS rule. A playing handicap n over
+numHoles holes gives floor(n / numHoles) strokes on every hole, plus one more on the hardest
+n mod numHoles. A plus handicap mirrors that, from the easiest hole. Up to 2 × numHoles (CH 36 on
+18, 18 on a nine) the numbers are identical to before, so no live game with a course handicap ≤ 36
+moves. A GHIN-app side-by-side for a CH ≥ 37 player stays on the backlog as a confirmation (§5.ba).
+Craig then asked to merge and push the branch, and to continue in a new session.

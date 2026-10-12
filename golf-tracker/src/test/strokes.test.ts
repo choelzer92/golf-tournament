@@ -30,6 +30,9 @@ describe('strokesOnHole: the non-plus half is unchanged', () => {
   it('matches the pre-F-098 allocator for every handicap ≥ −0.25, hole and hole count', () => {
     for (const numHoles of [9, 18]) {
       for (const h of HCAPS) {
+        // Past 2 strokes a hole the legacy allocator capped (F-108, §5.ct); that range is pinned by the
+        // F-108 cases below. Everything up to the cap is unchanged.
+        if (Math.round(h) > 2 * numHoles) continue;
         for (const si of range(numHoles)) {
           expect(strokesOnHole(h, si, numHoles), `hcap ${h} SI ${si}/${numHoles}`).toBe(legacy(h, si, numHoles));
           expect(getMoneyStrokesOnHole(h, si, numHoles)).toBe(legacy(h, si, numHoles));
@@ -168,5 +171,57 @@ describe('F-102 a: a plus scramble team gives back on each nine of a split round
     const pos = { players: [makePlayer(1, 8), makePlayer(2, 8), makePlayer(3, 0), makePlayer(4, 0)] } as unknown as Tournament;
     const winners = computeHoleWinners(scores, matchup, round, pos);
     expect(allEighteen().filter((h) => winners.get(h) === 'A')).toEqual([1, 2, 10, 11]);
+  });
+});
+
+// F-108 (§5.ct, Craig 2026-10-12): the FULL handicap is allocated — no cap at 2 strokes a hole. A
+// playing handicap n over N holes gives floor(n / N) on every hole and one more on the hardest
+// n mod N (stroke index 1 first); a plus handicap mirrors it from the easiest. Written before the
+// fix (§5.z): every case past 2 × N failed on the capped allocator.
+describe('F-108 — no 2-a-hole cap', () => {
+  const holes18 = Array.from({ length: 18 }, (_, i) => i + 1);
+  const holes9 = holes18.slice(0, 9);
+  const card = (n: number, holes: number[]) => holes.map((si) => strokesOnHole(n, si, holes.length));
+  const total = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
+
+  it('CH 40 on 18: 3 strokes on SI 1–4, 2 on the rest — 40 in all', () => {
+    const c = card(40, holes18);
+    expect(c).toEqual(holes18.map((si) => (si <= 4 ? 3 : 2)));
+    expect(total(c)).toBe(40);
+  });
+
+  it('CH 54 on 18: 3 on every hole; CH 60: 4 on SI 1–6, 3 elsewhere', () => {
+    expect(card(54, holes18)).toEqual(holes18.map(() => 3));
+    expect(card(60, holes18)).toEqual(holes18.map((si) => (si <= 6 ? 4 : 3)));
+  });
+
+  it('a nine: CH 20 gets 3 on its two hardest, 2 on the other seven', () => {
+    expect(card(20, holes9)).toEqual(holes9.map((si) => (si <= 2 ? 3 : 2)));
+  });
+
+  it('the total always equals the handicap, every value 0–72 on 18 and 0–36 on 9', () => {
+    for (let n = 0; n <= 72; n++) expect(total(card(n, holes18)), `18 / ${n}`).toBe(n);
+    for (let n = 0; n <= 36; n++) expect(total(card(n, holes9)), `9 / ${n}`).toBe(n);
+  });
+
+  it('a plus handicap past the cap mirrors it from the easiest hole', () => {
+    const c = card(-40, holes18);
+    expect(c).toEqual(holes18.map((si) => (si >= 15 ? -3 : -2)));
+    expect(total(c)).toBe(-40);
+  });
+
+  it('COMPAT: up to 36 on 18 (18 on 9) nothing moves — the old allocator, case by case', () => {
+    const old = (h: number, si: number, n: number) => {
+      const r = Math.round(h); if (r === 0) return 0;
+      const a = Math.abs(r); const rank = r > 0 ? si : n + 1 - si; const sign = r > 0 ? 1 : -1;
+      if (a >= n * 2) return 2 * sign;
+      if (a > n) return (rank <= a - n ? 2 : 1) * sign;
+      return rank <= a ? sign : 0;
+    };
+    for (const holes of [holes18, holes9]) {
+      for (let n = -2 * holes.length; n <= 2 * holes.length; n++) {
+        for (const si of holes) expect(strokesOnHole(n, si, holes.length)).toBe(old(n, si, holes.length));
+      }
+    }
   });
 });

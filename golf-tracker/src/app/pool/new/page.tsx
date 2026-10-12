@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Player, CourseSelection } from '@/lib/game-state';
-import { PoolShareButton } from '@/components/pool-share';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import {
@@ -17,6 +16,7 @@ import {
   foldJunkIntoOverall,
   DEFAULT_MATCH_CONFIG,
   savePoolGame,
+  fetchPoolGame,
   poolSplitDollarsForTeams,
   dollarsToPotSplit,
   type CustomBonus,
@@ -41,6 +41,7 @@ import {
   structureOptionLabel,
 } from '@/lib/game-structure';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
+import { matchLinesByGroup, matchSheetProblem, matchSizeOf, matchSizesFor, repairSingles, teeGroupsFromMatches } from '@/lib/game-modes/matches';
 import {
   getRosterPlayerByGhin,
   getRosterPlayerById,
@@ -52,7 +53,9 @@ import {
   type GroupDefaults,
   getGroupById,
 } from '@/lib/roster-groups';
-import { saveFormat } from '@/lib/pool-formats';
+import { saveFormat, rerunPlanFromGame, type RerunPlan } from '@/lib/pool-formats';
+import { RERUN_SEED_KEY } from '@/lib/group-seed';
+import { StartFromCard } from './steps/start-from';
 import {
   formatOfGame,
   persistedTeamScoring,
@@ -128,6 +131,9 @@ export default function NewPoolGamePage() {
   const [entryPerPlayer, setEntryPerPlayer] = useState('25');
   const [handicapAllowance, setHandicapAllowance] = useState('100');
   const [strokeMethod, setStrokeMethod] = useState<'full' | 'off-the-low'>('off-the-low');
+  // §5.ck: hide holes until every group finishes — offered only when each team is its own
+  // foursome (alignedFlow); off by default, never when teams span foursomes (§5.bw).
+  const [hideHoles, setHideHoles] = useState(false);
   // Handicap basis: 'course' (off the tee, default) or 'index' (raw handicap index).
   const [handicapBasis, setHandicapBasis] = useState<'course' | 'index'>('course');
   // Pot legs in dollars; null until the Review step auto-fills from team count.
@@ -209,6 +215,11 @@ export default function NewPoolGamePage() {
   // format's own values is edited, which is what turns the title into "rename to fork" (§5.ax).
   const [appliedFormat, setAppliedFormat] = useState<string | undefined>(undefined);
   const [formatDirty, setFormatDirty] = useState(false);
+  // B1 Run it back (§5.cm): the past game this one started from. The format is applied like a
+  // saved one; the field, course and pairings are pre-fills — the teams come back only while the
+  // field is still last time's (any change rebuilds them). A ref: read at step transitions.
+  const rerunRef = useRef<RerunPlan | null>(null);
+  const [appliedFromGame, setAppliedFromGame] = useState(false);
 
   // Teams
   const [teams, setTeams] = useState<PoolTeam[]>([]);
@@ -243,10 +254,14 @@ export default function NewPoolGamePage() {
 
   // ---- The routing layer (lib/game-structure.ts) reads the wizard's answers -------------------
   const isSolo = structure?.kind === 'solo';
+  // F-037 (§5.co Q5): head-to-head matches, asked on the Compete step. On, the teams share
+  // foursomes — each foursome holds a match — so the aligned (team = foursome) flow is off.
+  const matchSize = structure?.kind === 'teams' ? matchSizeOf(modeSettings) : 0;
+  const matchSizes = structure?.kind === 'teams' ? matchSizesFor(structure.teamSizes) : [];
   // Every team is its own tee group under the default tee sheet (two teams of 4, 3 + 3 + 2, 3 + 2):
   // those games build their teams with the foursome builder (captains, locks, methods) and the
   // teams ARE the tee sheet. Smaller teams (pairs, singles) share foursomes: the sides editor.
-  const alignedFlow = !!structure && structure.kind === 'teams' && defaultTeeSheetFacts(structure.teamSizes).aligned;
+  const alignedFlow = !!structure && structure.kind === 'teams' && matchSize === 0 && defaultTeeSheetFacts(structure.teamSizes).aligned;
   const isWithinGroup = !!structure && structure.kind === 'teams' && !alignedFlow;
   // F-019: teams that share foursomes need REAL tee groups once more than four can't walk
   // together; the 'groups' step asks (proposed partners-together, §5.bm Q2). At four or fewer
@@ -260,7 +275,8 @@ export default function NewPoolGamePage() {
   const shapeNow: StructureShape = structure
     ? (isWithinGroup && sidesShape ? { kind: 'teams', teamSizes: sidesShape } : structure)
     : { kind: 'teams', teamSizes: [] };
-  const teeFacts = isSolo
+  const teeFacts = isSolo || matchSize > 0
+    // Matches: each match side walks together in its foursome, which is what one-ball formats need.
     ? { aligned: false, teamsTogether: true }
     : alignedFlow
       ? { aligned: true, teamsTogether: true }
@@ -273,6 +289,7 @@ export default function NewPoolGamePage() {
     scoring: { format: teamFormat, basis: teamScoreBasis, compareBy },
     ...teeFacts,
     moneyModel,
+    ...(matchSize > 0 ? { matchSize } : {}),
     // The classic pot carries its front/back/overall legs itself; a shared-foursome pot is one prize.
     bonuses: {
       junk: !junkIsOff(junkValues) || modeSettings.junkEnabled === true,
@@ -309,6 +326,29 @@ export default function NewPoolGamePage() {
     parseFloat(entryPerPlayer) || 0,
     { allowance: parseAllowance(handicapAllowance), strokeMethod, handicapBasis },
   );
+
+  // §5.cq (C): who plays whom in each tee group, for the groups step's cards.
+  const groupLinesById: Record<string, string[]> = Object.fromEntries(
+    [...matchLinesByGroup(sides ?? [], teams, matchSize, (id) => (players.find((p) => p.id === id)?.name ?? '?').split(' ')[0]).entries()]
+      .map(([g, lines]) => [teams[g]?.id ?? String(g), lines]),
+  );
+
+  // F-037: turn head-to-head matches on (size) or off (0). The teams and tee sheet are rebuilt for
+  // the new shape, and switching ON makes the pot the money default (§5.co follow-up).
+  function setMatchSize(size: number) {
+    if (size === matchSize) return;
+    setModeSettings({ ...modeSettings, matchSize: String(size) });
+    setSides(undefined);
+    setTeams([]);
+    setSideTeams([]);
+    // Head-to-head pairs play four-ball by default: best ball, net strokes, hole by hole (singles
+    // are the same with one ball). The scoring step still offers every format that fits.
+    if (size > 0) {
+      setMoneyModel('pot');
+      setTeamFormat('best-ball'); setTeamScoreBasis('stroke'); setCompareBy('match');
+    }
+    if (appliedFormat) setFormatDirty(true);
+  }
 
   // Pick a structure. A USER pick resets scoring + money to the shape's defaults (today's pool for
   // aligned teams: best net + best gross, strokes, total, pot — the golden path; a match for
@@ -351,8 +391,11 @@ export default function NewPoolGamePage() {
   // applied, else the §5.bk recommendation — pre-selected, never forced.
   useEffect(() => {
     if (step !== 'structure' || structure || players.length < 2) return;
+    // B1: a rerun's own shape while the count still adds up (3 + 3 + 2 stays 3 + 3 + 2).
+    const rr = rerunRef.current;
+    const fromRerun = rr && rr.shape.teamSizes.reduce((s, k) => s + k, 0) === players.length ? rr.shape : null;
     const fromDefaults = formatShapeRef.current ? structureForDefaults(formatShapeRef.current, players.length) : null;
-    const shape = fromDefaults ?? recommendedStructure(players.length);
+    const shape = fromRerun ?? fromDefaults ?? recommendedStructure(players.length);
     if (shape) pickStructure(shape, 'auto');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, structure, players.length]);
@@ -390,6 +433,7 @@ export default function NewPoolGamePage() {
         if (typeof data.entryPerPlayer === 'string') setEntryPerPlayer(data.entryPerPlayer);
         if (typeof data.handicapAllowance === 'string') setHandicapAllowance(data.handicapAllowance);
         if (data.strokeMethod === 'full' || data.strokeMethod === 'off-the-low') setStrokeMethod(data.strokeMethod);
+        if (typeof data.hideHoles === 'boolean') setHideHoles(data.hideHoles);
         if (data.handicapBasis === 'course' || data.handicapBasis === 'index') setHandicapBasis(data.handicapBasis);
         if (typeof data.balanceExcludeCaptains === 'boolean') setBalanceExcludeCaptains(data.balanceExcludeCaptains);
         if (typeof data.useCaptains === 'boolean') setUseCaptains(data.useCaptains);
@@ -430,6 +474,14 @@ export default function NewPoolGamePage() {
         markFormatSeedApplied(true);
       }
     } catch {}
+    // B1 (§5.cm): Run it back from a finished game's hub — consumed once.
+    try {
+      const rerunId = sessionStorage.getItem(RERUN_SEED_KEY);
+      if (rerunId) {
+        sessionStorage.removeItem(RERUN_SEED_KEY);
+        startFromGame(rerunId);
+      }
+    } catch {}
     setHydrated(true);
   }, []);
 
@@ -440,11 +492,11 @@ export default function NewPoolGamePage() {
       draftVersion: DRAFT_VERSION, structure, compareBy, moneyModel,
       name, autoNamedFrom, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step, sides,
-      holesPlaying, nineHandicapBasis,
+      holesPlaying, nineHandicapBasis, hideHoles,
     }));
   }, [hydrated, structure, compareBy, moneyModel, name, autoNamedFrom, entryPerPlayer, handicapAllowance, strokeMethod, handicapBasis, balanceExcludeCaptains, useCaptains, potDollars, potEdited, positionSplitText,
       junkValues, ballSelection, teamFormat, teamScoreBasis, moneyMode, matchLegs, matchJunkPerPoint, gameMode, modeSettings, course, players, teams, teamBuild, step, sides,
-      holesPlaying, nineHandicapBasis]);
+      holesPlaying, nineHandicapBasis, hideHoles]);
 
   // The current format settings, packaged as a group's defaults (for "save field
   // as a group"). Only the format — the member list is saved separately.
@@ -539,6 +591,8 @@ export default function NewPoolGamePage() {
   function chooseFormat(f: RosterGroup) {
     setName(f.name);
     setAppliedFormat(f.name.trim());
+    setAppliedFromGame(false);
+    rerunRef.current = null;
     setFormatDirty(false);
     applyGroupDefaults(f.defaults);
     // applyGroupDefaults leaves gameMode untouched when the format doesn't carry one —
@@ -549,12 +603,55 @@ export default function NewPoolGamePage() {
     markFormatSeedApplied(true);
   }
 
+  // B1 Run it back (§5.cm): start from a past game. The FORMAT applies exactly as a saved one does;
+  // the field, course, tees and pairings are pre-filled for the organizer to keep or change.
+  // Handicaps come from today's roster (the field step re-reads them), never last game's.
+  function applyRerun(plan: RerunPlan) {
+    rerunRef.current = plan;
+    setName(plan.name);
+    setAppliedFormat(plan.name.trim());
+    setAppliedFromGame(true);
+    setFormatDirty(false);
+    applyGroupDefaults(plan.defaults);
+    if (typeof plan.defaults.gameMode !== 'string') setGameMode(undefined);
+    markFormatSeedApplied(true);
+    setPositionSplitText(plan.positionSplitText);
+    // The pot split re-fills on the Create step: last time's when the team count matches.
+    setPotDollars(null);
+    setPotEdited(false);
+    setHolesPlaying(plan.holesPlaying);
+    setNineHandicapBasis(plan.nineHandicapBasis);
+    setHideHoles(plan.hideHoles);
+    setCourse(plan.course);
+    setSourceGroupId(plan.sourceGroupId);
+    setLockedGroups(plan.lockedGroups);
+    if (typeof plan.useCaptains === 'boolean') setUseCaptains(plan.useCaptains);
+    if (typeof plan.balanceExcludeCaptains === 'boolean') setBalanceExcludeCaptains(plan.balanceExcludeCaptains);
+    // Today's index where the roster has one already (the field step re-reads it on load and after
+    // its GHIN refresh, whichever lands last).
+    setPlayers(plan.players.map((p) => {
+      const rp = p.ghinNumber != null ? getRosterPlayerByGhin(p.ghinNumber) : undefined;
+      return rp && rp.handicapIndex != null ? { ...p, handicapIndex: rp.handicapIndex } : { ...p };
+    }));
+    // The shape is picked on the structure step (last time's, while the count still fits).
+    setStructure(undefined);
+    setTeams([]);
+    setSideTeams([]);
+    setTeamBuild(undefined);
+  }
+
+  function startFromGame(id: string) {
+    fetchPoolGame(id).then((g) => { if (g) applyRerun(rerunPlanFromGame(g)); }).catch(() => {});
+  }
+
   // §5.av: picking a raw mode after a format means "configure fresh" — drop the summary
   // and its name, back to the ordinary form. (Tweaking a format's VALUES is different:
   // that keeps the summary and invites a rename — §5.ax.)
   function clearAppliedFormat() {
     if (appliedFormat && name.trim() === appliedFormat) setName('');
     setAppliedFormat(undefined);
+    setAppliedFromGame(false);
+    rerunRef.current = null;
     setFormatDirty(false);
     markFormatSeedApplied(false);
   }
@@ -664,7 +761,7 @@ export default function NewPoolGamePage() {
       junkValues,
       customBonuses: customBonuses.length > 0 ? customBonuses : undefined,
       ctpWinners: {},
-      hideHolesUntilAllFinish: undefined,
+      hideHolesUntilAllFinish: alignedFlow && hideHoles ? true : undefined,
       status: 'active',
       // 9-hole support (absent/'18' = full 18, every existing game). nineHandicapBasis
       // only matters when a nine is chosen.
@@ -703,7 +800,8 @@ export default function NewPoolGamePage() {
 
     savePoolGame(game);
     sessionStorage.removeItem(WIZARD_KEY);
-    router.push('/pool/' + game.id);
+    // §5.cl: Create is the share moment — the hub opens on the player-link sheet.
+    router.push('/pool/' + game.id + '?send=1');
   }
 
   return (
@@ -712,7 +810,6 @@ export default function NewPoolGamePage() {
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold">New Game</h1>
           <div className="flex items-center gap-4">
-            <PoolShareButton className="text-sm text-green-200 hover:text-white font-medium" label="Share" />
             <button onClick={() => router.push('/pool')} className="text-sm text-green-200 hover:text-white">
               Cancel
             </button>
@@ -732,6 +829,7 @@ export default function NewPoolGamePage() {
             sourceGroupId={sourceGroupId}
             // F-021: when a saved format was applied, this step confirms rather than re-asks.
             appliedFormat={appliedFormat}
+            appliedFromGame={appliedFromGame}
             formatDirty={formatDirty}
             onFormatEdited={() => setFormatDirty(true)}
             summaryLine={summaryLine}
@@ -739,6 +837,9 @@ export default function NewPoolGamePage() {
             setName={setName}
             structure={structure}
             setStructure={(shape) => pickStructure(shape, 'user')}
+            matchSize={matchSize}
+            matchSizes={matchSizes}
+            setMatchSize={setMatchSize}
             // §5.av: saved formats are choices at the game step — picking one fills
             // everything; picking a shape afterwards edits the format (§5.ax).
             onFormatChosen={chooseFormat}
@@ -770,6 +871,7 @@ export default function NewPoolGamePage() {
             handicapBasis={handicapBasis}
             setHandicapBasis={setHandicapBasis}
             appliedFormat={appliedFormat}
+            appliedFromGame={appliedFromGame}
             formatDirty={formatDirty}
             onFormatEdited={() => setFormatDirty(true)}
             name={name}
@@ -791,6 +893,11 @@ export default function NewPoolGamePage() {
             onNext={() => setStep('tees')}
             onBack={() => setStep('scoring')}
           />
+        )}
+
+        {/* B1 (§5.cm): any recent game is a place to start — before the field. */}
+        {step === 'field' && players.length === 0 && !appliedFormat && (
+          <StartFromCard onGame={startFromGame} />
         )}
 
         {step === 'field' && (
@@ -845,9 +952,25 @@ export default function NewPoolGamePage() {
                 playerIds: players.map((p) => p.id),
                 matchupId: crypto.randomUUID(),
               }];
+              // B1 (§5.cm): a rerun whose field is still last time's gets last time's teams and
+              // tee sheet back (fresh score keys, no tee times); any change in the field rebuilds.
+              const rr = rerunRef.current;
+              const sameIds = (a: string[], b: string[]) => a.length === b.length && a.every((id) => b.includes(id));
+              const rerunKeeps = !!rr && sameIds(rr.players.map((p) => p.id), players.map((p) => p.id));
+              const sameSizes = (a: number[], b: number[]) => a.length === b.length && a.every((k, i) => k === b[i]);
+              const lastGroups = (): PoolTeam[] => rr!.teeGroups.map((g) => ({
+                id: crypto.randomUUID(),
+                name: g.name,
+                playerIds: [...g.playerIds],
+                matchupId: crypto.randomUUID(),
+                teeTime: '',
+                ...(g.captainId ? { captainId: g.captainId } : {}),
+              }));
               // Everyone for themselves past four (F-101 d): a balanced tee sheet, asked on Groups.
               const fieldGroups = () => {
-                setTeams(proposePlayingGroups(players, course, parseAllowance(handicapAllowance), handicapBasis));
+                setTeams(rerunKeeps && rr!.teeGroups.length > 1
+                  ? lastGroups()
+                  : proposePlayingGroups(players, course, parseAllowance(handicapAllowance), handicapBasis));
                 setStep('groups');
               };
               if (isSolo) {
@@ -859,6 +982,12 @@ export default function NewPoolGamePage() {
               }
               if (alignedFlow) {
                 // Every team is its own tee group: the foursome builder makes teams AND tee sheet.
+                if (rerunKeeps && teams.length === 0
+                  && sameSizes(rr!.teeGroups.map((g) => g.playerIds.length), shapeNow.teamSizes)) {
+                  setTeams(lastGroups());
+                  setCaptainIds(rr!.teeGroups.map((g) => g.captainId ?? ''));
+                  setTeamBuild(rr!.teamBuild);
+                }
                 setStep('teams');
                 return;
               }
@@ -872,6 +1001,24 @@ export default function NewPoolGamePage() {
                 if (needsPlayingGroups) { fieldGroups(); return; }
                 setTeams(singleGroup());
                 setStep('create');
+                return;
+              }
+              if (rerunKeeps && sideTeams.length === 0 && rr!.sides
+                && sameSizes(rr!.sides.map((s) => s.playerIds.length), structure!.teamSizes)) {
+                // Last time's partners, and the tee sheet they walked (the teams step keeps a tee
+                // sheet whose sides are unchanged).
+                setSideTeams(rr!.sides.map((s) => ({
+                  id: crypto.randomUUID(),
+                  name: s.name ?? '',
+                  playerIds: [...s.playerIds],
+                  matchupId: crypto.randomUUID(),
+                  ...(s.captainId ? { captainId: s.captainId } : {}),
+                })));
+                setSides(rr!.sides);
+                setTeams(lastGroups());
+                sideCaptainsTouched.current = true;
+                setSideCaptainsState(rr!.sides.some((s) => !!s.captainId));
+                setStep('teams');
                 return;
               }
               // Someone left the field since the teams were built: drop them, keep the rest.
@@ -943,7 +1090,15 @@ export default function NewPoolGamePage() {
                 && sides.every((s, i) => sameSet(s.playerIds, nextSides[i].playerIds));
               const teamsCoverField = teams.length > 0 && sameSet(teams.flatMap((t) => t.playerIds), players.map((p) => p.id));
               setSides(nextSides);
-              if (!(sameSides && teamsCoverField)) {
+              // F-037 (§5.co Q6): head-to-head matches BUILD the tee sheet — a foursome per 2 v 2,
+              // two singles to a foursome — in match order (no handicap re-sort: order is pairing).
+              const matchGroups = matchSize > 0 ? teeGroupsFromMatches(built.map((t) => t.playerIds), matchSize) : null;
+              if (matchGroups && !(sameSides && teamsCoverField)) {
+                setTeams(matchGroups.map((g, i) => ({
+                  id: crypto.randomUUID(), name: `Group ${i + 1}`, playerIds: g.playerIds, matchupId: crypto.randomUUID(), teeTime: '',
+                  ...(g.singles ? { singles: g.singles } : {}),
+                })));
+              } else if (!(sameSides && teamsCoverField)) {
                 setTeams(needsPlayingGroups
                   ? proposeTeeGroups(built.map((t) => t.playerIds)).map((playerIds, i) => ({
                     id: crypto.randomUUID(),
@@ -970,13 +1125,25 @@ export default function NewPoolGamePage() {
             course={course}
             players={players}
             teams={teams}
-            setTeams={setTeams}
+            // §5.cq: singles re-pair as the groups are rearranged, shown on each card before Create.
+            setTeams={matchSize === 1
+              ? (next) => setTeams(next.map((t) => {
+                const singles = repairSingles(sides ?? [], t);
+                const rest = { ...t };
+                delete rest.singles;
+                return singles ? { ...rest, singles } : rest;
+              }))
+              : setTeams}
+            groupLines={matchSize > 0 ? groupLinesById : undefined}
             partnerTeams={everyoneAlone ? undefined : (sides ?? []).map((s) => s.playerIds)}
             handicapAllowance={parseAllowance(handicapAllowance)}
             handicapBasis={handicapBasis}
             nine={wizardNine}
             onNext={() => setStep('create')}
             onBack={() => setStep(everyoneAlone ? 'tees' : 'teams')}
+            // F-037: a matches game can't be created on a tee sheet that doesn't pair (§5.ac).
+            matchesNote={matchSize > 0 ? `Each foursome plays a ${matchSize === 1 ? 'pair of singles' : '2 v 2 match'} between two teams. Move a player and the matches follow the groups.` : undefined}
+            blockedReason={matchSheetProblem(sides ?? [], teams, matchSize)}
           />
         )}
 
@@ -1047,6 +1214,8 @@ export default function NewPoolGamePage() {
             modeSettings={container === 'sides' ? sidesSettings : modeSettings}
             setModeSettings={(v) => setModeSettings({ ...modeSettings, ...v })}
             strokeMethod={strokeMethod}
+            hideHoles={alignedFlow ? { checked: hideHoles, onChange: setHideHoles } : undefined}
+            carriedPotSplit={rerunRef.current && rerunRef.current.teamCount === teams.length ? rerunRef.current.potSplit : undefined}
             onSaveFormat={saveCurrentFormat}
             onCreate={createPoolGame}
             onBack={() => setStep(needsPlayingGroups ? 'groups' : isSolo ? 'tees' : 'teams')}
