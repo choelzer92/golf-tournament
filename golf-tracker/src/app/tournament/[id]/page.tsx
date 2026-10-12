@@ -39,7 +39,7 @@ export default function TournamentHubPage() {
     }
     fetchTournament(id).then((t) => {
       if (t) setTournament(ensureFlags(t));
-      else if (!cached) router.push('/dashboard');
+      else if (!cached) router.push('/home');
     });
     const channel = subscribeToTournament(id, (t) => setTournament(t));
     return () => { channel.unsubscribe(); };
@@ -165,8 +165,8 @@ export default function TournamentHubPage() {
             <h1 className="text-xl font-bold">{tournament.name}</h1>
             <p className="text-xs text-green-200">Team Event</p>
           </div>
-          <button onClick={() => router.push('/dashboard')} className="text-sm text-green-200 hover:text-white">
-            Dashboard
+          <button onClick={() => router.push('/home')} className="text-sm text-green-200 hover:text-white">
+            Home
           </button>
         </div>
       </header>

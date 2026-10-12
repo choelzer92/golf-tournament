@@ -61,7 +61,7 @@ export default function PoolLeaderboardPage() {
     if (cached) setGame(cached);
     fetchPoolGame(id).then((g) => {
       if (g) setGame(g);
-      else if (!cached) router.push('/dashboard');
+      else if (!cached) router.push('/home');
     });
     const channel = subscribeToPoolGame(id, (g) => setGame(g));
     return () => { channel.unsubscribe(); };

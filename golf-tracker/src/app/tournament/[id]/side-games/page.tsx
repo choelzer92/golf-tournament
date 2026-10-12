@@ -24,7 +24,7 @@ export default function SideGamesPage() {
     if (cached) setTournament(cached);
     fetchTournament(id).then((t) => {
       if (t) setTournament(t);
-      else if (!cached) router.push('/dashboard');
+      else if (!cached) router.push('/home');
     });
     const channel = subscribeToTournament(id, (t) => setTournament(t));
     return () => { channel.unsubscribe(); };

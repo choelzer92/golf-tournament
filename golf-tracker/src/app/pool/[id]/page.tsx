@@ -71,7 +71,7 @@ export default function PoolHubPage() {
     if (cached) setGame(cached);
     fetchPoolGame(id).then((g) => {
       if (g) setGame(g);
-      else if (!cached) router.push('/dashboard');
+      else if (!cached) router.push('/home');
     });
     const channel = subscribeToPoolGame(id, (g) => setGame(g));
     return () => { channel.unsubscribe(); };
@@ -390,8 +390,8 @@ export default function PoolHubPage() {
                 </button>
               </>
             )}
-            <button onClick={() => router.push(poolOnly ? '/pool' : '/dashboard')} className="text-sm text-green-200 hover:text-white">
-              {poolOnly ? 'My Games' : 'Dashboard'}
+            <button onClick={() => router.push(poolOnly ? '/pool' : '/home')} className="text-sm text-green-200 hover:text-white">
+              {poolOnly ? 'My Games' : 'Home'}
             </button>
           </div>
         </div>

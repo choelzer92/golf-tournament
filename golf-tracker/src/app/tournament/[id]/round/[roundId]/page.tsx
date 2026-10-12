@@ -33,7 +33,7 @@ export default function RoundDetailPage() {
       if (r) setRound(r);
     }
     fetchTournament(tournamentId).then((t) => {
-      if (!t) { if (!cached) router.push('/dashboard'); return; }
+      if (!t) { if (!cached) router.push('/home'); return; }
       setTournament(t);
       const r = t.rounds.find((r) => r.id === roundId);
       if (r) setRound(r);
