@@ -1464,7 +1464,7 @@ A and C combine. Tag: [beta #1]. **Craig picked A + C (§5.cl).**
 
 ---
 
-### F-107 — Singles matches are paired by ORDER inside a foursome, and hub edits re-sort that order (2026-10-12)  [P2] [beta #6] — **OPEN**
+### F-107 — Singles matches are paired by ORDER inside a foursome, and hub edits re-sort that order (2026-10-12)  [P2] [beta #6] — **FIXED 2026-10-12 (§5.cq, A + C):** pairings are stored on the tee group (`singles`) and shown on every card; a stale pairing is refused with the reason
 
 **Seen:** in code, while fixing F-106. `pairMatches` (`game-modes/match-pairing.ts`) pairs 1 v 1 matches
 in tee-sheet order: A's first player in the foursome against B's first. The hub's swap

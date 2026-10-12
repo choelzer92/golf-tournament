@@ -99,7 +99,8 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 | Item | Size | Source |
 |---|---|---|
 | ~~**F-106 [beta #6]: the swap preview recomputes strokes per arrangement**~~ DONE 2026-10-12 | S | F-106, Craig 2026-10-12 |
-| **F-107 [beta #6]: singles pairings ride on tee-sheet order**, which hub edits re-sort. Options A (store the pairing) / B (preserve order) / C (show who plays whom); **Craig's pick** | S–M | F-107 |
+| ~~**F-107 [beta #6]: singles pairings ride on tee-sheet order**~~ DONE 2026-10-12 (§5.cq A + C) | S–M | F-107 |
+| **F-107 polish [beta #7]: the hub's who-plays-whom line sits under each tee-group card;** move it inside the card | S | F-107 walk |
 | **F-037 gap [beta #1]: the board shows the matches before the first score.** Today "No scores yet." hides who plays whom until someone posts; a matches game should list its pairings (Not started) from Create | S | F-037 T3 walk |
 | **F-037 gap [beta #1]: Review's game label says "· N matches"** like the hub (it reads the draft, not the stored sheet) | S | F-037 T3 walk |
 | **F-037 gap [beta #1]: groups-step copy with matches on.** The intro still says "a partner can be in the other group", which is untrue when foursomes are matches; the matches note sits under it | S | F-037 T3 walk |
