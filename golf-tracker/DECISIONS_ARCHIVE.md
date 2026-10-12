@@ -2576,3 +2576,28 @@ Asked Q2–Q6 of `.claude/plans/series.md`, one at a time.
   money; settle-up uses it). The live round's column and a second total are labelled **Projected**.
 - **Q6, Home:** build §5.ck Home-by-group IN this branch, with events in it. A group card shows its
   latest event or game; the Continue card on a live round links to the round and its event.
+
+### 5.cw — Event follow-ups (a)–(e) answered; the classic dashboard RETIRES (2026-10-12)
+
+Asked one at a time, (e) first because it's an access change.
+- **(e) Guests on a round's link may open the event standings: KEEP, as built.** A player in a round
+  is a player in the event, and its money is theirs (§5h is group-scoped). Same trust level as
+  `/pool/` (§5c deferred).
+- **(a) A round created ahead reads "Not started" until its first score.** It's derived from the
+  scores, not a new stored status. It stays out of Projected, and Home gives it no Continue card
+  (it still lists under its group or event). The first score makes it live.
+- **(b) Rename: YES, on the event screen,** organizer only. It rewrites the name stamp on every round
+  of the event (§5.cu); the rounds' own game names are untouched.
+- **(c) The group page shows an event as ONE row with its rounds nested** (indented) under it, each
+  round tappable to its hub.
+- **(d) Craig: "we need this to be clean long term. what is the real best option here? the plan is
+  to phase out the legacy stuff anyways, right?"** Yes, phasing out legacy is the direction. I first
+  proposed retiring `/dashboard` (Home lists the legacy tournaments and creates through the wizard),
+  and Craig picked it. Then I found that the dashboard also holds a **GHIN lookup** (index by GHIN #) and a
+  **Course Lookup** (tee ratings, slope, hole table, course handicap) that Home doesn't have, and I
+  re-asked. Craig: **"I think retirement may not be needed. We need to really investigate to make
+  sure everything still will work as intended. the ghin and course search are extremely
+  necessary."** So: **retirement is ON HOLD.** First a full investigation: what's on `/dashboard`,
+  what links to it, which routes only it reaches, and what exists elsewhere. The GHIN and course
+  lookups MUST survive whatever is chosen. Options go to Craig before any change. Lesson: inventory a
+  whole surface before proposing to remove it (§5.y).

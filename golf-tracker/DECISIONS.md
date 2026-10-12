@@ -210,6 +210,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.ct | 2026-10-12: F-108 opt A — strokes allocator gives the full handicap (floor(n/holes) everywhere + 1 on the hardest n mod holes; plus mirrored), no 2-a-hole cap; identical ≤ CH 36; then merge + push, new session |
 | 5.cu | 2026-10-12: Series = games stamped `series {id, name, rollup, seq}` in the pool_games jsonb (no migration); the member is a ROUND (several per day possible, two games on one round both count), columns grouped by date, explicit seq; "Add a round", not "Next day" |
 | 5.cv | 2026-10-12: Series is called "Event" on screen; starts from the group page ("Start an event") AND the wizard Review ("Part of an event?"); replaces Home's legacy "Multi-round event" for NEW play; "Add round N" on the event screen + every round hub (organizer, live or finished); TOTAL = finished rounds, live round + total labelled "Projected"; §5.ck Home-by-group built in the same branch |
+| 5.cw | 2026-10-12: Event follow-ups — (e) guests on a round link see the event standings (keep); (a) "Not started" until a score (derived; no Projected, no Continue card); (b) organizer Rename on the event screen rewrites every round's stamp; (c) group page: one event row, rounds nested; (d) dashboard retirement ON HOLD: investigate every dependency first; its GHIN lookup + Course Lookup are "extremely necessary" and must survive; options to Craig before any change |
 
 ---
 
