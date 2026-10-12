@@ -1,6 +1,6 @@
 # Series: a multi-day trip (bar #11), design note
 
-Status: ALL QUESTIONS ANSWERED 2026-10-12 (§5.cu, §5.cv). On screen it's an **Event**; code says Series. Decided: §5.cr (the shape), §5.cf (seeded from the group, cumulative money
+Status: BUILT 2026-10-12 on `series-2026-10-12` (steps 1–6 below). All questions answered (§5.cu, §5.cv). On screen it's an **Event**; code says Series. Decided: §5.cr (the shape), §5.cf (seeded from the group, cumulative money
 first), §5.cm (Run it back), §5.ck (Home by group). The questions marked **ASK** are Craig's call.
 
 ## 1. What a Series is

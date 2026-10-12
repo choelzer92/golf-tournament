@@ -133,6 +133,12 @@ The worst offenders in the audit were words, not pixels. A 2v2 game is not a
 | Game-kind label (every surface) | `gameKindLabel`: "2 teams of 4 · pot" | "4 pairs · $/point · 2 groups" | "Skins · 4 players" |
 | Standings column | "Player" | "Team" | "Player" |
 
+**"Event" means a Series (§5.cv, 2026-10-12):** several ordinary games played as one, whose money
+adds up. Each game in it is a **round** ("Round 3 of 4", "R3"), never "a day": a day can hold two
+rounds. The legacy multi-round builder's rows are labelled **"Tournament"**. Money on an event:
+**Total** = finished rounds only (real money, the settle-up uses it); a live round and the running
+sum with it are **"Projected"**.
+
 **"Side" is retired (§5.bm Q5, 2026-09-16).** Every money team is a *team*; the tee group is a
 *foursome* or *group*. `sides[]` survives only as an identifier in code.
 
