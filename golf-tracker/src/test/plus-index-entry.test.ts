@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { isPlusText, toggleIndexSign } from '@/components/handicap-index-input';
+import { isOverMaxIndex, isPlusText, toggleIndexSign } from '@/components/handicap-index-input';
 import { formatHandicap, formatHandicapIndex, parseGhinIndex } from '@/lib/game-state';
 import { explainPlayingHandicap } from '@/lib/pool-game';
 import { makeCourse, makePlayer } from './fixtures';
@@ -83,5 +83,26 @@ describe('F-102 b: no handicap text is parsed without its sign', () => {
       });
     }
     expect(offenders, 'read a typed handicap with parseGhinIndex').toEqual([]);
+  });
+});
+
+// §5.ct (Craig 2026-10-12): 54.0 is the maximum Handicap Index (WHS). Anything higher is read as 54.0,
+// and the index box flags it; 54.0 itself, and every plus index, read exactly as typed.
+describe('the maximum Handicap Index is 54.0', () => {
+  it('reads up to 54.0 as typed, and caps anything above it', () => {
+    expect(parseGhinIndex('54')).toBe(54);
+    expect(parseGhinIndex('53.9')).toBe(53.9);
+    expect(parseGhinIndex('54.1')).toBe(54);
+    expect(parseGhinIndex('64')).toBe(54);
+    expect(parseGhinIndex(72)).toBe(54);
+    expect(parseGhinIndex('+2.1')).toBe(-2.1);
+  });
+
+  it('the index box flags an entry above 54.0, and nothing else', () => {
+    expect(isOverMaxIndex('54.1')).toBe(true);
+    expect(isOverMaxIndex('64')).toBe(true);
+    expect(isOverMaxIndex('54')).toBe(false);
+    expect(isOverMaxIndex('+5')).toBe(false);
+    expect(isOverMaxIndex('')).toBe(false);
   });
 });

@@ -6,10 +6,20 @@
 // stores a plus index negative (−2.1). That negative is the value every engine computes with;
 // "+" is only its spelling (§5.bx).
 
+import { MAX_HANDICAP_INDEX } from '@/lib/game-state';
+
 export function toggleIndexSign(raw: string): string {
   const s = raw.trim();
   if (s.startsWith('+') || s.startsWith('-')) return s.slice(1);
   return `+${s}`;
+}
+
+/** A typed index above the WHS maximum (54.0), which is capped when it's read (`parseGhinIndex`). */
+export function isOverMaxIndex(raw: string): boolean {
+  const s = raw.trim();
+  if (s.startsWith('+') || s.startsWith('-')) return false;
+  const n = parseFloat(s);
+  return !isNaN(n) && n > MAX_HANDICAP_INDEX;
 }
 
 export function isPlusText(raw: string): boolean {
@@ -69,6 +79,9 @@ export function HandicapIndexInput({
         aria-label={ariaLabel}
         className={inputClassName}
       />
+      {isOverMaxIndex(value) && (
+        <span className="self-center whitespace-nowrap text-xs text-amber-700" role="note">Max 54.0</span>
+      )}
     </span>
   );
 }
