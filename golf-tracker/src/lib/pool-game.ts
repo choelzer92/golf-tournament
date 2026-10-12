@@ -1428,6 +1428,9 @@ export interface SwapCandidate {
   resultingSpread: number; // team-total spread AFTER this 1-for-1 swap
   currentSpread: number;   // spread BEFORE any swap (same for every candidate)
   delta: number;           // resultingSpread − currentSpread (negative = fairer)
+  /** Every player's strokes AFTER this swap — what the card and money will use once it's saved.
+   *  Differs from today's map only where the low moves with a swap (head-to-head matches, F-106). */
+  strokesAfter: Map<string, number>;
 }
 
 // For a chosen player, rank every 1-for-1 swap partner on the OTHER teams by how
@@ -1444,9 +1447,11 @@ export function rankSwapCandidates(
   const fromTeam = teams.find((t) => t.playerIds.includes(playerId));
   if (!fromTeam) return [];
 
-  // One stroke map for the whole field; a swap can't change it (field low is
-  // over everyone), so reuse it for the base and every simulated arrangement.
+  // Today's strokes for the base spread. Each simulated arrangement gets its OWN map below: off a
+  // field low a swap can't move it, but a head-to-head matches game plays off each MATCH's low
+  // (F-037 T4), so a swap can (F-106) — the preview must use the map the saved game will.
   const hcapById = poolStrokeMap(game);
+  const matchSize = matchSizeOf(game.modeSettings ?? {});
   const currentSpread = teamHandicapSpread(teams, hcapById);
   const candidates: SwapCandidate[] = [];
 
@@ -1459,8 +1464,13 @@ export function rankSwapCandidates(
         if (t.id === other.id) return { ...t, playerIds: t.playerIds.map((id) => (id === otherPid ? playerId : id)) };
         return t;
       });
-      const resultingSpread = teamHandicapSpread(simulated, hcapById);
+      const after = { ...game, teams: simulated };
+      // A swap that leaves the matches unpairable would be refused on save (§5.ac) — don't offer it.
+      if (matchSize > 0 && !matchesOf(sidesOfGame(after), simulated.map((t) => t.playerIds), matchSize)) continue;
+      const strokesAfter = poolStrokeMap(after);
+      const resultingSpread = teamHandicapSpread(simulated, strokesAfter);
       candidates.push({
+        strokesAfter,
         playerId: otherPid,
         teamId: other.id,
         teamName: other.name,

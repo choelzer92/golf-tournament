@@ -952,7 +952,8 @@ export function SwapPanel({ game, onSwap }: { game: PoolGame; onSwap: (a: string
               { team: fromTeam, ids: previewIds(fromTeam, selected, chosen.playerId), inId: chosen.playerId },
               { team: toTeam, ids: previewIds(toTeam, chosen.playerId, selected), inId: selected },
             ].map(({ team, ids, inId }) => {
-              const total = ids.reduce((s, id) => s + strokesOf(id), 0);
+              // F-106: the would-be strokes, not today's — a matches game can move its low with a swap.
+              const total = ids.reduce((s, id) => s + Math.round(chosen.strokesAfter.get(id) ?? 0), 0);
               return (
                 <div key={team!.id} className="rounded border border-gray-200 bg-white p-2">
                   <p className="text-xs font-semibold text-gray-800 truncate">{team!.name}
@@ -962,7 +963,7 @@ export function SwapPanel({ game, onSwap }: { game: PoolGame; onSwap: (a: string
                     {sortPlayerIdsByHcap(ids, game.players, game.course, game.handicapAllowance).map((id) => (
                       <li key={id} className={`text-xs flex justify-between gap-1 ${id === inId ? 'text-green-700 font-semibold' : 'text-gray-700'}`}>
                         <span className="truncate">{id === inId ? '+ ' : ''}{nameOf(id)}</span>
-                        <span className="tabular-nums text-gray-400">{formatHandicap(strokesOf(id))}</span>
+                        <span className="tabular-nums text-gray-400">{formatHandicap(Math.round(chosen.strokesAfter.get(id) ?? 0))}</span>
                       </li>
                     ))}
                   </ul>

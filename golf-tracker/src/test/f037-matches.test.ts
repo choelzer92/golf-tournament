@@ -17,7 +17,7 @@ import { matchesOf, matchShapeProblem, matchSizesFor, suggestMatches, teeGroupsF
 import type { GameSide } from '@/lib/game-modes/sides';
 import type { GameScore } from '@/lib/game-state';
 import type { IndividualResult } from '@/lib/game-modes/types';
-import { buildHcapMap, poolStrokeMap } from '@/lib/pool-game';
+import { buildHcapMap, poolStrokeMap, rankSwapCandidates } from '@/lib/pool-game';
 import { makeGame, makeTeam, scoresFor, TEST_PARS } from './fixtures';
 
 const G1 = ['p1', 'p2', 'p3', 'p4'];
@@ -399,5 +399,38 @@ describe('F-037 T4 — strokes off the low PER MATCH', () => {
   it('the scorecard\'s stroke dots read the same map as the money (one source, AGENTS.md)', () => {
     const g = t4Game('off-the-low');
     expect(poolStrokeMap(g)).toEqual(buildHcapMap(g));
+  });
+});
+
+// F-106 (Craig 2026-10-12, beta #6): the swap tool previews each swap on ITS OWN stroke map.
+// T4 indexes, off the low, 2 v 2. Swap p2 (x, Group 1) with p6 (x, Group 2) — same team, so the
+// matches still pair — and both matches' lows move:
+//   Group 1 becomes p1 2, p6 12 v p3 6, p4 8  → low 2:  p6 10.
+//   Group 2 becomes p5 10, p2 4 v p7 14, p8 16 → low 4:  p2 0, p5 6, p7 10, p8 12.
+describe('F-106 — the swap preview uses the strokes the swapped game will play', () => {
+  const swapGame = (matchSize: number) => makeGame({
+    gameMode: 'team-2v2', indexes: [2, 4, 6, 8, 10, 12, 14, 16], strokeMethod: 'off-the-low',
+    teams: [makeTeam(1, G1), makeTeam(2, G2)], sides: TEAMS,
+    modeSettings: { format: 'best-ball', scoring: 'stroke', result: 'match', moneyModel: 'pot', matchSize },
+  });
+
+  it('a same-team swap across foursomes previews the moved lows', () => {
+    const c = rankSwapCandidates(swapGame(2), 'p2').find((x) => x.playerId === 'p6')!;
+    expect(['p6', 'p2', 'p5', 'p7', 'p8'].map((id) => c.strokesAfter.get(id))).toEqual([10, 0, 6, 10, 12]);
+    expect(c.strokesAfter).toEqual(buildHcapMap({ ...swapGame(2), teams: [makeTeam(1, ['p1', 'p6', 'p3', 'p4']), makeTeam(2, ['p5', 'p2', 'p7', 'p8'])] }));
+  });
+
+  it('a swap that would unpair the matches is not offered (it would be refused on save)', () => {
+    const ids = rankSwapCandidates(swapGame(2), 'p2').map((x) => x.playerId);
+    expect(ids).toContain('p5');           // x for x: still pairs
+    expect(ids).not.toContain('p7');       // x for y: Group 1 would hold 1 x + 3 y
+    expect(ids).not.toContain('p8');
+  });
+
+  it('COMPAT: without matches every swap is offered and the field low never moves', () => {
+    const cs = rankSwapCandidates(swapGame(0), 'p2');
+    expect(cs.map((x) => x.playerId).sort()).toEqual(['p5', 'p6', 'p7', 'p8']);
+    const base = buildHcapMap(swapGame(0));
+    for (const c of cs) expect(c.strokesAfter).toEqual(base);
   });
 });
