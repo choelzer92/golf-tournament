@@ -6,11 +6,12 @@ import { useRouter, useParams } from 'next/navigation';
 import { canEditGroup, getGroupIdsForGhin, getViewer, hydrateGroups, getGroupById, addGroupMember, removeGroupMember, renameGroup, deleteGroup, type RosterGroup } from '@/lib/roster-groups';
 import { hydrateRoster, searchRoster, getRosterPlayerById, rosterDisplayName, type RosterPlayer } from '@/lib/roster';
 import { getFormats, getGroupFormats, attachFormatToGroup, detachFormatFromGroup } from '@/lib/pool-formats';
-import { hydratePoolGames, loadPoolGame, getPoolGameList, getPoolGameListVisibleTo } from '@/lib/pool-game';
+import { hydratePoolGames, loadPoolGame, getPoolGameList, getPoolGameListVisibleTo, getSeriesRounds, type PoolGame } from '@/lib/pool-game';
+import { nestEvents, shortDate, type NestedRow } from '@/lib/series';
 import { hydrateTournaments, loadTournament, getTournamentList, getTournamentListVisibleTo } from '@/lib/tournament-state';
 import {
   buildGameLedgers, ledgersForGroup, rollupByPlayer,
-  type GameLedger, type PlayerRollup,
+  type GameLedger, type PlayerRollup, unstartedGameIds,
 } from '@/lib/stats-ledger';
 import { isAppOwner } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
@@ -50,7 +51,9 @@ export default function GroupDetailPage() {
   // group that was a 5,249px phone scroll of 61 cards, each with a full-width Remove,
   // while the things a group is actually FOR (recent games, money) were absent. Craig:
   // "make it a group dashboard". See FINDINGS.md F-010.
-  const [recent, setRecent] = useState<GameLedger[]>([]);
+  // §5.cw c: an event is ONE row with its rounds nested under it.
+  const [recent, setRecent] = useState<NestedRow<GameLedger>[]>([]);
+  const [eventRounds, setEventRounds] = useState<Record<string, { name: string; rounds: PoolGame[]; unstarted: Set<string> }>>({});
   const [groupNet, setGroupNet] = useState<PlayerRollup[]>([]);
   // Members are collapsed by default and searchable when open — 61 names is a list to
   // look something up in, not something to scroll past on the way to everything else.
@@ -83,7 +86,18 @@ export default function GroupDetailPage() {
         .filter((x): x is NonNullable<typeof x> => !!x);
       const all = await buildGameLedgers(poolGames, tournaments);
       const mine = ledgersForGroup(all, g);
-      setRecent(mine.slice(0, 5));
+      const rows = nestEvents(mine, (l) => (l.gameKind === 'pool' ? loadPoolGame(l.gameId)?.series?.id : undefined)).slice(0, 5);
+      const events: Record<string, { name: string; rounds: PoolGame[]; unstarted: Set<string> }> = {};
+      for (const r of rows) {
+        if (r.kind !== 'event') continue;
+        const rounds = getSeriesRounds(r.seriesId);
+        const latest = rounds.reduce((a, b) => (b.series!.seq > a.series!.seq ? b : a));
+        // A live round with no score yet reads "Not started" here too (§5.cw a).
+        const unstarted = await unstartedGameIds(rounds.filter((x) => x.status === 'active')).catch(() => new Set<string>());
+        events[r.seriesId] = { name: latest.series!.name, rounds, unstarted };
+      }
+      setEventRounds(events);
+      setRecent(rows);
       setGroupNet(rollupByPlayer(mine));
     } catch {
       /* a group page is still useful without its ledger */
@@ -370,7 +384,53 @@ export default function GroupDetailPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Recent games</h2>
             <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
-              {recent.map((l) => (
+              {recent.map((row) => {
+                if (row.kind === 'event') {
+                  const ev = eventRounds[row.seriesId];
+                  if (!ev) return null;
+                  const done = ev.rounds.filter((r) => r.status === 'completed').length;
+                  return (
+                    <div key={`event:${row.seriesId}`} data-testid="recent-event">
+                      <button
+                        onClick={() => router.push(`/event/${row.seriesId}`)}
+                        className="w-full text-left flex items-center justify-between px-4 py-2.5 hover:bg-gray-50"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 truncate">
+                            <span className="mr-2 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase bg-emerald-100 text-emerald-800">Event</span>
+                            {ev.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {ev.rounds.length} {ev.rounds.length === 1 ? 'round' : 'rounds'} · {done} finished
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-xs text-green-700">Standings →</span>
+                      </button>
+                      <ul className="pb-1.5">
+                        {ev.rounds.map((r, i) => {
+                          const state = r.status === 'completed' ? 'Final'
+                            : r.status === 'active' && !ev.unstarted.has(r.id) ? 'Live' : 'Not started';
+                          return (
+                            <li key={r.id}>
+                              <button
+                                onClick={() => router.push(`/pool/${r.id}`)}
+                                className="w-full text-left flex items-center justify-between gap-2 pl-8 pr-4 py-1.5 min-h-[36px] hover:bg-gray-50"
+                              >
+                                <span className="min-w-0 truncate text-sm text-gray-800">
+                                  Round {i + 1} · {r.name}
+                                  <span className="ml-1 text-xs text-gray-500">{shortDate(r.series!.date)}</span>
+                                </span>
+                                <span className={`shrink-0 text-xs ${state === 'Live' ? 'text-amber-700' : 'text-gray-400'}`}>{state}</span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  );
+                }
+                const l = row.item;
+                return (
                 <button
                   key={l.gameId}
                   onClick={() => router.push(l.gameKind === 'pool' ? `/pool/${l.gameId}` : `/tournament/${l.gameId}`)}
@@ -386,7 +446,8 @@ export default function GroupDetailPage() {
                     {l.playerIds.length} player{l.playerIds.length !== 1 ? 's' : ''}
                   </span>
                 </button>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}

@@ -165,3 +165,29 @@ test('§5.cw b: the organizer renames the event; every round carries the new nam
   await page.waitForURL(/\/pool\/[^/]+$/);
   await expect(page.getByTestId('event-banner')).toContainText('Myrtle Beach Boys Trip · Round 1 of 4');
 });
+
+test('§5.cw c: the group page shows the event as one row, its rounds nested under it', async ({ page }) => {
+  await page.goto(`${BASE}/home/groups/g-weekend-warriors`);
+  await expect(page.getByRole('heading', { name: 'Weekend Warriors' })).toBeVisible();
+  const ev = page.getByTestId('recent-event');
+  await expect(ev).toHaveCount(1);
+  await expect(ev.getByText('Myrtle 2026')).toBeVisible();
+  await expect(ev.getByText('4 rounds · 3 finished')).toBeVisible();
+  for (const r of ['Round 1 · Friday pool', 'Round 2 · Saturday AM skins', 'Round 3 · Saturday PM pool', 'Round 4 · Sunday 2v2']) {
+    await expect(ev.getByRole('button', { name: new RegExp(r) })).toBeVisible();
+  }
+  await expect(ev.getByRole('button', { name: /Round 4 · Sunday 2v2.*Live/ })).toBeVisible();
+  // No round is ALSO listed on its own outside the event row.
+  const recent = page.locator('section', { has: page.getByRole('heading', { name: 'Recent games' }) });
+  await expect(recent.getByText('Friday pool')).toHaveCount(1);
+  await recent.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'e2e/screenshots/event-group-page.png', fullPage: true });
+
+  await ev.getByRole('button', { name: /Round 2 · Saturday AM skins/ }).click();
+  await page.waitForURL(/\/pool\/[^/]+$/);
+  await expect(page.getByTestId('event-banner')).toContainText('Round 2 of 4');
+  await page.goBack();
+  await page.getByTestId('recent-event').getByRole('button', { name: /Myrtle 2026/ }).click();
+  await page.waitForURL(new RegExp(`${EVENT}$`));
+  await expect(page.getByRole('heading', { name: 'Myrtle 2026' })).toBeVisible();
+});

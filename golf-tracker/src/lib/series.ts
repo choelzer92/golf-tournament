@@ -100,6 +100,25 @@ export function groupBySeries<G extends SeriesGameLike>(games: G[]): Map<string,
   return out;
 }
 
+/** §5.cw c: a list with each event's members folded into ONE row, at the place its first
+ *  member appears (so a newest-first list stays newest-first). Everything else passes through. */
+export type NestedRow<T> = { kind: 'item'; item: T } | { kind: 'event'; seriesId: string; items: T[] };
+
+export function nestEvents<T>(items: T[], seriesIdOf: (t: T) => string | undefined): NestedRow<T>[] {
+  const out: NestedRow<T>[] = [];
+  const byId = new Map<string, { kind: 'event'; seriesId: string; items: T[] }>();
+  for (const item of items) {
+    const sid = seriesIdOf(item);
+    if (!sid) { out.push({ kind: 'item', item }); continue; }
+    const row = byId.get(sid);
+    if (row) { row.items.push(item); continue; }
+    const fresh = { kind: 'event' as const, seriesId: sid, items: [item] };
+    byId.set(sid, fresh);
+    out.push(fresh);
+  }
+  return out;
+}
+
 /** The stamp for the next round added to an event. */
 export function nextRoundStamp(rounds: SeriesGameLike[], date: string): SeriesStamp {
   const stamps = rounds.map((r) => r.series).filter((s): s is SeriesStamp => !!s);

@@ -11,6 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   groupBySeries,
+  nestEvents,
   nextRoundStamp,
   seriesGames,
   seriesStandings,
@@ -225,5 +226,17 @@ describe('§5.cw a: a live round with no score yet is NOT STARTED', () => {
       expect(s.rounds.find((r) => r.gameId === 'sun')!.state).toBe('projected');
       expect(s.hasProjected).toBe(true);
     }
+  });
+});
+
+describe('§5.cw c: nestEvents folds an event into one row where it first appears', () => {
+  it('keeps newest-first order and passes ordinary games through', () => {
+    const list = [
+      { id: 'r3', s: 'trip' }, { id: 'tues', s: undefined }, { id: 'r1', s: 'trip' },
+      { id: 'cup2', s: 'cup' }, { id: 'old', s: undefined },
+    ];
+    const rows = nestEvents(list, (x) => x.s);
+    expect(rows.map((r) => (r.kind === 'item' ? r.item.id : `${r.seriesId}:${r.items.map((i) => i.id).join(',')}`)))
+      .toEqual(['trip:r3,r1', 'tues', 'cup:cup2', 'old']);
   });
 });
