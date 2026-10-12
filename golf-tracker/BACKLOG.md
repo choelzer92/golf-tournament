@@ -181,6 +181,10 @@ Sizes: **S** = fits in a session's slack · **M** = a focused session · **L** =
 Raw material. Add freely in-session or when Craig muses; shape into a backlog line only when
 it's real. Never build from this section directly.
 
+- **Several games on one round, sharing its scores** (Craig, 2026-10-12, §5.cp): the 2 v 2 matches
+  carry on while a 3 v 3 game (teams may differ) covers the back nine, each paying on its own
+  sides. It came out of the late-player question. Shape it with Team → Match side games and the
+  Series (bar #11). Today each game owns its scorecards.
 - **AI caddy** — Craig has ideas, deferred until the base is solid (roadmap #12)
 - Season-long money ledger surfaced better ("who owes whom, over a season" — north star's
   "continuing" pillar; partially exists in /home/stats)

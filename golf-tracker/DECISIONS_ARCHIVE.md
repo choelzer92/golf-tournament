@@ -2444,3 +2444,21 @@ T3 wizard/hub + e2e → T4 per-match strokes after the GHIN side-by-side.
   - **Fixed front / back / overall:** each nine is its own bet, won by the team that won more of
     the matches ON THAT NINE.
   - **$ per hole:** holes won minus holes lost, summed across the team's matches, × $.
+
+### 5.cp — A late player never joins an existing match; the answer is a second game on the same round (2026-10-12)
+
+Asked during F-037 T3 (§5.co): a 9th player arrives at the turn in a game of 2 v 2 matches. Craig:
+"this seems rare, and really not something that would make sense". He rejected a third ball in a
+pair ("better than allowing one team to have an additional player"). Instead:
+- **The existing matches carry on** on the scores already posted.
+- **The organizer sets up a different game for the rest of the round**, for example 3 v 3 matches
+  for the back nine. Its teams can be completely different, and each game pays out on its own
+  sides. "Maybe there would be a way to have that 2 v 2 match continue based on scores, and add a
+  separate 3 v 3 game to the same round?"
+
+Consequences:
+- **T3 interim:** the hub's Add player in a game with matches on is REFUSED, with a plain reason
+  (`matchShapeProblem`). The player is never put in a match.
+- **New capability, not built: several games on one round sharing its scores** (per-nine games,
+  different teams per game). Logged in BACKLOG. It sits next to the side-games layer of
+  Team → Match and the Series (bar #11), so shape it with those.
