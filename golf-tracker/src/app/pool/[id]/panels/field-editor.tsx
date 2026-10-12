@@ -135,11 +135,14 @@ export function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; on
       teams: game.teams.map((t) => {
         if (t.id === teamA.id) {
           const captainId = t.captainId === playerA ? playerB : t.captainId;
-          return { ...t, captainId, playerIds: orderIds(t.playerIds.map((id) => (id === playerA ? playerB : id)), captainId) };
+          // §5.cq: in singles the swapped-in player takes the swapped-out player's match.
+          const singles = t.singles?.map((p) => p.map((id) => (id === playerA ? playerB : id)));
+          return { ...t, captainId, playerIds: orderIds(t.playerIds.map((id) => (id === playerA ? playerB : id)), captainId), ...(singles ? { singles } : {}) };
         }
         if (t.id === teamB.id) {
           const captainId = t.captainId === playerB ? playerA : t.captainId;
-          return { ...t, captainId, playerIds: orderIds(t.playerIds.map((id) => (id === playerB ? playerA : id)), captainId) };
+          const singles = t.singles?.map((p) => p.map((id) => (id === playerB ? playerA : id)));
+          return { ...t, captainId, playerIds: orderIds(t.playerIds.map((id) => (id === playerB ? playerA : id)), captainId), ...(singles ? { singles } : {}) };
         }
         return t;
       }),

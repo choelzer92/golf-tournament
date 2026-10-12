@@ -57,7 +57,8 @@ export const MATCH_SETTINGS: FormatSetting[] = [
 ];
 
 export { matchSizeOf, pairMatches, matchesOf } from './match-pairing';
-export type { Match, MatchUnit } from './match-pairing';
+export type { Match, MatchUnit, TeeGroupSheet } from './match-pairing';
+import type { TeeGroupSheet } from './match-pairing';
 import { matchesOf, matchSizeOf, pairMatches } from './match-pairing';
 
 /**
@@ -66,11 +67,11 @@ import { matchesOf, matchSizeOf, pairMatches } from './match-pairing';
  * player's join call it BEFORE writing, so a game that can't be paired is never saved.
  */
 export function matchShapeProblem(game: PoolGame): string | null {
-  return matchSheetProblem(sidesOfGame(game), game.teams.map((t) => t.playerIds), matchSizeOf(game.modeSettings ?? {}));
+  return matchSheetProblem(sidesOfGame(game), game.teams, matchSizeOf(game.modeSettings ?? {}));
 }
 
 /** The same check on raw teams + tee groups, for a game not yet built (the wizard). */
-export function matchSheetProblem(teams: { id: string; playerIds: string[] }[], teeGroups: string[][], size: number): string | null {
+export function matchSheetProblem(teams: { id: string; playerIds: string[] }[], teeGroups: TeeGroupSheet[], size: number): string | null {
   if (size === 0) return null;
   if (teams.length < 2) return 'Head-to-head matches need two or more teams.';
   const r = pairMatches(teams, teeGroups, size);
@@ -94,7 +95,7 @@ export function computeMatchGame(
 ): IndividualResult | null {
   const bag = ctx.settings;
   const teams = ctx.sides ?? [];
-  const matches = matchesOf(teams, ctx.teeGroups ?? [ctx.players.map((p) => p.id)], matchSizeOf(bag));
+  const matches = matchesOf(teams, ctx.matchSheet ?? ctx.teeGroups ?? [ctx.players.map((p) => p.id)], matchSizeOf(bag));
   if (!matches || teams.length < 2) return null;
 
   const s = (key: string) => stringSetting(deps.schema, bag, key);
@@ -426,28 +427,24 @@ export function suggestMatches(teams: string[][], size: number): string[][][] | 
  * teams together where possible. Each group lists the two units in match order, so `pairMatches`
  * reads back exactly these matches. Null when the teams can't be paired at this size.
  */
-export function teeGroupsFromMatches(teams: string[][], size: number): string[][] | null {
+export function teeGroupsFromMatches(teams: string[][], size: number): { playerIds: string[]; singles?: string[][] }[] | null {
   if (size > 2) return null;
   const matches = suggestMatches(teams, size);
   if (!matches) return null;
-  if (size === 2) return matches.map(([a, b]) => [...a, ...b]);
+  if (size === 2) return matches.map(([a, b]) => ({ playerIds: [...a, ...b] }));
   const teamOf = new Map<string, number>();
   teams.forEach((t, i) => t.forEach((id) => teamOf.set(id, i)));
   const key = (m: string[][]) => m.map((u) => teamOf.get(u[0])!).sort((x, y) => x - y).join('-');
   const sorted = matches.map((m, i) => ({ m, i })).sort((x, y) => (key(x.m) < key(y.m) ? -1 : key(x.m) > key(y.m) ? 1 : x.i - y.i));
-  const groups: string[][] = [];
+  const groups: { playerIds: string[]; singles?: string[][] }[] = [];
   for (let k = 0; k < sorted.length; k += 2) {
     const pair = sorted.slice(k, k + 2).map((x) => x.m);
-    // Two singles in one foursome read back by team, in order: A's 1st v B's 1st, A's 2nd v B's 2nd —
-    // only when both singles are between the same two teams. Otherwise they need their own groups.
+    // Two singles share a foursome only when they're between the same two teams; the pairing is
+    // STORED with the group (§5.cq), so the order players are listed in doesn't decide it.
     if (pair.length === 2 && key(pair[0]) === key(pair[1])) {
-      const [first, second] = pair;
-      const aTeam = teamOf.get(first[0][0])!;
-      const side = (m: string[][], t: number) => m.find((u) => teamOf.get(u[0]) === t)!;
-      const bTeam = teamOf.get(first.find((u) => teamOf.get(u[0]) !== aTeam)![0])!;
-      groups.push([...side(first, aTeam), ...side(second, aTeam), ...side(first, bTeam), ...side(second, bTeam)]);
+      groups.push({ playerIds: pair.flat(2), singles: pair.map((m) => [m[0][0], m[1][0]]) });
     } else {
-      pair.forEach((m) => groups.push(m.flat()));
+      pair.forEach((m) => groups.push({ playerIds: m.flat() }));
     }
   }
   return groups;
@@ -459,4 +456,52 @@ export function matchSizesFor(teamSizes: number[]): number[] {
   if (teamSizes.length < 2) return [];
   return [1, 2].filter((s) => teamSizes.every((k) => k % s === 0 && k > s)
     && suggestMatches(teamSizes.map((k, t) => Array.from({ length: k }, (_, i) => `${t}:${i}`)), s) !== null);
+}
+
+/**
+ * Who plays whom in each tee group, as lines for a card ("Craig v Dave", "Craig & Jym v Dave &
+ * Rick") — §5.cq (C): the pairing is always visible. Keyed by tee-group index; a foursome-v-foursome
+ * match spans groups and isn't listed per group. Empty when matches are off or don't pair.
+ */
+export function matchLinesByGroup(
+  teams: { id: string; playerIds: string[] }[], teeGroups: TeeGroupSheet[], size: number,
+  nameOf: (id: string) => string,
+): Map<number, string[]> {
+  const out = new Map<number, string[]>();
+  const r = size > 0 ? pairMatches(teams, teeGroups, size) : null;
+  if (!r || !('matches' in r)) return out;
+  for (const m of r.matches) {
+    if (m.group === undefined) continue;
+    const line = m.units.map((u) => u.playerIds.map(nameOf).join(' & ')).join(' v ');
+    out.set(m.group, [...(out.get(m.group) ?? []), line]);
+  }
+  return out;
+}
+
+/**
+ * The singles pairing for a tee group after the organizer rearranges the groups BEFORE Create
+ * (§5.cq): every stored pair still in the group (one player from each team) is kept, and the rest
+ * pair in list order. The wizard shows the result on each card, so nothing is re-paired unseen. Not
+ * used on a live game: there an edit that breaks a pairing is refused instead.
+ */
+export function repairSingles(
+  teams: { id: string; playerIds: string[] }[], group: { playerIds: string[]; singles?: string[][] },
+): string[][] | undefined {
+  const teamOf = new Map<string, string>();
+  teams.forEach((t) => t.playerIds.forEach((id) => teamOf.set(id, t.id)));
+  const here = new Set(group.playerIds);
+  const used = new Set<string>();
+  const kept = (group.singles ?? []).filter(([x, y]) => {
+    const ok = here.has(x) && here.has(y) && !used.has(x) && !used.has(y)
+      && teamOf.get(x) !== undefined && teamOf.get(y) !== undefined && teamOf.get(x) !== teamOf.get(y);
+    if (ok) { used.add(x); used.add(y); }
+    return ok;
+  });
+  const teamIds = [...new Set(group.playerIds.map((id) => teamOf.get(id)).filter((t): t is string => !!t))];
+  if (teamIds.length !== 2) return kept.length > 0 ? kept : undefined;
+  const left = (t: string) => group.playerIds.filter((id) => teamOf.get(id) === t && !used.has(id));
+  const [a, b] = [left(teamIds[0]), left(teamIds[1])];
+  const fresh = a.slice(0, Math.min(a.length, b.length)).map((id, k) => [id, b[k]]);
+  const all = [...kept, ...fresh];
+  return all.length > 1 ? all : undefined;
 }

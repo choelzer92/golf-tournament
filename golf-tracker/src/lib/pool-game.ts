@@ -24,6 +24,9 @@ export interface PoolTeam {
   teeTime?: string;   // "HH:MM" — earliest tee time holds CTP by default
   matchupId: string;  // key into game_scores for this foursome's scores
   captainId?: string; // the team's captain (a saved role, shown across the app)
+  // Head-to-head SINGLES (F-107, §5.cq): who plays whom when this foursome holds two 1 v 1 matches,
+  // as [player, player] pairs. Stored so the order of `playerIds` carries no meaning.
+  singles?: string[][];
 }
 
 export interface PoolJunkValues {
@@ -813,7 +816,7 @@ export function buildHcapMap(game: PoolGame): Map<string, number> {
   // the low changes. Everything that gives strokes reads this map (the engine, the card's dots), so
   // dots and money move together.
   const matches = matchSizeOf(game.modeSettings ?? {}) > 0
-    ? matchesOf(sidesOfGame(game), game.teams.map((t) => t.playerIds), matchSizeOf(game.modeSettings ?? {}))
+    ? matchesOf(sidesOfGame(game), game.teams, matchSizeOf(game.modeSettings ?? {}))
     : null;
   for (const m of matches ?? []) {
     const ids = m.units.flatMap((u) => u.playerIds).filter((id) => rounded.has(id));
@@ -1466,7 +1469,7 @@ export function rankSwapCandidates(
       });
       const after = { ...game, teams: simulated };
       // A swap that leaves the matches unpairable would be refused on save (§5.ac) — don't offer it.
-      if (matchSize > 0 && !matchesOf(sidesOfGame(after), simulated.map((t) => t.playerIds), matchSize)) continue;
+      if (matchSize > 0 && !matchesOf(sidesOfGame(after), simulated, matchSize)) continue;
       const strokesAfter = poolStrokeMap(after);
       const resultingSpread = teamHandicapSpread(simulated, strokesAfter);
       candidates.push({

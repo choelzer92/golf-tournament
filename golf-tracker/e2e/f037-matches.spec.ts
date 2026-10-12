@@ -142,3 +142,55 @@ test('F-037 / §5.cp: Add player is refused in a matches game, with the reason',
   await expect(page.getByTestId('add-player-matches')).toContainText('head-to-head matches');
   await page.screenshot({ path: 'e2e/screenshots/f037-hub-add-refused.png', fullPage: true });
 });
+
+test('F-107 / §5.cq: every tee-group card says who plays whom', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  const id = await seed(page, SEED);
+  await page.goto(`${BASE}/pool/${id}`);
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByRole('heading', { name: 'Tee groups' })).toBeVisible();
+  const lines = page.getByTestId('group-match-line');
+  await expect(lines).toHaveCount(2);
+  await expect(lines.nth(0)).toHaveText('Group 1: Craig & Jym v Dave & Rick');
+  await expect(lines.nth(1)).toHaveText('Group 2: Sam & Tony v Will & Gary');
+  await page.screenshot({ path: 'e2e/screenshots/f107-hub-pairings.png', fullPage: true });
+});
+
+test('F-107 / §5.cq: singles are paired on the groups step and the pairing is saved with the game', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  const card = page.locator('div.bg-white', { hasText: 'Past games (for recent-course' });
+  await card.getByRole('button', { name: 'Seed' }).click();
+  await expect(card.getByText('Seeded ✓')).toBeVisible();
+  await page.goto(`${BASE}/pool/new`);
+  await page.waitForLoadState('networkidle');
+  await fieldToGameStep(page, EIGHT_PLAYERS);
+  await chooseStructure(page, 'teams:4+4');
+  await page.getByRole('radiogroup', { name: 'Head-to-head matches' }).getByRole('radio', { name: '1 v 1' }).click();
+  await expect(page.getByText('Teams split into singles matches, two to a foursome')).toBeVisible();
+  await toScoringStep(page);
+  await page.getByRole('button', { name: /Next: Select Course/ }).click();
+  await page.getByRole('button', { name: /Sandbox National/ }).first().click();
+  await page.getByRole('button', { name: 'Next: Set Tees' }).click();
+  await page.getByRole('button', { name: 'Next: Teams' }).click();
+  await buildTeams(page, 'list');
+  await page.getByRole('button', { name: 'Next: Groups' }).click();
+
+  // Two singles per foursome, each named on its card.
+  const wizardLines = page.getByTestId('group-match-line');
+  await expect(wizardLines).toHaveCount(4);
+  const shown = await wizardLines.allInnerTexts();
+  expect(shown.every((l) => / v /.test(l) && !l.includes('&'))).toBe(true);
+  await expect(page.getByRole('button', { name: /Next: Review & Create/ })).toBeEnabled();
+  await page.screenshot({ path: 'e2e/screenshots/f107-wizard-singles.png', fullPage: true });
+  await page.getByRole('button', { name: /Next: Review & Create/ }).click();
+  await signInOrganizer(page);
+  await page.getByRole('button', { name: 'Create & send to players' }).click();
+  await page.waitForURL(/\/pool\/(?!new$)[^/?]+$/, { timeout: 15_000 });
+  await closeSendSheet(page);
+  await expect(page.getByRole('heading', { name: 'Tee groups' })).toBeVisible();
+
+  // The SAME pairings on the hub: stored with the game, not re-derived from list order.
+  const hub = await page.getByTestId('group-match-line').allInnerTexts();
+  expect(hub.join(' · ')).toBe(`Group 1: ${shown[0]} · ${shown[1]} · Group 2: ${shown[2]} · ${shown[3]}`);
+  await expect(page.getByText(/· 4 matches/).first()).toBeVisible();
+});

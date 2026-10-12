@@ -95,6 +95,9 @@ export interface GameModeContext {
   // skins a later group takes back; a closed game decides on whatever was posted. Absent = one group.
   teeGroups?: string[][];
   closed?: boolean;
+  // Head-to-head matches (F-037): the in-scope tee groups WITH their stored singles pairings
+  // (§5.cq). Always set, unlike `teeGroups`, so a one-foursome singles game pairs as stored too.
+  matchSheet?: { playerIds: string[]; singles?: string[][] }[];
 }
 
 export interface PlayerStanding {

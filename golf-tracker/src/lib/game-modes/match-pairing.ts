@@ -5,7 +5,16 @@
 import type { SettingsBag } from './types';
 
 export interface MatchUnit { teamId: string; playerIds: string[] }
-export interface Match { id: string; units: [MatchUnit, MatchUnit] }
+/** `group`: the tee group (index) the match plays in; absent for foursome v foursome. */
+export interface Match { id: string; units: [MatchUnit, MatchUnit]; group?: number }
+
+/**
+ * A tee group as the pairing reads it. `singles` is who plays whom when a foursome holds MORE THAN
+ * ONE singles match (§5.cq, F-107): stored, so the order the players are listed in means nothing.
+ * A bare id list is a caller-built sheet whose order IS the pairing (tests, the builder's own output).
+ */
+export type TeeGroupSheet = string[] | { playerIds: string[]; singles?: string[][] };
+const idsOf = (g: TeeGroupSheet) => (Array.isArray(g) ? g : g.playerIds);
 
 /** Players a side in each match; 0 = matches off (absent, '0', or junk). */
 export function matchSizeOf(settings: SettingsBag): number {
@@ -24,16 +33,17 @@ export function matchSizeOf(settings: SettingsBag): number {
  * groups or the match size asks `matchShapeProblem` first.
  */
 export function pairMatches(
-  teams: { id: string; playerIds: string[] }[], teeGroups: string[][], size: number,
+  teams: { id: string; playerIds: string[] }[], teeGroups: TeeGroupSheet[], size: number,
 ): { matches: Match[] } | { problem: string } {
   if (!(size >= 1)) return { problem: 'Head-to-head matches are off.' };
   const teamIdx = new Map<string, number>();
   teams.forEach((t, i) => t.playerIds.forEach((id) => teamIdx.set(id, i)));
   const each = size === 1 ? 'one player' : `${size} players`;
 
-  const pairs: [MatchUnit, MatchUnit][] = [];
+  const pairs: { units: [MatchUnit, MatchUnit]; group?: number }[] = [];
   const across = new Map<number, MatchUnit[]>();
-  for (const [g, group] of teeGroups.entries()) {
+  for (const [g, sheet] of teeGroups.entries()) {
+    const group = idsOf(sheet);
     const byTeam = new Map<number, string[]>();
     for (const id of group) {
       const t = teamIdx.get(id);
@@ -56,7 +66,27 @@ export function pairMatches(
       if (!ua || !ub || ua.length !== ub.length) {
         return { problem: `Group ${g + 1} needs the same number of players from each team, ${each} a match.` };
       }
-      ua.forEach((u, k) => pairs.push([u, ub[k]]));
+      if (size === 1 && ua.length > 1 && !Array.isArray(sheet)) {
+        // §5.cq: two or more singles in one foursome are paired as STORED, never by list order.
+        const stored = sheet.singles ?? [];
+        const a = new Set(ua.map((u) => u.playerIds[0]));
+        const b = new Set(ub.map((u) => u.playerIds[0]));
+        const seen = new Set<string>();
+        const ok = stored.length === ua.length && stored.every((p) => {
+          if (p.length !== 2) return false;
+          const [x, y] = a.has(p[0]) ? [p[0], p[1]] : [p[1], p[0]];
+          if (!a.has(x) || !b.has(y) || seen.has(x) || seen.has(y)) return false;
+          seen.add(x); seen.add(y);
+          return true;
+        });
+        if (!ok) return { problem: `Group ${g + 1}: who plays whom needs setting again.` };
+        for (const p of stored) {
+          const [x, y] = a.has(p[0]) ? [p[0], p[1]] : [p[1], p[0]];
+          pairs.push({ units: [{ teamId: teams[present[0]].id, playerIds: [x] }, { teamId: teams[present[1]].id, playerIds: [y] }], group: g });
+        }
+        continue;
+      }
+      ua.forEach((u, k) => pairs.push({ units: [u, ub[k]], group: g }));
     } else {
       return { problem: `Group ${g + 1} has players from ${present.length} teams; a match is between two.` };
     }
@@ -67,13 +97,13 @@ export function pairMatches(
     if (keys.length !== 2 || ua.length !== ub.length) {
       return { problem: 'Groups holding one team need a group from the other team to play.' };
     }
-    ua.forEach((u, k) => pairs.push([u, ub[k]]));
+    ua.forEach((u, k) => pairs.push({ units: [u, ub[k]] }));
   }
   if (pairs.length === 0) return { problem: 'No matches to play.' };
-  return { matches: pairs.map((units, i) => ({ id: `M${i + 1}`, units })) };
+  return { matches: pairs.map((p, i) => ({ id: `M${i + 1}`, units: p.units, ...(p.group !== undefined ? { group: p.group } : {}) })) };
 }
 
-export function matchesOf(teams: { id: string; playerIds: string[] }[], teeGroups: string[][], size: number): Match[] | null {
+export function matchesOf(teams: { id: string; playerIds: string[] }[], teeGroups: TeeGroupSheet[], size: number): Match[] | null {
   const r = pairMatches(teams, teeGroups, size);
   return 'matches' in r ? r.matches : null;
 }

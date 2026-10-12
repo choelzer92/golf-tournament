@@ -8,7 +8,7 @@ import { proposePlayingGroups } from './shared';
 
 export function PlayingGroupsStep({
   course, players, teams, setTeams, handicapAllowance, handicapBasis, nine, onNext, onBack,
-  partnerTeams, nextLabel = 'Next: Review & Create', blockedReason, matchesNote,
+  partnerTeams, nextLabel = 'Next: Review & Create', blockedReason, matchesNote, groupLines,
 }: {
   course: CourseSelection | null;
   players: Player[];
@@ -27,6 +27,8 @@ export function PlayingGroupsStep({
   /** F-037: the tee sheet was built FROM the matches — say so, and drop the shape buttons (a
    *  re-pack would break the pairings). */
   matchesNote?: string;
+  /** F-037 / §5.cq (C): who plays whom in each group, by tee-group id. */
+  groupLines?: Record<string, string[]>;
 }) {
   // The player being moved. Tap a player, then tap the group to move them to — the same
   // two-tap idiom the sides step already uses, so there's one gesture to learn.
@@ -158,7 +160,12 @@ export function PlayingGroupsStep({
         {teams.map((team) => (
           <div key={team.id} className="bg-white rounded-lg shadow p-4">
             <div className="flex items-center justify-between gap-3 mb-2">
-              <p className="font-semibold text-gray-900">{team.name}</p>
+              <div className="min-w-0">
+                <p className="font-semibold text-gray-900">{team.name}</p>
+                {groupLines?.[team.id]?.map((l) => (
+                  <p key={l} className="text-xs text-gray-600" data-testid="group-match-line">{l}</p>
+                ))}
+              </div>
               <label className="flex items-center gap-1.5 text-xs text-gray-500">
                 Tee time
                 <input

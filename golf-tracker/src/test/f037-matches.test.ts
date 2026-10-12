@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { computeGameResult } from '@/lib/game-modes/result';
-import { matchesOf, matchShapeProblem, matchSizesFor, suggestMatches, teeGroupsFromMatches } from '@/lib/game-modes/matches';
+import { matchesOf, matchLinesByGroup, matchShapeProblem, matchSizesFor, repairSingles, suggestMatches, teeGroupsFromMatches } from '@/lib/game-modes/matches';
 import type { GameSide } from '@/lib/game-modes/sides';
 import type { GameScore } from '@/lib/game-state';
 import type { IndividualResult } from '@/lib/game-modes/types';
@@ -280,7 +280,7 @@ describe('F-037 — a shape that cannot be paired is a problem, never a game (§
 
   it('a pairable sheet, or matches off, has no problem', () => {
     expect(matchShapeProblem(game([G1, G2], 2))).toBeNull();
-    expect(matchShapeProblem(game([G1, G2], 1))).toBeNull();
+
     expect(matchShapeProblem(game([['p1', 'p3', 'p4', 'p7'], ['p5', 'p2', 'p6', 'p8']], 0))).toBeNull();
   });
 
@@ -342,8 +342,8 @@ describe('F-037 T3 — building the tee sheet FROM the matches (§5.co Q1, Q6)',
     it(`${label}: the built tee sheet reads back as the suggested matches, in foursomes`, () => {
       const ts = sizes.map((k, i) => team(String.fromCharCode(97 + i), k));
       const groups = teeGroupsFromMatches(ts, size)!;
-      expect(groups.every((g) => g.length <= 4)).toBe(true);
-      expect(groups.flat().sort()).toEqual(ts.flat().sort());
+      expect(groups.every((g) => g.playerIds.length <= 4)).toBe(true);
+      expect(groups.flatMap((g) => g.playerIds).sort()).toEqual(ts.flat().sort());
       const read = matchesOf(asTeams(ts), groups, size)!;
       expect(read, 'pairable').not.toBeNull();
       const want = suggestMatches(ts, size)!.map((m) => m.map((u) => u.join(',')).sort().join(' v ')).sort();
@@ -432,5 +432,85 @@ describe('F-106 — the swap preview uses the strokes the swapped game will play
     expect(cs.map((x) => x.playerId).sort()).toEqual(['p5', 'p6', 'p7', 'p8']);
     const base = buildHcapMap(swapGame(0));
     for (const c of cs) expect(c.strokesAfter).toEqual(base);
+  });
+});
+
+// F-107 (§5.cq, Craig 2026-10-12): two singles in one foursome are paired as STORED on the tee
+// group; the order the players are listed in means nothing, and a missing or stale pairing is a
+// problem (refused with the reason), never a silent re-pair.
+describe('F-107 — singles pairings are stored, not read from list order', () => {
+  const sheet = (ids: string[], singles?: string[][]) => ({ playerIds: ids, ...(singles ? { singles } : {}) });
+  const pairsOf = (m: ReturnType<typeof matchesOf>) => m!.map((x) => x.units.map((u) => u.playerIds[0]).join(' v '));
+
+  it('the stored pairs decide, whatever order the foursome is listed in', () => {
+    const singles = [['p1', 'p4'], ['p2', 'p3']];
+    expect(pairsOf(matchesOf(TEAMS, [sheet(['p1', 'p2', 'p3', 'p4'], singles)], 1))).toEqual(['p1 v p4', 'p2 v p3']);
+    expect(pairsOf(matchesOf(TEAMS, [sheet(['p3', 'p2', 'p4', 'p1'], singles)], 1))).toEqual(['p1 v p4', 'p2 v p3']);
+  });
+
+  it('two singles with no stored pairing is a problem, not an order-based guess', () => {
+    const g = makeGame({ gameMode: 'team-2v2', indexes: Array(8).fill(0), teams: [makeTeam(1, G1), makeTeam(2, G2)], sides: TEAMS, modeSettings: { matchSize: 1 } });
+    expect(matchShapeProblem(g)).toBe('Group 1: who plays whom needs setting again.');
+  });
+
+  it('a stale pairing (a player who moved out) is a problem', () => {
+    expect(matchesOf(TEAMS, [sheet(['p1', 'p2', 'p3', 'p4'], [['p1', 'p3'], ['p5', 'p4']])], 1)).toBeNull();
+  });
+
+  it('a pairing within one team is a problem', () => {
+    expect(matchesOf(TEAMS, [sheet(['p1', 'p2', 'p3', 'p4'], [['p1', 'p2'], ['p3', 'p4']])], 1)).toBeNull();
+  });
+
+  it('one single per team in a foursome needs no stored pairing (only one way to pair)', () => {
+    expect(pairsOf(matchesOf(TEAMS, [sheet(['p1', 'p3']), sheet(['p2', 'p4']), sheet(['p5', 'p7']), sheet(['p6', 'p8'])], 1))).toEqual(['p1 v p3', 'p2 v p4', 'p5 v p7', 'p6 v p8']);
+  });
+
+  it('the engine scores the stored pairing: swap who plays whom and the singles results follow', () => {
+    // Group 1 all par except p1 birdies 1 and 2, p4 birdies 10. p1 v p4: p1 2–1. p2 v p3: halved.
+    const game = (singles: string[][]) => makeGame({
+      gameMode: 'team-2v2', indexes: [0, 0, 0, 0],
+      teams: [{ ...makeTeam(1, ['p1', 'p2', 'p3', 'p4']), singles }],
+      sides: [{ id: 'x', playerIds: ['p1', 'p2'] }, { id: 'y', playerIds: ['p3', 'p4'] }],
+      modeSettings: { format: 'best-ball', scoring: 'stroke', result: 'match', matchSize: 1, moneyModel: 'per-point', dollarsPerPoint: 1, junkEnabled: false },
+    });
+    const sc = new Map([['m1', ['p1', 'p2', 'p3', 'p4'].flatMap((id) =>
+      scoresFor(id, ALL.map((h) => TEST_PARS[h - 1] - ((id === 'p1' && h <= 2) || (id === 'p4' && h === 10) ? 1 : 0))))]]);
+    const r1 = computeGameResult(game([['p1', 'p4'], ['p2', 'p3']]), sc);
+    if (r1.kind !== 'individual') throw new Error('expected the team engine');
+    expect(r1.matches!.map((m) => m.winner)).toEqual(['x', null]);   // p1 beats p4 2–1; p2 v p3 halved
+    const r2 = computeGameResult(game([['p1', 'p3'], ['p2', 'p4']]), sc);
+    if (r2.kind !== 'individual') throw new Error('expected the team engine');
+    expect(r2.matches!.map((m) => m.winner)).toEqual(['x', 'y']);    // p1 beats p3 2–0; p4 beats p2 1–0
+  });
+});
+
+describe('§5.cq — pairings shown on each card, and re-paired visibly in the wizard', () => {
+  const nameOf = (id: string) => id.toUpperCase();
+
+  it('matchLinesByGroup: one line per match, per tee group', () => {
+    const lines = matchLinesByGroup(TEAMS, [G1, G2], 2, nameOf);
+    expect([...lines.entries()]).toEqual([[0, ['P1 & P2 v P3 & P4']], [1, ['P5 & P6 v P7 & P8']]]);
+    const singles = matchLinesByGroup(TEAMS, [{ playerIds: G1, singles: [['p1', 'p4'], ['p2', 'p3']] }], 1, nameOf);
+    expect(singles.get(0)).toEqual(['P1 v P4', 'P2 v P3']);
+  });
+
+  it('repairSingles keeps every stored pair still in the group and pairs the rest', () => {
+    // p2 swapped out for p5 (same team): p1 v p4 stays, p5 meets the free p3.
+    expect(repairSingles(TEAMS, { playerIds: ['p1', 'p5', 'p3', 'p4'], singles: [['p1', 'p4'], ['p2', 'p3']] }))
+      .toEqual([['p1', 'p4'], ['p5', 'p3']]);
+    // Nothing stored: list order (the wizard shows it).
+    expect(repairSingles(TEAMS, { playerIds: ['p1', 'p2', 'p3', 'p4'] })).toEqual([['p1', 'p3'], ['p2', 'p4']]);
+    // One single each: nothing to store.
+    expect(repairSingles(TEAMS, { playerIds: ['p1', 'p3'] })).toBeUndefined();
+  });
+
+  it('a hub swap that carries the pairing still pairs; the same swap without it would be refused', () => {
+    const before = [{ ...makeTeam(1, G1), singles: [['p1', 'p3'], ['p2', 'p4']] }, { ...makeTeam(2, G2), singles: [['p5', 'p7'], ['p6', 'p8']] }];
+    const swapped = [
+      { ...before[0], playerIds: ['p1', 'p5', 'p3', 'p4'], singles: [['p1', 'p3'], ['p5', 'p4']] },
+      { ...before[1], playerIds: ['p2', 'p6', 'p7', 'p8'], singles: [['p2', 'p7'], ['p6', 'p8']] },
+    ];
+    expect(matchesOf(TEAMS, swapped, 1)).not.toBeNull();
+    expect(matchesOf(TEAMS, swapped.map((t, i) => ({ ...t, singles: before[i].singles })), 1)).toBeNull();
   });
 });

@@ -430,7 +430,7 @@ export function gameKindFactsOf(game: PoolGame): GameKindFacts {
 function matchCountOf(game: PoolGame): { matchCount?: number } {
   const size = matchSizeOf(game.modeSettings ?? {});
   if (size === 0) return {};
-  const m = matchesOf(sidesOfGame(game), game.teams.map((t) => t.playerIds), size);
+  const m = matchesOf(sidesOfGame(game), game.teams, size);
   return m ? { matchCount: m.length } : {};
 }
 

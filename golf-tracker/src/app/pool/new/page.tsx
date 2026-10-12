@@ -41,7 +41,7 @@ import {
   structureOptionLabel,
 } from '@/lib/game-structure';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
-import { matchSheetProblem, matchSizeOf, matchSizesFor, teeGroupsFromMatches } from '@/lib/game-modes/matches';
+import { matchLinesByGroup, matchSheetProblem, matchSizeOf, matchSizesFor, repairSingles, teeGroupsFromMatches } from '@/lib/game-modes/matches';
 import {
   getRosterPlayerByGhin,
   getRosterPlayerById,
@@ -325,6 +325,12 @@ export default function NewPoolGamePage() {
     savedModeSettings ?? modeSettings,
     parseFloat(entryPerPlayer) || 0,
     { allowance: parseAllowance(handicapAllowance), strokeMethod, handicapBasis },
+  );
+
+  // §5.cq (C): who plays whom in each tee group, for the groups step's cards.
+  const groupLinesById: Record<string, string[]> = Object.fromEntries(
+    [...matchLinesByGroup(sides ?? [], teams, matchSize, (id) => (players.find((p) => p.id === id)?.name ?? '?').split(' ')[0]).entries()]
+      .map(([g, lines]) => [teams[g]?.id ?? String(g), lines]),
   );
 
   // F-037: turn head-to-head matches on (size) or off (0). The teams and tee sheet are rebuilt for
@@ -1088,8 +1094,9 @@ export default function NewPoolGamePage() {
               // two singles to a foursome — in match order (no handicap re-sort: order is pairing).
               const matchGroups = matchSize > 0 ? teeGroupsFromMatches(built.map((t) => t.playerIds), matchSize) : null;
               if (matchGroups && !(sameSides && teamsCoverField)) {
-                setTeams(matchGroups.map((playerIds, i) => ({
-                  id: crypto.randomUUID(), name: `Group ${i + 1}`, playerIds, matchupId: crypto.randomUUID(), teeTime: '',
+                setTeams(matchGroups.map((g, i) => ({
+                  id: crypto.randomUUID(), name: `Group ${i + 1}`, playerIds: g.playerIds, matchupId: crypto.randomUUID(), teeTime: '',
+                  ...(g.singles ? { singles: g.singles } : {}),
                 })));
               } else if (!(sameSides && teamsCoverField)) {
                 setTeams(needsPlayingGroups
@@ -1118,7 +1125,16 @@ export default function NewPoolGamePage() {
             course={course}
             players={players}
             teams={teams}
-            setTeams={setTeams}
+            // §5.cq: singles re-pair as the groups are rearranged, shown on each card before Create.
+            setTeams={matchSize === 1
+              ? (next) => setTeams(next.map((t) => {
+                const singles = repairSingles(sides ?? [], t);
+                const rest = { ...t };
+                delete rest.singles;
+                return singles ? { ...rest, singles } : rest;
+              }))
+              : setTeams}
+            groupLines={matchSize > 0 ? groupLinesById : undefined}
             partnerTeams={everyoneAlone ? undefined : (sides ?? []).map((s) => s.playerIds)}
             handicapAllowance={parseAllowance(handicapAllowance)}
             handicapBasis={handicapBasis}
@@ -1127,7 +1143,7 @@ export default function NewPoolGamePage() {
             onBack={() => setStep(everyoneAlone ? 'tees' : 'teams')}
             // F-037: a matches game can't be created on a tee sheet that doesn't pair (§5.ac).
             matchesNote={matchSize > 0 ? `Each foursome plays a ${matchSize === 1 ? 'pair of singles' : '2 v 2 match'} between two teams. Move a player and the matches follow the groups.` : undefined}
-            blockedReason={matchSheetProblem(sides ?? [], teams.map((t) => t.playerIds), matchSize)}
+            blockedReason={matchSheetProblem(sides ?? [], teams, matchSize)}
           />
         )}
 

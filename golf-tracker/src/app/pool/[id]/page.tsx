@@ -10,7 +10,8 @@ import { fromLegacySubTeams, sideOfPlayer, sidesOfGame } from '@/lib/game-modes/
 import { getAccessLevel } from '@/lib/invite-gate';
 import { getCreatorName } from '@/lib/pool-identity';
 import { getGameMode } from '@/lib/game-modes';
-import { matchShapeProblem } from '@/lib/game-modes/matches';
+import { matchLinesByGroup, matchShapeProblem } from '@/lib/game-modes/matches';
+import { matchSizeOf } from '@/lib/game-modes/match-pairing';
 import { gameKindLabel } from '@/lib/game-structure';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 import { FeedbackButton } from '@/components/feedback-box';
@@ -511,16 +512,27 @@ export default function PoolHubPage() {
               {/* "How these teams were built" is about balancing N foursomes —
                   nothing to explain when the game IS one group. */}
               {game.teams.length > 0 && !isSingleGroupHub && <TeamBuildSummaryCard game={game} />}
-              {game.teams.map((team) => (
-                <FoursomeCard
-                  key={team.id}
-                  team={team}
-                  players={playersForTeam(team)}
-                  game={game}
-                  detail={detailForTeam(team.id)}
-                  onEnterScores={() => enterScores(team)}
-                />
-              ))}
+              {(() => {
+                // §5.cq (C): a head-to-head game says who plays whom on every tee group.
+                const lines = matchLinesByGroup(sidesOfGame(game), game.teams, matchSizeOf(game.modeSettings ?? {}),
+                  (id) => (game.players.find((p) => p.id === id)?.name ?? '?').split(' ')[0]);
+                return game.teams.map((team, g) => (
+                  <div key={team.id}>
+                    <FoursomeCard
+                      team={team}
+                      players={playersForTeam(team)}
+                      game={game}
+                      detail={detailForTeam(team.id)}
+                      onEnterScores={() => enterScores(team)}
+                    />
+                    {lines.get(g) && (
+                      <p className="mt-1 px-1 text-xs text-gray-600" data-testid="group-match-line">
+                        {team.name}: {lines.get(g)!.join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                ));
+              })()}
               {game.teams.length === 0 && (
                 <p className="text-center text-gray-500 py-8">
                   {isSingleGroupHub ? 'No players configured yet.' : 'No foursomes configured yet.'}
