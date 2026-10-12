@@ -493,7 +493,7 @@ answer back may simply be "update: they're there now / clearer once the branch s
 
 ---
 
-### F-037 — Eight players who want "two separate 2v2 best-balls" can't say so — and Craig can't tell what IS possible  [P1] [start]
+### F-037 — Eight players who want "two separate 2v2 best-balls" can't say so — and Craig can't tell what IS possible  [P1] [start] — **BUILT 2026-10-12 (§5.co, Team → Match T0–T4):** Compete asks "Head-to-head matches? 1 v 1 / 2 v 2"; the tee sheet is built from the matches; match points roll up to team totals. Craig's phone walk is still wanted before this is closed
 
 **Reported:** Craig, 2026-09-10 — "how would I run 4v4 if it's not a pool? like 2v2 and
 2v2? I'm confused at why I can only choose pools" and "once I've chosen a player pool, I

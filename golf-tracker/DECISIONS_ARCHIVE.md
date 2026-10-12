@@ -2535,3 +2535,12 @@ reported to Craig the same day, not fixed. They are S2 questions 2 and 3.
   - **The rule:** money games on a split round default to the **18-hole course handicap on the
     card's 18-hole stroke index**. A tournament money setting chooses **per-nine 9-hole ratings**
     instead. A true 9-hole round uses the 9-hole rating.
+
+### 5.ct — F-108: the stroke allocator gives the FULL handicap, with no 2-a-hole cap (2026-10-12)
+
+Craig: "i think the F-108 should be fixed". Option A, the WHS rule. A playing handicap n over
+numHoles holes gives floor(n / numHoles) strokes on every hole, plus one more on the hardest
+n mod numHoles. A plus handicap mirrors that, from the easiest hole. Up to 2 × numHoles (CH 36 on
+18, 18 on a nine) the numbers are identical to before, so no live game with a course handicap ≤ 36
+moves. A GHIN-app side-by-side for a CH ≥ 37 player stays on the backlog as a confirmation (§5.ba).
+Craig then asked to merge and push the branch, and to continue in a new session.

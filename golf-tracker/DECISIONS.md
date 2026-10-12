@@ -207,6 +207,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.cq | 2026-10-12: F-107 A + C — singles pairings are STORED on the tee group and SHOWN on its card; list order means nothing; an edit that breaks them is refused with the reason, never silently re-paired |
 | 5.cr | 2026-10-12: multi-day trip (bar #11) = SERIES of ordinary games + money/points rollup (S2 §7 rec); S3 unnecessary; S2 = convergence + freeze (S2.0–S2.6 parallel, S2.7/S2.8 deferred); legacy tournaments stay legacy; S4 later = tournament read as a Series |
 | 5.cs | 2026-10-12: S2 Qs — Q1 A legacy tournaments keep their engine; Q2 A own-tee stroke index for new rounds; Q3 FIX the ledger to use scoring's handicap function (nine basis honoured), pinned ledger == scorecard for every round shape × basis; T0 before/after shown before merge; Q4 A per-ball 2BB Stableford; Q5 A scale + scramble % as settings; Q6 B split stays legacy (→ §5.cp); Q7 A per-player Nassau (prorated); Q8 A pool skins rules; Q9 A index stands in; Q10 yes read-only export; split-round money = 18-hole CH on the card SI by default, per-nine 9-hole ratings chooseable (`moneyGames.splitRoundHandicap`) |
+| 5.ct | 2026-10-12: F-108 opt A — strokes allocator gives the full handicap (floor(n/holes) everywhere + 1 on the hardest n mod holes; plus mirrored), no 2-a-hole cap; identical ≤ CH 36; then merge + push, new session |
 
 ---
 
