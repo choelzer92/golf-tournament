@@ -1464,6 +1464,19 @@ A and C combine. Tag: [beta #1]. **Craig picked A + C (§5.cl).**
 
 ---
 
+### F-106 — The swap tool previews strokes from a map computed once, but a matches game's strokes can move with a swap (2026-10-12)  [P2] [beta #6] — **TO FIX** (Craig, 2026-10-12: "i would need that fixed in order to fulfill our beta standards")
+
+**Seen:** in code, while building F-037 T4. `poolStrokeMap(game)` is computed once in `EditFoursomes`
+(`panels/field-editor.tsx:33`) and in the swap panel (`:855`, `useMemo`). It's reused for every
+simulated arrangement, on the stated assumption that a swap never moves the field low. Since T4,
+off the low in a matches game takes the low PER MATCH, so moving a player can change a match's low,
+and with it every stroke count in that match. The preview could then show numbers a stroke or two
+off what the card and money use after the swap. Money and the card are unaffected, because they
+read the saved game.
+
+**Fix:** simulate on the arrangement. For each candidate, recompute `poolStrokeMap` on the would-be
+game (teams/sides swapped), so the preview uses the exact map the saved game will.
+
 ### F-100 — A plus index can't be typed on an iPhone: the decimal keypad has no "+" or "−"  [P2] [start]
 
 **Where (found 2026-09-28 building F-098):** the HCP boxes (`add-player-panel.tsx`, the hub
