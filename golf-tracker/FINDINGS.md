@@ -1464,6 +1464,23 @@ A and C combine. Tag: [beta #1]. **Craig picked A + C (§5.cl).**
 
 ---
 
+### F-111 — The group page can't add a new player by GHIN; it only lists saved players (2026-10-12)  [P2] [beta #1]
+
+Craig: "in terms of setting up games, adding players to groups, we need to be able to use the ghin
+to find users handicaps." F-040 B made ONE add-player stack (`components/add-player-panel.tsx`: GHIN
+name search, then manual, then GHIN numbers). Two surfaces drifted from it:
+
+| Surface | Saved | GHIN name search | GHIN # | Manual |
+|---|---|---|---|---|
+| Wizard player step | ✓ | ✓ | ✓ list | ✓ |
+| `/pool/roster` | ✓ | ✓ | ✓ | ✓ |
+| Hub "Add a player" (`field-editor.tsx` own panel) | ✓ | ✗ | ✓ | ✗ |
+| **Group page "Add players"** | ✓ | ✗ | ✗ | ✗ |
+
+On the group page, someone new means a detour: Full roster manager, GHIN search, save, back, then add.
+**Fix:** put the shared panel under the saved-player search; one add saves them to the roster AND adds
+them to the group. The hub's late-player panel could take the same name search (asked separately).
+
 ### F-110 — The dashboard's GHIN "Link" wipes the signed-in identity for the session (2026-10-12)  [P2] [beta #4]
 
 **Observation:** the `/dashboard` header shows an "Enter GHIN #" + Link form only when the signed-in

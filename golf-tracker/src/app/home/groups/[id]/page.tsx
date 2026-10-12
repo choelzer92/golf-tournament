@@ -4,7 +4,8 @@ import { formatHandicapIndex } from '@/lib/game-state';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { canEditGroup, getGroupIdsForGhin, getViewer, hydrateGroups, getGroupById, addGroupMember, removeGroupMember, renameGroup, deleteGroup, type RosterGroup } from '@/lib/roster-groups';
-import { hydrateRoster, searchRoster, getRosterPlayerById, rosterDisplayName, type RosterPlayer } from '@/lib/roster';
+import { hydrateRoster, searchRoster, getRosterPlayerById, rosterDisplayName, upsertRosterPlayer, type RosterPlayer } from '@/lib/roster';
+import { AddPlayerPanel, type AddedPlayer } from '@/components/add-player-panel';
 import { getFormats, getGroupFormats, attachFormatToGroup, detachFormatFromGroup } from '@/lib/pool-formats';
 import { hydratePoolGames, loadPoolGame, getPoolGameList, getPoolGameListVisibleTo, getSeriesRounds, type PoolGame } from '@/lib/pool-game';
 import { nestEvents, shortDate, type NestedRow } from '@/lib/series';
@@ -229,6 +230,21 @@ export default function GroupDetailPage() {
     setQuery('');
     setResults(searchRoster(''));
     setAdding(false);
+  }
+
+  const [newOpen, setNewOpen] = useState(false);
+  // F-111: someone not saved yet, found by GHIN (or added by hand), is saved to the roster AND
+  // added to the group in one step. The roster merges by GHIN number, so no duplicate is made.
+  async function addNewPlayer(info: AddedPlayer) {
+    const rp = await upsertRosterPlayer({
+      id: crypto.randomUUID(),
+      ghinNumber: info.ghinNumber,
+      name: info.name,
+      handicapIndex: info.handicapIndex,
+      gender: info.gender,
+      defaultTeeName: null,
+    });
+    await addMember(rp);
   }
 
   async function removeMember(rp: RosterPlayer) {
@@ -631,6 +647,27 @@ export default function GroupDetailPage() {
                 </button>
               ))}
             </div>
+          )}
+          {/* F-111: not saved yet? Find them on GHIN (or add by hand) right here. Behind one
+              tap so the page stays short (F-010). */}
+          {newOpen ? (
+            <div className="mt-4">
+              <p className="mb-1 text-sm font-medium text-gray-800">Someone new</p>
+              <AddPlayerPanel
+                existingGhins={new Set(members.map((m) => m.ghinNumber).filter((n): n is number => n != null))}
+                getTokenAction={() => sessionStorage.getItem('ghin_token')}
+                onAddAction={addNewPlayer}
+                addDisabled={adding}
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setNewOpen(true)}
+              className="mt-3 w-full rounded-md border border-green-700 bg-white px-4 py-2.5 text-sm font-semibold text-green-800 hover:bg-green-50"
+            >
+              + Someone new: find on GHIN or add by hand
+            </button>
           )}
         </section>
         )}
