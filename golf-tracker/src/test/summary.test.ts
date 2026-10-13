@@ -184,3 +184,16 @@ describe('formatSummaryLine', () => {
     }
   });
 });
+
+describe('§5.dd: a team game\'s stakes read per player when the teams are even', () => {
+  const sides = getGameMode('team-2v2')!;
+  it('divides the per-team stakes by the team size', () => {
+    expect(stakesSummary(sides, { moneyModel: 'legs', legFront: 12, legBack: 10, legOverall: 10 }, 0, 2)).toBe('$6 / $5 / $5 front·back·overall');
+    expect(stakesSummary(sides, { moneyModel: 'per-hole', dollarsPerHole: 4 }, 0, 2)).toBe('$2 a hole');
+    expect(stakesSummary(sides, { moneyModel: 'pot', sideBuyIn: 20 }, 0, 4)).toBe('$5/player pot');
+  });
+  it('no team size (uneven, or unknown) keeps the per-team figure; a classic pool never divides', () => {
+    expect(stakesSummary(sides, { moneyModel: 'pot', sideBuyIn: 20 }, 0, null)).toBe('$20 buy-in pot');
+    expect(stakesSummary(undefined, { moneyMode: 'match', legFront: 10, legBack: 10, legOverall: 10, junkPerPoint: 0 }, 0, 4)).toBe('$10 / $10 / $10 front·back·overall');
+  });
+});

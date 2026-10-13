@@ -2727,3 +2727,11 @@ From `.claude/plans/matchup-visual.md`. Craig: **"matchup layout A is best."**
   between teams and re-pairs within one. The team handicap totals update live.
 - **The tee time is edited on the card** (tap "8:00"), so the groups step no longer has to ask.
 - The later teams/groups steps become confirmations of what the cards decided.
+- **Correction + build order (same day).** Craig asked "shouldnt it just be visual?". A probe showed: for EVEN
+  teams it IS visual. The money step asks "$ / player" and stores × team size, so the engine, every saved
+  game and every payout are unchanged. Only UNEVEN teams pay differently under the rule above (3 v 2 at
+  $10/$10/$10 today: losers −$10 each and winners +$15 each; under §5.dd losers −$30 and winners +$45).
+  **Craig: visual now, uneven later.** Even teams show and ask per player now; uneven teams keep today's
+  payouts and the label keeps "a team"; the uneven payout rule is built later, goldens first.
+- **The standings' money column is per player too** ("+$5 each" on a team row; a team of one has no "each"),
+  on both engines. It's display only: each team's money is already split evenly across its own players.

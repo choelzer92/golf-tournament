@@ -2,7 +2,8 @@
 // stroke play · how a pot pays. One case per money model × format, plus the per-player stake checked
 // against what the engine actually settles (§5.z: an independent oracle, not the label's own math).
 import { describe, expect, it } from 'vitest';
-import { gameLabel, gameTypeName, legsBetLabel, potPaysLabel, teamsWord } from '@/lib/game-label';
+import { gameLabel, gameTypeName, legsBetLabel, potPaysLabel, stakeTeamSizeOf, teamsWord } from '@/lib/game-label';
+import { evenTeamSize, perPlayerAmount, perPlayerField, perTeamAmount } from '@/lib/game-modes/stake-unit';
 import { perPlayerNets } from '@/lib/stats-ledger';
 import type { PoolGame } from '@/lib/pool-game';
 import { makeGame, scoresFor, TEST_PARS } from './fixtures';
@@ -190,5 +191,32 @@ describe('gameTypeName — the short name for an unnamed event or round', () => 
   it('teams + format', () => {
     expect(gameTypeName(makeGame({ indexes: eight, teamCount: 2 }))).toBe('4v4 best net & best gross');
     expect(gameTypeName(teamGame({}))).toBe('2v2 best ball');
+  });
+});
+
+describe('§5.dd: stakes per player (display only)', () => {
+  it('a one-foursome team game with no stored sides reads as the 2v2 the engine plays', () => {
+    const g = { ...makeGame({ indexes: [0, 6, 12, 18], gameMode: 'team-2v2' }), modeSettings: { format: 'best-ball', scoring: 'stroke', result: 'match', moneyModel: 'legs', legFront: 10, legBack: 10, legOverall: 10 } };
+    expect(gameLabel(g)).toBe('$15 Nassau ($5/$5/$5) · 2v2 · best ball · match play');
+    expect(stakeTeamSizeOf(g)).toBe(2);
+  });
+
+  it('team size: even teams only, never a team of one, never a classic pool', () => {
+    expect(evenTeamSize([2, 2])).toBe(2);
+    expect(evenTeamSize([4, 4, 4])).toBe(4);
+    expect(evenTeamSize([3, 2])).toBeNull();
+    expect(evenTeamSize([1, 1])).toBeNull();
+    expect(stakeTeamSizeOf(classicMatch())).toBeNull();
+  });
+
+  it('per player ↔ per team round-trips, so editing a stake never drifts', () => {
+    for (const k of [2, 4]) for (const v of [0, 5, 7.5, 10, 25]) expect(perTeamAmount(perPlayerAmount(v * k, k), k)).toBe(v * k);
+  });
+
+  it('the field reads per player, and a cleared field falls back to the per-player default', () => {
+    const f = perPlayerField({ key: 'legFront', label: 'Front 9 ($)', type: 'number', defaultValue: 10 }, 2);
+    expect([f.label, f.defaultValue]).toEqual(['Front 9 ($ / player)', 5]);
+    expect(perPlayerField({ key: 'dollarsPerHole', label: '$ per hole won', type: 'number', defaultValue: 2 }, 2).label).toBe('$ per hole won (per player)');
+    expect(perPlayerField({ key: 'sideBuyIn', label: 'Buy-in ($ / team)', type: 'number', defaultValue: 20 }, 4).label).toBe('Entry ($ / player)');
   });
 });

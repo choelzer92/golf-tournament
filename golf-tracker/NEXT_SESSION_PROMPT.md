@@ -27,10 +27,11 @@ Done today, each its own commit:
 ## Step 1: build Craig's two picks
 1. **The matchup visual is PICKED: layout A (§5.de).** Match cards on step 2, tap-to-swap any two players
    (across teams too), tee time edited on the card. Build it; plan the step order change first.
-2. **F-121 is DECIDED (§5.dd), so build it:** every amount is per player except a pot's total. Uneven
-   teams: each loser pays the stated $ and the winners share it. A team pot antes per player. Goldens
-   first (3 v 2 zero-sum, mutation-checked), NEW games only (a stamp on modeSettings), and saved games
-   keep per-team. Then the label drops its ÷ team size for the new unit.
+2. **F-121, even teams: BUILT (display only).** Stakes are asked/shown per player (`lib/game-modes/stake-unit.ts`,
+   `ModeSettingsEditor`'s `perPlayer` prop), and the standings read "+$5 each". **Uneven teams: later**
+   (§5.dd). Each loser pays the stated $ and the winners share it; a team pot antes per player. Goldens
+   first (3 v 2 zero-sum, mutation-checked), NEW games only (a stamp on modeSettings), saved games keep
+   per-team. Do it after the match cards unless Craig says otherwise.
 
 ## Step 2: S2 convergence (S2.0–S2.6)
 

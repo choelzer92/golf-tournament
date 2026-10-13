@@ -17,8 +17,9 @@ test.describe('F-016b: close-out asks about legs nobody finished', () => {
     await page.goto(`${BASE}/pool/${id}/leaderboard`);
     await page.waitForLoadState('networkidle');
     const before = await page.locator('body').innerText();
-    // All three legs pay while the game is open: A collects front + back + overall.
-    expect(before).toContain('+$80');
+    // All three legs pay while the game is open: A collects front + back + overall (+$80 for the
+    // pair, shown per player — F-121, §5.dd).
+    expect(before).toContain('+$40 each');
 
     await page.goto(`${BASE}/pool/${id}`);
     await page.waitForLoadState('networkidle');
@@ -42,12 +43,13 @@ test.describe('F-016b: close-out asks about legs nobody finished', () => {
     // The hub says the game has voided legs, so the smaller money isn't mistaken for a bug.
     expect(await page.locator('body').innerText()).toMatch(/legs pay nothing/);
 
-    // Only the completed front nine settles: $10 from each of two losers.
+    // Only the completed front nine settles: $10 from each of two losers, +$20 for the pair = +$10
+    // each (F-121, §5.dd: the money column is per player).
     await page.goto(`${BASE}/pool/${id}/leaderboard`);
     await page.waitForLoadState('networkidle');
     const after = await page.locator('body').innerText();
-    expect(after).toContain('+$20');
-    expect(after).not.toContain('+$80');
+    expect(after).toContain('+$10 each');
+    expect(after).not.toContain('+$40 each');
     // And the board explains WHY, rather than silently showing a smaller number.
     expect(after).toContain('pays nothing — unfinished');
   });
@@ -67,7 +69,7 @@ test.describe('F-016b: close-out asks about legs nobody finished', () => {
 
     await page.goto(`${BASE}/pool/${id}/leaderboard`);
     await page.waitForLoadState('networkidle');
-    expect(await page.locator('body').innerText()).toContain('+$80');
+    expect(await page.locator('body').innerText()).toContain('+$40 each');
   });
 
   test('a fully-scored game is asked nothing', async ({ page }) => {
@@ -190,7 +192,8 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
     // Named exactly as the leaderboard will name them — same resolver.
     expect(body).toMatch(/Craig & \w+/);
     // The stakes in words, so the review confirms what's being played for.
-    expect(body).toContain('$10 front / $10 back / $10 overall');
+    // F-121 (§5.dd): per player — the team's $10 a leg is $5 for each of the two.
+    expect(body).toContain('$5 front / $5 back / $5 overall per player');
     // "Foursomes" is the wrong word for this mode (§5.al).
     expect(body).not.toContain('Foursomes');
     // And the heading isn't a raw HTML entity (it read "Review &amp; create").

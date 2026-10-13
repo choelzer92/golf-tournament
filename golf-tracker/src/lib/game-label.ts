@@ -21,8 +21,9 @@
 import { DEFAULT_MATCH_CONFIG, type PoolGame } from './pool-game';
 import { getGameMode, defaultSettings, type SettingsBag } from './game-modes';
 import { matchesOf, matchSizeOf } from './game-modes/matches';
-import { sidesOfGame } from './game-modes/sides';
+import { sidesForCompute } from './game-modes/context';
 import { gameKindLabel, structureLabel } from './game-structure';
+import { evenTeamSize } from './game-modes/stake-unit';
 
 /** A stake as a golfer says it: "$10", or "$7.50" when a team's stake splits unevenly. */
 function stake(n: number): string {
@@ -129,9 +130,9 @@ function teamGameLabel(game: PoolGame, schemaDefaults: SettingsBag): string {
   const st: SettingsBag = { ...schemaDefaults, ...(game.modeSettings ?? {}) };
   const num = (k: string) => { const n = parseFloat(String(st[k] ?? '')); return Number.isNaN(n) ? 0 : n; };
   const str = (k: string) => String(st[k] ?? '');
-  const sides = sidesOfGame(game);
-  // No stored sides → the tee groups are the teams (as `sidesOfGame`'s consumers read it).
-  const sizes = (sides.length > 0 ? sides.map((s) => s.playerIds) : game.teams.map((t) => t.playerIds)).map((ids) => ids.length);
+  // The teams the engine settles on (stored sides, else the tee groups, else a legacy 2v2's split).
+  const sides = sidesForCompute(game);
+  const sizes = sides.map((s) => s.playerIds.length);
   // §5.db: the team's stake, split evenly across its players — unless the teams differ in size.
   const even = sizes.length > 0 && sizes.every((k) => k === sizes[0]) && sizes[0] > 0;
   const per = (n: number) => (even ? n / sizes[0] : n);
@@ -178,6 +179,14 @@ function teamGameLabel(game: PoolGame, schemaDefaults: SettingsBag): string {
   return [bet, teams, format, play, pays, junk].filter(Boolean).join(' · ');
 }
 
+/** §5.dd: the players on every team of a team-engine game when they're all the same size (else
+ *  null), read off the teams the engine actually settles on. Its stakes show per player then. */
+export function stakeTeamSizeOf(game: PoolGame): number | null {
+  const mode = getGameMode(game.gameMode);
+  if (mode?.category !== 'team-within-group') return null;
+  return evenTeamSize(sidesForCompute(game).map((s) => s.playerIds.length));
+}
+
 /** The one-line game label for a saved (or draft) game. */
 export function gameLabel(game: PoolGame): string {
   const mode = getGameMode(game.gameMode);
@@ -198,7 +207,6 @@ export function gameTypeName(game: PoolGame): string {
     return [teamsWord(game.teams.map((t) => t.playerIds.length)), format].filter(Boolean).join(' ');
   }
   const st: SettingsBag = { ...defaultSettings(mode.settings), ...(game.modeSettings ?? {}) };
-  const sides = sidesOfGame(game);
-  const sizes = (sides.length > 0 ? sides.map((s) => s.playerIds) : game.teams.map((t) => t.playerIds)).map((ids) => ids.length);
+  const sizes = sidesForCompute(game).map((s) => s.playerIds.length);
   return [teamsWord(sizes), FORMAT_WORD[String(st.format ?? '')]].filter(Boolean).join(' ');
 }

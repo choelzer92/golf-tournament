@@ -30,9 +30,10 @@ test('junk POT: the leaderboard bonus board shows points and names the pot, not 
   // F-092 A (§5.bs): the footer names who took the pot.
   await expect(page.getByText(/Junk pot \$20 → .+ \(\d+ pts\)\. Most points takes it/)).toBeVisible();
   // Side A (Craig 3 birdies + Jym) has 3 points to side B's 1: A takes the $20 pot, anted $10 each.
-  // Legs are $10 each and A leads every leg thru 9 (front + overall) → +20 legs +10 junk = +30.
+  // Legs are $10 each and A leads every leg thru 9 (front + overall) → +20 legs +10 junk = +30 for the
+  // team, which the money column shows per player (F-121, §5.dd): +$15 each.
   const body = await page.locator('body').innerText();
-  expect(body).toMatch(/\+\$30/);
+  expect(body).toMatch(/\+\$15 each/);
   await page.screenshot({ path: 'e2e/screenshots/phase3-junk-pot-leaderboard.png', fullPage: true });
 });
 

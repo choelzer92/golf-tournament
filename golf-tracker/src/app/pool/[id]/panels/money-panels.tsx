@@ -8,7 +8,8 @@ import { type GameScore } from '@/lib/game-state';
 import { fetchGameScores } from '@/lib/tournament-state';
 import { getGameMode, buildGameModeContext, settingValue } from '@/lib/game-modes';
 import { gameRollups, settleUp } from '@/lib/stats-ledger';
-import { legsBetLabel } from '@/lib/game-label';
+import { legsBetLabel, stakeTeamSizeOf } from '@/lib/game-label';
+import { perPlayerAmount } from '@/lib/game-modes/stake-unit';
 
 export function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
   const indMode = getGameMode(game.gameMode);
@@ -236,13 +237,16 @@ export function GameCloseOut({ game, onSave, onRunItBack }: {
       if (mode?.category !== 'team-within-group') { setShortLegs([]); return; }
       const result = mode.compute(buildGameModeContext(game, byMatchup));
       const s = game.modeSettings ?? {};
+      // §5.dd: the leg's stake as one player's share when the teams are even (display only).
+      const k = stakeTeamSizeOf(game);
+      const per = (n: number) => (k ? perPlayerAmount(n, k) : n);
       setShortLegs(incompleteLegsForCloseOut(
         result.teamLegs ?? [],
         String(s.moneyModel ?? 'legs'),
         {
-          front: Number(s.legFront ?? 10),
-          back: Number(s.legBack ?? 10),
-          overall: Number(s.legOverall ?? 10),
+          front: per(Number(s.legFront ?? 10)),
+          back: per(Number(s.legBack ?? 10)),
+          overall: per(Number(s.legOverall ?? 10)),
         },
       ));
     });
@@ -328,7 +332,7 @@ export function GameCloseOut({ game, onSave, onRunItBack }: {
                   />
                   <span>
                     <span className="block text-sm font-medium text-gray-900">
-                      {leg.label} — ${Math.round(leg.dollars)} pays nothing
+                      {leg.label} — ${Math.round(leg.dollars * 100) / 100}{stakeTeamSizeOf(game) ? ' a player' : ''} pays nothing
                     </span>
                     <span className="block text-xs text-gray-600">
                       {leg.thru} of {leg.holes} holes played by every team

@@ -23,7 +23,7 @@ Status flow: `open` → `chosen: X` → `fixed (commit)` → `verified (e2e)`
 
 ## Open
 
-### F-121 — A team game's "$10 a leg" is per TEAM, a classic match's is per PLAYER (2026-10-13)  [P2] [beta #6] — **DECIDED 2026-10-13 (§5.dd): per player everywhere except a pot's total; build goldens-first, new games only**
+### F-121 — A team game's "$10 a leg" is per TEAM, a classic match's is per PLAYER (2026-10-13)  [P2] [beta #6] — **EVEN TEAMS BUILT 2026-10-13 (§5.dd, display only): stakes asked/shown per player, standings "+$5 each"; uneven-team payout rule waits (goldens first)**
 
 Found while building F-115's label. The classic head-to-head pool's legs are per player (`legDollars`,
 `pool-game.ts:141`; its money step says "Match Payouts ($ / player)"). The team game (sides engine) settles

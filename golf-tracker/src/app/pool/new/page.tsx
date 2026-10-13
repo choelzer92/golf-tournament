@@ -76,6 +76,7 @@ import {
 } from '@/lib/game-modes/sides';
 import { getGameMode, defaultSettings, defaultSettingsForField, formatSummaryLine, GAME_MODES, modeFits, type SettingsBag } from '@/lib/game-modes';
 import { gameLabel, gameTypeName } from '@/lib/game-label';
+import { evenTeamSize } from '@/lib/game-modes/stake-unit';
 // The wizard's steps, one file each (context economy, 2026-09-14): page.tsx keeps
 // the state + step routing; every step component lives in ./steps/.
 import { proposePlayingGroups, type PotDollars } from './steps/shared';
@@ -340,6 +341,8 @@ export default function NewPoolGamePage() {
       : savedModeSettings ?? modeSettings,
     parseFloat(entryPerPlayer) || 0,
     { allowance: parseAllowance(handicapAllowance), strokeMethod, handicapBasis },
+    // §5.dd: even teams state the team engine's stakes per player.
+    container === 'sides' ? evenTeamSize(((sides ?? []).length > 0 ? sides! : teams).map((t) => t.playerIds.length)) : null,
   );
 
 

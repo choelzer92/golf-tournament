@@ -36,8 +36,9 @@ test('F-037: the board shows team match points and one row per match, with the p
 
   const text = await page.locator('body').innerText();
   const standings = text.slice(text.indexOf('STANDINGS'), text.indexOf('MATCHES'));
-  expect(standings).toMatch(/The Hogs[\s\S]*\b2\b[\s\S]*\+\$20/);
-  expect(standings).toMatch(/The Dawgs[\s\S]*−\$20/);
+  // F-121 (§5.dd): the money column is per player — the $20 team pot is $5 for each of the four.
+  expect(standings).toMatch(/The Hogs[\s\S]*\b2\b[\s\S]*\+\$5 each/);
+  expect(standings).toMatch(/The Dawgs[\s\S]*−\$5 each/);
   await page.screenshot({ path: 'e2e/screenshots/f037-board.png', fullPage: true });
 });
 

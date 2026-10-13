@@ -25,6 +25,7 @@ import type { WolfHoleLine, NassauLegLine, JunkLine, MatchLine, PotSliceLine, Se
 import { JUNK_SETTINGS, junkPayout, numberSetting } from '@/lib/game-modes/settings';
 import { computeGameResult, isModeEngineGame } from '@/lib/game-modes/result';
 import { defaultSideLabel, sideOfPlayer, sidesOfGame } from '@/lib/game-modes/sides';
+import { sidesForCompute } from '@/lib/game-modes/context';
 import { CardBoardToggle } from '@/components/card-board-toggle';
 
 const LEG_LABELS: Record<PoolLegKey, string> = {
@@ -400,7 +401,8 @@ export default function PoolLeaderboardPage() {
                   <div className="flex items-center gap-2">
                     {payout && payout.net !== 0 && (
                       <span className={`text-xs font-medium ${payout.net > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {money(payout.net)}
+                        {/* §5.dd: a team row shows one player's money (the team's is split evenly). */}
+                        {teamDetail && teamDetail.players.length > 1 ? `${money(payout.perPersonNet)} each` : money(payout.net)}
                       </span>
                     )}
                     <span className="text-gray-600 text-xs">{isTeamExpanded ? '▾' : '▸'}</span>
@@ -987,6 +989,8 @@ function IndividualLeaderboard({ id }: { id: string }) {
   // collection so a 3+ side game labels every player, not just the first two (it used to read
   // game.subTeams directly and hard-code a/b).
   const gameSides = isWithinGroup ? sidesOfGame(game) : [];
+  // Each team's size as the engine settles it, keyed by side id, for the per-player money column.
+  const teamSizeById = new Map<string, number>(isWithinGroup ? sidesForCompute(game).map((t) => [t.id, t.playerIds.length] as [string, number]) : []);
   const sideOf = isWithinGroup && result?.sideLabels
     ? (playerId: string): { label: string; sideId: string } | null => {
         const found = sideOfPlayer(gameSides, playerId);
@@ -1114,7 +1118,12 @@ function IndividualLeaderboard({ id }: { id: string }) {
                           })()}
                           <td className="text-center px-2 py-1.5 text-gray-400">{s.thru || '-'}</td>
                           <td className={`text-right px-3 py-1.5 font-medium ${s.moneyNet > 0 ? 'text-green-400' : s.moneyNet < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                            {money(s.moneyNet)}
+                            {/* §5.dd: a team row shows one player's share; the engine splits a team's
+                                money evenly across its players (perPlayerNets). */}
+                            {(() => {
+                              const size = isWithinGroup ? (teamSizeById.get(s.playerId.toLowerCase()) ?? 1) : 1;
+                              return size > 1 ? `${money(s.moneyNet / size)} each` : money(s.moneyNet);
+                            })()}
                           </td>
                         </tr>
                         {canExpand && isOpen && (

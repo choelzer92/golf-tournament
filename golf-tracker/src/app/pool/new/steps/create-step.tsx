@@ -22,6 +22,7 @@ import { getGameMode, fitExplanation, formatSummaryLine, playerRangeText, type S
 import { sideNameFrom, allSidesAreSolo, MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
 import { GROSS_HIDES, isGross } from '@/components/net-gross-switch';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
+import { evenTeamSize, perPlayerAmount, TEAM_STAKE_KEYS } from '@/lib/game-modes/stake-unit';
 import { HandicapChip } from '@/components/handicap-chain';
 import { type Container, type MoneyModel, type MoneyModelOption } from '@/lib/game-structure';
 import { type PotDollars, foldJunkStrings, legDollarsToStrings, potDollarsTotal } from './shared';
@@ -44,7 +45,8 @@ const SIDES_STAKES_KEYS = new Set([
 // (§5.bq one vocabulary); these are only the payout: per point or a junk pot, and the pot's junk share.
 const SIDES_JUNK_KEYS = new Set(['junkPayout', 'junkPerPoint', 'junkPot', 'potJunk', 'junkBasis']);
 
-function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
+// `teamSize` (even teams only, §5.dd): state the stakes per player; otherwise per team.
+function sideMoneySummary(settings: SettingsBag, sideCount: number, teamSize: number | null = null): string {
   const num = (key: string, fallback: number) => {
     const v = settings[key];
     const n = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
@@ -52,6 +54,8 @@ function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
   };
   const model = String(settings.moneyModel ?? 'legs');
   const many = sideCount > 2;
+  const each = (perTeam: number) => (teamSize ? perPlayerAmount(perTeam, teamSize) : perTeam);
+  const unit = teamSize ? ' per player' : '';
   switch (model) {
     case 'pot': {
       const buyIn = num('sideBuyIn', 20);
@@ -66,22 +70,23 @@ function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
         .filter(([k]) => shares[k] > 0 && total > 0)
         .map(([k, label]) => `$${dollars(shares[k])} ${label}`);
       const sliced = slices.length > 1 ? ` — ${slices.join(' · ')}` : '';
-      // §5.ag: the ante is PER TEAM whatever its size, which is the surprising part worth saying.
-      return `$${buyIn} per team in the pot ($${pot} total)${sliced}. `
-        + `${split === '100' ? (slices.length > 1 ? 'Best team takes each slice' : 'Best team takes it all') : `Each slice paid ${split} down the order`}; ties split. `
-        + 'Each team antes the same, whatever its size.';
+      // §5.ag: the ante is PER TEAM whatever its size, which is the surprising part worth saying —
+      // unless the teams are even, when it's simply each player's entry (§5.dd).
+      return `${teamSize ? `$${each(buyIn)} each` : `$${buyIn} per team`} in the pot ($${pot} total)${sliced}. `
+        + `${split === '100' ? (slices.length > 1 ? 'Best team takes each slice' : 'Best team takes it all') : `Each slice paid ${split} down the order`}; ties split.`
+        + (teamSize ? '' : ' Each team antes the same, whatever its size.');
     }
     case 'per-hole': {
       const d = num('dollarsPerHole', 2);
-      return `$${d} a hole won${many ? ', against each other team' : ''}.`;
+      return `$${each(d)} a hole won${unit}${many ? ', against each other team' : ''}.`;
     }
     case 'per-point': {
       const d = num('dollarsPerPoint', 1);
-      return `$${d} per point of margin${many ? ', against each other team' : ''}.`;
+      return `$${each(d)} per point of margin${unit}${many ? ', against each other team' : ''}.`;
     }
     default: {
       const f = num('legFront', 10), b = num('legBack', 10), o = num('legOverall', 10);
-      return `$${f} front / $${b} back / $${o} overall`
+      return `$${each(f)} front / $${each(b)} back / $${each(o)} overall${unit}`
         + (many ? ' — each leg paid to the winner by every team behind.' : '.');
     }
   }
@@ -239,6 +244,9 @@ export function CreateStep({
 
   // F-037: a matches game names its matches, as the hub's label does.
 
+  // §5.dd: with even teams the team engine's stakes are asked per player (stored × team size).
+  const stakeTeamSize = container === 'sides' ? evenTeamSize(((sides ?? []).length > 0 ? sides! : teams).map((t) => t.playerIds.length)) : null;
+
   return (
     <div>
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
@@ -268,7 +276,7 @@ export function CreateStep({
                   allowance: handicapAllowance,
                   strokeMethod,
                   handicapBasis,
-                })}
+                }, stakeTeamSize)}
               </p>
               {/* §5.ax part 4: the summary line IS the format — offer to keep it, right here. */}
               <button
@@ -381,6 +389,7 @@ export function CreateStep({
             schema={mode.settings}
             values={{ ...modeSettings, junkEnabled: !junkIsOff(junkValues) }}
             onChangeAction={(key, value) => setModeSettings({ [key]: value })}
+            perPlayer={stakeTeamSize ? { keys: TEAM_STAKE_KEYS, teamSize: stakeTeamSize } : undefined}
             hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_STAKES_KEYS.has(k)
               // A payout choice that only bites with 3+ teams is not asked of a smaller game.
               || (MULTI_TEAM_ONLY_KEYS.has(k) && (sides ?? []).length < 3))}
@@ -664,6 +673,7 @@ export function CreateStep({
             schema={mode.settings}
             values={{ ...modeSettings, junkEnabled: !junkIsOff(junkValues) }}
             onChangeAction={(key, value) => setModeSettings({ [key]: value })}
+            perPlayer={stakeTeamSize ? { keys: TEAM_STAKE_KEYS, teamSize: stakeTeamSize } : undefined}
             hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_JUNK_KEYS.has(k)
               || (isGross(handicapAllowance) && GROSS_HIDES.includes(k)))}
           />
@@ -722,7 +732,7 @@ export function CreateStep({
             </div>
             {/* The stakes, in words. A review step that shows the pairings but not what they're
                 playing for is only half a confirmation. */}
-            <p className="text-xs text-gray-500 mt-2">{sideMoneySummary(modeSettings, sides.length)}</p>
+            <p className="text-xs text-gray-500 mt-2">{sideMoneySummary(modeSettings, sides.length, stakeTeamSize)}</p>
             {players.some((p) => !sides.some((s) => s.playerIds.includes(p.id))) && (
               <p className="text-xs text-amber-700 mt-1">
                 {players.filter((p) => !sides.some((s) => s.playerIds.includes(p.id)))

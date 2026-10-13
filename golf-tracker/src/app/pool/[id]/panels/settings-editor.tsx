@@ -11,6 +11,8 @@ import { fromLegacySubTeams, moveToSide, nextSideId, sideOfPlayer, sidesOfGame, 
 import { fetchGameScores } from '@/lib/tournament-state';
 import { getGameMode, GAME_MODES, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
+import { TEAM_STAKE_KEYS } from '@/lib/game-modes/stake-unit';
+import { stakeTeamSizeOf } from '@/lib/game-label';
 import { SideNames } from '@/components/side-names';
 import { NumberField } from './shared';
 import { GROSS_HIDES, NetGrossSwitch, isGross, netAllowance } from '@/components/net-gross-switch';
@@ -98,6 +100,7 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
   // the mode's own toggleable options (+ a Sides editor for 2v2). No pot/match/
   // ball/team settings apply.
   const indMode = getGameMode(game.gameMode);
+  const stakeTeamSize = stakeTeamSizeOf(game);
   if (indMode && (indMode.category === 'individual' || indMode.category === 'team-within-group')) {
     const isWithinGroup = indMode.category === 'team-within-group';
     const modeSettings = game.modeSettings ?? defaultSettings(indMode.settings);
@@ -214,6 +217,8 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
               schema={indMode.settings}
               values={modeSettings}
               onChangeAction={setModeSetting}
+              // §5.dd: even teams see the team engine's stakes per player (stored × team size).
+              perPlayer={stakeTeamSize ? { keys: TEAM_STAKE_KEYS, teamSize: stakeTeamSize } : undefined}
               lockOptionAction={lockModeOption}
               lockNoteAction={lockModeNote}
               /* Side names left the settings schema (F-014), so they need no hiding here. The one
