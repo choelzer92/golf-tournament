@@ -59,7 +59,7 @@ computing, Q1). Run both corpus harnesses before and after every slice.
 - The branding/design session: theme, icon, name.
 
 ## Settled (don't re-ask)
-§5.da–§5.dc (today's answers), §5.cw–§5.cz. Earlier: see DECISIONS.md.
+§5.da–§5.dd (today's answers), §5.cw–§5.cz. Earlier: see DECISIONS.md.
 
 ## Machine notes
 - Python on this machine writes cp1252 + CRLF by default. Pass `encoding='utf-8', newline='\n'` to
