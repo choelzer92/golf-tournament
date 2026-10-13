@@ -2601,3 +2601,18 @@ Asked one at a time, (e) first because it's an access change.
   what links to it, which routes only it reaches, and what exists elsewhere. The GHIN and course
   lookups MUST survive whatever is chosen. Options go to Craig before any change. Lesson: inventory a
   whole surface before proposing to remove it (§5.y).
+
+### 5.cx — Lookups page, GHIN add on the group page, and F-113 (2026-10-12)
+
+- **The dashboard (§5.cw d) is kept, as the LOOKUPS:** Course Lookup plus a read-only "look up any
+  golfer" by name or GHIN number. Copies of Home's content leave. Game headers and not-found fallbacks
+  go to Home. Craig: "the ghin and course search are extremely necessary"; the GHIN refresh for games
+  is untouched (it lives in the wizard, roster and hub). Built: a8d3a3b, 525c08b.
+- **F-110 A:** the header's Link fills in your missing index and never your identity (293b06d).
+- **F-111:** Craig: "in terms of setting up games, adding players to groups, we need to be able to
+  use the ghin to find users handicaps." The group page gets the shared add-player panel (7436d39).
+- **The old builders:** Money Game and Quick game can go once proven in the wizard (the Money Game
+  never paid its dollars, F-112); Team tournament stays until the Event points rollup. Logged on
+  Craig's word: the custom Stableford scale for TEAM games (BACKLOG, after-beta).
+- **F-113 (P1 money): fix it,** goldens/e2e first. **Live games: count them READ-ONLY** (no writes);
+  Craig decides game by game, and any correction is a separate approved step (§5.be).

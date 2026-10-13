@@ -1464,6 +1464,33 @@ A and C combine. Tag: [beta #1]. **Craig picked A + C (§5.cl).**
 
 ---
 
+### F-113 — The wizard drops "Hole by hole (match play)" on a classic head-to-head game: its legs settle on stroke totals (2026-10-12)  [P1 money] [beta #6] — **FIXED 2026-10-12; no live game affected**
+
+Found by the F-109 builder check (`e2e/f109-money-game-in-wizard.spec.ts`, which fails on today's code).
+The router builds the right config: `routedFields` (`game-structure.ts:605`) sets
+`matchConfig.scoring = 'holes'` when the scoring step says match play. Then `createPoolGame`
+(`pool/new/page.tsx:806`) overwrites `matchConfig` with `buildMatchConfig()` (~716), which returns
+only `legDollars` and `junkPerPoint`. `scoring` is lost, and `computePoolResult` treats a missing
+value as `'stroke'` (`pool-game.ts` ~2266). So a 2-team, teams-of-4, head-to-head ("legs") game set
+up as "Hole by hole (match play)" pays each leg to the LOWER TOTAL, not the team that won more holes.
+The saved format path (`page.tsx` ~551) uses the same `buildMatchConfig`, and so does ~745.
+**Since 2026-09-16** (c6c45f2, the collapse; it shipped to main and the friends use it). Not affected:
+pot games, and the sides/matches engines. **An existing game can be corrected by hand:** the hub's
+settings editor has a Stroke / "Match play (holes won)" toggle (`settings-editor.tsx:414`).
+
+**Fix (proposed):** `buildMatchConfig()` keeps the router's `scoring` (and `pointsPerHole`), e.g.
+`{ ...DEFAULT_MATCH_CONFIG, scoring: compareBy === 'match' ? 'holes' : 'stroke', legDollars, junkPerPoint }`.
+The e2e then passes. A unit golden is needed: the same scores where holes-won and the total disagree.
+**Live games, counted READ-ONLY 2026-10-12** (Craig approved; `.claude/f113/count.mjs`, SELECT
+only): 68 pool games; 8 are classic 2-team head-to-head. **None was hit.** The 4 without `scoring` are
+from 2026-07-29/30, before match-play scoring existed (07-31), so they're stroke-total games as they
+were meant to be. The other 4 carry `scoring=holes`, including the only one made after the
+collapse (2026-09-18, "The Big Boss Invitational"). No backfill needed.
+
+**FIXED 2026-10-12:** `buildMatchConfig()` carries `scoring` + `pointsPerHole`. Pinned by
+`e2e/f109-money-game-in-wizard.spec.ts` (fails before, passes after) and
+`src/test/f113-match-scoring-kept.test.ts` (on these scores the setting is a $30-a-player swing).
+
 ### F-112 — The old builders offer settings that nothing scores: auto-press, and quick-game skins money (2026-10-12)  [P2] [beta #6]
 
 Found by the builder check for §5.cw d. "Auto-press when 2 down" (`formats.ts` 162-166 and 180-184;

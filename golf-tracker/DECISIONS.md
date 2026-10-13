@@ -211,6 +211,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.cu | 2026-10-12: Series = games stamped `series {id, name, rollup, seq}` in the pool_games jsonb (no migration); the member is a ROUND (several per day possible, two games on one round both count), columns grouped by date, explicit seq; "Add a round", not "Next day" |
 | 5.cv | 2026-10-12: Series is called "Event" on screen; starts from the group page ("Start an event") AND the wizard Review ("Part of an event?"); replaces Home's legacy "Multi-round event" for NEW play; "Add round N" on the event screen + every round hub (organizer, live or finished); TOTAL = finished rounds, live round + total labelled "Projected"; §5.ck Home-by-group built in the same branch |
 | 5.cw | 2026-10-12: Event follow-ups — (e) guests on a round link see the event standings (keep); (a) "Not started" until a score (derived; no Projected, no Continue card); (b) organizer Rename on the event screen rewrites every round's stamp; (c) group page: one event row, rounds nested; (d) dashboard retirement ON HOLD: investigate every dependency first; its GHIN lookup + Course Lookup are "extremely necessary" and must survive; options to Craig before any change |
+| 5.cx | 2026-10-12: dashboard KEPT as the Course & GHIN lookup page (any golfer by name/#, read-only); headers + not-found go to Home; F-110 A; F-111 group page adds by GHIN; Money Game + Quick game may go once proven in the wizard, Team tournament stays; F-113 fix approved, live games counted READ-ONLY only |
 
 ---
 
