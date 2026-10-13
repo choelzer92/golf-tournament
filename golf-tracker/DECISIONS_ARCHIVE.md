@@ -2702,3 +2702,18 @@ F-116 follow-up to §5.da ("dates are OPTIONAL"):
 - **The wizard's date field starts BLANK** ("Date (optional)"); nothing is suggested.
 - The §5.cp "two games on one round" golden is hypothetical until that feature is built. When it is, the
   second game shares its round's slot.
+
+### 5.dd — Money amounts are PER PLAYER, except the size of the whole pot (2026-10-13)
+
+F-121 (a team game's stakes were per TEAM, a classic match's per PLAYER). Craig: **"the money amount should be
+per player unless its showing the size of the overall pot."** Every $ the app asks for or shows (legs, $/hole,
+$/point, junk, an entry) means what ONE PLAYER wins or risks; only a pot's total ("$200 pot") is a whole-game
+figure. How the team game gets there, and uneven teams, are asked separately (below, when answered).
+- **Uneven teams, fixed stakes (legs, $/hole, $/point, junk):** every LOSER pays the stated amount and the
+  winners share it evenly. 3 v 2 at $10: the Hogs (3) lose → each −$10, each Dawg +$15; the Dawgs lose →
+  each −$10, each Hog +$6.67. Zero-sum, and nobody risks more than the stated amount.
+- **A team pot antes PER PLAYER** ("$25 each"; the label reads "$125 pot ($25 each)"), like the classic pool.
+  This replaces §5.ag's per-team buy-in: with uneven teams the bigger team puts in more for the same prize,
+  and the money step says so.
+- Build: goldens first (§5.z); NEW games only carry the per-player unit, and saved games keep computing as
+  they were (the S2 Q1 precedent, §5.cs).

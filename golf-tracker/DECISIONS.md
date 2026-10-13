@@ -217,6 +217,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.da | 2026-10-13: the game label always names the FORMAT (best ball too) + total risked, Nassau/holes, teams, match or stroke play (Stableford either way); step 2 matches = opt A, but decided EARLY with a movable matchup visual (design first); event dates OPTIONAL; phone standings clear and inviting (design session); pot label = whole pot (entry) + how it pays (split or winner-take-all); matchup visual = design note next session; front+back only = "$40 front & back ($20/$20)" |
 | 5.db | 2026-10-13: F-115 label details — total risked = what ONE PLAYER risks (team-game legs are per team, so a 2v2 at $10/leg reads "$15 Nassau ($5/$5/$5)"; no math change); two even teams = "2v2"/"4v4", 3+ = "3 teams of 4"; split next to the bet; the legs model is "Bet per nine & overall", the hub money card heads with the bet |
 | 5.dc | 2026-10-13: F-116 — event rounds run in SET-UP order (seq), movable on the event screen; a date is optional (wizard field starts blank) and only heads consecutive same-day rounds |
+| 5.dd | 2026-10-13: F-121 — every money amount is PER PLAYER, except a pot's total size. Uneven teams: each loser pays the stated $ and the winners share it (3 v 2 at $10: −$10 each / +$15 each). A team pot antes per player (replaces §5.ag's per-team buy-in). New games only; goldens first |
 
 ---
 

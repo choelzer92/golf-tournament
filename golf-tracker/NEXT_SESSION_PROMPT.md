@@ -26,8 +26,10 @@ Done today, each its own commit:
 
 ## Step 1: Craig's picks (ask outright, §5.bo)
 1. **The matchup visual:** A, B or C, plus the note's two smaller questions. Then build what he picks.
-2. **F-121:** team-game stakes are per team. A = label the inputs "$ / team", B = per-player stakes for
-   new games (a money change, goldens first), C = leave it.
+2. **F-121 is DECIDED (§5.dd), so build it:** every amount is per player except a pot's total. Uneven
+   teams: each loser pays the stated $ and the winners share it. A team pot antes per player. Goldens
+   first (3 v 2 zero-sum, mutation-checked), NEW games only (a stamp on modeSettings), and saved games
+   keep per-team. Then the label drops its ÷ team size for the new unit.
 
 ## Step 2: S2 convergence (S2.0–S2.6)
 
@@ -50,7 +52,7 @@ computing, Q1). Run both corpus harnesses before and after every slice.
 
 ## Waiting on Craig (don't guess)
 - Merging `series-2026-10-12`.
-- The matchup-visual pick; F-121; F-114 in the design session.
+- The matchup-visual pick; F-114 in the design session.
 - Presses: the eight design questions.
 - Saved formats carrying the pot split.
 - His phone walk of F-037 (which closes the P1) and of the Event.
