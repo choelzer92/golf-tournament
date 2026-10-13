@@ -65,13 +65,13 @@ block.
 | # | Status | Last moved |
 |---|---|---|
 | 2/3 | §5.ck Home-by-group BUILT 2026-10-12: live Continue on top, each group's latest game or event, then Other games | 2026-10-12 |
-| 4 | §5.cb visibility built + e2e (14cd287); F-104 A closes owner-less creates | 2026-10-05 |
+| 4 | §5.cb visibility built + e2e (14cd287); F-104 A closes owner-less creates; F-110: the GHIN Link no longer wipes who you are (293b06d) | 2026-10-12 |
 | 7 | D1, D3, D4 (light), D5 done; the icon/name and theme wait on branding / §7 q4 | 2026-10-05 |
-| 1 | B3 + F-105: Create is the share moment (745688c); B9: Close out / Finish hidden until a score exists (f7fe1ec); hide-holes in the wizard (477b1f9). The persona walk with tap counts is not done yet | 2026-10-05 |
+| 1 | B3 + F-105: Create is the share moment (745688c); B9: Close out / Finish hidden until a score exists (f7fe1ec); hide-holes in the wizard (477b1f9); F-111 the group page adds new players by GHIN (7436d39); game headers go to Home. The persona walk with tap counts is not done yet | 2026-10-12 |
 | 3 | B1 Run it back built (97fe68e, d99a8db): hub button on a finished game + "Start from a recent game". It's 1 tap plus Next × 6 rather than 2, because Craig chose to walk the steps (§5.cm). Not yet measured by a persona walk | 2026-10-05 |
 | 9 | F-037 BUILT as Team → Match (§5.co, T0–T4 + polish, F-106/F-107). No other open P1. It closes after Craig's phone walk | 2026-10-12 |
-| 11 | The EVENT (a Series) is BUILT on `series-2026-10-12` (§5.cu/§5.cv): it starts from a group or at Review, has "+ Add round N", and a standings page with Total / Projected / one settle-up. The 3-day persona walk (the measure) is not done yet | 2026-10-12 |
-| 6 | The ledger plays the round's real handicap (§5.cs Q3; T0's split round had ~double strokes). F-108: no stroke cap, max index 54.0. The stroke vs match play check is still open | 2026-10-12 |
+| 11 | The EVENT is BUILT on `series-2026-10-12` (§5.cu/§5.cv) and its follow-ups are done (§5.cw): a round set up ahead reads "Not started", Rename, one row per event on the group page, and guests see the standings. The 3-day persona walk (the measure) is NEXT SESSION | 2026-10-12 |
+| 6 | The ledger plays the round's real handicap (§5.cs Q3). F-108: no stroke cap, max index 54.0. **F-113 [P1] fixed:** the wizard dropped "Hole by hole" on head-to-head games (none live affected). F-112: dead legacy settings hidden. Presses added as [beta] (§5.cy). The stroke vs match play check is still open | 2026-10-12 |
 | others | not yet measured | n/a |
 
 ## 5. The one-time backlog comb
