@@ -2624,3 +2624,24 @@ do (and work, `game-modes/skins.ts`); presses exist nowhere (F-112). Craig: **"a
 an auto press, but a button mid match you can click to press."** BACKLOG carries the design questions
 (which games, who may press, accept or automatic, press of a press, carry to the back, stake, who
 taps, undo). They're asked before any code; it's money math, so goldens come first.
+
+### 5.cz — The bar #11 walk's findings (2026-10-13)
+
+The 3-day event walk (`e2e/event-walk.spec.ts`, FINDINGS "Bar #11 walk record") logged F-114 to F-120.
+Craig's answers:
+- **F-114 (standings clipped on a phone):** leaning sticky Player + Total with the rounds scrolling,
+  but **"lets go over this in the design session."** Not built.
+- **F-115 ("head-to-head" means two things):** wants it clear, and leans to renaming the money model,
+  but **not "Nassau"**: "is it only nassau? what if there isnt a nassau and its just overall?" (the legs
+  model also covers an overall-only bet). He doesn't like "matches inside the foursome" for step 2.
+  OPEN: bring new names for both.
+- **F-116 (36-hole-day date):** "I think we may need to re think this, im not sure dates have to be
+  included. i think it makes more sense to just set up the rounds and then play them." A DESIGN
+  rethink of §5.cu's date columns. BACKLOG, not built.
+- **F-117:** an event round's default name is **"game type – course"**, shown as Round 1, Round 2, ...
+- **F-118:** "You should be able to name an event, offering a name slot when creating, but if no name
+  given, just call it 'type of game - course being played'". The slot stays on Review; a blank name
+  falls back to the game-kind label + course, and the slot shows it as its placeholder.
+- **F-119:** fix a+b (closed hub), c (score pad wrap), d+e (step 1 on later rounds). g (the date hint)
+  is dropped, since F-116 may remove dates.
+- **F-120 A:** the classic-pool summary reads its money mode (legs, or pot), with a unit test per mode.

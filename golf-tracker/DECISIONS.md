@@ -213,6 +213,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.cw | 2026-10-12: Event follow-ups — (e) guests on a round link see the event standings (keep); (a) "Not started" until a score (derived; no Projected, no Continue card); (b) organizer Rename on the event screen rewrites every round's stamp; (c) group page: one event row, rounds nested; (d) dashboard retirement ON HOLD: investigate every dependency first; its GHIN lookup + Course Lookup are "extremely necessary" and must survive; options to Craig before any change |
 | 5.cx | 2026-10-12: dashboard KEPT as the Course & GHIN lookup page (any golfer by name/#, read-only); headers + not-found go to Home; F-110 A; F-111 group page adds by GHIN; Money Game + Quick game may go once proven in the wizard, Team tournament stays; F-113 fix approved, live games counted READ-ONLY only |
 | 5.cy | 2026-10-12: presses are [beta]: a manual "Press" button mid-match, NOT auto-press; design questions in BACKLOG asked before code, goldens first |
+| 5.cz | 2026-10-13: bar #11 walk — F-120 A (summary reads moneyMode); F-118 blank event name = "game type – course"; F-117 rounds default to the same label; F-119 a–e fixed, g dropped; F-114 → design session; F-115 OPEN (not "Nassau": overall-only exists; not "inside the foursome"); F-116 RETHINK dates (set up the rounds, then play them) |
 
 ---
 
