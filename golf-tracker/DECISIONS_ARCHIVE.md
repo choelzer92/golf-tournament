@@ -2616,3 +2616,11 @@ Asked one at a time, (e) first because it's an access change.
   Craig's word: the custom Stableford scale for TEAM games (BACKLOG, after-beta).
 - **F-113 (P1 money): fix it,** goldens/e2e first. **Live games: count them READ-ONLY** (no writes);
   Craig decides game by game, and any correction is a separate approved step (§5.be).
+
+### 5.cy — Presses go on the beta list as a manual "Press" button, not auto-press (2026-10-12)
+
+Asked whether the old builders' dead settings exist in the wizard: skins carryover and $ per skin
+do (and work, `game-modes/skins.ts`); presses exist nowhere (F-112). Craig: **"add to beta list, not
+an auto press, but a button mid match you can click to press."** BACKLOG carries the design questions
+(which games, who may press, accept or automatic, press of a press, carry to the back, stake, who
+taps, undo). They're asked before any code; it's money math, so goldens come first.
