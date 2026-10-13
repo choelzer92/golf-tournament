@@ -24,8 +24,9 @@ Done today, each its own commit:
 - **The matchup-visual design note:** `.claude/plans/matchup-visual.md` (A match cards, recommended;
   B ladder; C split).
 
-## Step 1: Craig's picks (ask outright, §5.bo)
-1. **The matchup visual:** A, B or C, plus the note's two smaller questions. Then build what he picks.
+## Step 1: build Craig's two picks
+1. **The matchup visual is PICKED: layout A (§5.de).** Match cards on step 2, tap-to-swap any two players
+   (across teams too), tee time edited on the card. Build it; plan the step order change first.
 2. **F-121 is DECIDED (§5.dd), so build it:** every amount is per player except a pot's total. Uneven
    teams: each loser pays the stated $ and the winners share it. A team pot antes per player. Goldens
    first (3 v 2 zero-sum, mutation-checked), NEW games only (a stamp on modeSettings), and saved games
@@ -52,14 +53,14 @@ computing, Q1). Run both corpus harnesses before and after every slice.
 
 ## Waiting on Craig (don't guess)
 - Merging `series-2026-10-12`.
-- The matchup-visual pick; F-114 in the design session.
+- F-114 in the design session.
 - Presses: the eight design questions.
 - Saved formats carrying the pot split.
 - His phone walk of F-037 (which closes the P1) and of the Event.
 - The branding/design session: theme, icon, name.
 
 ## Settled (don't re-ask)
-§5.da–§5.dd (today's answers), §5.cw–§5.cz. Earlier: see DECISIONS.md.
+§5.da–§5.de (today's answers), §5.cw–§5.cz. Earlier: see DECISIONS.md.
 
 ## Machine notes
 - Python on this machine writes cp1252 + CRLF by default. Pass `encoding='utf-8', newline='\n'` to

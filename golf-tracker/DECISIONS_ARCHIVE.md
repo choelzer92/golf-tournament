@@ -2717,3 +2717,13 @@ figure. How the team game gets there, and uneven teams, are asked separately (be
   and the money step says so.
 - Build: goldens first (§5.z); NEW games only carry the per-player unit, and saved games keep computing as
   they were (the S2 Q1 precedent, §5.cs).
+
+### 5.de — The matchup visual: layout A, match cards on step 2 (2026-10-13)
+
+From `.claude/plans/matchup-visual.md`. Craig: **"matchup layout A is best."**
+- Step 2 asks "How do the teams play each other?" (whole teams / pairs / one on one, default first), and right
+  under it shows the MATCH CARDS: one card per tee group, saying who plays whom, auto-dealt and balanced.
+- **Tap a player, then any other player, to swap them**, across teams too. One gesture moves players
+  between teams and re-pairs within one. The team handicap totals update live.
+- **The tee time is edited on the card** (tap "8:00"), so the groups step no longer has to ask.
+- The later teams/groups steps become confirmations of what the cards decided.
