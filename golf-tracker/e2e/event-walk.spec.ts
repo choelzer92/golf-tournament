@@ -62,7 +62,7 @@ test('bar #11: a 3-day trip from a group', async ({ context, page }) => {
   }
   // F-118 (§5.cz): a first-timer skips the name; it falls back to the game and course, shown as
   // the placeholder before Create.
-  const label = '2 teams of 4 · head-to-head – Sandbox National';
+  const label = '4v4 best net & best gross – Sandbox National';
   await expect(page.getByLabel('Event name')).toHaveAttribute('placeholder', label);
   await capture(page, 'review-event-unnamed');
   await tap(create);
@@ -143,7 +143,7 @@ test('bar #11: a 3-day trip from a group', async ({ context, page }) => {
   await expect(page.getByRole('heading', { name: label })).toBeVisible();
   // F-117: each round is named by its game and course, not the group.
   const rounds = page.getByRole('region', { name: 'Rounds' });
-  for (const n of [1, 2, 3]) await expect(rounds.getByRole('button', { name: new RegExp(`^Round ${n} · 2 teams of 4`) })).toBeVisible();
+  for (const n of [1, 2, 3]) await expect(rounds.getByRole('button', { name: new RegExp(`^Round ${n} · 4v4 best net & best gross`) })).toBeVisible();
   await expect(rounds.getByText(/Tuesday Crew/)).toHaveCount(0);
   const table = page.getByTestId('event-standings');
   await expect(table.locator('thead th[colspan="2"]')).toHaveCount(1); // day 2 spans rounds 2 + 3

@@ -76,11 +76,11 @@ test.describe('single-group vocabulary', () => {
     const body = await page.locator('body').innerText();
     expect(body).not.toContain('1 foursomes');
     expect(body).not.toContain('Pool Money Game · 1');
-    // Names the structure instead (F-061): "2 pairs · head-to-head". Renamed three times as the
+    // Names the game instead (F-061; F-115 the full label: "… · 2v2 · best ball · …"). Renamed three times as the
     // mode widened — "2 vs 2 (within group)" → "Sides (within group)" → "Sides / Match" → this
     // (§5.at — a capability change dates every string that described the old limit; §5.bm Q5
     // retired "side").
-    expect(body).toMatch(/2 pairs · head-to-head/);
+    expect(body).toMatch(/ · 2v2 · best ball · /);
     expect(body.toLowerCase()).not.toContain('side');
     await page.screenshot({ path: 'e2e/screenshots/hub-2v2.png', fullPage: true });
   });
@@ -89,7 +89,7 @@ test.describe('single-group vocabulary', () => {
     const id = await seed(page, 'Classic pool — 2 foursomes, mid-round');
     await goToGame(page, id);
     const body = await page.locator('body').innerText();
-    expect(body).toContain('2 teams of 4 · pot');
+    expect(body).toMatch(/pot \(\$\d+ each\) · 4v4 · /);
   });
 });
 

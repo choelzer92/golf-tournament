@@ -12,7 +12,7 @@ import { getCreatorName } from '@/lib/pool-identity';
 import { getGameMode } from '@/lib/game-modes';
 import { matchLinesByGroup, matchShapeProblem } from '@/lib/game-modes/matches';
 import { matchSizeOf } from '@/lib/game-modes/match-pairing';
-import { gameKindLabel } from '@/lib/game-structure';
+import { gameLabel } from '@/lib/game-label';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 import { FeedbackButton } from '@/components/feedback-box';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
@@ -318,14 +318,14 @@ export default function PoolHubPage() {
 
   const pot = game.players.length * game.entryPerPlayer;
 
-  // One game-kind label for every surface (F-061, Phase 2): "2 teams of 4 · pot",
-  // "4 pairs · $/point · 2 groups", "Skins · 4 players" — the list card, this header and the
-  // leaderboard header all print `gameKindLabel`, so the same game never reads two ways.
+  // One game label for every surface (F-061; F-115 §5.da): "$30 Nassau ($10/$10/$10) · 4v4 · best
+  // ball · match play", "Skins · 4 players" — the list card, this header and the leaderboard header
+  // all print `gameLabel`, so the same game never reads two ways.
   const hubMode = getGameMode(game.gameMode);
   const isSingleGroupHub = hubMode
     ? hubMode.category === 'individual' || hubMode.category === 'team-within-group'
     : false;
-  const hubSubtitle = gameKindLabel(game);
+  const hubSubtitle = gameLabel(game);
   // F-081: a team game whose teams share foursomes shows WHO IS PAIRED, with each team's tee
   // group beside it — the one thing the organizer opens the hub to confirm. The classic pool's
   // teams are its foursome cards below, so this list is for the shared-foursome game only.

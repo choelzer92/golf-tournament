@@ -2679,3 +2679,26 @@ Follow-up to §5.cz (F-114/F-115/F-116):
   wording waits for it.
 - **Front + back with no overall** reads as the total risked, the legs it covers, then the split: "$40 front &
   back ($20/$20)". Craig: "along those lines": every partial bet follows the same pattern.
+
+### 5.db — The game label's details (2026-10-13)
+
+Follow-up to §5.da, asked before building F-115:
+- **Total risked is what ONE PLAYER risks.** The engines differ: a classic head-to-head pool's
+  `legDollars` are per player; a team game's legs (and $/hole, $/point, pot buy-in) are per TEAM, split
+  evenly across its players (`perPlayerNets`). So a 2v2 team game at $10 a leg reads "$15 Nassau
+  ($5/$5/$5)". No money math changes; only the label divides.
+- **Teams: "2v2" / "4v4" for two even teams**, "3 teams of 4" with three or more, uneven shapes as before.
+- **The split sits next to the bet:** "$30 Nassau ($10/$10/$10) · 2v2 · best ball · match play".
+- **The legs money model is called "Bet per nine & overall"** (money step: "Bet per nine & overall — fixed $
+  on front / back / overall"); the hub's money card heads with the label's bet ("$30 Nassau") instead of
+  "Head-to-Head Match".
+
+### 5.dc — Event rounds: set-up order, movable, dates optional (2026-10-13)
+
+F-116 follow-up to §5.da ("dates are OPTIONAL"):
+- **Order:** the rounds run in the order they're set up (`seq`), and that order **"should be movable within
+  the event overview"** (Craig's note, with no option picked; read as set-up order + reorder on the event
+  screen). A date, when set, only puts a day header over consecutive rounds that share it.
+- **The wizard's date field starts BLANK** ("Date (optional)"); nothing is suggested.
+- The §5.cp "two games on one round" golden is hypothetical until that feature is built. When it is, the
+  second game shares its round's slot.

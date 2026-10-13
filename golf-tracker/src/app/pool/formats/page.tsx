@@ -152,7 +152,7 @@ function summarizeFormat(d: GroupDefaults | null): string {
   }
   // Classic pool. Name the FORMAT (which may be a scramble or combined, not just one of the
   // three legacy ball selections) and say so when it's scored in points.
-  const label = d.moneyMode === 'match' ? 'Head-to-head match' : 'Pool (pot split)';
+  const label = d.moneyMode === 'match' ? 'Bet per nine & overall' : 'Pool (pot split)';
   const parts = [label];
   if (d.teamFormat || d.ballSelection) {
     const fmt = formatOfGame({ teamFormat: d.teamFormat, ballSelection: d.ballSelection });

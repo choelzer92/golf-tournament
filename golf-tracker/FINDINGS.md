@@ -23,6 +23,18 @@ Status flow: `open` → `chosen: X` → `fixed (commit)` → `verified (e2e)`
 
 ## Open
 
+### F-121 — A team game's "$10 a leg" is per TEAM, a classic match's is per PLAYER (2026-10-13)  [P2] [beta #6] — **open: Craig's call**
+
+Found while building F-115's label. The classic head-to-head pool's legs are per player (`legDollars`,
+`pool-game.ts:141`; its money step says "Match Payouts ($ / player)"). The team game (sides engine) settles
+each leg per TEAM, and `perPlayerNets` splits it evenly across the team's players. So a 2v2 team game at
+$10/$10/$10 risks $15 a player, not $30, and its money step's "Front 9 ($)" doesn't say which. Golfers
+usually mean "$10 Nassau" per man. §5.db: the label states the per-player figure ("$15 Nassau ($5/$5/$5)"),
+and no math changed. **Options:** A, label the team game's inputs "$ / team" (no math change). B, make
+team-game stakes per player for NEW games (a money change, so goldens first, and legacy games keep
+computing per team, as S2 Q1 does). C, leave it (the label already tells players the truth).
+**Rec A now; B is worth asking in the S2 convergence.**
+
 ### Bar #11 walk record (2026-10-13): a 3-day trip from a group, measured
 
 `e2e/event-walk.spec.ts`: the Tuesday Crew (8 players, no saved formats). Group → Start an event → 7-step

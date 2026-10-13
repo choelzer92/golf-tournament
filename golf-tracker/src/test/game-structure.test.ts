@@ -555,7 +555,7 @@ describe('gameKindLabel (F-061)', () => {
   it('classic pool: structure · money word, never "Pool" / "foursomes" / "side"', () => {
     const pot = makeGame({ teamCount: 2, indexes: Array.from({ length: 8 }, (_, i) => i) });
     expect(gameKindLabel(pot)).toBe('2 teams of 4 · pot');
-    expect(gameKindLabel({ ...pot, moneyMode: 'match' })).toBe('2 teams of 4 · head-to-head');
+    expect(gameKindLabel({ ...pot, moneyMode: 'match' })).toBe('2 teams of 4 · bet per nine');
     const uneven = makeGame({ indexes: Array.from({ length: 7 }, (_, i) => i), teamCount: 2 });
     expect(gameKindLabel(uneven)).toBe('4 + 3 · pot');
   });
@@ -568,11 +568,11 @@ describe('gameKindLabel (F-061)', () => {
     });
     expect(gameKindLabel(pairs)).toBe('4 pairs · $/point · 2 groups');
     const oneFoursome = makeGame({ gameMode: 'team-2v2', subTeams: { a: ['p1', 'p3'], b: ['p2', 'p4'] } });
-    expect(gameKindLabel(oneFoursome)).toBe('2 pairs · head-to-head');
+    expect(gameKindLabel(oneFoursome)).toBe('2 pairs · bet per nine');
     expect(gameKindLabel({ ...oneFoursome, modeSettings: { moneyModel: 'pot' } })).toBe('2 pairs · pot');
     expect(gameKindLabel({ ...oneFoursome, modeSettings: { moneyModel: 'per-hole' } })).toBe('2 pairs · $/hole');
     const singles = makeGame({ indexes: [0, 9], gameMode: 'team-2v2', subTeams: { a: ['p1'], b: ['p2'] } });
-    expect(gameKindLabel(singles)).toBe('1 v 1 · head-to-head');
+    expect(gameKindLabel(singles)).toBe('1 v 1 · bet per nine');
   });
 
   it('solo game: the format and the field size', () => {

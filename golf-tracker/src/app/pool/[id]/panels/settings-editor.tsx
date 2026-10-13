@@ -329,7 +329,7 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
         <div>
           <label className="block text-sm font-medium text-gray-800 mb-1">Game type</label>
           <div className="flex gap-2">
-            {([{ v: 'pot', label: 'Pool (pot split)' }, { v: 'match', label: 'Head-to-head match' }] as const).map(({ v, label }) => (
+            {([{ v: 'pot', label: 'Pool (pot split)' }, { v: 'match', label: 'Bet per nine & overall' }] as const).map(({ v, label }) => (
               <button
                 key={v}
                 type="button"

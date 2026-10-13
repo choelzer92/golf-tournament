@@ -50,7 +50,7 @@ test('F-109: the old Money Game is a wizard game — 2 best net, match play, Nas
   await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await closeSendSheet(page);
-  await expect(page.getByRole('heading', { name: 'Head-to-Head Match' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Nassau \(/ })).toBeVisible();
   const hub = await page.locator('body').innerText();
   expect(hub).toContain('90% handicap');
   expect(hub).toContain('$10');

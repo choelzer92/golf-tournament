@@ -18,7 +18,7 @@ test('§5.bv: 32 players / 16 pairs — standings carry all 16 teams', async ({ 
   await goToGame(page, id, '/leaderboard');
   await page.waitForURL(/\/leaderboard/);
   await expect(page.getByText('Big Field Pairs')).toBeVisible();
-  await expect(page.getByText(/16 pairs · \$\/point · 8 groups/)).toBeVisible();
+  await expect(page.getByText(/a point · 16 pairs · /).first()).toBeVisible();
   // Rank 16 exists: the 16th team made the board.
   const standings = page.locator('table', { has: page.getByText('To par') }).first();
   await expect(standings.locator('tbody tr')).toHaveCount(16);

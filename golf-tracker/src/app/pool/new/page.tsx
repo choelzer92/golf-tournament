@@ -43,8 +43,6 @@ import {
   recommendedStructure,
   structureOptionId,
   structureOptionLabel,
-  structureLabel,
-  MONEY_WORD,
 } from '@/lib/game-structure';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 import { matchLinesByGroup, matchSheetProblem, matchSizeOf, matchSizesFor, repairSingles, teeGroupsFromMatches } from '@/lib/game-modes/matches';
@@ -77,6 +75,7 @@ import {
   type GameSide,
 } from '@/lib/game-modes/sides';
 import { getGameMode, defaultSettings, defaultSettingsForField, formatSummaryLine, GAME_MODES, modeFits, type SettingsBag } from '@/lib/game-modes';
+import { gameLabel, gameTypeName } from '@/lib/game-label';
 // The wizard's steps, one file each (context economy, 2026-09-14): page.tsx keeps
 // the state + step routing; every step component lives in ./steps/.
 import { proposePlayingGroups, type PotDollars } from './steps/shared';
@@ -344,14 +343,6 @@ export default function NewPoolGamePage() {
     { allowance: parseAllowance(handicapAllowance), strokeMethod, handicapBasis },
   );
 
-  // §5.cz (F-118): an event left unnamed is called by its game and course, with the game-kind
-  // label the Review step prints ("2 teams of 4 · head-to-head – Sandbox National").
-  const defaultEventName = [
-    container === 'individual'
-      ? getGameMode(gameMode)?.name
-      : `${structureLabel({ kind: 'teams', teamSizes: (container === 'sides' ? (sides ?? []) : teams).map((t) => t.playerIds.length) })} · ${MONEY_WORD[moneyModel]}`,
-    course?.courseName,
-  ].filter(Boolean).join(' – ');
 
   // §5.cq (C): who plays whom in each tee group, for the groups step's cards.
   const groupLinesById: Record<string, string[]> = Object.fromEntries(
@@ -766,9 +757,9 @@ export default function NewPoolGamePage() {
     });
   }
 
-  function createPoolGame() {
-    if (getCreatorGhin() === null) { setCreateLogin(true); return; }
-    const id = crypto.randomUUID();
+  // The game as Create would save it right now, minus its id, time and event stamp. The Review
+  // step's label reads it (F-115), so the label always describes the game that gets saved.
+  function draftPoolGame(): PoolGame | null {
     // Effective dollar split: manual override if set, else the standard for this
     // team count. Stored as pot fractions (compute engine multiplies by the pot).
     const enteredDollars = potDollars
@@ -783,7 +774,7 @@ export default function NewPoolGamePage() {
     // that land a game in its container — through persistedTeamScoring / persistedSides, so an
     // ordinary stroke pool still saves with NO teamFormat (the golden-snapshot path) and an
     // ordinary two-side game still saves as legacy subTeams.
-    if (container === 'unexpressible') return;
+    if (container === 'unexpressible') return null;
     // F-097: in the ALIGNED flow (two teams of 4, 3 + 3 + 2 — teams built with the foursome builder)
     // `sides` is never set, yet margin money routes the game to the team engine. The teams ARE the
     // tee sheet, so hand the router the tee groups as the sides — captains included — instead of an
@@ -800,23 +791,10 @@ export default function NewPoolGamePage() {
         }));
     const teamIds = (sidesForRoute ?? teams).map((s) => s.playerIds);
     const routed = routedFields(draft, route, teamIds, modeSettings, { sides: sidesForRoute, junkValues });
-    // §5.cu: the event stamp. A new event is created by its first round; a further round
-    // continues the event's seq (nextRoundStamp), whatever date it's played.
-    let series: SeriesStamp | undefined;
-    if (eventChoice.kind === 'new') {
-      series = { id: 's-' + crypto.randomUUID(), name: eventChoice.name.trim() || defaultEventName || 'Event', rollup: 'money', seq: 1, date: eventChoice.date };
-    } else if (eventChoice.kind === 'add') {
-      const rounds = getSeriesRounds(eventChoice.seriesId);
-      if (rounds.length === 0) return;
-      series = nextRoundStamp(rounds, eventChoice.date);
-    }
-    // §5.cz (F-117): a round of an event is named by its game and course ("Round 2 · …" on the event),
-    // unless the organizer typed a name here. The group's name and the copied round's name are auto.
-    const autoNamed = !name.trim() || name.trim() === autoNamedFrom || (appliedFromGame && name.trim() === appliedFormat);
-    const game: PoolGame = {
-      id,
-      name: series && autoNamed && defaultEventName ? defaultEventName : name || 'Pool Game',
-      createdAt: new Date().toISOString(),
+    return {
+      id: 'draft',
+      name: name || 'Pool Game',
+      createdAt: '',
       course,
       players,
       teams,
@@ -842,17 +820,50 @@ export default function NewPoolGamePage() {
       // only matters when a nine is chosen.
       holesPlaying,
       nineHandicapBasis: holesPlaying === '18' ? undefined : nineHandicapBasis,
-      handicapsRefreshedAt: new Date().toISOString(),
-      createdByGhin: getCreatorGhin() ?? undefined,
       // Exact stats/ledger link when this game was built from a saved group.
       sourceGroupId,
-      series,
       // Persist pairing locks onto the game so they can be reused/edited when the
       // organizer reopens it (locks live on the game, not just the wizard).
       lockedGroups: container === 'classic' && lockedGroups.length > 0 ? lockedGroups : undefined,
       teamBuild: container === 'classic' ? teamBuild : undefined,
       useCaptains: container === 'classic' ? useCaptains : undefined,
       balanceExcludeCaptains: container === 'classic' ? balanceExcludeCaptains : undefined,
+    };
+  }
+
+  // §5.cz (F-117/F-118): an event or round left unnamed is called by its game and course
+  // ("4v4 best ball – Sandbox National").
+  function defaultEventNameOf(game: PoolGame | null): string {
+    return [game ? gameTypeName(game) : '', course?.courseName].filter(Boolean).join(' – ');
+  }
+
+  function createPoolGame() {
+    if (getCreatorGhin() === null) { setCreateLogin(true); return; }
+    const id = crypto.randomUUID();
+    const base = draftPoolGame();
+    if (!base) return;
+    const defaultEventName = defaultEventNameOf(base);
+    // §5.cu: the event stamp. A new event is created by its first round; a further round
+    // continues the event's seq (nextRoundStamp), whatever date it's played.
+    let series: SeriesStamp | undefined;
+    if (eventChoice.kind === 'new') {
+      series = { id: 's-' + crypto.randomUUID(), name: eventChoice.name.trim() || defaultEventName || 'Event', rollup: 'money', seq: 1, date: eventChoice.date };
+    } else if (eventChoice.kind === 'add') {
+      const rounds = getSeriesRounds(eventChoice.seriesId);
+      if (rounds.length === 0) return;
+      series = nextRoundStamp(rounds, eventChoice.date);
+    }
+    // §5.cz (F-117): a round of an event is named by its game and course ("Round 2 · …" on the event),
+    // unless the organizer typed a name here. The group's name and the copied round's name are auto.
+    const autoNamed = !name.trim() || name.trim() === autoNamedFrom || (appliedFromGame && name.trim() === appliedFormat);
+    const game: PoolGame = {
+      ...base,
+      id,
+      name: series && autoNamed && defaultEventName ? defaultEventName : name || 'Pool Game',
+      createdAt: new Date().toISOString(),
+      handicapsRefreshedAt: new Date().toISOString(),
+      createdByGhin: getCreatorGhin() ?? undefined,
+      series,
     };
 
     // Remember each player's tee for next time — whatever they're actually
@@ -880,6 +891,9 @@ export default function NewPoolGamePage() {
     // §5.cl: Create is the share moment — the hub opens on the player-link sheet.
     router.push('/pool/' + game.id + '?send=1');
   }
+
+  // The Review step's label and the unnamed-event placeholder read the game Create would save.
+  const draftGame = draftPoolGame();
 
   return (
     <div className="min-h-full bg-gray-50">
@@ -1294,7 +1308,8 @@ export default function NewPoolGamePage() {
             hideHoles={alignedFlow ? { checked: hideHoles, onChange: setHideHoles } : undefined}
             carriedPotSplit={rerunRef.current && rerunRef.current.teamCount === teams.length ? rerunRef.current.potSplit : undefined}
             onSaveFormat={saveCurrentFormat}
-            eventField={<EventField choice={eventChoice} setChoice={setEventChoice} events={myEvents} today={today} defaultName={defaultEventName} />}
+            eventField={<EventField choice={eventChoice} setChoice={setEventChoice} events={myEvents} today={today} defaultName={defaultEventNameOf(draftGame)} />}
+            gameLabel={draftGame ? gameLabel(draftGame) : ''}
             onCreate={createPoolGame}
             onBack={() => setStep(needsPlayingGroups ? 'groups' : isSolo ? 'tees' : 'teams')}
           />

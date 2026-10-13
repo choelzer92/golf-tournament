@@ -1,12 +1,13 @@
 import type { GameScore } from '../game-state';
 import type { PoolGame, PoolGameListItem, PoolResult } from '../pool-game';
-import { computePoolResult } from '../pool-game';
+import { computePoolResult, loadPoolGame } from '../pool-game';
 import type { IndividualResult } from './types';
 import { getGameMode } from './index';
 import { boolSetting, numberSetting } from './settings';
 import { DEFAULT_JUNK_VALUES } from '../pool-game';
 import { buildGameModeContext } from './context';
 import { gameKindLabelFrom } from '../game-structure';
+import { gameLabel } from '../game-label';
 
 // Unified result across both axes, discriminated by `kind`. The leaderboard (and
 // any other consumer) branches once: 'individual' → per-player standings;
@@ -52,8 +53,10 @@ export function isModeEngineGame(game: PoolGame): boolean {
   return c === 'individual' || c === 'team-within-group';
 }
 
-// The game-list card subtitle — the same label the hub and leaderboard headers print
-// (F-061, Phase 2): "2 teams of 4 · pot", "4 pairs · $/point · 2 groups", "Skins · 4 players".
-export function gameListSubtitle(item: Pick<PoolGameListItem, 'gameMode' | 'playerCount' | 'groupSizes' | 'sideSizes' | 'money'>): string {
-  return gameKindLabelFrom(item);
+// The game-list card subtitle — the same label the hub and leaderboard headers print (F-061;
+// F-115): the list is read from the game cache, so the card prints the full `gameLabel`. The thin
+// game-kind label is the fallback for an item whose game isn't cached.
+export function gameListSubtitle(item: Pick<PoolGameListItem, 'gameMode' | 'playerCount' | 'groupSizes' | 'sideSizes' | 'money'> & { id?: string }): string {
+  const game = item.id ? loadPoolGame(item.id) : null;
+  return game ? gameLabel(game) : gameKindLabelFrom(item);
 }

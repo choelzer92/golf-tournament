@@ -81,7 +81,7 @@ test('routing row: two teams of 4, pot → the classic pool (hub shows its fours
   await expect(page.locator('input[name="money-model"][value="pot"]')).toBeChecked();
   await expect(page.locator('input[name="money-model"][value="legs"]')).toBeEnabled();
   // F-073: the head-to-head row says "match".
-  await expect(page.getByLabel(/Head-to-head match — fixed \$ per front \/ back \/ overall/)).toBeVisible();
+  await expect(page.getByLabel(/Bet per nine & overall — fixed \$ on front \/ back \/ overall/)).toBeVisible();
   // F-072: best net + best gross is a two-ball format BOTH engines compute now, so margin money
   // stays open here too (the sides engine would carry it); pot, the default, routes classic.
   await expect(page.locator('input[name="money-model"][value="per-point"]')).toBeEnabled();
@@ -94,10 +94,10 @@ test('routing row: two teams of 4, pot → the classic pool (hub shows its fours
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await closeSendSheet(page);
   // Only the classic pool's hub says this.
-  await expect(page.getByText(/2 teams of 4 · pot/)).toBeVisible();
+  await expect(page.getByText(/pot \(\$\d+ each\) · 4v4 · /).first()).toBeVisible();
 });
 
-test('F-084: head-to-head leg amounts are editable on the money step and reach the hub', async ({ page }) => {
+test('F-084 / F-115: leg amounts are editable on the money step, and the game label states the bet', async ({ page }) => {
   await startWizard(page, EIGHT_PLAYERS, 'Editable Legs');
   await toScoringStep(page, 'teams:4+4');
   await courseAndTees(page);
@@ -112,12 +112,18 @@ test('F-084: head-to-head leg amounts are editable on the money step and reach t
   await expect(leg('Front 9')).toHaveValue('10');
   await leg('Front 9').fill('15');
   await leg('Junk / pt').fill('2');
+  // F-115 (§5.da/§5.db): the label reads the game Create will save — total risked per player, the
+  // split beside it, the teams, the format, match or stroke play, the junk.
+  const label = /^\$35 Nassau \(\$15\/\$10\/\$10\) · 4v4 · best net & best gross · (match|stroke) play · \+ \$2 a junk point$/;
+  await expect(page.getByTestId('game-label')).toHaveText(label);
   await page.screenshot({ path: 'e2e/screenshots/f084-legs-editable.png', fullPage: true });
   await signInOrganizer(page);
   await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await closeSendSheet(page);
-  await expect(page.getByRole('heading', { name: 'Head-to-Head Match' })).toBeVisible();
+  // F-115 (§5.db): the money card heads with the bet, per player — $15 + $10 + $10.
+  await expect(page.getByRole('heading', { name: '$35 Nassau ($15/$10/$10)' })).toBeVisible();
+  await expect(page.getByText(label)).toBeVisible();
   const hub = await page.locator('body').innerText();
   expect(hub).toContain('$15');
   expect(hub).toContain('$2');
@@ -142,7 +148,7 @@ test('routing row: two teams of 4, $ per point → the sides engine even though 
   await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await closeSendSheet(page);
-  await expect(page.getByText(/2 teams of 4 · \$\/point/)).toBeVisible();
+  await expect(page.getByText(/a point · 4v4 · /).first()).toBeVisible();
 });
 
 test('routing row: four pairs, fixed legs → the sides engine with two tee times, partners together', async ({ page }) => {
@@ -191,7 +197,7 @@ test('routing row: four pairs, fixed legs → the sides engine with two tee time
   await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await closeSendSheet(page);
-  await expect(page.getByText(/4 pairs · head-to-head · 2 groups/)).toBeVisible();
+  await expect(page.getByText(/Nassau \(.*\) · 4 pairs · /).first()).toBeVisible();
 });
 
 test('F-072: four pairs, best net + best gross → the sides engine scores two balls a side', async ({ page }) => {
@@ -221,7 +227,7 @@ test('F-072: four pairs, best net + best gross → the sides engine scores two b
   await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await closeSendSheet(page);
-  await expect(page.getByText(/4 pairs · \$\/point · 2 groups/)).toBeVisible();
+  await expect(page.getByText(/a point · 4 pairs · best net & best gross · /).first()).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/f072-hub-pairs-net-gross.png', fullPage: true });
 });
 
@@ -326,7 +332,7 @@ test('routing row: 1 v 1 → a singles match on the sides engine, 100% allowance
   await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await closeSendSheet(page);
-  await expect(page.getByText(/1 v 1 · head-to-head/)).toBeVisible();
+  await expect(page.getByText(/ · 1v1 · /).first()).toBeVisible();
 });
 
 test('structure step: 5 players are offered 3 + 2 (recommended), 2 + 2 + 1 and singles', async ({ page }) => {

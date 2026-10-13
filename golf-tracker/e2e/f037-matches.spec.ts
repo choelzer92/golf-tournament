@@ -104,7 +104,7 @@ test('F-037: eight players pick 2 teams of 4 with 2 v 2 matches, and Create buil
   // sit with the stakes.
   await expect(page.locator('input[name="money-model"][value="pot"]')).toBeChecked();
   await expect(page.getByText('A match counts')).toBeVisible();
-  await expect(page.getByText('2 teams of 4 · pot · 2 matches')).toBeVisible();
+  await expect(page.getByText(/ · 4v4 · two 2v2 matches · /).first()).toBeVisible();
   // Four-ball is the matches default: best ball, hole by hole — not the classic pool's net + gross.
   await expect(page.getByText(/best ball/i).first()).toBeVisible();
   await expect(page.getByText(/best net \+ best gross/)).toHaveCount(0);
@@ -114,14 +114,14 @@ test('F-037: eight players pick 2 teams of 4 with 2 v 2 matches, and Create buil
   await page.waitForURL(/\/pool\/(?!new$)[^/?]+$/, { timeout: 15_000 });
   await closeSendSheet(page);
   await expect(page.getByRole('heading', { name: 'Tee groups' })).toBeVisible();
-  await expect(page.getByText(/2 teams of 4 · pot · 2 matches/).first()).toBeVisible();
+  await expect(page.getByText(/ · 4v4 · two 2v2 matches · /).first()).toBeVisible();
 
   const id = new URL(page.url()).pathname.split('/').pop()!;
   await page.goto(`${BASE}/pool/${id}/leaderboard`);
   await page.waitForURL(/\/leaderboard/);
   // The label is read from the STORED tee sheet through `matchesOf`, so "2 matches" proves the
   // created game pairs. Before any score the board keeps its usual empty state.
-  await expect(page.getByText('2 teams of 4 · pot · 2 matches')).toBeVisible();
+  await expect(page.getByText(/ · 4v4 · two 2v2 matches · /).first()).toBeVisible();
   await expect(page.getByText('No scores yet.')).toBeVisible();
   // ...but the pairings are on the board from Create.
   await expect(page.getByTestId('match-row')).toHaveCount(2);
@@ -199,5 +199,5 @@ test('F-107 / §5.cq: singles are paired on the groups step and the pairing is s
   // The SAME pairings on the hub: stored with the game, not re-derived from list order.
   const hub = await page.getByTestId('group-match-line').allInnerTexts();
   expect(hub).toEqual([`${shown[0]} · ${shown[1]}`, `${shown[2]} · ${shown[3]}`]);
-  await expect(page.getByText(/· 4 matches/).first()).toBeVisible();
+  await expect(page.getByText(/ · four 1v1 matches · /).first()).toBeVisible();
 });

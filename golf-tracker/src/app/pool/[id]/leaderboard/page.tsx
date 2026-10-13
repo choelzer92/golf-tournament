@@ -19,7 +19,7 @@ import {
   getGameHoles,
 } from '@/lib/pool-game';
 import { getGameMode, type IndividualResult } from '@/lib/game-modes';
-import { gameKindLabel } from '@/lib/game-structure';
+import { gameLabel } from '@/lib/game-label';
 import type { TeamFormat } from '@/lib/game-modes/team-scoring';
 import type { WolfHoleLine, NassauLegLine, JunkLine, MatchLine, PotSliceLine, SettingsBag } from '@/lib/game-modes/types';
 import { JUNK_SETTINGS, junkPayout, numberSetting } from '@/lib/game-modes/settings';
@@ -175,7 +175,7 @@ export default function PoolLeaderboardPage() {
                 to read only "Thru hole N", so a pot pool and a head-to-head match
                 pool were indistinguishable from the leaderboard. */}
             <p className="text-xs text-gray-400">
-              {isMatch ? 'Head-to-head match' : 'Pot pool'} · thru hole {result.thruHole}
+              {gameLabel(game)} · thru hole {result.thruHole}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -1006,7 +1006,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
           <div>
             <h1 className="text-lg font-bold">{game.name}</h1>
             <p className="text-xs text-gray-400">
-              {gameKindLabel(game)}{result && result.thruHole > 0 ? ` · thru hole ${result.thruHole}` : ''}
+              {gameLabel(game)}{result && result.thruHole > 0 ? ` · thru hole ${result.thruHole}` : ''}
             </p>
           </div>
           <div className="flex items-center gap-3">

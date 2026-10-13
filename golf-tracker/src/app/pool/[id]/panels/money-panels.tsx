@@ -8,6 +8,7 @@ import { type GameScore } from '@/lib/game-state';
 import { fetchGameScores } from '@/lib/tournament-state';
 import { getGameMode, buildGameModeContext, settingValue } from '@/lib/game-modes';
 import { gameRollups, settleUp } from '@/lib/stats-ledger';
+import { legsBetLabel } from '@/lib/game-label';
 
 export function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
   const indMode = getGameMode(game.gameMode);
@@ -83,7 +84,7 @@ export function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
       <section>
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="px-4 py-3 bg-gray-100 border-b flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Head-to-Head Match</h2>
+            <h2 className="font-semibold text-gray-900">{legsBetLabel((game.matchConfig ?? DEFAULT_MATCH_CONFIG).legDollars, game.holesPlaying) ?? 'Bet per nine & overall'}</h2>
             <span className="text-sm text-gray-600">$ / player</span>
           </div>
           <div className="grid grid-cols-4 divide-x divide-gray-100">
@@ -96,7 +97,7 @@ export function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
           </div>
           <div className="px-4 py-2 text-xs text-gray-400 border-t">
             {twoTeams
-              ? <>Each leg is head-to-head · loser pays the junk difference · {game.handicapAllowance === 0 ? 'gross' : `${game.handicapAllowance}% handicap`}</>
+              ? <>Each leg is won team against team · loser pays the junk difference · {game.handicapAllowance === 0 ? 'gross' : `${game.handicapAllowance}% handicap`}</>
               : <span className="text-amber-600">Head-to-head needs exactly two foursomes — this game has {game.teams.length}. Payouts show $0 until it&apos;s two teams.</span>}
           </div>
         </div>

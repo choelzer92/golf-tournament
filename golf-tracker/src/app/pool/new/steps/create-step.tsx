@@ -1,6 +1,5 @@
 'use client';
 
-import { matchesOf, matchSizeOf } from '@/lib/game-modes/match-pairing';
 import { useState, useEffect, type ReactNode } from 'react';
 import type { CourseSelection, Player } from '@/lib/game-state';
 import {
@@ -24,7 +23,7 @@ import { sideNameFrom, allSidesAreSolo, MULTI_TEAM_ONLY_KEYS } from '@/lib/game-
 import { GROSS_HIDES, isGross } from '@/components/net-gross-switch';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
 import { HandicapChip } from '@/components/handicap-chain';
-import { MONEY_WORD, structureLabel, type Container, type MoneyModel, type MoneyModelOption } from '@/lib/game-structure';
+import { type Container, type MoneyModel, type MoneyModelOption } from '@/lib/game-structure';
 import { type PotDollars, foldJunkStrings, legDollarsToStrings, potDollarsTotal } from './shared';
 import { formatHandicap } from '@/lib/game-state';
 
@@ -107,7 +106,7 @@ export function CreateStep({
   junkValues, setJunkValues, customBonuses, setCustomBonuses,
   matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
   sides, modeSettings, setModeSettings, strokeMethod, hideHoles, onSaveFormat,
-  eventField, onCreate, onBack,
+  eventField, gameLabel, onCreate, onBack,
 }: {
   name: string;
   entryPerPlayer: number;
@@ -161,6 +160,8 @@ export function CreateStep({
   onSaveFormat: () => Promise<void>;
   /** "Part of an event?" (§5.cv), rendered just above Create. */
   eventField?: ReactNode;
+  /** The one-line game label (F-115) for the game Create would save. */
+  gameLabel: string;
   onCreate: () => void; onBack: () => void;
 }) {
   // Rendering follows the ROUTED container, not a picked mode: an aligned pot is the classic pool,
@@ -237,8 +238,6 @@ export function CreateStep({
   }
 
   // F-037: a matches game names its matches, as the hub's label does.
-  const matchCount = container === 'sides' ? (matchesOf(sides ?? [], teams, matchSizeOf(modeSettings))?.length ?? 0) : 0;
-  const matchCountLabel = matchCount > 0 ? ` · ${matchCount} match${matchCount === 1 ? '' : 'es'}` : '';
 
   return (
     <div>
@@ -252,11 +251,10 @@ export function CreateStep({
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
         <div>
-          {/* The same game-kind label the hub and list cards print (F-061): structure · money. */}
-          <p className="text-sm text-gray-500">
-            {container === 'individual'
-              ? mode!.name
-              : `${structureLabel({ kind: 'teams', teamSizes: (container === 'sides' ? (sides ?? []) : teams).map((t) => t.playerIds.length) })} · ${MONEY_WORD[moneyModel]}${matchCountLabel}`}
+          {/* The same game label the hub and list cards print (F-061, F-115), read off the game
+              Create will save — so it follows every money edit on this step. */}
+          <p className="text-sm text-gray-500" data-testid="game-label">
+            {container === 'individual' ? mode!.name : gameLabel}
           </p>
           <p className="text-lg font-bold text-gray-900">{name}</p>
           {container === 'individual' && <p className="text-xs text-gray-500 mt-0.5">{mode!.description}</p>}
