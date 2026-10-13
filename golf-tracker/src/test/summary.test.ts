@@ -112,6 +112,16 @@ describe('stakesSummary', () => {
 
   it('a classic pool antes per player', () => {
     expect(stakesSummary(undefined, {}, 25)).toBe('$25/player pot');
+    expect(stakesSummary(undefined, { moneyMode: 'pot' }, 25)).toBe('$25/player pot');
+  });
+
+  // F-120: a head-to-head classic pool said "$25/player pot" (its unused ante) on a $10-a-leg match.
+  it('a classic head-to-head match states its legs and junk, never the ante', () => {
+    const match = { moneyMode: 'match', legFront: 10, legBack: 10, legOverall: 10, junkPerPoint: 5 };
+    expect(stakesSummary(undefined, match, 25)).toBe('$10 / $10 / $10 front·back·overall, $5 a junk point');
+    expect(stakesSummary(undefined, { ...match, legFront: 0, legBack: 0, legOverall: 20, junkPerPoint: 0 }, 25))
+      .toBe('$0 / $0 / $20 front·back·overall');
+    expect(stakesSummary(undefined, { ...match, legFront: 0, legBack: 0, legOverall: 0, junkPerPoint: 0 }, 25)).toBeNull();
   });
 
   // Returning null (not "$0") is what lets the caller DROP the segment, so a game with no money

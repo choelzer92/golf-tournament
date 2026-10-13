@@ -43,6 +43,8 @@ import {
   recommendedStructure,
   structureOptionId,
   structureOptionLabel,
+  structureLabel,
+  MONEY_WORD,
 } from '@/lib/game-structure';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 import { matchLinesByGroup, matchSheetProblem, matchSizeOf, matchSizesFor, repairSingles, teeGroupsFromMatches } from '@/lib/game-modes/matches';
@@ -332,12 +334,24 @@ export default function NewPoolGamePage() {
   const savedGameMode = container === 'individual' ? gameMode : container === 'sides' ? 'team-2v2' : undefined;
   const savedModeSettings = container === 'individual' ? modeSettings : container === 'sides' ? sidesSettings : undefined;
   // The F-021 one-line summary of what's configured (game · stakes · handicaps).
+  const classicMoney = container === 'classic' ? buildMatchConfig() : undefined;
   const summaryLine = formatSummaryLine(
     getGameMode(savedGameMode),
-    savedModeSettings ?? modeSettings,
+    classicMoney
+      ? { moneyMode, legFront: classicMoney.legDollars.front, legBack: classicMoney.legDollars.back, legOverall: classicMoney.legDollars.overall, junkPerPoint: classicMoney.junkPerPoint }
+      : savedModeSettings ?? modeSettings,
     parseFloat(entryPerPlayer) || 0,
     { allowance: parseAllowance(handicapAllowance), strokeMethod, handicapBasis },
   );
+
+  // §5.cz (F-118): an event left unnamed is called by its game and course, with the game-kind
+  // label the Review step prints ("2 teams of 4 · head-to-head – Sandbox National").
+  const defaultEventName = [
+    container === 'individual'
+      ? getGameMode(gameMode)?.name
+      : `${structureLabel({ kind: 'teams', teamSizes: (container === 'sides' ? (sides ?? []) : teams).map((t) => t.playerIds.length) })} · ${MONEY_WORD[moneyModel]}`,
+    course?.courseName,
+  ].filter(Boolean).join(' – ');
 
   // §5.cq (C): who plays whom in each tee group, for the groups step's cards.
   const groupLinesById: Record<string, string[]> = Object.fromEntries(
@@ -790,15 +804,18 @@ export default function NewPoolGamePage() {
     // continues the event's seq (nextRoundStamp), whatever date it's played.
     let series: SeriesStamp | undefined;
     if (eventChoice.kind === 'new') {
-      series = { id: 's-' + crypto.randomUUID(), name: eventChoice.name.trim() || name.trim() || 'Event', rollup: 'money', seq: 1, date: eventChoice.date };
+      series = { id: 's-' + crypto.randomUUID(), name: eventChoice.name.trim() || defaultEventName || 'Event', rollup: 'money', seq: 1, date: eventChoice.date };
     } else if (eventChoice.kind === 'add') {
       const rounds = getSeriesRounds(eventChoice.seriesId);
       if (rounds.length === 0) return;
       series = nextRoundStamp(rounds, eventChoice.date);
     }
+    // §5.cz (F-117): a round of an event is named by its game and course ("Round 2 · …" on the event),
+    // unless the organizer typed a name here. The group's name and the copied round's name are auto.
+    const autoNamed = !name.trim() || name.trim() === autoNamedFrom || (appliedFromGame && name.trim() === appliedFormat);
     const game: PoolGame = {
       id,
-      name: name || 'Pool Game',
+      name: series && autoNamed && defaultEventName ? defaultEventName : name || 'Pool Game',
       createdAt: new Date().toISOString(),
       course,
       players,
@@ -1277,7 +1294,7 @@ export default function NewPoolGamePage() {
             hideHoles={alignedFlow ? { checked: hideHoles, onChange: setHideHoles } : undefined}
             carriedPotSplit={rerunRef.current && rerunRef.current.teamCount === teams.length ? rerunRef.current.potSplit : undefined}
             onSaveFormat={saveCurrentFormat}
-            eventField={<EventField choice={eventChoice} setChoice={setEventChoice} events={myEvents} today={today} />}
+            eventField={<EventField choice={eventChoice} setChoice={setEventChoice} events={myEvents} today={today} defaultName={defaultEventName} />}
             onCreate={createPoolGame}
             onBack={() => setStep(needsPlayingGroups ? 'groups' : isSolo ? 'tees' : 'teams')}
           />

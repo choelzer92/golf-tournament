@@ -77,8 +77,21 @@ export function gameSummary(mode: GameModeDescriptor | undefined, settings: Sett
  * rather than printing "$0".
  */
 export function stakesSummary(mode: GameModeDescriptor | undefined, settings: SettingsBag, entryPerPlayer: number): string | null {
-  // A classic pool antes per player; there is no mode settings bag to read.
-  if (!mode) return entryPerPlayer > 0 ? `$${entryPerPlayer}/player pot` : null;
+  // A classic pool has no mode settings bag; the caller passes its money mode. A head-to-head
+  // match pays legs (+ junk per point), a pot antes per player. F-120: reading only the ante said
+  // "$25/player pot" for a $10-a-leg match.
+  if (!mode) {
+    if (settings.moneyMode === 'match') {
+      const f = num(settings, 'legFront', 10);
+      const b = num(settings, 'legBack', 10);
+      const o = num(settings, 'legOverall', 10);
+      const j = num(settings, 'junkPerPoint', 0);
+      const legs = f === 0 && b === 0 && o === 0 ? null : `$${f} / $${b} / $${o} front·back·overall`;
+      const junk = j > 0 ? `$${j} a junk point` : null;
+      return [legs, junk].filter(Boolean).join(', ') || null;
+    }
+    return entryPerPlayer > 0 ? `$${entryPerPlayer}/player pot` : null;
+  }
 
   // Read the mode's OWN money key first, and only fall back to a `moneyModel` switch.
   //

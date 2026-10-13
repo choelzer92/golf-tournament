@@ -12,12 +12,14 @@ export type EventChoice =
   | { kind: 'new'; name: string; date: string }
   | { kind: 'add'; seriesId: string; date: string };
 
-export function EventField({ choice, setChoice, events, today }: {
+export function EventField({ choice, setChoice, events, today, defaultName }: {
   choice: EventChoice;
   setChoice: (c: EventChoice) => void;
   /** Events this organizer already runs, newest first. */
   events: SeriesSummary[];
   today: string;
+  /** What a blank name becomes: the game and course (§5.cz). */
+  defaultName: string;
 }) {
   const adding = choice.kind === 'add' ? events.find((e) => e.id === choice.seriesId) : undefined;
   const radio = 'h-4 w-4 border-gray-300 text-green-600 focus:ring-green-500';
@@ -53,7 +55,8 @@ export function EventField({ choice, setChoice, events, today }: {
           <input
             value={choice.name}
             onChange={(ev) => setChoice({ ...choice, name: ev.target.value })}
-            placeholder="e.g. Myrtle Beach 2026"
+            placeholder={defaultName || 'e.g. Myrtle Beach 2026'}
+            aria-label="Event name"
             className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
           />
         </label>

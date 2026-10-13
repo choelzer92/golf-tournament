@@ -60,9 +60,11 @@ test('bar #11: a 3-day trip from a group', async ({ context, page }) => {
     await tap(page.getByRole('button', { name: /^Next/ }).last());
     await capture(page, `wizard-${i + 2}`);
   }
-  const name = page.getByLabel('Event name');
-  if (await name.isVisible()) { await tap(name); await name.fill('Myrtle Trip'); }
-  await capture(page, 'review-event-named');
+  // F-118 (§5.cz): a first-timer skips the name; it falls back to the game and course, shown as
+  // the placeholder before Create.
+  const label = '2 teams of 4 · head-to-head – Sandbox National';
+  await expect(page.getByLabel('Event name')).toHaveAttribute('placeholder', label);
+  await capture(page, 'review-event-unnamed');
   await tap(create);
   await page.waitForURL(/\/pool\/(?!new$)[^/?]+$/, { timeout: 20_000 });
   await capture(page, 'r1-created-send-sheet');
@@ -91,6 +93,13 @@ test('bar #11: a 3-day trip from a group', async ({ context, page }) => {
   await tap(page.getByRole('button', { name: /Add round 2/ }).first());
   await page.waitForURL(/\/pool\/new/);
   await capture(page, 'r2-wizard-1');
+  await tap(page.getByRole('button', { name: /^Next/ }).last());
+  // F-120: the copy's summary states the head-to-head legs, not the unused $25 ante.
+  await expect(page.getByText('Same game as last time')).toBeVisible();
+  await expect(page.getByText(/\$10 \/ \$10 \/ \$10 front·back·overall, \$5 a junk point/)).toBeVisible();
+  await expect(page.getByText(/player pot/)).toHaveCount(0);
+  await capture(page, 'r2-wizard-2-summary');
+  await page.getByRole('button', { name: '← Back' }).click();
   const hub2 = await wizardToCreate(page, 'r2');
   phase = 'r2-score';
   await scoreRound(page, hub2, 2);
@@ -117,6 +126,11 @@ test('bar #11: a 3-day trip from a group', async ({ context, page }) => {
 
   // The trip settles: three finished rounds over two dates, Total zero-sum, four payments.
   await expect(page.getByText('3 rounds · 3 finished')).toBeVisible();
+  await expect(page.getByRole('heading', { name: label })).toBeVisible();
+  // F-117: each round is named by its game and course, not the group.
+  const rounds = page.getByRole('region', { name: 'Rounds' });
+  for (const n of [1, 2, 3]) await expect(rounds.getByRole('button', { name: new RegExp(`^Round ${n} · 2 teams of 4`) })).toBeVisible();
+  await expect(rounds.getByText(/Tuesday Crew/)).toHaveCount(0);
   const table = page.getByTestId('event-standings');
   await expect(table.locator('thead th[colspan="2"]')).toHaveCount(1); // day 2 spans rounds 2 + 3
   const totals = await table.locator('tbody tr td:nth-child(2)').allInnerTexts();
