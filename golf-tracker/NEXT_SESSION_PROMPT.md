@@ -8,7 +8,7 @@ touch: §5.da–§5.dc for today, §5.cs for S2.
 ## State (2026-10-13, second session)
 
 Branch **`series-2026-10-12`** (off main at d6adf75). It is NOT merged or pushed; merging is Craig's
-call (§5.ab). Full gate: `.claude/verify-2026-10-13-f115-f116.log`. Check its VERIFY_EXIT line; if it
+call (§5.ab). Full gate: `.claude/verify-2026-10-13-f121-w1b.log` (single worker, 285 passed). Check its VERIFY_EXIT line; if it
 isn't 0, fixing that comes first.
 
 Done today, each its own commit:
