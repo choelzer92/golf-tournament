@@ -5,8 +5,9 @@
 // games that share `series.id`. Creating an event creates its first round.
 //
 // The member is a ROUND (one game), never "a day": a day can hold two rounds (36 holes),
-// and one round can carry two games (§5.cp). Each counts once. Rounds are ordered by
-// their play date, then by `seq` (the order they were added) within a date.
+// and one round can carry two games (§5.cp). Each counts once. Rounds run in SET-UP order
+// (`seq`), which the organizer can move on the event screen (§5.dc). A date is optional: set,
+// it only heads the consecutive rounds that share it ("set up the rounds, then play them").
 //
 // Money: each round settles on its own engine, unchanged. The event's TOTAL is the sum
 // of each FINISHED round's per-player net (the F-068 split, stats-ledger perPlayerNets).
@@ -24,8 +25,8 @@ export interface SeriesStamp {
   id: string;
   name: string;
   rollup: SeriesRollup;   // 'points' (Ryder Cup) is reserved; only 'money' is computed today
-  seq: number;            // 1-based order the round was added; tiebreak within a date
-  date: string;           // the round's PLAY date, YYYY-MM-DD (a round can be set up a day ahead)
+  seq: number;            // the round's place in the event, 1-based (set-up order, movable)
+  date?: string;          // OPTIONAL play date, YYYY-MM-DD (§5.dc); only groups column headers
 }
 
 /** The minimum of a game this module reads. PoolGame satisfies it. */
@@ -33,6 +34,8 @@ export interface SeriesGameLike {
   id: string;
   name: string;
   status: 'setup' | 'active' | 'completed';
+  /** When the game was set up: the event picker lists the most recent event first. */
+  createdAt?: string;
   series?: SeriesStamp;
 }
 
@@ -40,7 +43,7 @@ export interface SeriesGameLike {
 export interface SeriesRoundInput {
   gameId: string;
   gameName: string;
-  date: string;
+  date?: string;
   seq: number;
   status: 'setup' | 'active' | 'completed';
   /** Any score posted yet? A live round with none is NOT STARTED (§5.cw a): a round set up a
@@ -54,7 +57,7 @@ export type SeriesRoundState = 'final' | 'projected' | 'upcoming';
 export interface SeriesRound {
   gameId: string;
   gameName: string;
-  date: string;
+  date?: string;
   label: string;          // "R1", "R2", … in play order
   state: SeriesRoundState;
 }
@@ -71,16 +74,15 @@ export interface SeriesRow {
 
 export interface SeriesStandings {
   rounds: SeriesRound[];
-  /** Rounds grouped under their date, in order, for the column headers. */
-  dates: { date: string; gameIds: string[] }[];
+  /** Consecutive rounds sharing a date (or none), in order, for the column headers. */
+  dates: { date?: string; gameIds: string[] }[];
   rows: SeriesRow[];      // richest TOTAL first; projected breaks ties
   /** Who pays whom for the whole event, on TOTAL (finished rounds only). */
   settle: SettlementTransfer[];
   hasProjected: boolean;  // any live round with money on it
 }
 
-const byPlayOrder = (a: { date: string; seq: number }, b: { date: string; seq: number }) =>
-  a.date.localeCompare(b.date) || a.seq - b.seq;
+const byPlayOrder = (a: { seq: number }, b: { seq: number }) => a.seq - b.seq;
 
 /** The games in one event, in play order. Games without the stamp are never members. */
 export function seriesGames<G extends SeriesGameLike>(games: G[], seriesId: string): G[] {
@@ -120,14 +122,27 @@ export function nestEvents<T>(items: T[], seriesIdOf: (t: T) => string | undefin
 }
 
 /** The stamp for the next round added to an event. */
-export function nextRoundStamp(rounds: SeriesGameLike[], date: string): SeriesStamp {
+export function nextRoundStamp(rounds: SeriesGameLike[], date?: string): SeriesStamp {
   const stamps = rounds.map((r) => r.series).filter((s): s is SeriesStamp => !!s);
   if (stamps.length === 0) throw new Error('nextRoundStamp: no rounds in this event');
   const first = stamps[0];
   const seq = Math.max(...stamps.map((s) => s.seq)) + 1;
   // The event's name can be renamed on any round; the latest-added round holds the current one.
   const latest = stamps.reduce((a, b) => (b.seq > a.seq ? b : a));
-  return { id: first.id, name: latest.name, rollup: first.rollup, seq, date };
+  return { id: first.id, name: latest.name, rollup: first.rollup, seq, ...(date ? { date } : {}) };
+}
+
+/**
+ * §5.dc: move one round a place earlier (-1) or later (+1). Returns every round's new seq, 1..n in
+ * the new order, for the caller to write back (only the changed stamps need saving). An end round
+ * doesn't move past itself.
+ */
+export function moveRound(rounds: SeriesGameLike[], gameId: string, delta: -1 | 1): { gameId: string; seq: number }[] {
+  const order = rounds.filter((r) => r.series).sort((a, b) => byPlayOrder(a.series!, b.series!)).map((r) => r.id);
+  const i = order.indexOf(gameId);
+  const j = i + delta;
+  if (i >= 0 && j >= 0 && j < order.length) [order[i], order[j]] = [order[j], order[i]];
+  return order.map((id, k) => ({ gameId: id, seq: k + 1 }));
 }
 
 /** YYYY-MM-DD plus `days`, calendar-safe (no time zone involved: noon UTC never crosses a date). */
@@ -144,23 +159,23 @@ export function shortDate(date: string): string {
   });
 }
 
-/** An event as a picker lists it: name, how many rounds, and the date the next one defaults to. */
+/** An event as a picker lists it: its name and how many rounds it has. */
 export interface SeriesSummary {
   id: string;
   name: string;
   roundCount: number;
-  lastDate: string;
-  nextDate: string;       // the day after the latest round; a 36-hole day changes it by hand
+  /** The newest round's set-up time: the picker lists the most recent event first. */
+  lastSetUp: string;
 }
 
 export function seriesSummaries(games: SeriesGameLike[]): SeriesSummary[] {
   const out: SeriesSummary[] = [];
   for (const [id, rounds] of groupBySeries(games)) {
-    const last = rounds[rounds.length - 1].series!;
     const latest = rounds.reduce((a, b) => (b.series!.seq > a.series!.seq ? b : a)).series!;
-    out.push({ id, name: latest.name, roundCount: rounds.length, lastDate: last.date, nextDate: addDays(last.date, 1) });
+    const lastSetUp = rounds.reduce((t, r) => ((r.createdAt ?? '') > t ? r.createdAt ?? '' : t), '');
+    out.push({ id, name: latest.name, roundCount: rounds.length, lastSetUp });
   }
-  return out.sort((a, b) => b.lastDate.localeCompare(a.lastDate));
+  return out.sort((a, b) => b.lastSetUp.localeCompare(a.lastSetUp));
 }
 
 /** Where a round stands: finished, live with scores, or not started (setup, or live with none). */
@@ -181,7 +196,7 @@ export function seriesStandings(inputs: SeriesRoundInput[]): SeriesStandings {
     state: roundState(r),
   }));
 
-  const dates: { date: string; gameIds: string[] }[] = [];
+  const dates: { date?: string; gameIds: string[] }[] = [];
   for (const r of ordered) {
     const last = dates[dates.length - 1];
     if (last && last.date === r.date) last.gameIds.push(r.gameId);

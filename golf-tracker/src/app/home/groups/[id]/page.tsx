@@ -434,7 +434,7 @@ export default function GroupDetailPage() {
                               >
                                 <span className="min-w-0 truncate text-sm text-gray-800">
                                   Round {i + 1} · {r.name}
-                                  <span className="ml-1 text-xs text-gray-500">{shortDate(r.series!.date)}</span>
+                                  {r.series!.date && <span className="ml-1 text-xs text-gray-500">{shortDate(r.series!.date)}</span>}
                                 </span>
                                 <span className={`shrink-0 text-xs ${state === 'Live' ? 'text-amber-700' : 'text-gray-400'}`}>{state}</span>
                               </button>

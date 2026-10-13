@@ -96,14 +96,14 @@ Home's Continue card can't tell rounds apart by name.
 **Options:** A, a round added to an event defaults its name to the day and slot ("Wed AM", "Wed PM") or
 "Round 2". B, the event rows show the format/course and drop the name. C, leave it (rename by hand).
 
-### F-116 — 36-hole day: the date defaults to the next day, and the fix is a date picker (2026-10-13)  [P3] [beta #11] — **§5.da: dates become OPTIONAL (not required); design with "set up the rounds, then play them"**
+### F-116 — 36-hole day: the date defaults to the next day, and the fix is a date picker (2026-10-13)  [P3] [beta #11] — **BUILT 2026-10-13 (§5.dc): rounds run in set-up order, movable on the event screen; the date is optional and starts blank**
 
 Round 3 on round 2's day: Review suggests the day after the last round. The only cue is small grey text,
 "Playing 36 that day? Set the same date", and the organizer edits a native date picker (ewalk-38/39).
 **Options:** A, a "Same day as round 2" chip beside the date (one tap). B, default to the last round's date
 when that is today. **Rec A.**
 
-### F-115 — "Head-to-head" means two different things in the wizard (2026-10-13)  [P2] [beta #1] — **LABEL RULE SETTLED (§5.da), build next; step 2 → matchup-visual design note**
+### F-115 — "Head-to-head" means two different things in the wizard (2026-10-13)  [P2] [beta #1] — **LABEL BUILT 2026-10-13 (§5.da/§5.db, ff57f3b); step 2 → matchup-visual design note `.claude/plans/matchup-visual.md`, Craig picks**
 
 Step 2 asks "Head-to-head matches? **No**" (F-037's individual matches). Step 7 then titles the game
 "2 teams of 4 · **head-to-head**", Type "Match", and picks "**Head-to-head match** — fixed $ per front / back /

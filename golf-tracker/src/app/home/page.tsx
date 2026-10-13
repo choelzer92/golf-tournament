@@ -43,6 +43,12 @@ const OTHER_SHOWN = 5;
 
 const dateOf = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
+// The latest dated round's day, when any round has one (§5.dc: dates are optional).
+const lastDate = (rounds: { series?: { date?: string } }[]): string[] => {
+  const d = [...rounds].reverse().find((r) => r.series?.date)?.series?.date;
+  return d ? [shortDate(d)] : [];
+};
+
 // One feed item as a row: what it is, its name, and one line saying where it stands.
 function describe(item: FeedItem, unstarted: Set<string>): { pill: string; pillClass: string; name: string; status: 'setup' | 'active' | 'completed'; line: string; href: string } {
   if (item.kind === 'event') {
@@ -50,7 +56,7 @@ function describe(item: FeedItem, unstarted: Set<string>): { pill: string; pillC
     return {
       pill: 'Event', pillClass: 'bg-emerald-100 text-emerald-800', name: item.name,
       status: item.live ? 'active' : done === item.rounds.length ? 'completed' : 'setup',
-      line: `${item.rounds.length} ${item.rounds.length === 1 ? 'round' : 'rounds'} · ${done} finished · ${shortDate(item.rounds[item.rounds.length - 1].series!.date)}`,
+      line: [`${item.rounds.length} ${item.rounds.length === 1 ? 'round' : 'rounds'}`, `${done} finished`, ...lastDate(item.rounds)].join(' · '),
       href: `/event/${item.seriesId}`,
     };
   }

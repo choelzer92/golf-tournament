@@ -50,7 +50,7 @@ export function buildHomeFeed(
     else items.push({ item: { kind: 'game', key: `pool:${g.id}`, game: g, at: g.createdAt }, groupId: g.sourceGroupId });
   }
   for (const [seriesId, rs] of events) {
-    const rounds = [...rs].sort((a, b) => a.series!.date.localeCompare(b.series!.date) || a.series!.seq - b.series!.seq);
+    const rounds = [...rs].sort((a, b) => a.series!.seq - b.series!.seq);  // set-up order (§5.dc)
     const latest = rounds.reduce((a, b) => (b.series!.seq > a.series!.seq ? b : a));
     items.push({
       item: {

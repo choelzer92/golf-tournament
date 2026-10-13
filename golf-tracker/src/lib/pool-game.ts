@@ -2628,6 +2628,18 @@ export async function renameSeries(seriesId: string, name: string): Promise<void
   }));
 }
 
+// §5.dc: the organizer moves a round on the event screen = rewrite `seq` on every stamp that changed
+// (moveRound gives the whole new order). Each round is re-read first, as renameSeries does.
+export async function reorderSeries(seriesId: string, order: { gameId: string; seq: number }[]): Promise<void> {
+  await Promise.all(order.map(async ({ gameId, seq }) => {
+    const cached = getSeriesRounds(seriesId).find((r) => r.id === gameId);
+    if (!cached) return;
+    const fresh = (await fetchPoolGame(gameId)) ?? cached;
+    if (fresh.series?.id !== seriesId || fresh.series.seq === seq) return;
+    savePoolGame({ ...fresh, series: { ...fresh.series, seq } });
+  }));
+}
+
 // Only the games created by a given GHIN number (an organizer's own history).
 export function getPoolGameListForGhin(ghinNumber: number): PoolGameListItem[] {
   return getPoolGameList().filter((g) => g.createdByGhin === ghinNumber);

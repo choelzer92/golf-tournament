@@ -146,7 +146,6 @@ export default function NewPoolGamePage() {
   const [eventChoice, setEventChoice] = useState<EventChoice>({ kind: 'none' });
   const [myEvents, setMyEvents] = useState<SeriesSummary[]>([]);
   const eventSeedRef = useRef<EventSeed | null>(null);
-  const today = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
   // Handicap basis: 'course' (off the tee, default) or 'index' (raw handicap index).
   const [handicapBasis, setHandicapBasis] = useState<'course' | 'index'>('course');
   // Pot legs in dollars; null until the Review step auto-fills from team count.
@@ -538,7 +537,7 @@ export default function NewPoolGamePage() {
         const target = mine.find((e) => e.id === seed.seriesId) ?? seriesSummaries(getSeriesRounds(seed.seriesId))[0];
         if (target) {
           if (!mine.some((e) => e.id === target.id)) mine.unshift(target);
-          setEventChoice({ kind: 'add', seriesId: target.id, date: target.nextDate });
+          setEventChoice({ kind: 'add', seriesId: target.id, date: '' });
         }
         eventSeedRef.current = null;
       }
@@ -847,11 +846,11 @@ export default function NewPoolGamePage() {
     // continues the event's seq (nextRoundStamp), whatever date it's played.
     let series: SeriesStamp | undefined;
     if (eventChoice.kind === 'new') {
-      series = { id: 's-' + crypto.randomUUID(), name: eventChoice.name.trim() || defaultEventName || 'Event', rollup: 'money', seq: 1, date: eventChoice.date };
+      series = { id: 's-' + crypto.randomUUID(), name: eventChoice.name.trim() || defaultEventName || 'Event', rollup: 'money', seq: 1, ...(eventChoice.date ? { date: eventChoice.date } : {}) };
     } else if (eventChoice.kind === 'add') {
       const rounds = getSeriesRounds(eventChoice.seriesId);
       if (rounds.length === 0) return;
-      series = nextRoundStamp(rounds, eventChoice.date);
+      series = nextRoundStamp(rounds, eventChoice.date || undefined);
     }
     // §5.cz (F-117): a round of an event is named by its game and course ("Round 2 · …" on the event),
     // unless the organizer typed a name here. The group's name and the copied round's name are auto.
@@ -1308,7 +1307,7 @@ export default function NewPoolGamePage() {
             hideHoles={alignedFlow ? { checked: hideHoles, onChange: setHideHoles } : undefined}
             carriedPotSplit={rerunRef.current && rerunRef.current.teamCount === teams.length ? rerunRef.current.potSplit : undefined}
             onSaveFormat={saveCurrentFormat}
-            eventField={<EventField choice={eventChoice} setChoice={setEventChoice} events={myEvents} today={today} defaultName={defaultEventNameOf(draftGame)} />}
+            eventField={<EventField choice={eventChoice} setChoice={setEventChoice} events={myEvents} defaultName={defaultEventNameOf(draftGame)} />}
             gameLabel={draftGame ? gameLabel(draftGame) : ''}
             onCreate={createPoolGame}
             onBack={() => setStep(needsPlayingGroups ? 'groups' : isSolo ? 'tees' : 'teams')}

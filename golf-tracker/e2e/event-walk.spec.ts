@@ -138,7 +138,7 @@ test('bar #11: a 3-day trip from a group', async ({ context, page }) => {
   await page.waitForURL(/\/event\//);
   await capture(page, 'event-final');
 
-  // The trip settles: three finished rounds over two dates, Total zero-sum, four payments.
+  // The trip settles: three finished rounds, Total zero-sum, four payments.
   await expect(page.getByText('3 rounds · 3 finished')).toBeVisible();
   await expect(page.getByRole('heading', { name: label })).toBeVisible();
   // F-117: each round is named by its game and course, not the group.
@@ -164,16 +164,10 @@ async function wizardToCreate(page: Page, tag: string, sameDay = false): Promise
     await tap(page.getByRole('button', { name: /^Next/ }).last());
     await capture(page, `${tag}-wizard-${i + 2}`);
   }
-  if (sameDay) {
-    // A 36-hole day: the organizer has to change the suggested date back by hand.
-    const date = page.getByTestId('event-field').locator('input[type="date"]');
-    const v = await date.inputValue();
-    const d = new Date(`${v}T12:00:00`); d.setDate(d.getDate() - 1);
-    await tap(date);
-    await date.fill(d.toISOString().slice(0, 10));
-    console.log(`DATE suggested ${v}, set back to ${d.toISOString().slice(0, 10)}`);
-    await capture(page, `${tag}-review-same-day`);
-  }
+  // F-116 (§5.dc): the date is optional and starts blank, so a 36-hole day costs nothing extra —
+  // the rounds simply run in the order they were set up.
+  await expect(page.getByTestId('event-field').getByLabel('Date (optional)')).toHaveValue('');
+  if (sameDay) await capture(page, `${tag}-review-same-day`);
   await tap(create);
   await page.waitForURL(/\/pool\/(?!new$)[^/?]+$/, { timeout: 20_000 });
   const close = page.getByRole('button', { name: 'Close' });

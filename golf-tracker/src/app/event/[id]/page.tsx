@@ -1,14 +1,14 @@
 'use client';
 
 // An EVENT's standings (a Series, DECISIONS.md §5.cu, §5.cv): every round's money per player,
-// rounds grouped under their date, TOTAL over finished rounds, and one who-pays-whom for the
-// whole event. A live round is PROJECTED: shown, never in TOTAL or the settle-up.
+// rounds in set-up order (movable by the organizer; a date, when set, heads its rounds — §5.dc),
+// TOTAL over finished rounds, and one who-pays-whom for the whole event. A live round is PROJECTED: shown, never in TOTAL or the settle-up.
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { hydratePoolGames, getSeriesRounds, getPoolGameList, renameSeries, type PoolGame } from '@/lib/pool-game';
+import { hydratePoolGames, getSeriesRounds, getPoolGameList, renameSeries, reorderSeries, type PoolGame } from '@/lib/pool-game';
 import { seriesRoundInputs } from '@/lib/stats-ledger';
-import { seriesStandings, shortDate, type SeriesStandings } from '@/lib/series';
+import { moveRound, seriesStandings, shortDate, type SeriesStandings } from '@/lib/series';
 import { money } from '@/lib/money-format';
 import { getAccessLevel } from '@/lib/invite-gate';
 import { gameListSubtitle } from '@/lib/game-modes/result';
@@ -52,6 +52,14 @@ export default function EventPage() {
         </div>
       </div>
     );
+  }
+
+  // §5.dc: the organizer moves a round earlier or later; the standings re-read the new order.
+  async function doMove(gameId: string, delta: -1 | 1) {
+    await reorderSeries(id, moveRound(rounds!, gameId, delta));
+    const rs = getSeriesRounds(id);
+    setRounds(rs);
+    setStandings(seriesStandings(await seriesRoundInputs(rs)));
   }
 
   async function doRename(current: string) {
@@ -122,8 +130,8 @@ export default function EventPage() {
                     <th />
                     {standings.hasProjected && <th />}
                     {standings.dates.map((d) => (
-                      <th key={d.date} colSpan={d.gameIds.length} className="px-2 pt-1 font-medium text-center whitespace-nowrap border-l border-gray-100">
-                        {shortDate(d.date)}
+                      <th key={d.gameIds[0]} colSpan={d.gameIds.length} className="px-2 pt-1 font-medium text-center whitespace-nowrap border-l border-gray-100">
+                        {d.date ? shortDate(d.date) : ''}
                       </th>
                     ))}
                   </tr>
@@ -195,21 +203,29 @@ export default function EventPage() {
               const st = standings?.rounds.find((x) => x.gameId === r.id)?.state
                 ?? (r.status === 'completed' ? 'final' : r.status === 'active' ? 'projected' : 'upcoming');
               const state = st === 'final' ? 'Final' : st === 'projected' ? 'Live' : 'Not started';
+              const arrow = 'w-9 min-h-[22px] flex-1 text-sm text-gray-500 hover:text-green-800 hover:bg-green-50 disabled:opacity-30 disabled:hover:bg-transparent';
               return (
+                <div key={r.id} className="flex items-stretch gap-1">
                 <button
-                  key={r.id}
                   type="button"
                   onClick={() => router.push('/pool/' + r.id)}
-                  className="w-full text-left rounded-lg border border-gray-300 bg-white px-3 py-2.5 min-h-[44px] hover:border-green-400"
+                  className="flex-1 min-w-0 text-left rounded-lg border border-gray-300 bg-white px-3 py-2.5 min-h-[44px] hover:border-green-400"
                 >
                   <span className="flex justify-between gap-2 text-sm font-medium text-gray-900">
                     <span>Round {i + 1} · {r.name}</span>
                     <span className={st === 'projected' ? 'text-amber-700' : 'text-gray-500'}>{state}</span>
                   </span>
                   <span className="block text-xs text-gray-500">
-                    {shortDate(r.series!.date)}{r.course ? ` · ${r.course.courseName}` : ''}{item ? ` · ${gameListSubtitle(item)}` : ''}
+                    {[r.series!.date ? shortDate(r.series!.date) : null, r.course?.courseName, item ? gameListSubtitle(item) : null].filter(Boolean).join(' · ')}
                   </span>
                 </button>
+                {organizer && rounds.length > 1 && (
+                  <div className="flex flex-col rounded-lg border border-gray-300 bg-white overflow-hidden">
+                    <button type="button" aria-label={`Move round ${i + 1} earlier`} disabled={i === 0} onClick={() => void doMove(r.id, -1)} className={arrow}>↑</button>
+                    <button type="button" aria-label={`Move round ${i + 1} later`} disabled={i === rounds.length - 1} onClick={() => void doMove(r.id, 1)} className={arrow + ' border-t border-gray-200'}>↓</button>
+                  </div>
+                )}
+                </div>
               );
             })}
           </div>

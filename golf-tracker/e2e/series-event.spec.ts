@@ -98,8 +98,8 @@ test('§5.cv Q4: "+ Add round 5" from the live round copies it and lands as roun
 
   const field = page.getByTestId('event-field');
   await expect(field.getByLabel('Add to Myrtle 2026 as round 5')).toBeChecked();
-  // The day after the last round; a 36-hole day would change it by hand.
-  await expect(field.locator('input[type="date"]')).toHaveValue('2026-10-19');
+  // F-116 (§5.dc): the date is optional and starts blank.
+  await expect(field.getByLabel('Date (optional)')).toHaveValue('');
   await page.screenshot({ path: 'e2e/screenshots/event-review-add.png', fullPage: true });
   await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/?]+$/, { timeout: 15_000 });
@@ -109,13 +109,22 @@ test('§5.cv Q4: "+ Add round 5" from the live round copies it and lands as roun
   await page.getByTestId('event-banner').getByRole('button', { name: 'Event standings' }).click();
   await page.waitForURL(new RegExp(`${EVENT}$`));
   await expect(page.getByText('5 rounds · 3 finished')).toBeVisible();
-  await expect(page.getByTestId('event-standings').getByText('Mon, Oct 19')).toBeVisible();
+  // Undated, round 5 runs fifth (set-up order) under no day header; the dated rounds keep theirs.
+  await expect(page.getByTestId('event-standings').locator('thead th[colspan="2"]')).toHaveText('Sat, Oct 17');
+  await expect(page.getByTestId('event-standings').getByText('Mon, Oct 19')).toHaveCount(0);
 
   // §5.cw a: round 5 was set up ahead and has no score, so it reads "Not started", not live,
   // and Home gives it no Continue card (only Sunday's live round has one).
   await expect(page.getByTestId('event-standings').getByRole('columnheader', { name: /R5.*not started/ })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Rounds' }).getByRole('button', { name: /^Round 5 ·.*Not started/ })).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/event-round-not-started.png', fullPage: true });
+  // F-116 (§5.dc): the organizer moves a round on the event screen; the order and R-labels follow.
+  const roundList = page.getByRole('region', { name: 'Rounds' });
+  await roundList.getByRole('button', { name: 'Move round 5 earlier' }).click();
+  await expect(roundList.getByRole('button', { name: /^Round 4 ·.*Not started/ })).toBeVisible();
+  await expect(roundList.getByRole('button', { name: /^Round 5 ·.*Live/ })).toBeVisible();
+  await expect(page.getByTestId('event-standings').getByRole('columnheader', { name: /R4.*not started/ })).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/f116-event-round-moved.png', fullPage: true });
   await page.goto(`${BASE}/home`);
   await expect(page.getByText(/Welcome back, Craig/)).toBeVisible();
   await expect(page.getByRole('region', { name: 'Continue' }).getByText('▶ Continue')).toHaveCount(1);

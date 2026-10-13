@@ -6,15 +6,18 @@
 //   - a round's member is a GAME: two rounds on one date are two columns, each counted once;
 //   - a player who sits a round out just has no entry for it;
 //   - the event is zero-sum and the settle-up clears every TOTAL;
-//   - play order is date, then seq. It is never the order the games were saved.
+//   - play order is SET-UP order (seq), movable (§5.dc). A date is optional and only heads
+//     consecutive rounds that share it. It is never the order the games were saved.
 
 import { describe, expect, it } from 'vitest';
 import {
   groupBySeries,
   nestEvents,
+  moveRound,
   nextRoundStamp,
   seriesGames,
   seriesStandings,
+  seriesSummaries,
   type SeriesRoundInput,
   type SeriesStamp,
 } from '@/lib/series';
@@ -43,7 +46,7 @@ describe('Series standings: a long weekend with a 36-hole Saturday', () => {
   const s = seriesStandings(weekend());
   const row = (id: string) => s.rows.find((r) => r.playerId === id)!;
 
-  it('orders rounds by date then seq, labels them R1… and groups them under their date', () => {
+  it('orders rounds by seq, labels them R1… and heads same-day runs with their date', () => {
     expect(s.rounds.map((r) => r.gameId)).toEqual(['fri', 'sat-am', 'sat-pm', 'sun', 'sun-2']);
     expect(s.rounds.map((r) => r.label)).toEqual(['R1', 'R2', 'R3', 'R4', 'R5']);
     expect(s.rounds.map((r) => r.state)).toEqual(['final', 'final', 'final', 'projected', 'upcoming']);
@@ -100,15 +103,73 @@ describe('Series standings: a long weekend with a 36-hole Saturday', () => {
     expect(s.settle.some((t) => t.toPlayerId === 'craig' || t.fromPlayerId === 'craig')).toBe(false);
   });
 
-  it('two games on the same round are two columns, each counted once', () => {
-    // §5.cp: a back-nine 3 v 3 added on top of the morning round. Same date, its own seq.
+  it('a game added later runs in set-up order, under its own date header (§5.dc)', () => {
+    // §5.cp: a back-nine 3 v 3 added on top of Saturday's round AFTER Sunday was set up. Set-up order
+    // puts it last; it's still its own column, counted once. (When "two games on one round" is built,
+    // the second game shares its round's slot.)
     const plus = seriesStandings([
       ...weekend(),
       { gameId: 'sat-am-b9', gameName: 'Back-nine 3v3', date: '2026-10-17', seq: 6, status: 'completed',
         nets: [n('craig', 6), n('jym', -6)] },
     ]);
-    expect(plus.dates[1].gameIds).toEqual(['sat-am', 'sat-pm', 'sat-am-b9']);
+    expect(plus.rounds.map((r) => r.gameId)).toEqual(['fri', 'sat-am', 'sat-pm', 'sun', 'sun-2', 'sat-am-b9']);
+    expect(plus.dates[3]).toEqual({ date: '2026-10-17', gameIds: ['sat-am-b9'] });
     expect(plus.rows.find((r) => r.playerId === 'craig')!.total).toBe(6);
+  });
+
+  it('seq wins over the date: a round set up first but played later still runs first', () => {
+    const s2 = seriesStandings([
+      { gameId: 'late', gameName: 'Late', date: '2026-10-20', seq: 1, status: 'completed', nets: [n('a', 5), n('b', -5)] },
+      { gameId: 'early', gameName: 'Early', date: '2026-10-10', seq: 2, status: 'completed', nets: [n('a', -1), n('b', 1)] },
+    ]);
+    expect(s2.rounds.map((r) => r.gameId)).toEqual(['late', 'early']);
+  });
+});
+
+describe('§5.dc: dates are optional', () => {
+  const undated = (gameId: string, seq: number, date?: string): SeriesRoundInput =>
+    ({ gameId, gameName: gameId, seq, status: 'completed', nets: [n('a', seq), n('b', -seq)], ...(date ? { date } : {}) });
+
+  it('an event with no dates: set-up order, one header-less run, money unchanged', () => {
+    const s = seriesStandings([undated('r2', 2), undated('r1', 1), undated('r3', 3)]);
+    expect(s.rounds.map((r) => [r.gameId, r.label])).toEqual([['r1', 'R1'], ['r2', 'R2'], ['r3', 'R3']]);
+    expect(s.dates).toEqual([{ date: undefined, gameIds: ['r1', 'r2', 'r3'] }]);
+    expect(s.rows.find((r) => r.playerId === 'a')!.total).toBe(6);
+    expect(s.rows.reduce((t, r) => t + r.total, 0)).toBe(0);
+  });
+
+  it('a date heads only the consecutive rounds that share it', () => {
+    const s = seriesStandings([undated('r1', 1), undated('r2', 2, '2026-10-17'), undated('r3', 3, '2026-10-17'), undated('r4', 4)]);
+    expect(s.dates).toEqual([
+      { date: undefined, gameIds: ['r1'] },
+      { date: '2026-10-17', gameIds: ['r2', 'r3'] },
+      { date: undefined, gameIds: ['r4'] },
+    ]);
+  });
+});
+
+describe('§5.dc: rounds are movable on the event screen', () => {
+  const stamp = (seq: number): SeriesStamp => ({ id: 's-1', name: 'Trip', rollup: 'money', seq });
+  const rounds = [
+    { id: 'a', name: 'A', status: 'completed' as const, series: stamp(1) },
+    { id: 'b', name: 'B', status: 'active' as const, series: stamp(2) },
+    { id: 'c', name: 'C', status: 'setup' as const, series: stamp(5) },
+  ];
+
+  it('moving a round swaps it with its neighbour and renumbers 1..n', () => {
+    expect(moveRound(rounds, 'c', -1)).toEqual([{ gameId: 'a', seq: 1 }, { gameId: 'c', seq: 2 }, { gameId: 'b', seq: 3 }]);
+    expect(moveRound(rounds, 'a', 1)).toEqual([{ gameId: 'b', seq: 1 }, { gameId: 'a', seq: 2 }, { gameId: 'c', seq: 3 }]);
+  });
+
+  it('the ends do not move past themselves (order unchanged, renumbered)', () => {
+    expect(moveRound(rounds, 'a', -1)).toEqual([{ gameId: 'a', seq: 1 }, { gameId: 'b', seq: 2 }, { gameId: 'c', seq: 3 }]);
+    expect(moveRound(rounds, 'c', 1)).toEqual([{ gameId: 'a', seq: 1 }, { gameId: 'b', seq: 2 }, { gameId: 'c', seq: 3 }]);
+  });
+
+  it('the next round after a move still continues the seq', () => {
+    const moved = moveRound(rounds, 'c', -1);
+    const after = rounds.map((r) => ({ ...r, series: { ...r.series, seq: moved.find((m) => m.gameId === r.id)!.seq } }));
+    expect(nextRoundStamp(after).seq).toBe(4);
   });
 });
 
@@ -206,6 +267,18 @@ describe('membership and the next round', () => {
 
   it('a 36-hole day: the next round may share the date', () => {
     expect(nextRoundStamp(seriesGames(games, 's-myrtle'), '2026-10-17').seq).toBe(3);
+  });
+
+  it('§5.dc: with no date given, the next round carries none', () => {
+    expect(nextRoundStamp(seriesGames(games, 's-myrtle'))).toEqual({ id: 's-myrtle', name: 'Myrtle 2026', rollup: 'money', seq: 3 });
+  });
+
+  it('§5.dc: the event picker lists the most recently set-up event first, dates or not', () => {
+    const list = seriesSummaries([
+      { id: 'o1', name: 'O1', status: 'completed', createdAt: '2026-10-01T10:00:00Z', series: { id: 's-old', name: 'Old', rollup: 'money', seq: 1, date: '2026-12-01' } },
+      { id: 'n1', name: 'N1', status: 'active', createdAt: '2026-10-12T10:00:00Z', series: { id: 's-new', name: 'New', rollup: 'money', seq: 1 } },
+    ]);
+    expect(list.map((e) => [e.id, e.roundCount])).toEqual([['s-new', 1], ['s-old', 1]]);
   });
 });
 
