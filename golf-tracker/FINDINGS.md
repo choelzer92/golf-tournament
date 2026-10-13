@@ -23,6 +23,92 @@ Status flow: `open` → `chosen: X` → `fixed (commit)` → `verified (e2e)`
 
 ## Open
 
+### Bar #11 walk record (2026-10-13): a 3-day trip from a group, measured
+
+`e2e/event-walk.spec.ts`: the Tuesday Crew (8 players, no saved formats). Group → Start an event → 7-step
+wizard → round 1; score both foursomes; event standings; Add round 2 (next day); Add round 3 (same
+day, a 36-hole day); settle. Screens: `e2e/screenshots/ewalk-01…45`. **It works end to end:** three
+rounds over two dates, Total zero-sum, a four-line settle-up. Every Finish Game on the last card
+closes the round by itself, so no separate Close out is needed.
+
+| Phase | Taps |
+|---|---|
+| Group → round 1 created (incl. typing the event name) | 13 |
+| Score one foursome, 18 holes (4 pad taps + "›" per hole, open + Finish) | 91 |
+| Add round 2 (Add round → 6 × Next → Create → close the sheet) | 9 |
+| Add round 3 on the same day (+ fix the date by hand) | 10 + a date picker |
+| Settle (open the event) | 1 |
+
+Findings F-114 to F-120 below. One not logged: "+ Add round N" showing before a round has scores is §5.cv by design.
+
+### F-120 — "Same game as last time" describes a head-to-head game as a $25 pot (2026-10-13)  [P2 money text] [beta #11 #3]
+
+Add round 2 / round 3 of a classic head-to-head event: steps 2 and 3 show "Same game as last time — Pool ·
+$25/player pot · off the low · 90%" (ewalk-22/23). The game is $10 a leg + $5 junk, and the copy IS right:
+step 7 and the created hub both show $10/$10/$10 + $5. **Cause:** `stakesSummary`
+(`game-modes/summary.ts:81`) has no mode for a classic pool and only states `entryPerPlayer`, ignoring
+`moneyMode: 'match'` and its leg dollars. Every copy of a classic head-to-head game (Add round, Run it back,
+a saved format with moneyMode match) says the same. On step 3 it's the only thing on screen. No money math is
+wrong. **Options:** A, the classic-pool summary reads `moneyMode` ("$10 front / back / overall, $5 junk"); a
+unit test per money mode. B, drop the stakes part for classic pools. **Rec A.**
+
+
+### F-119 — Event walk polish (2026-10-13)  [P3] [beta #11]
+
+From the bar #11 walk (screens `ewalk-*`):
+- **a.** A closed round's hub still leads with big green "Enter Scores" buttons on every foursome, and the
+  payouts sit below them at the bottom (ewalk-19, 44).
+- **b.** The Finish Game dialog says "This cannot be undone", but the closed hub offers "Reopen game".
+- **c.** The 1–8 score pad wraps its "8" onto a line of its own at 390px (ewalk-15, 29).
+- **d.** On rounds 2+, step 1 lists the whole 61-player roster unchecked-first, and highlights no group
+  chip (ewalk-21). Round 1 showed just "TUESDAY CREW · 8".
+- **e.** Saved formats show among "Your groups" as chips with 0 players ("Saturday Nassau 0").
+- **f.** The card header reads "Stroke Play" while the hub says "Head-to-Head Match". The "124 · thru 18" has
+  no unit, and the hub doesn't say which scores count (that last part is already in BACKLOG).
+- **g.** Hint grammar: "Its last round was Tue, Oct 13."
+
+Options: fix each as a one-liner (recommended for a–e, g); f waits for the BACKLOG item.
+
+### F-118 — "Start an event" asks nothing about the event until the bottom of step 7 (2026-10-13)  [P2] [beta #11 #1]
+
+The organizer taps "Start an event". Six steps then go by with no mention of it, and the event name is an empty
+field under bonuses and Hide holes (ewalk-11). It's easy to create round 1 of an unnamed trip.
+**Options:** A, when launched from "Start an event", the Review scrolls to and focuses the event field
+and Create is disabled until it has a name. B, ask the event's name first (on step 1, one field). C, leave it.
+**Rec A:** it changes no step order (§5.e).
+
+### F-117 — Every round in an event is named after the group (2026-10-13)  [P3] [beta #11]
+
+All three rows read "Round N · Tuesday Crew" (ewalk-45), and so do the hub titles. The name adds nothing, and
+Home's Continue card can't tell rounds apart by name.
+**Options:** A, a round added to an event defaults its name to the day and slot ("Wed AM", "Wed PM") or
+"Round 2". B, the event rows show the format/course and drop the name. C, leave it (rename by hand).
+
+### F-116 — 36-hole day: the date defaults to the next day, and the fix is a date picker (2026-10-13)  [P3] [beta #11]
+
+Round 3 on round 2's day: Review suggests the day after the last round. The only cue is small grey text,
+"Playing 36 that day? Set the same date", and the organizer edits a native date picker (ewalk-38/39).
+**Options:** A, a "Same day as round 2" chip beside the date (one tap). B, default to the last round's date
+when that is today. **Rec A.**
+
+### F-115 — "Head-to-head" means two different things in the wizard (2026-10-13)  [P2] [beta #1]
+
+Step 2 asks "Head-to-head matches? **No**" (F-037's individual matches). Step 7 then titles the game
+"2 teams of 4 · **head-to-head**", Type "Match", and picks "**Head-to-head match** — fixed $ per front / back /
+overall" (ewalk-04 vs ewalk-11). The hub says "Head-to-Head Match" too. A first-timer reads it as their
+"No" being ignored. **Options:** A, call the money model by what it pays: "Nassau: fixed $ per front / back / overall",
+with the hub/subtitle following. B, rename the step 2 question "Players matched up inside the foursome?".
+C, both. **Craig's call (vocabulary).**
+
+### F-114 — The event standings are clipped on a phone at 3 rounds (2026-10-13)  [P2] [beta #11]
+
+At 390px the R3 column is cut mid-number and its header reads "R" (ewalk-45). Nothing says the table scrolls
+sideways, and the "Wed, Oct 14" header looks like it covers R2 only, so the 36-hole day doesn't read as one day.
+A real trip (4–6 rounds) would hide most of the round columns. Total and the settle-up are right.
+**Options:** A, sticky Player + Total, with the rounds scrolling under a visible scroll cue (fade/"→").
+B, on a phone, one column per DAY (its rounds summed), with tap-to-expand. C, per-player rows with the rounds
+listed under the name. **Craig's call.**
+
 ### F-002 — Share links: every visitor shares one static token, and RLS is open  [P1] [continue]
 
 **Screens:** `src/components/pool-share.tsx`, `src/lib/invite-gate.ts`,
