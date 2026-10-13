@@ -27,7 +27,7 @@ Done today, each its own commit:
 1. **F-115, the game label.** Total risked · Nassau/holes · teams · format (ALWAYS, best ball too) ·
    match or stroke play (Stableford either way) · split. A pot: "$200 pot ($25 each) · 2 teams of 4 ·
    best net & best gross · stroke play · Pays front / back / overall / junk (25% each)", or "Winner takes
-   all". Ask Craig first what front + back with no overall is called. Unit tests per money model × format;
+   all". Front + back only = "$40 front & back ($20/$20)"; every partial bet follows that pattern. Unit tests per money model × format;
    it replaces the hub's repeated "2 teams of 4 · head-to-head".
 2. **F-116: event dates OPTIONAL.** Seq orders the rounds; a date only groups columns when set.
    `lib/series.ts` goldens first.
@@ -58,7 +58,7 @@ computing, Q1). Run both corpus harnesses before and after every slice.
 
 ## Waiting on Craig (don't guess)
 - Merging `series-2026-10-12`.
-- F-115: front + back naming; the matchup-visual pick; F-114 in the design session.
+- The matchup-visual pick; F-114 in the design session.
 - Presses: the eight design questions.
 - Saved formats carrying the pot split.
 - His phone walk of F-037 (which closes the P1) and of the Event.

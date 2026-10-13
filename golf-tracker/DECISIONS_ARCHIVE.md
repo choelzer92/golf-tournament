@@ -2677,3 +2677,5 @@ Follow-up to §5.cz (F-114/F-115/F-116):
 - **The matchup visual: a design note first, next session.** 2–3 mocked layouts (where it sits in the
   wizard, how swapping works, how it drives pairings and tee groups); Craig picks before code. Option A's
   wording waits for it.
+- **Front + back with no overall** reads as the total risked, the legs it covers, then the split: "$40 front &
+  back ($20/$20)". Craig: "along those lines": every partial bet follows the same pattern.

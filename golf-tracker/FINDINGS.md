@@ -125,8 +125,8 @@ teams of 4 get 1 v 1 or 2 v 2. So for a 2 v 2 the team IS the match, as Craig sa
 **2026-10-13, settled (§5.da):** the label ALWAYS names the format (best ball too); scoring is match or
 stroke play, and Stableford either way. A pot reads "$200 pot ($25 each) · 2 teams of 4 · best net & best
 gross · stroke play · Pays front / back / overall / junk (25% each)", or "Winner takes all". Step 2 = **option A**,
-but decided early with a movable matchup visual: a **design note first** (next session). Still to ask:
-front + back with no overall, what's it called?
+but decided early with a movable matchup visual: a **design note first** (next session). Front + back only
+= "$40 front & back ($20/$20)", and every partial bet follows that pattern.
 
 ### F-114 — The event standings are clipped on a phone at 3 rounds (2026-10-13)  [P2] [beta #11] — **→ design session (§5.cz/§5.da): "very clear and inviting so users enjoy the app"**
 
