@@ -73,7 +73,8 @@ test('bar #11: a 3-day trip from a group', async ({ context, page }) => {
   await capture(page, 'r1-hub');
 
   const hub1 = page.url();
-  page.on('dialog', (d) => { console.log('DIALOG', d.message()); void d.accept(); });
+  const dialogs: string[] = [];
+  page.on('dialog', (d) => { dialogs.push(d.message()); void d.accept(); });
 
   // ROUND 1: both foursomes score all 18 on the organizer's phone (a stand-in for two phones).
   phase = 'r1-score';
@@ -84,6 +85,14 @@ test('bar #11: a 3-day trip from a group', async ({ context, page }) => {
   phase = 'r1-close';
   await closeOut(page);
   await capture(page, 'r1-closed');
+  // F-119 a: a closed round leads with who pays whom; its cards are a quiet "View card".
+  await expect(page.getByRole('button', { name: 'View card' })).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Enter Scores' })).toHaveCount(0);
+  const paysY = (await page.getByText('Game closed out').boundingBox())!.y;
+  const cardsY = (await page.getByRole('heading', { name: 'Foursomes' }).boundingBox())!.y;
+  expect(paysY).toBeLessThan(cardsY);
+  // F-119 b: the card's Finish dialog no longer says "cannot be undone" (the hub can reopen).
+  expect(dialogs[0]).toContain('The organizer can reopen the game');
   await tap(page.getByRole('button', { name: 'Event standings' }).first());
   await page.waitForURL(/\/event\//);
   await capture(page, 'event-after-r1');
@@ -93,6 +102,11 @@ test('bar #11: a 3-day trip from a group', async ({ context, page }) => {
   await tap(page.getByRole('button', { name: /Add round 2/ }).first());
   await page.waitForURL(/\/pool\/new/);
   await capture(page, 'r2-wizard-1');
+  // F-119 d+e: the copied round shows its group chosen with its 8 up top; formats aren't group chips.
+  const chips = page.getByText('Your groups').locator('..');
+  await expect(chips.getByRole('button', { name: /Tuesday Crew/ })).toHaveClass(/bg-green-600/);
+  await expect(chips.getByRole('button', { name: /Saturday Nassau/ })).toHaveCount(0);
+  await expect(page.getByText('Tuesday Crew · 8')).toBeVisible();
   await tap(page.getByRole('button', { name: /^Next/ }).last());
   // F-120: the copy's summary states the head-to-head legs, not the unused $25 ante.
   await expect(page.getByText('Same game as last time')).toBeVisible();
@@ -184,7 +198,14 @@ async function scoreRound(page: Page, hub: string, round: number) {
         const sc = Math.max(1, par + (((p + 1) * 7 + h * 3 + round * 5 + c * 2) % 4) - 1 - tilt);
         await tap(page.getByRole('button', { name: String(sc), exact: true }).nth(p));
       }
-      if (h === 1 && c === 0) await capture(page, `r${round}-card-hole1-scored`);
+      if (h === 1 && c === 0) {
+        await capture(page, `r${round}-card-hole1-scored`);
+        // F-119 c: the pad is one row at phone width (its lowest and highest options level).
+        const pad = page.getByRole('button', { name: /^[1-9]$/ });
+        const first = (await pad.first().boundingBox())!.y;
+        const ys = await Promise.all((await pad.all()).slice(0, 7).map(async (b) => (await b.boundingBox())!.y));
+        expect(ys.every((y) => Math.abs(y - first) < 2)).toBe(true);
+      }
       if (h < 18) await tap(page.getByRole('button', { name: '›' }));
     }
     await capture(page, `r${round}-card${c + 1}-hole18`);

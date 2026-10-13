@@ -87,7 +87,9 @@ export function FieldStep({
       // Groups share the same viewer scope. Best-effort — fails soft to empty.
       hydrateGroups({ viewerGhin: getCreatorGhin(), isOwner: isAppOwner() })
         .then(() => {
-          setGroups(getGroups());
+          // F-119 e: saved formats live in roster_groups too; they're picked on the next step,
+          // not here as 0-player "groups".
+          setGroups(getGroups().filter((g) => g.defaults?.kind !== 'format'));
           // A group seed from /home/groups/[id] "Start casual round": load that
           // group now and consume the seed so it applies exactly once. Tees resolve
           // when the course is picked later (§5.au moved the course after the field).
@@ -135,6 +137,15 @@ export function FieldStep({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // F-119 d: a field that arrives already filled (a copied round, Run it back) shows its group as
+  // chosen, with its members up top, without touching who's playing. The copy lands after mount.
+  useEffect(() => {
+    if (!activeGroupId && preselectedGroupId && players.length > 0 && groups.some((g) => g.id === preselectedGroupId)) {
+      setActiveGroupId(preselectedGroupId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preselectedGroupId, groups, players.length > 0]);
 
   function refreshRoster(query: string) {
     setRosterQuery(query);
@@ -446,7 +457,8 @@ export function FieldStep({
           if (!activeGroup) {
             return (
               <ul className="mt-2 max-h-80 overflow-y-auto divide-y divide-gray-100 rounded-md border border-gray-100">
-                {rosterResults.map(row)}
+                {/* F-119 d: today's field first, then everyone else. */}
+                {[...rosterResults.filter((rp) => fieldIds.has(rp.id)), ...rosterResults.filter((rp) => !fieldIds.has(rp.id))].map(row)}
               </ul>
             );
           }

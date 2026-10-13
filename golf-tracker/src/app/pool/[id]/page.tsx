@@ -334,6 +334,20 @@ export default function PoolHubPage() {
   const hubTeamsSolo = allSidesAreSolo(hubTeams);
   const groupNameOf = (playerId: string) => game.teams.find((t) => t.playerIds.includes(playerId))?.name;
 
+  const completed = game.status === 'completed';
+  const closeOut = (
+    <GameCloseOut
+      game={game}
+      onSave={persist}
+      onRunItBack={() => {
+        // A stale wizard draft must not mix into the rerun.
+        sessionStorage.removeItem('pool_wizard_draft');
+        sessionStorage.setItem(RERUN_SEED_KEY, game.id);
+        router.push('/pool/new');
+      }}
+    />
+  );
+
   return (
     <div className="min-h-full bg-gray-50">
       <header className="bg-green-800 text-white shadow">
@@ -504,6 +518,11 @@ export default function PoolHubPage() {
           </section>
         )}
 
+        {/* F-119 a: a closed game leads with who pays whom, above the cards. F-032: a guest in the
+            parking lot needs the transfer list as much as the organizer (who gets it inside the
+            close-out panel). */}
+        {completed && (poolOnly ? <GuestSettleUp game={game} /> : closeOut)}
+
         {/* Foursome cards — a single-group game has just the one "Group" card, so
             "Foursomes" over it reads wrong; spread over several (F-101 d), they're its tee groups. */}
         <section>
@@ -543,7 +562,6 @@ export default function PoolHubPage() {
         {/* F-032: a completed game answers "who pays whom" for EVERYONE — a guest in
             the parking lot needs the transfer list as much as the organizer (who gets
             it inside the close-out panel below). */}
-        {poolOnly && game.status === 'completed' && <GuestSettleUp game={game} />}
 
         {/* Organizer-only surfaces. A guest tapping "Close out game" would end the
             round for every foursome, and CTP/Wolf setup is the organizer's job. */}
@@ -561,17 +579,8 @@ export default function PoolHubPage() {
                 gameCountsCtp — a legacy team game with junkCtp 0 still shows nothing. */}
             <CtpEditor game={game} onSave={persist} />
 
-            {/* Close out / reopen — the explicit lifecycle control. */}
-            <GameCloseOut
-              game={game}
-              onSave={persist}
-              onRunItBack={() => {
-                // A stale wizard draft must not mix into the rerun.
-                sessionStorage.removeItem('pool_wizard_draft');
-                sessionStorage.setItem(RERUN_SEED_KEY, game.id);
-                router.push('/pool/new');
-              }}
-            />
+            {/* Close out / reopen — the explicit lifecycle control. Once closed it leads the page. */}
+            {!completed && closeOut}
           </>
         )}
       </main>

@@ -1284,7 +1284,8 @@ export default function PlayGamePage() {
                       </p>
                     )}
                   </div>
-                  <div className="flex gap-1.5 flex-wrap">
+                  {/* F-119 c: one row at phone width (7-9 options); the buttons shrink to fit. */}
+                  <div className="flex gap-1">
                     {scoreOptions.map((score) => (
                       <button
                         key={score}
@@ -1292,7 +1293,7 @@ export default function PlayGamePage() {
                           // Set same score for all players on the team
                           tp.forEach((p) => setScore(p.id, currentHole, score));
                         }}
-                        className={`w-9 h-9 rounded-full text-sm font-bold transition ${
+                        className={`h-9 flex-1 max-w-9 rounded-full text-sm font-bold transition ${
                           gross === score
                             ? 'bg-green-700 text-white'
                             : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -1348,12 +1349,13 @@ export default function PlayGamePage() {
                       </p>
                     )}
                   </div>
-                  <div className="flex gap-1.5 flex-wrap">
+                  {/* F-119 c: one row at phone width (7-9 options); the buttons shrink to fit. */}
+                  <div className="flex gap-1">
                     {scoreOptions.map((score) => (
                       <button
                         key={score}
                         onClick={() => setScore(player.id, currentHole, score)}
-                        className={`w-9 h-9 rounded-full text-sm font-bold transition ${
+                        className={`h-9 flex-1 max-w-9 rounded-full text-sm font-bold transition ${
                           gross === score
                             ? 'bg-green-700 text-white'
                             : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -2180,7 +2182,10 @@ export default function PlayGamePage() {
   }
 
   async function finishGame() {
-    if (!confirm('Finish this game and lock scores? This cannot be undone.')) return;
+    // F-119 b: a pool game can be reopened from its hub, so don't say "cannot be undone" there.
+    if (!confirm(poolCtx
+      ? 'Finish this card and lock its scores? The organizer can reopen the game if a score needs fixing.'
+      : 'Finish this game and lock scores? This cannot be undone.')) return;
 
     // Pool money game: persist this foursome's scores and return to the hub.
     // Pool standings/payouts are computed on the leaderboard from all foursomes.
