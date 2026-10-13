@@ -84,14 +84,14 @@ Home's Continue card can't tell rounds apart by name.
 **Options:** A, a round added to an event defaults its name to the day and slot ("Wed AM", "Wed PM") or
 "Round 2". B, the event rows show the format/course and drop the name. C, leave it (rename by hand).
 
-### F-116 — 36-hole day: the date defaults to the next day, and the fix is a date picker (2026-10-13)  [P3] [beta #11] — **RETHINK (§5.cz): Craig questions dates at all; "set up the rounds and then play them". BACKLOG design item**
+### F-116 — 36-hole day: the date defaults to the next day, and the fix is a date picker (2026-10-13)  [P3] [beta #11] — **§5.da: dates become OPTIONAL (not required); design with "set up the rounds, then play them"**
 
 Round 3 on round 2's day: Review suggests the day after the last round. The only cue is small grey text,
 "Playing 36 that day? Set the same date", and the organizer edits a native date picker (ewalk-38/39).
 **Options:** A, a "Same day as round 2" chip beside the date (one tap). B, default to the last round's date
 when that is today. **Rec A.**
 
-### F-115 — "Head-to-head" means two different things in the wizard (2026-10-13)  [P2] [beta #1] — **OPEN (§5.cz): not "Nassau" (overall-only exists), not "inside the foursome"; new names to Craig**
+### F-115 — "Head-to-head" means two different things in the wizard (2026-10-13)  [P2] [beta #1] — **LABEL RULE SETTLED (§5.da), build next; step 2 → matchup-visual design note**
 
 Step 2 asks "Head-to-head matches? **No**" (F-037's individual matches). Step 7 then titles the game
 "2 teams of 4 · **head-to-head**", Type "Match", and picks "**Head-to-head match** — fixed $ per front / back /
@@ -122,7 +122,13 @@ teams of 4 get 1 v 1 or 2 v 2. So for a 2 v 2 the team IS the match, as Craig sa
   there's no second question.
 - **C. Show it only for teams of 3+**, so a 2 v 2 never sees it (singles inside a 2 v 2 stay reachable under "Other").
 
-### F-114 — The event standings are clipped on a phone at 3 rounds (2026-10-13)  [P2] [beta #11] — **→ design session (§5.cz); leaning A, sticky name**
+**2026-10-13, settled (§5.da):** the label ALWAYS names the format (best ball too); scoring is match or
+stroke play, and Stableford either way. A pot reads "$200 pot ($25 each) · 2 teams of 4 · best net & best
+gross · stroke play · Pays front / back / overall / junk (25% each)", or "Winner takes all". Step 2 = **option A**,
+but decided early with a movable matchup visual: a **design note first** (next session). Still to ask:
+front + back with no overall, what's it called?
+
+### F-114 — The event standings are clipped on a phone at 3 rounds (2026-10-13)  [P2] [beta #11] — **→ design session (§5.cz/§5.da): "very clear and inviting so users enjoy the app"**
 
 At 390px the R3 column is cut mid-number and its header reads "R" (ewalk-45). Nothing says the table scrolls
 sideways, and the "Wed, Oct 14" header looks like it covers R2 only, so the 36-hole day doesn't read as one day.

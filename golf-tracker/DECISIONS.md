@@ -214,6 +214,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.cx | 2026-10-12: dashboard KEPT as the Course & GHIN lookup page (any golfer by name/#, read-only); headers + not-found go to Home; F-110 A; F-111 group page adds by GHIN; Money Game + Quick game may go once proven in the wizard, Team tournament stays; F-113 fix approved, live games counted READ-ONLY only |
 | 5.cy | 2026-10-12: presses are [beta]: a manual "Press" button mid-match, NOT auto-press; design questions in BACKLOG asked before code, goldens first |
 | 5.cz | 2026-10-13: bar #11 walk — F-120 A (summary reads moneyMode); F-118 blank event name = "game type – course"; F-117 rounds default to the same label; F-119 a–e fixed, g dropped; F-114 → design session; F-115 OPEN (not "Nassau": overall-only exists; not "inside the foursome"); F-116 RETHINK dates (set up the rounds, then play them) |
+| 5.da | 2026-10-13: the game label always names the FORMAT (best ball too) + total risked, Nassau/holes, teams, match or stroke play (Stableford either way); step 2 matches = opt A, but decided EARLY with a movable matchup visual (design first); event dates OPTIONAL; phone standings clear and inviting (design session); pot label = whole pot (entry) + how it pays (split or winner-take-all); matchup visual = design note next session |
 
 ---
 

@@ -2652,3 +2652,28 @@ Craig's answers:
   first.** "If it isnt being set up as a 4 v 4, wouldnt this always be the case? I want to make sure
   this is clear when setting up a game how we can make it as obvious as possible. and think through
   options." Options are in F-115; not built.
+
+### 5.da — The game label, step 2's matches, event dates, phone standings (2026-10-13)
+
+Follow-up to §5.cz (F-114/F-115/F-116):
+- **The label (F-115) names what is being played so someone opening a sent game knows.** Confirmed:
+  total risked; game type (Nassau, or the holes a single bet covers); teams (2v2, 4v4). Scoring is
+  match play or stroke play, and **Stableford can be either** ("Stableford match play" / "Stableford
+  stroke play"). **The format is named ALWAYS**, plain best ball included: "There are many formats in
+  golf, best ball, four ball, alternate shot, etc. we need to be clear what is being played so someone
+  knows when they just open up the game that was sent to them." Craig asked what a "pot game" is here
+  (answered in session; the pot label shape is still to confirm).
+- **Step 2's match question: option A** ("How do the teams play each other?" whole teams / pairs /
+  one on one). But Craig: "this is what I think we need to clarify or make easy to determine early in
+  the game set up, because this information would help inform how matchups should be decided, no?
+  maybe a clear visual that can be moved around in the wizard?" A matchup visual the organizer can
+  rearrange, early in the wizard. DESIGN first.
+- **F-116: dates are OPTIONAL**, not required.
+- **F-114: the standings on a phone "need to be very clear and inviting so users enjoy the app."** Design
+  session.
+- **The pot label: the WHOLE pot first, the entry in brackets, then how it pays.** E.g. "$200 pot ($25
+  each) · 2 teams of 4 · best net & best gross · stroke play · Pays front / back / overall / junk (25%
+  each)". Craig: "it should show the whole pot, but also winner takes all or the split if there is one."
+- **The matchup visual: a design note first, next session.** 2–3 mocked layouts (where it sits in the
+  wizard, how swapping works, how it drives pairings and tee groups); Craig picks before code. Option A's
+  wording waits for it.

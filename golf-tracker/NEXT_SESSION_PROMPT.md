@@ -22,17 +22,19 @@ Done today, each its own commit:
   payouts and says "View card"; the Finish dialog on a pool card; the score pad stays one row; a
   copied round shows its group with its field first; formats aren't group chips).
 
-## Step 1: Craig's open calls from §5.cz (ask outright, §5.bo)
+## Step 1: build what §5.da settled (grep the archive for §5.da)
 
-- **F-115, the money label.** His rule: total risked · game type · teams · scoring · split, e.g. "$30
-  Nassau 2v2 match play ($10/$10/$10)". FINDINGS F-115 lists six rule details to confirm, then build.
-  It's display only, but it touches every money surface, so pin it in unit tests.
-- **F-115, step 2's match question.** He wants to discuss it ("wouldnt this always be the case?").
-  Options A/B/C are in F-115. Talk them through before any code.
-- **F-116, do events need dates?** "it makes more sense to just set up the rounds and then play them."
-  That reopens §5.cu's date columns. Bring options (set up N rounds at the start; order by seq; date
-  optional) and a note on what changes in `lib/series.ts` and the standings.
-- **F-114** (the standings on a phone) waits for the design session.
+1. **F-115, the game label.** Total risked · Nassau/holes · teams · format (ALWAYS, best ball too) ·
+   match or stroke play (Stableford either way) · split. A pot: "$200 pot ($25 each) · 2 teams of 4 ·
+   best net & best gross · stroke play · Pays front / back / overall / junk (25% each)", or "Winner takes
+   all". Ask Craig first what front + back with no overall is called. Unit tests per money model × format;
+   it replaces the hub's repeated "2 teams of 4 · head-to-head".
+2. **F-116: event dates OPTIONAL.** Seq orders the rounds; a date only groups columns when set.
+   `lib/series.ts` goldens first.
+3. **The matchup visual: a DESIGN NOTE, not code.** Step 2's matches use option A ("How do the teams play
+   each other?"), decided early, with a movable visual of teams and who plays whom that drives pairings
+   and tee groups. Mock 2–3 layouts (screenshots or ASCII) and ask Craig to pick.
+F-114 (phone standings, "clear and inviting") waits for the design session.
 
 ## Step 2: S2 convergence (S2.0–S2.6)
 
@@ -56,14 +58,14 @@ computing, Q1). Run both corpus harnesses before and after every slice.
 
 ## Waiting on Craig (don't guess)
 - Merging `series-2026-10-12`.
-- F-115 rule details + the step 2 discussion; F-116 dates; F-114 in the design session.
+- F-115: front + back naming; the matchup-visual pick; F-114 in the design session.
 - Presses: the eight design questions.
 - Saved formats carrying the pot split.
 - His phone walk of F-037 (which closes the P1) and of the Event.
 - The branding/design session: theme, icon, name.
 
 ## Settled (don't re-ask)
-§5.cz (today's answers), §5.cw–§5.cy. Earlier: see DECISIONS.md.
+§5.cz + §5.da (today's answers), §5.cw–§5.cy. Earlier: see DECISIONS.md.
 
 ## Machine notes
 - Python on this machine writes cp1252 + CRLF by default. Pass `encoding='utf-8', newline='\n'` to
