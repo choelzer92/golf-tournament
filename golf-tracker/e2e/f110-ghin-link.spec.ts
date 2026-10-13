@@ -28,7 +28,7 @@ test.beforeEach(async ({ context, page }) => {
 
 test('F-110: Link shows your index and keeps your identity, so Create still works', async ({ page }) => {
   await page.goto(`${BASE}/dashboard`);
-  await expect(page.getByRole('heading', { name: 'Golf Tracker' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Course & GHIN lookup' })).toBeVisible();
   await page.getByPlaceholder('Enter GHIN #').fill('1234567');
   await page.getByRole('button', { name: 'Link', exact: true }).click();
   await expect(page.getByText('Handicap Index: 8.1')).toBeVisible();

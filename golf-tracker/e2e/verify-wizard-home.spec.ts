@@ -332,12 +332,12 @@ test.describe('F-003: /home is the default landing page', () => {
     const body = await page.locator('body').innerText();
     expect(body).toContain('Start something');
     expect(body).toContain('Stats & money');
-    expect(body).toContain('Classic dashboard');
+    expect(body).toContain('Course & GHIN lookup');
 
-    // And the dashboard's link back reads as a destination, not an experiment.
-    await page.getByRole('button', { name: 'Classic dashboard' }).click();
+    // The lookups page (§5.cw d) links straight back to Home.
+    await page.getByRole('button', { name: 'Course & GHIN lookup' }).click();
     await page.waitForLoadState('networkidle');
-    await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '← Home' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Try new Home/ })).toHaveCount(0);
   });
 });

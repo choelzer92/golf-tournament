@@ -31,7 +31,7 @@ import { FeedbackButton } from '@/components/feedback-box';
 // This is the DEFAULT landing page for a logged-in `full` user as of 2026-08-12
 // (HOME_V2 = true). It is no longer the read-only Phase 1 it was written as: the group
 // page it links to is a dashboard, and Stats & money enforces the group-scoped money rule
-// (DECISIONS.md §5h). A "Classic dashboard" link stays for anyone who prefers /dashboard.
+// (DECISIONS.md §5h). The header links to /dashboard, which is now the course and GHIN lookups (§5.cw d).
 
 const statusPill: Record<'setup' | 'active' | 'completed', string> = {
   active: 'bg-green-100 text-green-800',
@@ -193,7 +193,7 @@ export default function HomePage() {
               onClick={() => router.push('/dashboard')}
               className="text-sm text-green-200 hover:text-white"
             >
-              Classic dashboard
+              Course &amp; GHIN lookup
             </button>
             <button onClick={logout} className="text-sm text-green-200 hover:text-white">
               Sign Out

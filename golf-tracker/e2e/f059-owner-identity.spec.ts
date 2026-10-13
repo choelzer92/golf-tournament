@@ -50,8 +50,9 @@ test('F-059: a code-holding MEMBER sees exactly their own — not everyone\'s', 
   await page.goto(`${BASE}/home/feedback`);
   await expect(page).toHaveURL(`${BASE}/`);
 
-  // The classic dashboard is scoped the same way (it had NO check before).
+  // The old dashboard is now the lookups (§5.cw d): it lists nobody's games at all.
   await page.goto(`${BASE}/dashboard`);
+  await expect(page.getByRole('heading', { name: 'Course & GHIN lookup' })).toBeVisible();
   await expect(page.getByText('Warriors — Week 1')).toHaveCount(0);
 });
 

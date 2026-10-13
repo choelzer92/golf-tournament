@@ -2,15 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getTournamentList, getTournamentListVisibleTo, importTournament, hydrateTournaments, type TournamentListItem } from '@/lib/tournament-state';
 import { parseGhinIndex, formatHandicap } from '@/lib/game-state';
-import { PoolShareButton } from '@/components/pool-share';
-import { getPoolGameList, getPoolGameListVisibleTo, hydratePoolGames, type PoolGameListItem } from '@/lib/pool-game';
-import { SOLO_ROUNDS } from '@/lib/flags';
-import { clearAccessCookie, isAppOwner } from '@/lib/invite-gate';
+import { GolferLookup } from '@/components/golfer-lookup';
+import { clearAccessCookie } from '@/lib/invite-gate';
 import { clearGhinIdentity, getCreatorGhin } from '@/lib/pool-identity';
-import { hydrateRoster } from '@/lib/roster';
-import { getViewer, hydrateGroups } from '@/lib/roster-groups';
 
 interface TeeRating {
   RatingType: 'Front' | 'Back' | 'Total';
@@ -72,8 +67,6 @@ export default function DashboardPage() {
   const [selectedCourse, setSelectedCourse] = useState<CourseDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [tournaments, setTournaments] = useState<TournamentListItem[]>([]);
-  const [poolGames, setPoolGames] = useState<PoolGameListItem[]>([]);
 
   useEffect(() => {
     const token = sessionStorage.getItem('ghin_token');
@@ -87,21 +80,6 @@ export default function DashboardPage() {
     } else {
       setGolfer({ handicap_index: null, clubs: [] });
     }
-    // F-059 (§5.bi) + §5.cb: the app owner sees every game; anyone else the games they
-    // made, played in, or that belong to a group they're in. (The page is behind the login
-    // redirect above, so a GHIN identity exists.) Membership needs the roster and groups.
-    const ghin = getCreatorGhin();
-    const isOwner = isAppOwner();
-    Promise.all([
-      hydrateTournaments(),
-      hydratePoolGames(),
-      hydrateRoster({ viewerGhin: ghin, isOwner }).catch(() => []),
-      hydrateGroups({ viewerGhin: ghin, isOwner }).catch(() => []),
-    ]).then(() => {
-      const viewer = getViewer(ghin);
-      setTournaments(isOwner ? getTournamentList() : getTournamentListVisibleTo(viewer));
-      setPoolGames(isOwner ? getPoolGameList() : getPoolGameListVisibleTo(viewer));
-    });
   }, [router]);
 
   async function searchCourses(e: React.FormEvent) {
@@ -213,7 +191,8 @@ export default function DashboardPage() {
       <header className="bg-green-800 text-white shadow">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold">Golf Tracker</h1>
+            <button onClick={() => router.push('/home')} className="text-xs text-green-200 hover:text-white">← Home</button>
+            <h1 className="text-xl font-bold">Course &amp; GHIN lookup</h1>
             {golfer.handicap_index ? (
               <p className="text-sm text-green-200">
                 Handicap Index: {golfer.handicap_index}
@@ -239,14 +218,6 @@ export default function DashboardPage() {
             )}
           </div>
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.push('/home')}
-              className="text-sm text-green-200 hover:text-white"
-            >
-              {/* Home is the default landing page now (HOME_V2), so "Try new Home" read
-                  backwards — this is the way BACK, not an experiment. */}
-              Home
-            </button>
             <button onClick={logout} className="text-sm text-green-200 hover:text-white">
               Sign Out
             </button>
@@ -254,156 +225,13 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      {/* §5.cw d (fix 3): this page is the LOOKUPS. Starting and continuing games lives on
+          Home; the copies of Home's lists and buttons that used to sit here are gone. */}
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <section className="mb-8 flex gap-3 flex-wrap">
-          <button
-            onClick={() => router.push('/money-game')}
-            className="flex-1 min-w-[140px] rounded-lg bg-yellow-600 px-6 py-4 text-white font-bold text-lg hover:bg-yellow-700 shadow-md"
-          >
-            Money Game
-          </button>
-          <button
-            onClick={() => router.push('/game/new')}
-            className="flex-1 min-w-[140px] rounded-lg bg-green-700 px-6 py-4 text-white font-bold text-lg hover:bg-green-800 shadow-md"
-          >
-            New Game
-          </button>
-          <button
-            onClick={() => router.push('/tournament/new')}
-            className="flex-1 min-w-[140px] rounded-lg bg-green-900 px-6 py-4 text-white font-bold text-lg hover:bg-green-950 shadow-md"
-          >
-            New Tournament
-          </button>
-          <button
-            onClick={() => router.push('/pool/new')}
-            className="flex-1 min-w-[140px] rounded-lg bg-blue-700 px-6 py-4 text-white font-bold text-lg hover:bg-blue-800 shadow-md"
-          >
-            Pool Game
-          </button>
-          {SOLO_ROUNDS && (
-            <button
-              onClick={() => router.push('/solo')}
-              className="flex-1 min-w-[140px] rounded-lg bg-emerald-700 px-6 py-4 text-white font-bold text-lg hover:bg-emerald-800 shadow-md"
-            >
-              Solo Round
-            </button>
-          )}
-          <button
-            onClick={() => {
-              const input = document.createElement('input');
-              input.type = 'file';
-              input.accept = '.json';
-              input.onchange = (e) => {
-                const file = (e.target as HTMLInputElement).files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = () => {
-                  const t = importTournament(reader.result as string);
-                  if (t) {
-                    router.push(`/tournament/${t.id}`);
-                  }
-                };
-                reader.readAsText(file);
-              };
-              input.click();
-            }}
-            className="flex-1 rounded-lg border-2 border-dashed border-gray-300 px-6 py-4 text-gray-600 font-medium text-lg hover:border-green-500 hover:text-green-700"
-          >
-            Import Tournament
-          </button>
-        </section>
-
-        {tournaments.filter((t) => t.status !== 'completed').length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">Active Tournaments</h2>
-            <div className="space-y-2">
-              {tournaments.filter((t) => t.status !== 'completed').map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => router.push(`/tournament/${t.id}`)}
-                  className="w-full text-left bg-white rounded-lg shadow p-4 hover:shadow-md transition"
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-gray-900">{t.name}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      t.status === 'active' ? 'bg-green-100 text-green-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {t.status}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {t.teamAName} <span className="font-bold">{t.teamAPoints}</span>
-                    {' — '}
-                    <span className="font-bold">{t.teamBPoints}</span> {t.teamBName}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {tournaments.filter((t) => t.status === 'completed').length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">Completed</h2>
-            <div className="space-y-2">
-              {tournaments.filter((t) => t.status === 'completed').map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => router.push(`/tournament/${t.id}`)}
-                  className="w-full text-left bg-white rounded-lg shadow p-4 hover:shadow-md transition opacity-75"
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-gray-900">{t.name}</p>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                      completed
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {t.teamAName} <span className="font-bold">{t.teamAPoints}</span>
-                    {' — '}
-                    <span className="font-bold">{t.teamBPoints}</span> {t.teamBName}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
         <section className="mb-8">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-gray-900">Pool Games</h2>
-            <PoolShareButton className="text-sm text-green-700 hover:text-green-900 font-medium" label="↗ Share organizer link" />
-          </div>
-          {poolGames.length === 0 ? (
-            <p className="text-sm text-gray-500 bg-white rounded-lg shadow p-4">
-              No pool games yet. Tap <span className="font-medium">Pool Game</span> above to create one, or share the organizer link so someone else can.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {poolGames.map((g) => (
-                <button
-                  key={g.id}
-                  onClick={() => router.push(`/pool/${g.id}`)}
-                  className={`w-full text-left bg-white rounded-lg shadow p-4 hover:shadow-md transition ${g.status === 'completed' ? 'opacity-75' : ''}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-gray-900">{g.name}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      g.status === 'active' ? 'bg-green-100 text-green-800' :
-                      g.status === 'completed' ? 'bg-gray-100 text-gray-600' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {g.status}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {g.teamCount} foursome{g.teamCount !== 1 ? 's' : ''} · {g.playerCount} player{g.playerCount !== 1 ? 's' : ''}
-                  </p>
-                </button>
-              ))}
-            </div>
-          )}
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Look up a golfer</h2>
+          <p className="text-sm text-gray-500 mb-3">Any golfer&apos;s Handicap Index on GHIN, by name or number.</p>
+          <GolferLookup getTokenAction={getToken} />
         </section>
 
         <section className="mb-8">
@@ -468,6 +296,17 @@ export default function DashboardPage() {
             onBack={() => setSelectedCourse(null)}
           />
         )}
+
+        {/* The legacy builders, kept until the wizard is checked to cover them (§5.cw d). */}
+        <section className="mt-10 border-t border-gray-200 pt-6" aria-label="Older game builders">
+          <h2 className="text-sm font-semibold text-gray-700">Older game builders</h2>
+          <p className="text-xs text-gray-500 mb-3">New games start from Home. These are the app&apos;s first builders.</p>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => router.push('/money-game')} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:border-green-400">Money Game</button>
+            <button onClick={() => router.push('/game/new')} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:border-green-400">Quick game</button>
+            <button onClick={() => router.push('/tournament/new')} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:border-green-400">Team tournament</button>
+          </div>
+        </section>
       </main>
     </div>
   );
