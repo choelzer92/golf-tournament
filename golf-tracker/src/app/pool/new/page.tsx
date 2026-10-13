@@ -15,6 +15,7 @@ import {
   junkIsOff,
   foldJunkIntoOverall,
   DEFAULT_MATCH_CONFIG,
+  DEFAULT_MATCH_POINTS,
   savePoolGame,
   fetchPoolGame,
   hydratePoolGames,
@@ -713,9 +714,14 @@ export default function NewPoolGamePage() {
 
   // Parse the match-config inputs into a PoolMatchConfig (per-player $/leg + junk
   // $/point), falling back to the defaults for any blank/invalid field.
+  // F-113: it carries the scoring step's answer too. It used to return only the dollars, and it
+  // REPLACES the router's matchConfig on Create, so "Hole by hole (match play)" was dropped and
+  // every leg settled on stroke totals.
   function buildMatchConfig(): PoolMatchConfig {
     const num = (s: string, d: number) => (s.trim() === '' || isNaN(parseFloat(s)) ? d : parseFloat(s));
     return {
+      scoring: compareBy === 'match' ? 'holes' : 'stroke',
+      pointsPerHole: { ...DEFAULT_MATCH_POINTS },
       legDollars: {
         front: num(matchLegs.front, DEFAULT_MATCH_CONFIG.legDollars.front),
         back: num(matchLegs.back, DEFAULT_MATCH_CONFIG.legDollars.back),
