@@ -1464,6 +1464,20 @@ A and C combine. Tag: [beta #1]. **Craig picked A + C (§5.cl).**
 
 ---
 
+### F-112 — The old builders offer settings that nothing scores: auto-press, and quick-game skins money (2026-10-12)  [P2] [beta #6]
+
+Found by the builder check for §5.cw d. "Auto-press when 2 down" (`formats.ts` 162-166 and 180-184;
+shown at `tournament/new` 872-899 and `game/new` 829-836) is stored and never read: there are **no presses
+anywhere** in the app, old or new. Quick-game "Skins" with carryover and $ per skin (`formats.ts` 196-209) is
+scored as plain match play on `/game/play` (~1455), so it never paid skins. A user who picks either
+would believe it counted. The wizard's skins (game-modes/skins.ts) do work. **Worse, the Money Game's dollars are never paid.** `/money-game` saves `moneyConfig` (Nassau
+front/back/overall $ and birdie/eagle $) on the tournament and in `sessionStorage money_config_<id>`,
+and nothing reads either one. `computeMoneyResult` (`money-game.ts`) has no caller, and
+`/tournament/[id]/money` computes only from `tournament.moneyGames`, which the builder never sets. So
+it runs as a points race whose bonus NAMES carry dollar amounts ("Front 9 ($10)"). Presses don't exist at all,
+and they're a very common money game (BACKLOG Ideas). Fix: hide the dead settings, or remove the old
+builders that show them.
+
 ### F-111 — The group page can't add a new player by GHIN; it only lists saved players (2026-10-12)  [P2] [beta #1]
 
 Craig: "in terms of setting up games, adding players to groups, we need to be able to use the ghin
@@ -1531,6 +1545,15 @@ pages `/game/play` and `/tournament/[id]` must stay whatever is chosen, because 
   and Import leave. Repoint the back buttons and fallbacks to Home.
 - (C) Move the two lookups to a Home-linked page (`/home/lookup`), redirect `/dashboard` to Home, and
   repoint the ~20 redirects. Import goes, or moves next to Export.
+**Builder check (2026-10-12):** **Money Game:** the wizard does all of it (two teams, 2 best net,
+Nassau $ per player, birdie/eagle differential via junk). **Quick game:** all of it except a custom
+Stableford scale in a TEAM game (the wizard's team Stableford is fixed at 5/4/3/2/1/0; custom
+scales are individual only). **Team tournament: NOT covered.** It has the points race across rounds
+(Ryder Cup, target score, match-winner points), front/back split formats, skins carrying across
+rounds, money games and side games on the SAME scores as the match, best-individual points bonuses,
+and the hype, recap and rules pages. Most of that waits for the Event points rollup [after-beta]. Two
+of its settings never worked at all (F-112).
+
 In every option the lookups survive. The course reference could also live INSIDE the wizard's tee
 step (show CR/Slope/holes there), but that's additive, not a replacement.
 
