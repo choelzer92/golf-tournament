@@ -2,7 +2,7 @@
 // name or number, read-only) and any course's tees and holes. Home's copies are gone.
 
 import { expect, test } from '@playwright/test';
-import { BASE, PHONE, grantAndReset } from './helpers';
+import { BASE, PHONE, grantAndReset, manualAddButton } from './helpers';
 
 test.beforeEach(async ({ context, page }) => {
   await grantAndReset(context, page);
@@ -35,7 +35,9 @@ test('F-109: Home links to the lookups; any golfer by name or GHIN #, and nothin
   await expect(page.getByRole('heading', { name: 'Course & GHIN lookup' })).toBeVisible();
   await expect(page.getByText('Handicap Index: 8.1')).toBeVisible();
   // Home's copies are gone: no game lists, no duplicate starters, no import.
-  for (const gone of ['Pool Game', 'Import Tournament', 'Solo Round']) {
+  // §5.cx: Money Game and Quick game are wizard games now; only the team tournament stays.
+  await expect(page.getByRole('button', { name: 'Team tournament' })).toBeVisible();
+  for (const gone of ['Pool Game', 'Import Tournament', 'Solo Round', 'Money Game', 'Quick game']) {
     await expect(page.getByRole('button', { name: gone, exact: true })).toHaveCount(0);
   }
 
@@ -63,4 +65,27 @@ test('F-109: Home links to the lookups; any golfer by name or GHIN #, and nothin
   await page.getByPlaceholder('Course name (e.g. Glenmore)').fill('Mock');
   await page.getByRole('button', { name: 'Search', exact: true }).last().click();
   await expect(page.getByText('Mock National')).toBeVisible();
+});
+
+test('F-112: the team tournament no longer offers auto-press (nothing ever scored it)', async ({ page }) => {
+  await page.goto(`${BASE}/tournament/new`);
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'Next: Add Players' }).click();
+  for (const [n, h] of [['Ann', '5'], ['Bob', '9']]) {
+    await page.getByPlaceholder('Name', { exact: true }).fill(n);
+    await page.getByPlaceholder('HCP').fill(h);
+    await manualAddButton(page).click();
+  }
+  await page.getByRole('button', { name: 'Next: Schedule Rounds' }).click();
+  await page.getByRole('button', { name: '+ Add Round' }).click();
+  const format = page.locator('xpath=//label[normalize-space()="Format"]/following-sibling::select');
+  for (const f of ['match-play', 'nassau', 'skins']) {
+    await format.selectOption(f);
+    await expect(page.getByText('Auto-press when 2 down')).toHaveCount(0);
+    await expect(page.getByText('Carryovers', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Skin value', { exact: true })).toHaveCount(0);
+  }
+  // A setting that IS scored still shows: the Stableford scale.
+  await format.selectOption('stableford');
+  await expect(page.getByText('Point Scale', { exact: true })).toBeVisible();
 });

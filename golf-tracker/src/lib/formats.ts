@@ -303,3 +303,8 @@ export function isOneBallFormat(teamMode: TeamMode): boolean {
 export function isTeamMode(teamMode: TeamMode): boolean {
   return teamMode !== 'individual';
 }
+
+/** F-112: format settings the legacy builders offered that NOTHING scores. There are no presses
+ *  anywhere, and /game/play scores legacy skins as plain match play, so carryover and $ per skin
+ *  were never paid. Hidden from the legacy builders rather than shown and ignored. */
+export const UNSCORED_LEGACY_SETTINGS = new Set(['presses', 'carryover', 'skinValue']);

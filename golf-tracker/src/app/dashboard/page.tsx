@@ -297,15 +297,15 @@ export default function DashboardPage() {
           />
         )}
 
-        {/* The legacy builders, kept until the wizard is checked to cover them (§5.cw d). */}
+        {/* §5.cx: Money Game and Quick game are wizard games now (F-109; the Money Game never paid
+            its dollars, F-112). The team tournament stays until the Event adds up points. */}
         <section className="mt-10 border-t border-gray-200 pt-6" aria-label="Older game builders">
-          <h2 className="text-sm font-semibold text-gray-700">Older game builders</h2>
-          <p className="text-xs text-gray-500 mb-3">New games start from Home. These are the app&apos;s first builders.</p>
-          <div className="flex gap-2 flex-wrap">
-            <button onClick={() => router.push('/money-game')} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:border-green-400">Money Game</button>
-            <button onClick={() => router.push('/game/new')} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:border-green-400">Quick game</button>
-            <button onClick={() => router.push('/tournament/new')} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:border-green-400">Team tournament</button>
-          </div>
+          <h2 className="text-sm font-semibold text-gray-700">Ryder Cup–style team tournament</h2>
+          <p className="text-xs text-gray-500 mb-3">
+            A points race over several rounds, Team A v Team B. Every other game, and multi-round money
+            events, start from Home.
+          </p>
+          <button onClick={() => router.push('/tournament/new')} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:border-green-400">Team tournament</button>
         </section>
       </main>
     </div>

@@ -3,7 +3,7 @@
 import { formatHandicapIndex } from '@/lib/game-state';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FORMATS, TEAM_MODES, getTeamModeConfig, resolveAllowance } from '@/lib/formats';
+import { FORMATS, TEAM_MODES, getTeamModeConfig, resolveAllowance, UNSCORED_LEGACY_SETTINGS } from '@/lib/formats';
 import type { TeamMode } from '@/lib/formats';
 import type { Player, CourseSelection, TeeSetOption } from '@/lib/game-state';
 import { AddPlayerPanel, type AddedPlayer } from '@/components/add-player-panel';
@@ -872,8 +872,9 @@ function AddRoundForm({
         {/* Format-level settings (e.g. stableford scale, presses) */}
         {(() => {
           const fmt = FORMATS.find((f) => f.id === formatId);
-          if (!fmt?.settings?.length) return null;
-          return fmt.settings.map((setting) => (
+          const shown = (fmt?.settings ?? []).filter((x) => !UNSCORED_LEGACY_SETTINGS.has(x.key));
+          if (!shown.length) return null;
+          return shown.map((setting) => (
             <div key={setting.key} className="mb-2">
               <label className="block text-xs text-gray-600 font-medium mb-1">{setting.label}</label>
               {setting.type === 'select' && setting.options && (
