@@ -41,7 +41,7 @@ closes the round by itself, so no separate Close out is needed.
 
 Findings F-114 to F-120 below. One not logged: "+ Add round N" showing before a round has scores is §5.cv by design.
 
-### F-120 — "Same game as last time" describes a head-to-head game as a $25 pot (2026-10-13)  [P2 money text] [beta #11 #3]
+### F-120 — "Same game as last time" describes a head-to-head game as a $25 pot (2026-10-13)  [P2 money text] [beta #11 #3] — **FIXED 2026-10-13 (opt A, §5.cz, 661d790)**
 
 Add round 2 / round 3 of a classic head-to-head event: steps 2 and 3 show "Same game as last time — Pool ·
 $25/player pot · off the low · 90%" (ewalk-22/23). The game is $10 a leg + $5 junk, and the copy IS right:
@@ -53,7 +53,7 @@ wrong. **Options:** A, the classic-pool summary reads `moneyMode` ("$10 front / 
 unit test per money mode. B, drop the stakes part for classic pools. **Rec A.**
 
 
-### F-119 — Event walk polish (2026-10-13)  [P3] [beta #11]
+### F-119 — Event walk polish (2026-10-13)  [P3] [beta #11] — **a–e FIXED 2026-10-13 (§5.cz); g dropped (dates may go, F-116)**
 
 From the bar #11 walk (screens `ewalk-*`):
 - **a.** A closed round's hub still leads with big green "Enter Scores" buttons on every foursome, and the
@@ -69,7 +69,7 @@ From the bar #11 walk (screens `ewalk-*`):
 
 Options: fix each as a one-liner (recommended for a–e, g); f waits for the BACKLOG item.
 
-### F-118 — "Start an event" asks nothing about the event until the bottom of step 7 (2026-10-13)  [P2] [beta #11 #1]
+### F-118 — "Start an event" asks nothing about the event until the bottom of step 7 (2026-10-13)  [P2] [beta #11 #1] — **FIXED 2026-10-13 (§5.cz, 661d790): a blank name = "game type – course"**
 
 The organizer taps "Start an event". Six steps then go by with no mention of it, and the event name is an empty
 field under bonuses and Hide holes (ewalk-11). It's easy to create round 1 of an unnamed trip.
@@ -77,21 +77,21 @@ field under bonuses and Hide holes (ewalk-11). It's easy to create round 1 of an
 and Create is disabled until it has a name. B, ask the event's name first (on step 1, one field). C, leave it.
 **Rec A:** it changes no step order (§5.e).
 
-### F-117 — Every round in an event is named after the group (2026-10-13)  [P3] [beta #11]
+### F-117 — Every round in an event is named after the group (2026-10-13)  [P3] [beta #11] — **FIXED 2026-10-13 (§5.cz, 661d790): rounds default to "game type – course"**
 
 All three rows read "Round N · Tuesday Crew" (ewalk-45), and so do the hub titles. The name adds nothing, and
 Home's Continue card can't tell rounds apart by name.
 **Options:** A, a round added to an event defaults its name to the day and slot ("Wed AM", "Wed PM") or
 "Round 2". B, the event rows show the format/course and drop the name. C, leave it (rename by hand).
 
-### F-116 — 36-hole day: the date defaults to the next day, and the fix is a date picker (2026-10-13)  [P3] [beta #11]
+### F-116 — 36-hole day: the date defaults to the next day, and the fix is a date picker (2026-10-13)  [P3] [beta #11] — **RETHINK (§5.cz): Craig questions dates at all; "set up the rounds and then play them". BACKLOG design item**
 
 Round 3 on round 2's day: Review suggests the day after the last round. The only cue is small grey text,
 "Playing 36 that day? Set the same date", and the organizer edits a native date picker (ewalk-38/39).
 **Options:** A, a "Same day as round 2" chip beside the date (one tap). B, default to the last round's date
 when that is today. **Rec A.**
 
-### F-115 — "Head-to-head" means two different things in the wizard (2026-10-13)  [P2] [beta #1]
+### F-115 — "Head-to-head" means two different things in the wizard (2026-10-13)  [P2] [beta #1] — **OPEN (§5.cz): not "Nassau" (overall-only exists), not "inside the foursome"; new names to Craig**
 
 Step 2 asks "Head-to-head matches? **No**" (F-037's individual matches). Step 7 then titles the game
 "2 teams of 4 · **head-to-head**", Type "Match", and picks "**Head-to-head match** — fixed $ per front / back /
@@ -100,7 +100,29 @@ overall" (ewalk-04 vs ewalk-11). The hub says "Head-to-Head Match" too. A first-
 with the hub/subtitle following. B, rename the step 2 question "Players matched up inside the foursome?".
 C, both. **Craig's call (vocabulary).**
 
-### F-114 — The event standings are clipped on a phone at 3 rounds (2026-10-13)  [P2] [beta #11]
+**2026-10-13, Craig's answer on the MONEY label (§5.cz):** state *total risked · game type · teams ·
+scoring · split*: "$20 match play 18 holes", "$30 Nassau 2v2 match play ($10/$10/$10)", "$30 Nassau 4v4
+best net & best gross ($10/$10/$10)". Rules to confirm before building:
+1. "Total risked" = one player's legs summed (per player, as the legs are today).
+2. "Nassau" when front, back and overall are all set. One leg alone names its holes ("18 holes", "front 9").
+   Front + back only = "front & back"?
+3. Scoring word: "match play" when legs go hole by hole, "stroke play" when they're totals.
+4. Format: shown when it isn't plain best ball (the third example names "best net & best gross").
+5. Junk stays a separate "+ $5 a junk point".
+6. Where: the money step's option, the hub's money card, the game-kind subtitle and the summary line.
+   A pot keeps "$25 pot".
+
+**Step 2's match question: discuss first.** The question shows only when every team is bigger than the
+match size (`matchSizesFor`, `matches.ts:455`). Teams of 2 get "1 v 1" only (two singles in place of the 2 v 2);
+teams of 4 get 1 v 1 or 2 v 2. So for a 2 v 2 the team IS the match, as Craig says. The question is really
+"split a bigger team into smaller matches?". Options:
+- **A. Ask it as "How do the teams play each other?"** with the default first: "As whole teams (4 v 4)" / "In
+  pairs: two 2 v 2 matches" / "One on one: four 1 v 1 matches". It always shows an answer, never a bare "No".
+- **B. Make it part of the team choice:** step 2's list grows "Two teams of 4, played as 2 v 2 matches" etc., and
+  there's no second question.
+- **C. Show it only for teams of 3+**, so a 2 v 2 never sees it (singles inside a 2 v 2 stay reachable under "Other").
+
+### F-114 — The event standings are clipped on a phone at 3 rounds (2026-10-13)  [P2] [beta #11] — **→ design session (§5.cz); leaning A, sticky name**
 
 At 390px the R3 column is cut mid-number and its header reads "R" (ewalk-45). Nothing says the table scrolls
 sideways, and the "Wed, Oct 14" header looks like it covers R2 only, so the 36-hole day doesn't read as one day.

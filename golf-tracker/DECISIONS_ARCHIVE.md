@@ -2645,3 +2645,10 @@ Craig's answers:
 - **F-119:** fix a+b (closed hub), c (score pad wrap), d+e (step 1 on later rounds). g (the date hint)
   is dropped, since F-116 may remove dates.
 - **F-120 A:** the classic-pool summary reads its money mode (legs, or pot), with a unit test per mode.
+- **F-115 follow-up (same day).** The MONEY label states **total risked, game type, teams, scoring,
+  split**. Craig: "$20 match play 18 holes" (best ball, overall only); "$30 nassau 2v2 match play
+  ($10/$10/$10)"; "$30 nassau 4v4 best net & best gross ($10/$10/$10)". "does that make sense?" Yes;
+  the rule details are to confirm before building (see FINDINGS F-115). **Step 2's match question: discuss
+  first.** "If it isnt being set up as a 4 v 4, wouldnt this always be the case? I want to make sure
+  this is clear when setting up a game how we can make it as obvious as possible. and think through
+  options." Options are in F-115; not built.
