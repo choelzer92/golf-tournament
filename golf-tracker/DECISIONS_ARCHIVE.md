@@ -2735,3 +2735,36 @@ From `.claude/plans/matchup-visual.md`. Craig: **"matchup layout A is best."**
   payouts and the label keeps "a team"; the uneven payout rule is built later, goldens first.
 - **The standings' money column is per player too** ("+$5 each" on a team row; a team of one has no "each"),
   on both engines. It's display only: each team's money is already split evenly across its own players.
+
+### 5.df — Match cards deal on Handicap Index, re-deal on playing handicap if untouched (2026-10-13)
+
+From `.claude/plans/match-cards-step-order.md` Q1. The cards sit on step 2, before course and tees, so course
+handicaps aren't known. Craig picked **C**: the cards deal and show Handicap Index; when the teams step opens,
+if nobody tapped a swap on the cards, it quietly re-deals on the real playing handicap. A tapped swap is never
+undone.
+- Craig asked: "doesnt allowance potentially affect the balancing of teams?" Yes, which is why the re-deal
+  uses the full playing handicap (course handicap × allowance, full or off-the-low, the nine basis). By the
+  teams step all of those are known (scoring comes before course). A uniform % moves team totals only by
+  rounding; per-player tees (different slopes) and off-the-low on UNEVEN teams move them more.
+- The step order stays field → compete (+ cards) → scoring → course → tees → teams → groups → create.
+
+### 5.dg — The match cards live on the TEAMS step, on the game's own handicaps (2026-10-14; replaces §5.df)
+
+Craig, on §5.df: "there is a chance this is confusing to users ... i dont think it will be useful making teams
+show different numbers than what show during the game." Picked: **step 2 keeps the question** (whole teams /
+pairs / one on one), which needs no numbers; **the cards move to the teams step**, after course, tees and the
+allowance, and show exactly the playing handicaps the game uses (`getPoolPlayingHandicap`). No Handicap Index
+deal, no re-deal rule. The step order is unchanged (field → compete → scoring → course → tees → teams → groups
+→ create). Rejected: moving course + tees before step 2 (the allowance would still come later, so the numbers
+could still shift).
+
+### 5.dh — The cleaner teams step: the cards are the one editor; sizes come from step 2 (2026-10-14)
+
+Craig: "to honor the goal of the app, we need to adjust to this cleaner version." The teams step becomes the
+match cards plus one compact panel (captains on/off, the three build methods, keep-players-together). The old
+team list (Move to, ▲▼, + Add team, × remove) goes. **Team sizes come from step 2** (picked over keeping a "Move
+here"): a swap keeps sizes, and a 5 v 3 or an extra team is a different split chosen on step 2 ("Other split…"
+takes any sizes). **Player controls: option A** (Craig: "I like A also"). Tapping a player only swaps. The captain shows as a "C" on the chip
+and is chosen in the Captains panel; tees stay on the Tees step; the handicap breakdown stays on the Players step and
+Review. Rejected: B tap-select + action bar (a tap meaning two things), C a ⋯ on every chip (busy at 390px). B can be
+added later if organizers miss captain-by-tap.

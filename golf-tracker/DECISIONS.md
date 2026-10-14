@@ -219,6 +219,9 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.dc | 2026-10-13: F-116 — event rounds run in SET-UP order (seq), movable on the event screen; a date is optional (wizard field starts blank) and only heads consecutive same-day rounds |
 | 5.dd | 2026-10-13: F-121 — every money amount is PER PLAYER, except a pot's total size. EVEN teams: visual only (ask $/player, store × team size; no payout changes) — build now. UNEVEN teams (later, goldens first, new games only): each loser pays the stated $ and the winners share it; a team pot antes per player (replaces §5.ag) |
 | 5.de | 2026-10-13: matchup visual = layout A — match cards on step 2 under "How do the teams play each other?"; tap-to-swap ANY two players (across teams too); tee time edited on the card; later teams/groups steps become confirmations |
+| 5.df | 2026-10-13: SUPERSEDED by §5.dg — match cards deal + show Handicap Index on step 2; the teams step re-deals on full playing handicap (allowance, basis, tees) only if no card was tapped; step order unchanged |
+| 5.dg | 2026-10-14: match cards move to the TEAMS step, on the game's own playing handicaps (no index, no re-deal); step 2 keeps only the "How do the teams play each other?" question; order unchanged |
+| 5.dh | 2026-10-14: cleaner teams step — the match cards are the one editor (old list: Move to, ▲▼, add/remove team goes); team SIZES come from step 2 only; player controls = A: a tap only swaps; captain via the Captains panel ("C" on the chip), tees on the Tees step, handicap breakdown on Players/Review |
 
 ---
 
