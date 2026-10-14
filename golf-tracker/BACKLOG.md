@@ -92,7 +92,7 @@ The ≤3 items NEXT_SESSION_PROMPT.md promotes (BETA §3), plus a warm-up.
 
 | Item | What's needed |
 |---|---|
-| **Run the backup once** (bar #8, §5.di) | `node scripts/export-backup.mjs`, fixed by F-128 |
+| **Run the backup once** (bar #8, §5.di); **automating it: LATER (Craig 2026-10-14, "lets just worry about that later")** | `node scripts/export-backup.mjs`, fixed by F-128. Options when he's ready: (rec) a NEW **private** repo with a nightly GitHub Action committing the JSON (free, daily history, failure emails, keeps a free Supabase project from pausing); Supabase Pro daily backups (7-day window); Windows Task Scheduler. **Never store a backup in `golf-tournament` or its Actions artifacts: that repo is PUBLIC** and the data holds names, GHIN numbers and handicaps |
 | **Stroke vs match rounding** (§5.di, open) | A GHIN-app screenshot of a round where its stroke and match numbers differ; the USGA text matches ours |
 | **The local/phone walk** | Match cards (§5.de–§5.dh), F-037 (closes the P1), the Event, the long labels (`e2e/screenshots/f116-event-round-moved.png`) |
 | **Merge `series-2026-10-12`** | His walk, then merge (bar #10) |
