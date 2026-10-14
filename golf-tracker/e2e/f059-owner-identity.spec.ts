@@ -41,7 +41,7 @@ test('F-059: a code-holding MEMBER sees exactly their own — not everyone\'s', 
   });
 
   await page.goto(`${BASE}/home`);
-  await expect(page.getByText(/Welcome back, Jym/)).toBeVisible();
+  await expect(page.getByText(/Welcome, Jym/)).toBeVisible(); // F-124: nothing of his yet, so not "back"
   // Craig's groups and games are NOT Jym's to see.
   await expect(page.getByText('Weekend Warriors')).toHaveCount(0);
   for (const n of ['Warriors — Week 1', 'Warriors — Saturday 2v2', 'Untagged Saturday']) await expect(page.getByText(n)).toHaveCount(0);

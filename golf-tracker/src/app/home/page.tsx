@@ -185,13 +185,17 @@ export default function HomePage() {
     );
   }
 
+  // F-124: a first-time organizer has nothing yet, so they aren't greeted as a returner.
+  const firstVisit = groups.length === 0 && feed.live.length === 0 && feed.liveTournaments.length === 0
+    && feed.latestByGroup.size === 0 && feed.other.length === 0;
+
   return (
     <div className="min-h-full bg-gray-50">
       <header className="bg-green-800 text-white shadow">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold">Golf Tracker</h1>
-            {name && <p className="text-sm text-green-200">Welcome back, {name}</p>}
+            {name && <p className="text-sm text-green-200">{firstVisit ? 'Welcome' : 'Welcome back'}, {name}</p>}
           </div>
           <div className="flex items-center gap-4">
             <FeedbackButton />
