@@ -147,3 +147,47 @@ match play puts it on SI 1–8. Hole-by-hole results (and so a match) can differ
 "Who gets strokes?" be Full handicap OR Off the low under EITHER "Decide by" (`scoring-step.tsx:331`,
 independent of match play), so a match-play game set to Full handicap puts strokes on different holes
 than GHIN would. Question for Craig: tie them (match play → off the low, stroke play → full).
+
+## 7. GHIN-app evidence, 2026-10-14 (Craig): singles at 100%, Spring Creek 3 Stars
+
+Craig's numbers: "a 6.8 from the 3 stars at spring creek gets 5 strokes at 100% in stroke play against a
+3.3 handicap. in match play he gets 4 strokes, and a 7.0 gets 5 in both match and stroke."
+
+3 Stars (men) from the 2026-10-12 backup's stored tee set: **CR 71.2, slope 141, par 72**. (F-022's test
+fixture used a guessed 73.8 / 131. Those aren't the real numbers, but its 90% case gives 6 either way.)
+
+| Index | Course Handicap (unrounded) | Rounded | Stroke play: round each, subtract | Match play: round the unrounded difference |
+|---|---|---|---|---|
+| 3.3 | 3.318 | 3 | n/a | n/a |
+| 6.8 | 7.685 | 8 | 8 − 3 = **5** ✓ | 7.685 − 3.318 = 4.367 → **4** ✓ |
+| 7.0 | 7.935 | 8 | 8 − 3 = **5** ✓ | 7.935 − 3.318 = 4.617 → **5** ✓ |
+
+**Both rules fit all four GHIN numbers exactly:**
+- **Stroke play:** each player's Course Handicap is rounded; the strokes shown between two players are the
+  difference of those whole numbers.
+- **Match play:** the difference is taken on the UNROUNDED Course Handicaps, then rounded once.
+
+A brute force over every slope 55–155 and CR−par from −6 to +6 finds this pair of rules consistent with the
+four numbers only for slopes 138–145. The real slope, 141, is inside that range.
+
+**What our engine does (probed 2026-10-14, `buildHcapMap`, off the low, 100%, these tees):** 6.8 v 3.3 → **5**,
+7.0 v 3.3 → **5**. Our engine rounds each player first in both cases, so in match play it gives the 6.8 one stroke more than GHIN's 4. §2's line "at 100% with whole CHs the two readings are identical" is true, but
+GHIN doesn't use whole CHs for the match difference. This is the "possibly just in terms of rounding" Craig
+suspected.
+
+**How often it bites:** on these tees, for index pairs 0.0–30.0, **25%** of pairs differ by exactly one
+stroke. 64% of those differences give fewer strokes in match play, the rest give more.
+
+**Not yet known:**
+- **(a) With an allowance below 100%** (four-ball match at 90%): whether GHIN computes round((A − B) × 90%)
+  on the unrounded CHs. That would agree with the 2024 Appendix C "allowance on the difference" text in §1.
+- **(b) In a four-ball,** whether the difference is taken from the lowest of the four (the low plays off 0).
+
+**No math changed (§5.ba, §2).** If Craig adopts it, the change is: match play off the low = round(unrounded
+CH − unrounded low CH), per match. The goldens come first, and it applies to new games only, so a settled
+game never moves.
+
+**This also reconciles the August "Cory" case.** It was the basis of the `pool-game.test.ts` regression "rounds
+each handicap before subtracting (matches GHIN)": a pool off the low, which is STROKE play. Stroke play rounds
+each player, so that case and today's are the same GHIN behaviour. Only MATCH play takes the difference
+unrounded. The fix would therefore leave stroke play (and that regression) alone and change match play only.
