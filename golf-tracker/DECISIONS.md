@@ -224,6 +224,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.dh | 2026-10-14: cleaner teams step — the match cards are the one editor (old list: Move to, ▲▼, add/remove team goes); team SIZES come from step 2 only; player controls = A: a tap only swaps; captain via the Captains panel ("C" on the chip), tees on the Tees step, handicap breakdown on Players/Review |
 | 5.di | 2026-10-14: F-122 A (blank name → label), F-123 A (guest Continue card, B6), F-127 A (Run it back on Home's card); the backup is separate maintenance, not a bar feature; match play DEFAULTS to off the low (full stays); allowance defaults follow the USGA table by format and saved formats/Run it back carry them; stroke-vs-match rounding stays open pending a GHIN screenshot |
 | 5.dj | 2026-10-14: PRESSES = a setup toggle (off by default), then auto press OR a Press button; 2 down triggers both; re-press yes, no limit; a separate bet at the leg's stake to the end of its nine, automatic, removable any time with a note; OPEN: pressing the overall (a nine's press must never silently press it); build next session first, goldens shown before wiring |
+| 5.dk | 2026-10-14: presses Q1 B (a separate 'overall can be pressed' toggle, off), Q3 match play only, Q4 a match's press is paid between its players; Q2 only the LOSING side presses (re-presses its own press; a collapsed leader may press the leg) |
 
 ---
 

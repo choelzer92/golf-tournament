@@ -1,11 +1,12 @@
 # Presses: design note (§5.dj)
 
-Status 2026-10-14: the rules module and goldens exist; **nothing is wired.** Craig sees this note and the
+Status 2026-10-14: the rules module and goldens exist; **nothing is wired.** Q1–Q4 ANSWERED (§5.dk). Craig sees this note and the
 goldens before the setting, the Press button and the settle-up lines are built (money math, §2).
 
 - Rules: `src/lib/game-modes/presses.ts` (pure, unused by the app).
-- Goldens: `src/test/presses-golden.test.ts`, 14 tests. Mutation-checked: a 3-down trigger, more than one
-  press per bet, and counting unplayed holes each fail them. A 2,000-case random sweep checks the module
+- Goldens: `src/test/presses-golden.test.ts`, 16 tests. Mutation-checked: a 3-down trigger, more than one
+  press per bet, counting unplayed holes, letting the leader press a press, and denying a collapsed leader
+  the leg's press each fail them. A 2,000-case random sweep checks the module
   against an independent forward-simulation oracle and checks zero-sum.
 
 ## 1. What a press is (settled, §5.dj)
@@ -22,9 +23,10 @@ The bet it presses stays live. It is not double or nothing.
 
 ## 2. Rules the module adds (my reading; tell me if any is wrong)
 
-1. **Each bet can be pressed once.** That covers the leg itself and every press. Re-presses stay unlimited,
-   because a press is a bet and can be pressed in turn. Without this rule, one bad hole at 4 down would
-   open a new press on every live bet at once, and the bets would multiply quickly.
+1. **Only the side that's losing presses (§5.dk).** The leg can be pressed once by EACH side: a leader who
+   collapses to 2 down in the front is losing it now, and may press it. A press can be pressed only by the side
+   that made it, when it is 2 down in it, so the leader never presses a press. One press per bet per side, so
+   one bad hole at 4 down never opens a press on every live bet at once.
 2. **2 down after the last hole of the nine presses nothing,** because no hole is left. 2 down after 8 presses
    hole 9 alone.
 3. **A press counts holes both sides have posted, like its leg** (§5.ai). A short leg's close-out question
@@ -41,9 +43,10 @@ The bet it presses stays live. It is not double or nothing.
 
 | # | Holes 1–9 | Bets | Side a nets |
 |---|---|---|---|
-| G1 | - B - B A - A - A | front +1 · press 5–9 +3 · **b's press 8–9 +1** | **+$30** (see Q2) |
+| G1 | - B - B A - A - A | front +1 · press 5–9 +3 (b, 2 down in a's press, can't press it) | **+$20** |
 | G2 | B B - - - - B A A | front −1 · press 3–9 +1 | **$0** (press won, leg lost) |
-| G3 | B B B B A A A A A | front +1 · 3–9 +3 · 5–9 +5 · b's 7–9 +3 · b's 9 +1 | +$25 at $5 |
+| G3 | B B B B A A A A A | front +1 · a's 3–9 +3 · a's press of it 5–9 +5 | +$15 at $5 |
+| G3b | A A - - B B B B - | front −2 · b's press 3–9 −4 · a (collapsed to 2 down) presses 9, halved | −$20 |
 | G4 | - - - - - - - B B | front −2 (no hole left to press) | −$10 |
 | G5 | B - - - - - - - - | front −1 (1 down is never a press) | −$10 |
 | G6 | back nine A A then halves | back +2 · b's press 12–18 all square | +$10 |
@@ -57,7 +60,7 @@ shows.**
 
 ## 4. Questions for Craig (each changes the code)
 
-**Q1: Can the overall be pressed?** (§5.dj, open.) Your worry: "someone may want to press a front 9 and
+**Q1: answered B (§5.dk).** Can the overall be pressed? Your worry: "someone may want to press a front 9 and
 then not realize they are pressing the overall too." The module never ties the two together (G7). The
 options:
 
@@ -70,24 +73,18 @@ options:
 - **C. Ask on each press.** A press on the front asks "Press the overall too?" with No preselected. In auto
   mode this can't ask, so it falls back to A or B there.
 
-**Q2: In auto mode, does the side that's AHEAD in a press get pressed against?** G1 is your worked example.
-a comes back to go 3 up in the press, which leaves b 2 down in it after hole 7, so auto opens a press for b
-on 8–9. Hole 9 means a wins that one too: $30, not $20.
+**Q2: answered (§5.dk):** only the side that's losing presses, as in ordinary play. Its own press can be
+re-pressed when it's 2 down in it; a collapsed leader may press the leg. Every bet runs on to the end of its
+nine regardless of the others.
 
-- **A. Yes, either side 2 down in any bet presses** (the standard "auto 2-down" rule). *Recommended.*
-- **B. Only the side that started the chain** (the side 2 down in the leg itself) ever presses. Your
-  example would read exactly $20.
-
-In button mode this is simply whether b's scorer gets the button.
-
-**Q3: Stroke-play legs.** "2 down" is natural in match play (holes). In a stroke-play Nassau, down means
+**Q3: answered A, match play only (§5.dk).** "2 down" is natural in match play (holes). In a stroke-play Nassau, down means
 strokes.
 
 - **A. Presses only on hole-by-hole (match play) legs.** The toggle hides on stroke play. *Recommended:
   it's where every source describes presses.*
 - **B. Also stroke play, 2 strokes down.** One double bogey can trigger it on hole 1.
 
-**Q4: Team → Match games (several matches inside one team game).** Each match is head-to-head. A press in
+**Q4: answered A, between its players (§5.dk). Team → Match games (several matches inside one team game).** Each match is head-to-head. A press in
 one match:
 
 - **A. Is paid between that match's players, at the leg stake, on top of the team result.** *Recommended:

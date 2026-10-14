@@ -11,10 +11,11 @@
 // THE RULES THIS FILE ENCODES
 // - The trigger is 2 down, in both modes. Auto starts the press the moment a bet goes 2 down; the
 //   Press button is offered to the trailing side from 2 down.
-// - Each bet (the leg itself, or a press) can be pressed ONCE, by whichever side is 2+ down in it.
-//   Re-presses are unlimited because a press is itself a bet: a press that goes 2 down can be
-//   pressed, and so on. "Once per bet" is what stops one bad hole from opening a press on every
-//   live bet at the same time.
+// - ONLY THE SIDE THAT'S LOSING PRESSES (§5.dk; Wikipedia: a press is "offered ... by the side
+//   that is losing"). The leg itself can be pressed once by EACH side: a leader who collapses to 2
+//   down in the front is now losing it and may press it. A press can be pressed only by the side
+//   that made it, when it's 2 down in it ("its newest press"). The leader never gets a press of a
+//   press, and a press never multiplies: one press per bet per side.
 // - A press runs from the next hole to the END OF ITS BET's holes (the nine for a front/back press;
 //   18 for an overall press, if the overall may be pressed at all, which is Craig's call).
 // - 2 down after the leg's last hole presses nothing: there's no hole left to play.
@@ -31,7 +32,7 @@ export type PressLeg = 'front' | 'back' | 'overall';
 
 /** A Press tap, stored on the game in button mode. */
 export interface PressTap {
-  /** The id of the bet being pressed: a leg key ('front') or a press id ('front.1'). */
+  /** The id of the bet being pressed: a leg key ('front') or a press id ('front.a'). */
   of: string;
   /** The press starts on this hole. */
   fromHole: number;
@@ -42,7 +43,7 @@ export interface PressTap {
 }
 
 export interface PressBet {
-  /** 'front' for the leg itself; 'front.1' its press; 'front.1.1' the press of that press. */
+  /** 'front' for the leg itself; 'front.a' side a's press of it; 'front.a.a' a's press of that. */
   id: string;
   leg: PressLeg;
   /** The bet this one presses; null for the leg itself. */
@@ -103,10 +104,23 @@ function marginThrough(holes: number[], results: ReadonlyMap<number, HoleResult>
   return m;
 }
 
+type BetBase = Omit<PressBet, 'margin' | 'thru' | 'complete' | 'leader'>;
+
+/** Who may press this bet: either side on the leg itself; only its presser on a press. */
+function pressers(bet: BetBase): PressSide[] {
+  return bet.pressedBy ? [bet.pressedBy] : ['a', 'b'];
+}
+
+/** `side`'s margin in a bet: + = side is up. */
+const forSide = (side: PressSide, aMargin: number) => (side === 'a' ? aMargin : -aMargin);
+
+function byStart(x: PressBet, y: PressBet): number {
+  return x.holes[0] - y.holes[0] || x.id.length - y.id.length || x.id.localeCompare(y.id);
+}
+
 /**
- * AUTO PRESS: every bet in `leg`, the leg itself first, then each press in the order it started.
- * A bet that reaches 2 down (for either side) after a contested hole starts one press from the next
- * hole of that bet, for the side that's down.
+ * AUTO PRESS: a side that reaches 2 down in a bet it may press (after a contested hole) starts one
+ * press of that bet from the bet's next hole.
  */
 export function autoPresses(
   leg: PressLeg,
@@ -115,35 +129,36 @@ export function autoPresses(
   trigger = 2,
 ): PressBet[] {
   const out: PressBet[] = [];
-  const queue: Omit<PressBet, 'margin' | 'thru' | 'complete' | 'leader'>[] = [
-    { id: leg, leg, parent: null, pressedBy: null, holes },
-  ];
+  const queue: BetBase[] = [{ id: leg, leg, parent: null, pressedBy: null, holes }];
   while (queue.length) {
     const bet = queue.shift()!;
     out.push(scoreBet(bet, results));
-    // The first contested hole after which this bet stands `trigger` down.
-    let m = 0;
-    for (let i = 0; i < bet.holes.length; i++) {
-      const r = results.get(bet.holes[i]) ?? null;
-      if (r === null) continue;
-      if (r === 'a') m++;
-      else if (r === 'b') m--;
-      if (Math.abs(m) >= trigger) {
-        const rest = bet.holes.slice(i + 1);
-        if (rest.length) {
-          queue.push({ id: `${bet.id}.1`, leg, parent: bet.id, pressedBy: m < 0 ? 'a' : 'b', holes: rest });
+    for (const side of pressers(bet)) {
+      // The first contested hole after which `side` stands `trigger` down in this bet.
+      let m = 0;
+      for (let i = 0; i < bet.holes.length; i++) {
+        const r = results.get(bet.holes[i]) ?? null;
+        if (r === null) continue;
+        if (r === 'a') m++;
+        else if (r === 'b') m--;
+        if (forSide(side, m) <= -trigger) {
+          const rest = bet.holes.slice(i + 1);
+          if (rest.length) {
+            queue.push({ id: `${bet.id}.${side}`, leg, parent: bet.id, pressedBy: side, holes: rest });
+          }
+          break;
         }
-        break;
       }
     }
   }
-  return out.sort((x, y) => x.holes[0] - y.holes[0] || x.id.length - y.id.length);
+  return out.sort(byStart);
 }
 
 /**
  * BUTTON PRESS: the leg plus every press tapped (and not removed). A tap on a bet that doesn't
  * exist (its parent was removed) is dropped with it, so removing a press removes its re-presses.
- * One press per bet: a second tap on the same bet is ignored (the earliest stands).
+ * A tap by a side that may not press that bet is ignored, and so is a second tap by the same side
+ * on the same bet (the earliest stands).
  */
 export function tappedPresses(
   leg: PressLeg,
@@ -151,44 +166,44 @@ export function tappedPresses(
   results: ReadonlyMap<number, HoleResult>,
   taps: PressTap[],
 ): PressBet[] {
-  const bets = new Map<string, Omit<PressBet, 'margin' | 'thru' | 'complete' | 'leader'>>();
+  const bets = new Map<string, BetBase>();
   bets.set(leg, { id: leg, leg, parent: null, pressedBy: null, holes });
   const live = taps
     .filter((t) => !t.removed && (t.of === leg || t.of.startsWith(`${leg}.`)))
     .sort((x, y) => x.fromHole - y.fromHole);
   for (const t of live) {
     const parent = bets.get(t.of);
-    const id = `${t.of}.1`;
-    if (!parent || bets.has(id)) continue;
+    const id = `${t.of}.${t.by}`;
+    if (!parent || bets.has(id) || !pressers(parent).includes(t.by)) continue;
     const rest = parent.holes.filter((h) => h >= t.fromHole);
     if (!rest.length) continue;
     bets.set(id, { id, leg, parent: t.of, pressedBy: t.by, holes: rest });
   }
-  return [...bets.values()]
-    .map((b) => scoreBet(b, results))
-    .sort((x, y) => x.holes[0] - y.holes[0] || x.id.length - y.id.length);
+  return [...bets.values()].map((b) => scoreBet(b, results)).sort(byStart);
 }
 
 /**
- * Where the Press button shows, after the holes posted so far: each bet that is 2+ down and has
- * not been pressed, with at least one hole left. The button names the bet it presses ("Press the
- * front 9", "Press the press"), so one tap never presses two bets.
+ * Where the Press button shows, after the holes posted so far: each bet a side may press, is 2+
+ * down in, and hasn't pressed yet, with at least one hole left. The button names the bet it
+ * presses ("Press the front 9", "Press your press"), so one tap never presses two bets.
  */
 export function pressOffers(
   bets: PressBet[],
   results: ReadonlyMap<number, HoleResult>,
   trigger = 2,
 ): { of: string; by: PressSide; fromHole: number }[] {
-  const pressed = new Set(bets.map((b) => b.parent).filter(Boolean));
+  const ids = new Set(bets.map((b) => b.id));
   const offers: { of: string; by: PressSide; fromHole: number }[] = [];
   for (const b of bets) {
-    if (pressed.has(b.id)) continue;
     const last = [...b.holes].reverse().find((h) => (results.get(h) ?? null) !== null);
     if (last === undefined) continue;
-    const m = marginThrough(b.holes, results, last);
     const next = b.holes.find((h) => h > last);
-    if (Math.abs(m) >= trigger && next !== undefined) {
-      offers.push({ of: b.id, by: m < 0 ? 'a' : 'b', fromHole: next });
+    if (next === undefined) continue;
+    const m = marginThrough(b.holes, results, last);
+    for (const side of pressers(b)) {
+      if (!ids.has(`${b.id}.${side}`) && forSide(side, m) <= -trigger) {
+        offers.push({ of: b.id, by: side, fromHole: next });
+      }
     }
   }
   return offers;

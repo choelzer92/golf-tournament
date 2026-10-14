@@ -34,44 +34,44 @@ describe('presses: the worked examples (§5.dj)', () => {
   it('G1: 2 down after 4, press 5–9, win 5/7/9 → the press 3 up AND the front 1 up', () => {
     const r = res('-B-BA-A-A');
     const bets = autoPresses('front', FRONT, r);
-    // And once a goes 2 up in the press (after 7), b is 2 down in it, so auto presses for b on
-    // 8–9. Hole 9 wins that too: a wins all three bets. (Craig's example stopped at two bets; the
-    // design note asks whether the side that's AHEAD gets pressed against automatically.)
-    expect(summary(bets)).toEqual(['front 1-9 +1', 'front.1 5-9 +3', 'front.1.1 8-9 +1']);
-    expect(bets.map((b) => b.pressedBy)).toEqual([null, 'a', 'b']);
-    expect(betsNet(bets, 10)).toBe(30);
+    // b is 2 down in a's press after 7, but only the side that made a press can press it (§5.dk):
+    // two bets, exactly Craig's $20.
+    expect(summary(bets)).toEqual(['front 1-9 +1', 'front.a 5-9 +3']);
+    expect(bets[1].pressedBy).toBe('a');
+    expect(betsNet(bets, 10)).toBe(20);
   });
 
   it('G2: the press won but the leg lost → $0', () => {
     // b wins 1 and 2 (press from 3); halves 3–6; b wins 7 (front 3 down, press 1 down);
     // a wins 8 and 9: the front is lost 1 down, the press won 1 up.
     const bets = autoPresses('front', FRONT, res('BB----BAA'));
-    expect(summary(bets)).toEqual(['front 1-9 -1', 'front.1 3-9 +1']);
+    expect(summary(bets)).toEqual(['front 1-9 -1', 'front.a 3-9 +1']);
     expect(betsNet(bets, 10)).toBe(0);
   });
 
-  it('G3: re-presses are unlimited, and either side can be the one pressing', () => {
+  it("G3: the side that's losing re-presses its own press when 2 down in it; the leader never presses a press", () => {
     // b wins 1–4, a wins 5–9.
-    //   front     1–9  a 2 down after 2 → press 3–9 (front.1, for a)
-    //   front.1   3–9  a 2 down after 4 → press 5–9 (front.1.1, for a)
-    //   front.1.1 5–9  b 2 down after 6 → press 7–9 (front.1.1.1, for b)
-    //   front.1.1.1 7–9 b 2 down after 8 → press 9 (for b)
-    // The front itself goes 4 down, but it was already pressed once: no second press of it.
+    //   front     1–9  a 2 down after 2 → a presses 3–9 (front.a)
+    //   front.a   3–9  a 2 down after 4 → a presses its press, 5–9 (front.a.a)
+    //   front.a.a 5–9  b goes 2 down in it after 6, but it's a's press: b can't press it.
+    // The front itself goes 4 down, but a already pressed it once: no second press of it.
     const bets = autoPresses('front', FRONT, res('BBBBAAAAA'));
-    expect(summary(bets)).toEqual([
-      'front 1-9 +1',
-      'front.1 3-9 +3',
-      'front.1.1 5-9 +5',
-      'front.1.1.1 7-9 +3',
-      'front.1.1.1.1 9-9 +1',
-    ]);
-    expect(bets.map((b) => b.pressedBy)).toEqual([null, 'a', 'a', 'b', 'b']);
-    expect(betsNet(bets, 5)).toBe(25); // a wins all five bets
+    expect(summary(bets)).toEqual(['front 1-9 +1', 'front.a 3-9 +3', 'front.a.a 5-9 +5']);
+    expect(bets.map((b) => b.pressedBy)).toEqual([null, 'a', 'a']);
+    expect(betsNet(bets, 5)).toBe(15); // a wins all three bets
+  });
+
+  it('G3b: a leader who collapses to 2 down in the front itself is now losing it, and presses it', () => {
+    // a wins 1 and 2 (b presses 3–9); halves 3–4; b wins 5–8: the front is a 2 down after 8,
+    // so a presses hole 9 (halved). b's press 3–9 is b 4 up.
+    const bets = autoPresses('front', FRONT, res('AA--BBBB-'));
+    expect(summary(bets)).toEqual(['front 1-9 -2', 'front.b 3-9 -4', 'front.a 9-9 +0']);
+    expect(betsNet(bets, 10)).toBe(-20);
   });
 
   it('G4: 2 down after 8 presses hole 9 alone; 2 down after 9 presses nothing', () => {
     expect(summary(autoPresses('front', FRONT, res('-------BB')))).toEqual(['front 1-9 -2']);
-    expect(summary(autoPresses('front', FRONT, res('------BBA')))).toEqual(['front 1-9 -1', 'front.1 9-9 +1']);
+    expect(summary(autoPresses('front', FRONT, res('------BBA')))).toEqual(['front 1-9 -1', 'front.a 9-9 +1']);
   });
 
   it('G5: 1 down through 3 is not a press (Craig: "i dont think a press is valid")', () => {
@@ -80,7 +80,7 @@ describe('presses: the worked examples (§5.dj)', () => {
 
   it('G6: the back nine presses within the back (10–18), never into the front', () => {
     const bets = autoPresses('back', BACK, res('AA-------', 10));
-    expect(summary(bets)).toEqual(['back 10-18 +2', 'back.1 12-18 +0']);
+    expect(summary(bets)).toEqual(['back 10-18 +2', 'back.b 12-18 +0']);
     expect(bets[1].pressedBy).toBe('b');
     expect(betsNet(bets, 10)).toBe(10); // back won, its press halved
   });
@@ -90,13 +90,13 @@ describe('presses: the worked examples (§5.dj)', () => {
     const overall = autoPresses('overall', HOLES, r);
     // The overall is pressed ONLY if overall presses are allowed (Craig's open question).
     // When they are, it is its own bet, running to 18 — not the front's press.
-    expect(summary(overall)).toEqual(['overall 1-18 -2', 'overall.1 3-18 +0']);
-    expect(summary(autoPresses('front', FRONT, r))).toEqual(['front 1-9 -2', 'front.1 3-9 +0']);
+    expect(summary(overall)).toEqual(['overall 1-18 -2', 'overall.a 3-18 +0']);
+    expect(summary(autoPresses('front', FRONT, r))).toEqual(['front 1-9 -2', 'front.a 3-9 +0']);
   });
 
   it('G8: mid-round, a press counts contested holes only and says so', () => {
     const bets = autoPresses('front', FRONT, res('BBA......'));
-    expect(summary(bets)).toEqual(['front 1-9 -1', 'front.1 3-9 +1']);
+    expect(summary(bets)).toEqual(['front 1-9 -1', 'front.a 3-9 +1']);
     expect(bets.map((b) => [b.thru, b.complete])).toEqual([[3, false], [1, false]]);
   });
 });
@@ -107,7 +107,7 @@ describe('presses: the Press button', () => {
     const legOnly = tappedPresses('front', FRONT, r, []);
     expect(pressOffers(legOnly, r)).toEqual([{ of: 'front', by: 'a', fromHole: 3 }]);
     const bets = tappedPresses('front', FRONT, r, [{ of: 'front', fromHole: 3, by: 'a' }]);
-    expect(summary(bets)).toEqual(['front 1-9 -2', 'front.1 3-9 +0']);
+    expect(summary(bets)).toEqual(['front 1-9 -2', 'front.a 3-9 +0']);
     expect(pressOffers(bets, r)).toEqual([]); // the front is pressed; nothing else is 2 down
   });
 
@@ -120,7 +120,7 @@ describe('presses: the Press button', () => {
     const r = res('BBBBAAAAA');
     const taps = [
       { of: 'front', fromHole: 3, by: 'a' as const, removed: { note: 'press removed' } },
-      { of: 'front.1', fromHole: 5, by: 'a' as const },
+      { of: 'front.a', fromHole: 5, by: 'a' as const },
     ];
     expect(summary(tappedPresses('front', FRONT, r, taps))).toEqual(['front 1-9 +1']);
   });
@@ -132,7 +132,19 @@ describe('presses: the Press button', () => {
       { of: 'front', fromHole: 3, by: 'a' as const },
       { of: 'front', fromHole: 5, by: 'a' as const },
     ];
-    expect(summary(tappedPresses('front', FRONT, r, taps))).toEqual(['front 1-9 +6', 'front.1 3-9 +7']);
+    expect(summary(tappedPresses('front', FRONT, r, taps))).toEqual(['front 1-9 +6', 'front.a 3-9 +7']);
+  });
+
+  it("B4b: the leader's tap on the other side's press is ignored (only its presser may press it)", () => {
+    const r = res('BBAAAA...');
+    const taps = [
+      { of: 'front', fromHole: 3, by: 'a' as const },
+      { of: 'front.a', fromHole: 7, by: 'b' as const },
+    ];
+    const bets = tappedPresses('front', FRONT, r, taps);
+    expect(summary(bets)).toEqual(['front 1-9 +2', 'front.a 3-9 +4']);
+    // b is offered a press of the FRONT (b is 2 down in it), never of a's press.
+    expect(pressOffers(bets, r)).toEqual([{ of: 'front', by: 'b', fromHole: 7 }]);
   });
 
   it('B5: auto and button agree when every offer is tapped the moment it shows', () => {
@@ -148,11 +160,12 @@ describe('presses: the Press button', () => {
 });
 
 // --- independent oracle -------------------------------------------------------------------
-// Walks the holes forward, keeping a running margin on every live bet. A bet presses the first
-// time it stands 2 down after a hole, if a hole is left. Returns side a's net at `stake`.
+// Walks the holes forward, keeping a running margin on every live bet. A side that may press a bet
+// (either side on the leg, only its presser on a press) presses it the first time it stands 2
+// down after a hole, if a hole is left. Returns side a's net at `stake`.
 function oracleNet(results: Map<number, HoleResult>, holes: number[], stake: number): number {
-  type Live = { start: number; m: number; pressed: boolean };
-  const live: Live[] = [{ start: holes[0], m: 0, pressed: false }];
+  type Live = { start: number; m: number; by: 'a' | 'b' | null; done: Set<string> };
+  const live: Live[] = [{ start: holes[0], m: 0, by: null, done: new Set() }];
   holes.forEach((h, i) => {
     const r = results.get(h) ?? null;
     if (r === null) return;
@@ -161,9 +174,12 @@ function oracleNet(results: Map<number, HoleResult>, holes: number[], stake: num
     for (const b of live) {
       if (b.start > h) continue;
       b.m += d;
-      if (!b.pressed && Math.abs(b.m) >= 2 && i + 1 < holes.length) {
-        b.pressed = true;
-        born.push({ start: holes[i + 1], m: 0, pressed: false });
+      for (const side of b.by ? [b.by] : (['a', 'b'] as const)) {
+        const down = side === 'a' ? -b.m : b.m;
+        if (!b.done.has(side) && down >= 2 && i + 1 < holes.length) {
+          b.done.add(side);
+          born.push({ start: holes[i + 1], m: 0, by: side, done: new Set() });
+        }
       }
     }
     live.push(...born);

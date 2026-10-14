@@ -2814,3 +2814,22 @@ Craig decided:
   design note must show options for it; a nine's press must never silently press the overall.
 - Build next session, FIRST: design note + goldens (zero-sum, the worked examples) shown to Craig before the
   setting, the button and the settle-up lines are wired.
+
+### 5.dk — Presses: the design note's answers (2026-10-14; refines §5.dj)
+
+Asked from `.claude/plans/presses.md` §4 (goldens in `src/test/presses-golden.test.ts`, unwired):
+- **Q1, the overall: option B.** A second toggle, "The overall can be pressed too", off by default and shown
+  only when presses are on. An overall press is its own bet to 18 with its own "Press the overall" button;
+  pressing a nine never presses the overall.
+- **Q3, stroke play: match play only.** The presses toggle hides when the legs are stroke play.
+- **Q4, Team → Match games: between its players.** A press in one match is paid between that match's
+  players at the leg stake, on top of the team result.
+- **Q2, does the side AHEAD get pressed against: OPEN.** Craig: "how does this work in regular games people
+  play? if you lose the press, dont the other matches continue? this feels like it is making it overly
+  complicated for how presses are actually used." Researched: Wikipedia's "Nassau (bet)" says the press is
+  "offered ... by the side that is losing", and that a press "can themselves be pressed if the player falls
+  two points behind on the press bet". Nothing there has the leader pressing. Proposed, and Craig: **"yes, i
+  agree with those rules"**: ONLY THE SIDE THAT'S LOSING PRESSES. It re-presses its own press when 2 down in
+  it; the leader never presses a press; a leader who collapses to 2 down in the leg itself is now losing it
+  and may press the leg. Losing a press stops nothing: every bet runs to the end of its nine. His worked
+  example pays exactly $20 (G1).
