@@ -14,6 +14,7 @@ import {
 } from './game-modes/team-scoring';
 import { sidesOfGame, type GameSide } from './game-modes/sides';
 import { matchesOf, matchSizeOf } from './game-modes/match-pairing';
+import { computePresses, pressSettingsOf, type HoleResult, type PressLine, type PressOfferLine, type PressTap } from './game-modes/presses';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -156,6 +157,11 @@ export interface PoolMatchConfig {
   junkPerPoint: number;
   scoring?: 'stroke' | 'holes';
   pointsPerHole?: { win: number; tie: number; loss: number };
+  // Presses (§5.dk), the same keys as the team engine's PRESS_SETTINGS. Absent = off. Only a
+  // two-team match played hole by hole ('holes') presses.
+  presses?: boolean;
+  pressMode?: 'auto' | 'button';
+  pressOverall?: boolean;
 }
 
 export const DEFAULT_MATCH_POINTS = { win: 1, tie: 0.5, loss: 0 };
@@ -264,6 +270,10 @@ export interface PoolGame {
   // reopened the game. Recomputing from hole counts would also silently change a settled
   // game's money if a late score were added.
   voidedLegs?: ('front' | 'back' | 'overall')[];
+  // The scorer's Press taps (§5.dj/§5.dk), button mode only. ABSENT on every game without one.
+  // Stored, not derived, because a tap is a bet that was MADE: it stands if a score is corrected
+  // later, and a removed press keeps its note. Auto presses are re-derived from the scores.
+  presses?: PressTap[];
 }
 
 // One hole's Wolf decision. `mode`: 'partner' = Wolf + partnerId vs the other two
@@ -420,6 +430,8 @@ export interface PoolTeamPayout {
   back: number;
   overall: number;
   junk: number;
+  // Match mode only: the presses' money, per player (§5.dk). Absent when nothing was pressed.
+  presses?: number;
   grossTotal: number;
   entryPaid: number;
   net: number;
@@ -439,6 +451,9 @@ export interface PoolResult {
   payouts: PoolTeamPayout[];
   holeScores: PoolHoleScore[];
   thruHole: number;
+  // Two-team match play with presses on (§5.dk): each press, and the Press buttons to show now.
+  presses?: PressLine[];
+  pressOffers?: PressOfferLine[];
 }
 
 export interface HoleData {
@@ -2102,7 +2117,8 @@ function computeMatchPayouts(
   front: PoolLeg,
   back: PoolLeg,
   overall: PoolLeg,
-  junkDetails: PoolTeamJunk[]
+  junkDetails: PoolTeamJunk[],
+  pressPerPlayer: Record<string, number> = {},
 ): PoolTeamPayout[] {
   const cfg = game.matchConfig ?? DEFAULT_MATCH_CONFIG;
   // Per-player signed leg amounts, accumulated per team.
@@ -2137,7 +2153,8 @@ function computeMatchPayouts(
 
   return game.teams.map((team) => {
     const a = legAmt[team.id];
-    const perPersonNet = a.front + a.back + a.overall + a.junk;
+    const presses = pressPerPlayer[team.id] ?? 0;
+    const perPersonNet = a.front + a.back + a.overall + a.junk + presses;
     const playerCount = team.playerIds.length || 1;
     const net = perPersonNet * playerCount;
     return {
@@ -2148,6 +2165,7 @@ function computeMatchPayouts(
       back: a.back,
       overall: a.overall,
       junk: a.junk,
+      ...(presses !== 0 ? { presses } : {}),
       grossTotal: net,
       entryPaid: 0,
       net,
@@ -2304,6 +2322,35 @@ export function computePoolResult(
     annotate(overall, holes);
   }
 
+  // PRESSES (§5.dj/§5.dk): a two-team match played hole by hole. A press pays the leg's stake PER
+  // PLAYER, as the legs do here (computeMatchPayouts), from the shared rules in presses.ts.
+  const pressSet = isMatch && matchCfg0.scoring === 'holes' && game.teams.length === 2
+    ? pressSettingsOf({ ...matchCfg0 } as unknown as Record<string, string | number | boolean>)
+    : null;
+  let pressed: ReturnType<typeof computePresses> | null = null;
+  if (pressSet) {
+    const [tA, tB] = game.teams;
+    const aMap = holeScoresByTeam.get(tA.id);
+    const bMap = holeScoresByTeam.get(tB.id);
+    const results = new Map<number, HoleResult>(holes.map((h) => {
+      const a = aMap?.get(h.number);
+      const b = bMap?.get(h.number);
+      if (a == null || b == null) return [h.number, null];
+      return [h.number, a === b ? 'halved' : betterValue(legScoring.basis, a, b) ? 'a' : 'b'];
+    }));
+    pressed = computePresses({
+      holeNumbers: holes.map((h) => h.number),
+      results,
+      settings: pressSet,
+      taps: game.presses ?? [],
+      stakes: matchCfg0.legDollars,
+      voided: new Set(),
+      nineOnly: nineOnly ? (holes.every((h) => h.number > 9) ? 'back' : 'front') : null,
+      sides: [tA.id, tB.id],
+      names: [tA.name, tB.name],
+    });
+  }
+
   // Junk leg — ranked by most points (higher is better).
   const junkDetails = computeJunk(game, holes, scoresByMatchup);
   const junkSubPot = pot * game.potSplit.junk;
@@ -2350,7 +2397,8 @@ export function computePoolResult(
   // junk differential); pot mode splits the buy-in pot by finishing place.
   const payoutFor = (leg: PoolLeg, teamId: string) => leg.standings.find((s) => s.teamId === teamId)?.payout ?? 0;
   const payouts: PoolTeamPayout[] = isMatch
-    ? computeMatchPayouts(game, front, back, overall, junkDetails)
+    ? computeMatchPayouts(game, front, back, overall, junkDetails,
+        pressed ? { [game.teams[0].id]: pressed.aNet, [game.teams[1].id]: -pressed.aNet } : {})
     : game.teams.map((team) => {
         const f = payoutFor(front, team.id);
         const b = payoutFor(back, team.id);
@@ -2376,7 +2424,10 @@ export function computePoolResult(
       });
   payouts.sort((a, b) => b.net - a.net);
 
-  return { pot, legs, junkDetails, payouts, holeScores, thruHole };
+  return {
+    pot, legs, junkDetails, payouts, holeScores, thruHole,
+    ...(pressed ? { presses: pressed.lines, pressOffers: pressed.offers } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------

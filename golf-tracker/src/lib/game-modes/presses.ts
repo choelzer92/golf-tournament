@@ -5,8 +5,8 @@
 // win 5, 7 and 9 and the press is 3 up AND the front is 1 up. It is not double or nothing.
 //
 // DESIGN NOTE: `.claude/plans/presses.md`. Goldens: `src/test/presses-golden.test.ts`.
-// NOT WIRED YET: nothing in the engine, the wizard or the settle-up reads this file. Craig sees the
-// note and the goldens before the setting, the Press button and the settle-up lines exist.
+// WIRED (§5.dk) through `computePresses` below: the team engine (two sides), each match of a
+// Team → Match game, and the classic pool's two-team match. All three call the same function.
 //
 // THE RULES THIS FILE ENCODES
 // - The trigger is 2 down, in both modes. Auto starts the press the moment a bet goes 2 down; the
@@ -25,6 +25,9 @@
 //
 // Pure: no Date.now, no storage. Input is the hole-by-hole result of ONE head-to-head match.
 
+import type { FormatSetting } from '../formats';
+import { boolSetting, stringSetting } from './settings';
+
 /** Who won a hole in a two-sided match. `null` = not contested yet (a side hasn't posted). */
 export type HoleResult = 'a' | 'b' | 'halved' | null;
 export type PressSide = 'a' | 'b';
@@ -40,6 +43,8 @@ export interface PressTap {
   by: PressSide;
   /** Set when the scorer removed the press; a removed press pays nothing. */
   removed?: { note: string };
+  /** Team → Match games only: the match (MatchLine.id) the press belongs to. */
+  match?: string;
 }
 
 export interface PressBet {
@@ -223,4 +228,153 @@ export function betsNet(bets: PressBet[], stake: number, voided: ReadonlySet<str
     else if (b.leader === 'b') a -= stake;
   }
   return a;
+}
+
+// ---------------------------------------------------------------------------
+// WIRING (§5.dk): the settings, and one call per head-to-head match for every engine.
+// ---------------------------------------------------------------------------
+
+const PRESS_SHOW_IF = [{ key: 'moneyModel', in: ['legs'] }, { key: 'result', in: ['match'] }];
+
+/** The presses settings. Off by default; shown only on match-play legs (§5.dk Q3). */
+export const PRESS_SETTINGS: FormatSetting[] = [
+  {
+    key: 'presses', label: 'Presses', type: 'toggle', defaultValue: false,
+    hint: 'A side 2 down can press: a new bet at the leg’s stake, from the next hole to the end of the nine. The bet it presses stays live.',
+    showIf: PRESS_SHOW_IF,
+  },
+  {
+    key: 'pressMode', label: 'A press starts', type: 'select',
+    options: [
+      { value: 'button', label: 'When the scorer taps Press' },
+      { value: 'auto', label: 'Automatically at 2 down' },
+    ],
+    defaultValue: 'button',
+    showIf: [...PRESS_SHOW_IF, { key: 'presses', in: ['true'] }],
+  },
+  {
+    key: 'pressOverall', label: 'The overall can be pressed too', type: 'toggle', defaultValue: false,
+    hint: 'Off: only the nines are pressed. On: the overall has its own press, to the 18th. Pressing a nine never presses the overall.',
+    showIf: [...PRESS_SHOW_IF, { key: 'presses', in: ['true'] }],
+  },
+];
+
+export const PRESS_KEYS: ReadonlySet<string> = new Set(PRESS_SETTINGS.map((s) => s.key));
+
+export interface PressSettings { mode: 'auto' | 'button'; overall: boolean }
+
+/** The game's press settings, or null when presses are off. */
+export function pressSettingsOf(bag: Record<string, string | number | boolean>): PressSettings | null {
+  if (!boolSetting(PRESS_SETTINGS, bag, 'presses')) return null;
+  return {
+    mode: stringSetting(PRESS_SETTINGS, bag, 'pressMode') === 'auto' ? 'auto' : 'button',
+    overall: boolSetting(PRESS_SETTINGS, bag, 'pressOverall'),
+  };
+}
+
+/** One press, ready for the board and the money card. Side ids are the game's own. */
+export interface PressLine {
+  id: string;
+  /** The match it belongs to (Team → Match games); absent for a whole-game match. */
+  match?: string;
+  leg: PressLeg;
+  /** "Press 5–9", or "Re-press 7–9" for a press of a press. */
+  label: string;
+  /** The side that pressed. */
+  by: string;
+  holes: number[];
+  thru: number;
+  complete: boolean;
+  /** The side ahead in the press (its winner once complete); null = all square. */
+  leader: string | null;
+  /** "Hogs 2 up", "All square", or "–" before a hole is played. */
+  status: string;
+  /** What the press pays, loser to winner, in the caller's unit (per side, or per player). */
+  stake: number;
+  /** Its leg was voided at close-out, so it pays nothing. */
+  voided: boolean;
+}
+
+/** A Press button the scorer can tap now: `of` the bet, by the side 2 down. */
+export interface PressOfferLine {
+  match?: string;
+  of: string;
+  by: PressSide;
+  /** The pressing side's id. */
+  side: string;
+  fromHole: number;
+  /** "Hogs: press the front 9" / "Hogs: press your press (from 5)". */
+  label: string;
+}
+
+const LEG_WORDS: Record<PressLeg, string> = { front: 'the front 9', back: 'the back 9', overall: 'the overall' };
+
+function span(holes: number[]): string {
+  return holes.length === 1 ? `${holes[0]}` : `${holes[0]}–${holes[holes.length - 1]}`;
+}
+
+/**
+ * Every press in ONE head-to-head match, its money, and (button mode) the Press buttons to show.
+ * `results` is the match's hole-by-hole result, 'a' being `sides[0]`. `stakes` is what each leg
+ * pays, in the unit the caller settles in. `nineOnly` = a 9-hole game: its one leg is that nine,
+ * paid at the overall's stake as every engine pays it. `aNet` is side a's money; b's is −aNet.
+ */
+export function computePresses(input: {
+  holeNumbers: number[];
+  results: ReadonlyMap<number, HoleResult>;
+  settings: PressSettings;
+  taps: PressTap[];
+  stakes: Record<PressLeg, number>;
+  voided: ReadonlySet<PressLeg>;
+  nineOnly: 'front' | 'back' | null;
+  sides: [string, string];
+  names: [string, string];
+  match?: string;
+}): { lines: PressLine[]; aNet: number; offers: PressOfferLine[] } {
+  const { results, settings, sides, names, match } = input;
+  const legs: { key: PressLeg; holes: number[]; stake: number }[] = input.nineOnly
+    ? [{ key: input.nineOnly, holes: legHoles('overall', input.holeNumbers), stake: input.stakes.overall }]
+    : ([
+        { key: 'front', holes: legHoles('front', input.holeNumbers), stake: input.stakes.front },
+        { key: 'back', holes: legHoles('back', input.holeNumbers), stake: input.stakes.back },
+        ...(settings.overall ? [{ key: 'overall', holes: legHoles('overall', input.holeNumbers), stake: input.stakes.overall }] : []),
+      ] as { key: PressLeg; holes: number[]; stake: number }[]).filter((l) => l.holes.length > 0);
+  const taps = input.taps.filter((t) => t.match === match);
+  const lines: PressLine[] = [];
+  const offers: PressOfferLine[] = [];
+  let aNet = 0;
+  const idx = (s: PressSide) => (s === 'a' ? 0 : 1);
+  for (const leg of legs) {
+    const bets = settings.mode === 'auto'
+      ? autoPresses(leg.key, leg.holes, results)
+      : tappedPresses(leg.key, leg.holes, results, taps);
+    const presses = bets.filter((b) => b.parent !== null);
+    const voided = input.voided.has(leg.key);
+    if (!voided) aNet += betsNet(presses, leg.stake);
+    for (const b of presses) {
+      const k = b.leader ? idx(b.leader) : null;
+      lines.push({
+        id: b.id,
+        ...(match !== undefined ? { match } : {}),
+        leg: leg.key,
+        label: `${b.parent === leg.key ? 'Press' : 'Re-press'} ${span(b.holes)}`,
+        by: sides[idx(b.pressedBy!)],
+        holes: b.holes,
+        thru: b.thru,
+        complete: b.complete,
+        leader: k !== null ? sides[k] : null,
+        status: b.thru === 0 ? '–' : k !== null ? `${names[k]} ${Math.abs(b.margin)} up` : 'All square',
+        stake: leg.stake,
+        voided,
+      });
+    }
+    if (settings.mode === 'button' && !voided) {
+      for (const o of pressOffers(bets, results)) {
+        const parent = bets.find((b) => b.id === o.of)!;
+        const what = parent.parent === null ? `press ${LEG_WORDS[leg.key]}` : `press your press (from ${parent.holes[0]})`;
+        offers.push({ ...(match !== undefined ? { match } : {}), ...o, side: sides[idx(o.by)], label: `${names[idx(o.by)]}: ${what}` });
+      }
+    }
+  }
+  return { lines, aNet, offers };
 }
