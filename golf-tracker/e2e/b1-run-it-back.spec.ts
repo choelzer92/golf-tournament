@@ -80,5 +80,8 @@ test('B1: Run it back from a closed game — same format, field, course and team
   await page.getByRole('button', { name: /Next: Set Tees/ }).click();
   await page.getByRole('button', { name: /Next: Teams/ }).click();
   await expect(page.getByText('How should teams be built?')).toBeVisible();
-  await expect(page.getByRole('button', { name: /Next: Review/ })).toBeDisabled();
+  // §5.de / §5.df: the changed field got a FRESH balanced deal (the match cards' deal, redone on
+  // the playing handicap), not last time's teams.
+  await expect(page.getByRole('button', { name: /Even them out/ }).getByText('✓ Built these teams')).toBeVisible();
+  await expect(page.getByText(/hand-adjusted since/)).toHaveCount(0);
 });

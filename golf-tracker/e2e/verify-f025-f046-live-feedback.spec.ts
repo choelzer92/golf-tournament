@@ -266,7 +266,7 @@ test.describe('F-032: closing out a game shows who pays whom', () => {
 // getPoolPlayingHandicap by unit test (src/test/handicap-chain.test.ts).
 // ---------------------------------------------------------------------------
 test.describe('F-043: the handicap chip shows its work', () => {
-  test('F-043: tapping a CHcp chip on the sides step opens the index → CH → plays-off chain', async ({ page }) => {
+  test('F-043: tapping a handicap chip on Review opens the index → CH → plays-off chain', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     // Seed past games so the wizard's course step offers Sandbox National.
     await page.goto(`${BASE}/sandbox`);
@@ -296,11 +296,15 @@ test.describe('F-043: the handicap chip shows its work', () => {
     // Assert the right screen before touching anything on it.
     await expect(page.getByRole('heading', { name: 'Set Teams' })).toBeVisible();
     await buildTeams(page, 'even');
+    // §5.dh (option A): the teams step's cards only swap; the breakdown lives on Players and Review.
+    await page.getByRole('button', { name: /Next: Review & Create/ }).click();
+    await expect(page.getByRole('button', { name: 'Create & send to players' })).toBeVisible();
 
     // The chain is hidden until asked for.
     await expect(page.getByText('Handicap index')).toHaveCount(0);
 
-    const craigRow = page.locator('li', { hasText: 'Craig' }).first();
+    const craigRow = page.locator('div', { hasText: 'Craig' })
+      .filter({ has: page.getByRole('button', { name: '4', exact: true }) }).last();
     await craigRow.getByRole('button', { name: '4', exact: true }).click();
     await expect(page.getByText('Handicap index')).toBeVisible();
     // Sandbox National is slope 113 with rating == par, so CH == index — and the

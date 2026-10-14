@@ -14,6 +14,17 @@ import {
   type StructureOption,
   type StructureShape,
 } from '@/lib/game-structure';
+import { suggestMatches } from '@/lib/game-modes/matches';
+
+const WORD = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
+
+/** §5.de: "As whole teams — 4 v 4", "In pairs — two 2 v 2 matches", "One on one — four 1 v 1 matches". */
+function matchAnswerLabel(size: number, teamSizes: number[]): string {
+  if (size === 0) return `As whole teams — ${teamSizes.join(' v ')}`;
+  const n = suggestMatches(teamSizes.map((k, t) => Array.from({ length: k }, (_, i) => `${t}:${i}`)), size)?.length ?? 0;
+  const count = `${WORD[n] ?? n} ${size} v ${size} match${n === 1 ? '' : 'es'}`;
+  return size === 1 ? `One on one — ${count}` : `In pairs — ${count}`;
+}
 
 // Step 2 of the wizard — "How do you want to compete?" (§5.bk, plan §3.1 / §6).
 //
@@ -306,25 +317,25 @@ export function StructureStep({
               Other split… <span className="text-xs font-normal text-gray-500">({other.map((o) => o.teamSizes.join(' + ')).slice(0, 2).join(', ')}{other.length > 2 ? ', …' : ''})</span>
             </button>
           )}
-        {/* F-037 (§5.co Q5): only once there are 2+ teams the size divides. Off by default, so
-            the usual game never sees more than this one optional question. */}
+        {/* F-037 / §5.de: how the teams play each other, asked only where the split allows a
+            match smaller than a team. Whole teams first: the usual game never answers it. */}
         {structure?.kind === 'teams' && matchSizes.length > 0 && setMatchSize && (
           <div className="mt-4 pt-3 border-t">
-            <p className="text-sm font-medium text-gray-800">Head-to-head matches?</p>
-            <p className="text-xs text-gray-500 mb-2">Players meet the other team inside their foursome; each match won adds a point to the team.</p>
-            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Head-to-head matches">
-              {[0, ...matchSizes].map((s) => (
+            <p className="text-sm font-medium text-gray-800 mb-2">How do the teams play each other?</p>
+            <div className="space-y-2" role="radiogroup" aria-label="How do the teams play each other?">
+              {/* Whole teams, then pairs, then one on one (§5.de). */}
+              {[0, ...[...matchSizes].sort((x, y) => y - x)].map((s) => (
                 <button
                   key={s}
                   type="button"
                   role="radio"
                   aria-checked={matchSize === s}
                   onClick={() => setMatchSize(s)}
-                  className={`rounded-md border px-3 py-2 text-sm min-h-[44px] ${
+                  className={`block w-full text-left rounded-md border px-3 py-2 text-sm min-h-[44px] ${
                     matchSize === s ? 'border-green-600 bg-green-50 font-medium text-green-900' : 'border-gray-300 bg-white text-gray-800 hover:border-green-400'
                   }`}
                 >
-                  {s === 0 ? 'No' : s === 1 ? '1 v 1' : '2 v 2'}
+                  {matchAnswerLabel(s, structure.teamSizes)}
                 </button>
               ))}
             </div>

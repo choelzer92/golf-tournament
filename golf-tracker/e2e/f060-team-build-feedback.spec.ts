@@ -38,15 +38,17 @@ test('F-060: Captains’ deal marks its card as the one that built the teams', a
   await page.getByRole('button', { name: /Next: Teams/ }).click();
   await expect(page.getByRole('heading', { name: 'Set Teams' })).toBeVisible();
 
-  // The honest copy (no dragging exists on this screen).
-  await expect(page.getByText(/Or build nothing — put each player on a team by hand/)).toBeVisible();
+  // §5.dh: the cards are the one hand editor, and the copy says so.
+  await expect(page.getByText('Then tap two players on the cards above to swap them.')).toBeVisible();
 
   // F-060 opt B: the Captains panel no longer carries its own rival build button —
   // the method list below is the ONE place teams get built.
   await expect(page.getByRole('button', { name: 'Build balanced teams around captains' })).toHaveCount(0);
 
-  // No method has built anything yet.
-  await expect(page.getByText('✓ Built these teams')).toHaveCount(0);
+  // §5.de / §5.df: the teams arrive dealt (step 2's match cards, re-dealt on the playing
+  // handicap), so "Even them out" is the one marked until another method builds.
+  await expect(page.getByRole('button', { name: /Even them out/ }).getByText('✓ Built these teams')).toBeVisible();
+  await expect(page.getByText('✓ Built these teams')).toHaveCount(1);
 
   const deal = page.getByRole('button', { name: /Captains. deal/i });
   await deal.click();
@@ -57,7 +59,9 @@ test('F-060: Captains’ deal marks its card as the one that built the teams', a
   await expect(page.getByText(/combined HCP/i).first()).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/f060-deal-feedback.png', fullPage: true });
 
-  // Hand-moving a player afterwards demotes the claim honestly.
-  await page.locator('select', { hasText: 'Team' }).first().selectOption({ index: 1 });
+  // Hand-moving a player afterwards (a swap on the cards, §5.dh) demotes the claim honestly.
+  const cards = page.getByTestId('match-card');
+  await cards.nth(0).getByRole('button', { pressed: false }).first().click();
+  await cards.nth(1).getByRole('button', { pressed: false }).first().click();
   await expect(page.getByText(/hand-adjusted since/)).toBeVisible();
 });

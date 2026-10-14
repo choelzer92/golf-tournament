@@ -127,7 +127,9 @@ test.describe('F-020: the game picker annotates fit', () => {
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Next: Set Tees/ }).click();
     await page.getByRole('button', { name: 'Next: Teams' }).click();
-    await expect(page.getByLabel('Team 1 name')).toHaveCount(0);   // nothing carried over
+    // Nothing carried over: §5.de deals the NEW shape (four teams) before the teams step opens.
+    await expect(page.getByLabel('Team 4 name')).toBeVisible();
+    await expect(page.getByLabel('Team 5 name')).toHaveCount(0);
     await buildTeams(page, 'list');
     await expect(page.getByLabel('Team 4 name')).toBeVisible();
     await expect(page.getByLabel('Team 5 name')).toHaveCount(0);
@@ -627,8 +629,8 @@ test.describe('F-020: the wizard proposes splits', () => {
     await buildTeams(page, 'list');
     await expect(page.getByLabel('Team 3 name')).toBeVisible();
     await expect(page.getByLabel('Team 4 name')).toHaveCount(0);
-    const team3 = page.locator('div.bg-white', { has: page.getByLabel('Team 3 name') });
-    await expect(team3.getByText('1 player', { exact: false })).toBeVisible();
+    // §5.dh: the cards are the team editor; team 3 (index 2) has exactly one player on them.
+    await expect(page.getByTestId('match-cards').locator('button[data-team="2"]')).toHaveCount(1);
 
     // And it carries through to the review step — the split is real, not just a label.
     await page.getByRole('button', { name: 'Next: Groups' }).click();

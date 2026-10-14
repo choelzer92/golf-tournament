@@ -73,12 +73,12 @@ test('F-037: eight players pick 2 teams of 4 with 2 v 2 matches, and Create buil
   await fieldToGameStep(page, EIGHT_PLAYERS);
   await chooseStructure(page, 'teams:4+4');
 
-  // §5.co Q5: the question shows once there are 2+ teams, off by default.
-  const matches = page.getByRole('radiogroup', { name: 'Head-to-head matches' });
+  // §5.co Q5 / §5.de: the question shows once there are 2+ teams, whole teams by default.
+  const matches = page.getByRole('radiogroup', { name: 'How do the teams play each other?' });
   await expect(matches).toBeVisible();
-  await expect(matches.getByRole('radio', { name: 'No' })).toHaveAttribute('aria-checked', 'true');
-  await matches.getByRole('radio', { name: '2 v 2' }).click();
-  await expect(matches.getByRole('radio', { name: '2 v 2' })).toHaveAttribute('aria-checked', 'true');
+  await expect(matches.getByRole('radio', { name: 'As whole teams — 4 v 4' })).toHaveAttribute('aria-checked', 'true');
+  await matches.getByRole('radio', { name: 'In pairs — two 2 v 2 matches' }).click();
+  await expect(matches.getByRole('radio', { name: 'In pairs — two 2 v 2 matches' })).toHaveAttribute('aria-checked', 'true');
   // The chosen split now describes matches, not "each team plays as its own foursome".
   await expect(page.getByText('Teams split into 2 v 2 matches, one per foursome')).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/f037-wizard-compete.png', fullPage: true });
@@ -136,7 +136,7 @@ test('F-037: no matches question for everyone-for-themselves', async ({ page }) 
   await fieldToGameStep(page, EIGHT_PLAYERS);
   await chooseStructure(page, 'solo');
   await expect(page.getByText('How do you want to compete?')).toBeVisible();
-  await expect(page.getByRole('radiogroup', { name: 'Head-to-head matches' })).toHaveCount(0);
+  await expect(page.getByRole('radiogroup', { name: 'How do the teams play each other?' })).toHaveCount(0);
 });
 
 test('F-037 / §5.cp: Add player is refused in a matches game, with the reason', async ({ page }) => {
@@ -173,7 +173,7 @@ test('F-107 / §5.cq: singles are paired on the groups step and the pairing is s
   await page.waitForLoadState('networkidle');
   await fieldToGameStep(page, EIGHT_PLAYERS);
   await chooseStructure(page, 'teams:4+4');
-  await page.getByRole('radiogroup', { name: 'Head-to-head matches' }).getByRole('radio', { name: '1 v 1' }).click();
+  await page.getByRole('radiogroup', { name: 'How do the teams play each other?' }).getByRole('radio', { name: 'One on one — four 1 v 1 matches' }).click();
   await expect(page.getByText('Teams split into singles matches, two to a foursome')).toBeVisible();
   await toScoringStep(page);
   await page.getByRole('button', { name: /Next: Select Course/ }).click();
