@@ -56,6 +56,9 @@ Warm-up if time allows (XS, bar #7): the group page's Rename field may be dark-o
 - Small: the groups step still offers tee times as well as the cards (§5.dh); drop the duplicate.
 - **Then S2 convergence** (S2.0–S2.6; `.claude/plans/spine-s2.md` §6/§7, answers in §5.cs). It's not a bar
   item, so it comes after the bar items. Run both corpus harnesses before and after every slice.
+- **The design/branding session, LAST before Craig's walk** (bar #7, §5.ci: "when we are almost done with the
+  beta"): name, icon, theme, and F-114 (event standings on a phone). Then Craig walks the branded app once and
+  merges (bar #10). It's a conversation with Craig, so schedule it when he's present.
 
 ## Craig's batch (collect here; he checks locally at the end)
 
