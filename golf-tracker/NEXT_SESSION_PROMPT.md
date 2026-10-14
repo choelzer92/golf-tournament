@@ -9,38 +9,42 @@ So: finish every bar item that doesn't need him, session after session, and BATC
 (below) instead of stopping on it. Each session still takes at most 3 items (BETA §3) and ends by
 rewriting this file with the next 3 from "The road" below.
 
-## State (2026-10-14, end of the 2nd session)
+## State (2026-10-14, end of the 3rd session)
 
-Branch **`series-2026-10-12`** (off main at d6adf75). It is NOT merged or pushed; merging is Craig's
-call (§5.ab). The full gate's result for this session is in `.claude/verify-2026-10-14-s2.log`
-(check its `VERIFY_EXIT=` line first; if it isn't 0, fixing that comes before anything below).
+Branch **`series-2026-10-12`**, NOT merged or pushed (merging is Craig's call, §5.ab). The full gate's
+result is in `.claude/verify-2026-10-14-s3.log`: check its `VERIFY_EXIT=` line first, and fix anything
+that isn't 0 before the items below.
 
-Done 2026-10-14 (2nd session): persona walks for bars #1–#3 (`e2e/persona-walks.spec.ts`, counts in
-BETA §4, findings F-122–F-128); F-124 "Welcome" for a first-timer; F-128 the backup script pages past
-PostgREST's 1000-row cap; bar #6 stroke vs match play written up, no math change
-(`.claude/plans/stroke-vs-match-play.md`); bar #8 JSON export investigated (`.claude/plans/json-export.md`,
-its shape is Craig's); the group Rename field fixed.
+Done 2026-10-14 (3rd session):
+- **Presses rules + goldens** (`src/lib/game-modes/presses.ts`, `src/test/presses-golden.test.ts`, design
+  note `.claude/plans/presses.md`). Craig answered all of it (§5.dk):
+  - the overall = a separate toggle, off by default;
+  - match-play legs only;
+  - a Team → Match press is paid between that match's players;
+  - ONLY THE LOSING SIDE PRESSES: it re-presses its own press when 2 down in it; a collapsed leader may
+    press the leg.
+- **§5.dl BUILT:** match play strokes off the low = round(unrounded difference); stroke play still
+  rounds each. One rule for all games, from Craig's GHIN numbers (`match-play-rounding.test.ts`).
 
 ## This session: the next 3 (all [beta])
 
-Craig answered the whole batch at the end of 2026-10-14 (§5.di, §5.dj). Don't re-ask any of it.
-
-1. **Presses (§5.dj), FIRST.** A setup toggle (off by default); on → **auto press** or **a Press button**
-   during the match. 2 down triggers both; re-presses unlimited (each starts all square); a press is a NEW,
-   SEPARATE bet at the leg's stake, from the next hole to the end of its nine (the original stays live; not
-   double or nothing); automatic once tapped; the scorer taps it; removable any time with a "press removed"
-   note; every head-to-head match. Write a design note (`.claude/plans/presses.md`) and the goldens
-   (zero-sum per press; the worked examples: 2 down after 4, press 5–9, win 5/7/9 → press 3 up AND front 1
-   up; a press won but the leg lost → $0). **OPEN, bring options:** can the OVERALL be pressed? Craig: "someone
-   may want to press a front 9 and then not realize they are pressing the overall too." **Show Craig the note
-   and goldens before wiring** the setting, the button and the settle-up lines (money math, §2).
+1. **Wire presses (§5.dj/§5.dk); the goldens are approved.** Follow the design note's §5 wiring plan, on
+   BOTH axes:
+   - engine `team-game.ts` (expose `holeWinner[]`), `matches.ts` per match, and the classic 2-team match in
+     `pool-game.ts`;
+   - settings `presses` + `pressMode` (auto | button) + `pressOverall`, showIf legs + match play + 2 sides,
+     added to the wizard's `SIDES_STAKES_KEYS`; a saved format and Run it back carry them;
+   - button taps stored as `game.presses: PressTap[]` (jsonb, written through `pool-game.ts` only);
+   - the Press button on the scorecard's match row, naming the bet;
+   - each press as its own line on the leaderboard; the money card lists the bets.
+   Zero-sum per press, the ledger == the scorecard, and an e2e that taps Press and removes it. Walk the UI
+   with screenshots before handoff.
 2. **Bar #5, F-063 C (per-cell score rows + an outbox):** approved (§5.ce). Investigate (schema,
    migration, dual-read and backfill, RLS, realtime), write the plan into roadmap Phase C, then build it
-   sandbox-first (the fake gains the table). **Hard stop:** show Craig the live Supabase migration before
-   it touches live. If the investigation fills the session, stop there with the plan written.
+   sandbox-first. **Hard stop:** show Craig the live Supabase migration before it touches live.
 3. **Bar #1, B5 paste names (F-126):** one box on the players step takes a whole list ("Lou Park 14",
-   one per line; handicap optional). Then re-run `e2e/persona-walks.spec.ts` and record walk #1's new
-   count in BETA §4.
+   one per line; handicap optional). Re-run `e2e/persona-walks.spec.ts` and record walk #1's count in
+   BETA §4.
 
 Warm-ups if time allows (XS–S, all decided §5.di): F-122 a blank game name falls back to the game label (as
 F-118 does for events), Next always live; F-127 "Run it back" on Home's finished-game card; the groups step's
@@ -80,13 +84,12 @@ Ask these when he's back, one at a time where the answer shapes code. Don't gues
   one tap, the season ledger, a shareable recap, live match status, a guest joining at the turn, score fixes
   with a trail.
 - **Run the backup once:** `node scripts/export-backup.mjs` (fixed by F-128) closes bar #8.
-- **Presses: can the overall be pressed?** (§5.dj OPEN; the design note brings options.)
 - **Stroke vs match rounding: DONE (§5.dl).** Match play rounds the unrounded difference, and stroke play rounds each. Built 2026-10-14 for all games.
 - Whatever the three items above add.
 
 ## Settled (don't re-ask)
 
-§5.da–§5.dj (2026-10-13/14: label, dates, per-player money, the match cards on the teams step, one editor,
+§5.da–§5.dl (2026-10-13/14: label, dates, per-player money, the match cards on the teams step, one editor,
 sizes from step 2, a tap only swaps; §5.di the persona-walk answers, the backup, the strokes defaults; §5.dj presses). §5.df is superseded by §5.dg. Earlier: see DECISIONS.md.
 
 ## Machine notes
