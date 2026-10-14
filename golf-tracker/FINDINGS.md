@@ -23,6 +23,72 @@ Status flow: `open` → `chosen: X` → `fixed (commit)` → `verified (e2e)`
 
 ## Open
 
+### Bars #1–#3 persona walk record (2026-10-14): first-timer, invited player, returning organizer
+
+`e2e/persona-walks.spec.ts` (screens `e2e/screenshots/persona-w1-…`, `-w2-…`, `-w3-…`). A stranger,
+Pat Newman (own GHIN, not the app owner), 8 friends, no group, every default taken. The sandbox can't
+reach GHIN, so the sign-in form is counted (2 fields + Sign in) and the course search answers from a
+mocked route (the real search UI runs: type the name, Search, pick it). A "type" is one field filled.
+
+| Walk | Path | Taps | Typed fields | Bar |
+|---|---|---|---|---|
+| #1 first-time organizer | URL → invite code → GHIN sign-in → New game → 8 players by hand → 7 steps (name the game, search the course) → Create → send the link | 21 | 21 (16 of them the 8 names + handicaps) | ~2½–3 min for a person (est.: ~1 min of taps, ~1½ min typing, 7 screens to read). Over the 2-minute target, mostly the typing (F-126); jargon remains (F-125) |
+| #2 invited player | the link → "Enter Scores" on their team → a score | 2 | 0 | **Scoring meets it (~3 taps). "Remembers their group" FAILS (F-123)** |
+| #3 returning organizer | Home → last week's game → Run it back → Next × 6 → Create | 9 | 0 | 1 + Next × 6 as §5.cm accepted, plus Home→game and Create. 2 taps is not met by design (F-127) |
+
+### F-122 — Step 2's Next is greyed out, unexplained, until the game has a name (2026-10-14)  [P2] [start] [beta #1] — **OPEN, Craig's batch**
+
+A first-timer fills nothing on "How do you want to compete?" (every default is already right) and Next
+stays pale with no reason given; the only empty thing is "What should we call it?" at the top
+(`persona-w1-07-stuck-1.png`). **Options:** A, a blank name falls back to the game label, the way an
+event's does (F-118: "4v4 best net & best gross – Persona Pines"), shown as the placeholder, so Next is
+always live. B, keep it required and say so under the button ("Name the game to continue"). C, pre-fill
+the field with the label (editable). **Rec A** (one rule for games and events; nothing to type).
+
+### F-123 — The invited player isn't remembered: the next visit is a dead end (2026-10-14)  [P2] [continue] [beta #2] — **OPEN; it's roadmap B6, ready to build**
+
+After scoring from the link, the player comes back two ways and neither finds their game. The bare URL
+lands on "My Games — Log in with your GHIN account to see the pool games you've created"
+(`persona-w2-04`), which a guest can't use. The link again opens the hub, not their card (`persona-w2-05`),
+and the hub's "My Games" button leads to the same login. Roadmap B6 (2026-10-01) already has the design:
+ask "Which group are you in?" once, remember it on the device, open straight to that card next time, hide
+My Games from guests. **One question for Craig:** on the bare URL, a guest with a remembered game should
+see A, a "Continue: Saturday game, Team 1" card (rec), or B, go straight into the last game.
+
+### F-124 — A first-timer is greeted "Welcome back" (2026-10-14)  [P3] [start] [beta #1] — **FIXED 2026-10-14**
+
+Home said "Welcome back, Pat Newman" before Pat had played anything. Now "Welcome, …" when there are no
+groups and no games, "Welcome back, …" after. Pinned in `persona-walks.spec.ts` (both ways; mutation-checked).
+
+### F-125 — Words a stranger meets with no explanation (2026-10-14)  [P2] [start] [beta #1] — **OPEN; roadmap B7 (plain words) covers most**
+
+From walk #1, in order: step 1 the "M" chip on every player and "HCP"; step 2 "the classic pool" (the
+format name means nothing to a stranger); step 3 "Best net + best gross", "Decide by", "How many strokes
+change hands?"; teams "combined HCP"; money "Who gets paid? 100" sits above "Pot Split ($ per pot)", two
+controls for one question, and with 2 teams "places" can't matter. Walk #3's "Same game as last time"
+still reads "Pool · $25/player pot · off the low", not the F-115 label the hub shows. **Rec:** build B7
+(plain labels or an info tip at each), and show the F-115 label on "Same game as last time". The
+wording of each is Craig's to see on the walk, so build first, then show.
+
+### F-126 — Typing the field is most of the first-time cost (2026-10-14)  [P2] [start] [beta #1] — **OPEN; roadmap B5**
+
+8 players by hand = 16 of walk #1's 21 typed fields and 8 of its 21 taps. Roadmap B5 is the lever: a
+"paste names" box (one field for the whole list, handicaps optional, GHIN later). GHIN search per player
+costs more, not less. Rec: build B5's paste box; it alone likely brings #1 near 2 minutes.
+
+### F-127 — Run it back from Home is two taps before the wizard starts (2026-10-14)  [P3] [continue] [beta #3] — **OPEN, Craig's batch**
+
+Home → the finished game → Run it back. **Options:** A, a "Run it back" link on Home's finished-game card
+(saves 1 tap). B, leave it (§5.cm already accepted 1 + Next × 6). Rec A, small.
+
+### F-128 — The backup script stopped every table at 1000 rows, silently (2026-10-14)  [P1 data] [beta #8] — **FIXED 2026-10-14 in `scripts/export-backup.mjs` (not yet re-run against live)**
+
+Found by the JSON-export investigation (`.claude/plans/json-export.md`): PostgREST caps a request at 1000
+rows, and the 2026-10-12 backup saved `score_audit` at exactly 1000. It also skipped `feedback_notes`. The
+script now pages by primary key until a short page, and includes `feedback_notes`. The app's own
+load-everything calls share the cap (`pool_games` is at 68 rows, far from it); noted, not changed.
+Craig: re-run `node scripts/export-backup.mjs` once to get a complete backup.
+
 ### F-121 — A team game's "$10 a leg" is per TEAM, a classic match's is per PLAYER (2026-10-13)  [P2] [beta #6] — **EVEN TEAMS BUILT 2026-10-13 (§5.dd, display only): stakes asked/shown per player, standings "+$5 each"; uneven-team payout rule waits (goldens first)**
 
 Found while building F-115's label. The classic head-to-head pool's legs are per player (`legDollars`,

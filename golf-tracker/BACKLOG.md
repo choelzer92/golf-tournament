@@ -21,15 +21,16 @@ The ≤3 items NEXT_SESSION_PROMPT.md promotes (BETA §3), plus a warm-up.
 
 | Item | Size | Source |
 |---|---|---|
-| **[beta #1/#2/#3] PROMOTED 2026-10-14: persona walks with tap counts.** #1 first-time organizer, URL → shared game (~2 min, no unexplained jargon); #2 invited player scores in ~3 taps and the app remembers their group; #3 returning organizer runs it again (target 2 taps; §5.cm accepted 1 + Next × 6). Copy `e2e/event-walk.spec.ts`'s `tap()` counter; counts go in BETA §4, findings in FINDINGS | M | BETA §1 |
-| **[beta #8] PROMOTED 2026-10-14:** **Backups / JSON export** — the OTHER §5c item Craig kept in scope (per-game tokens, the first, are done); still not built. One "download everything as JSON" per table is the floor; matters more as friends' real money history accumulates | S–M | DECISIONS §3 / §5c |
-| **[beta #6] PROMOTED 2026-10-14:** **Stroke vs match play handicap investigation (Craig 2026-10-01, §5.ce).** "Stroke and match play are calculated very slightly differently, and very occasionally can produce different stroke totals." Pin down the USGA/WHS rules for each (stroke play gives each player their full Playing Handicap; match play gives strokes off the low as the DIFFERENCE of Playing Handicaps, and four-ball applies the allowance first; where the rounding lands), find where our code computes each one (`applyAllowance`, off-the-low, `getMoneyStrokesOnHole`), and build a property test that finds the inputs where the two disagree. Report the findings and options; **no math change without Craig** | M | §5.ce |
-| **WARM-UP:** **[beta #7] The group page's Rename field may be dark-on-dark** like the event's was before `bg-white` (same markup, `home/groups/[id]/page.tsx` ~279). Screenshot it, then fix it if so | XS | §5.cw b |
+| **[beta #5] PROMOTED 2026-10-14 (2nd session):** **F-063 C — per-cell score rows + an outbox.** Approved (§5.ce). Investigate (schema, migration, dual-read + backfill, RLS, realtime), write the plan into roadmap Phase C, build it sandbox-first (the fake gains the table). **Hard stop: show Craig the live migration before it touches live** | M–L | F-063, §5.ce |
+| **[beta #6] PROMOTED:** **F-121 for UNEVEN teams** (§5.dd): goldens first (3 v 2 zero-sum, mutation-checked), NEW games only (a stamp on modeSettings). **Show Craig the goldens before wiring them in** | M | §5.dd |
+| **[beta #1] PROMOTED:** **B5 paste names (F-126):** one box on the players step takes a whole list ("Lou Park 14", one per line; handicap optional), so 8 players stop costing 16 typed fields. Re-run `persona-walks.spec.ts` after and record walk #1's new count | S–M | F-126, roadmap B5 |
+| **WARM-UP:** **[beta #1]** the groups step still offers tee times as well as the match cards (§5.dh); drop the duplicate | XS | §5.dh |
 
 ## Done recently
 
 | Item | When |
 |---|---|
+| **2026-10-14 (2nd session):** persona walks for bars #1–#3 measured (`persona-walks.spec.ts`: #1 21 taps + 21 typed fields, #2 2 taps to a score, #3 9 taps), findings F-122–F-128; F-124 "Welcome" for a first-timer (2189d95); F-128 the backup script paged past the 1000-row cap (1eda25e); bar #6 stroke vs match play check written up, no math change (c8bc6df, `.claude/plans/stroke-vs-match-play.md`); bar #8 JSON export investigated (7f7a84a, `.claude/plans/json-export.md`); bar #7 the group Rename field is white (9a2a874) | 2026-10-14 |
 | **2026-10-13/14:** F-115 the game label (ff57f3b, §5.da/§5.db); F-116 optional dates + round order (1442a97, §5.dc); F-121 per-player money on even teams (05d3de3, §5.dd); the MATCH CARDS as the teams step's one editor (ac752eb, §5.de/§5.dg/§5.dh: playing handicaps, tap-to-swap, names in the legend, captain "C", sizes from step 2 only). Groomed: the done rows of Now and Next were cleared (F-097, the collapse merge, the Event + its follow-ups, F-110, F-108, F-106, F-107, F-037 gaps, F-060, F-071, F-073–F-096, hide-holes, Home by group, B1, F-101 a–d, F-100, F-102, F-070, the gate speed work); their history is in git and FINDINGS | 2026-10-14 |
 | **2026-10-13:** bar #11 3-day persona walk measured (2776328); §5.cz; F-120 summary reads the money mode + F-118/F-117 "game type – course" names (661d790); F-119 a–e polish | 2026-10-13 |
 | **2026-10-12 session 3:**<br>• §5.cw Event follow-ups (a) (b) (c) (e) built or kept.<br>• §5.cx: the dashboard became the Course & GHIN lookup page, with an any-golfer index lookup; headers and not-found pages go to Home; Money Game and Quick game left it (both are wizard games; the Money Game never paid, F-112); dead auto-press/carryover/skin-value hidden.<br>• F-110 A, F-111 (GHIN add on the group page).<br>• **F-113 [P1 money]** fixed: "Hole by hole" kept on head-to-head games; a read-only live count found none affected.<br>• §5.cy presses on the beta list. | — | 2026-10-12 |
@@ -91,6 +92,11 @@ The ≤3 items NEXT_SESSION_PROMPT.md promotes (BETA §3), plus a warm-up.
 
 | Item | What's needed |
 |---|---|
+| **F-122: a blank game name** | A (rec): falls back to the game label like an event's (F-118), Next always live; B: say "Name the game to continue"; C: pre-fill the label |
+| **F-123 / B6: what the bare URL shows a remembered guest** | A (rec): a "Continue: Saturday game, Team 1" card; B: straight into the last game. Then B6 is built as roadmap item 6 |
+| **F-127: Run it back on Home's finished-game card** | A (rec): saves a tap; B: leave it |
+| **Bar #8 JSON export shape** (`.claude/plans/json-export.md`) | Q1 A (Home "Download my games"), B′ (the script, fixed: F-128), or both; Q2 where the button lives; Q3 include computed money (dated?); Q4 a member's export: roster GHIN #s and indexes, only the games' players, or none; Q5 manual or scheduled; Q6 a per-game export on the pool hub. And: re-run `node scripts/export-backup.mjs` once for a complete backup |
+| **Bar #6 stroke vs match play** (`.claude/plans/stroke-vs-match-play.md`) | Rec C: a GHIN-app check of G1 (CH 5 v 16 four-ball match at 90%: 9 or 10 strokes?) or G3, then A (no change) or B (2024 team-match rule: allowance on the difference); D separately: default four-ball stroke play to 85% |
 | **The local/phone walk** | Match cards (§5.de–§5.dh), F-037 (closes the P1), the Event, the long labels (`e2e/screenshots/f116-event-round-moved.png`) |
 | **Merge `series-2026-10-12`** | His walk, then merge (bar #10) |
 | **The branding/design session (bar #7)** | Theme, icon, name (D2; "GrudgeMatch" floated), and F-114: the event standings on a phone, "very clear and inviting" |
@@ -102,10 +108,12 @@ The ≤3 items NEXT_SESSION_PROMPT.md promotes (BETA §3), plus a warm-up.
 
 ## Next few sessions (shaped, ready to build)
 
-In order after the promoted three: F-063 C (bar #5), F-121 uneven (bar #6), presses once answered, then S2.
+In order after the promoted three: B6 guest remembers (bar #2, F-123, once its one question is answered), B7 plain words (bar #1, F-125), the JSON export once answered (bar #8), presses once answered, then S2.
 
 | Item | Size | Source |
 |---|---|---|
+| **[beta #2] B6 the guest remembers their group (F-123):** ask "Which group are you in?" once, remember it on the device, open straight to that card next time, hide My Games from guests; the bare URL per Craig's answer. Re-run walk #2 after | S–M | F-123, roadmap B6 |
+| **[beta #1] B7 plain words (F-125):** a plain label or an info tip for "M", "HCP", "the classic pool", "Best net + best gross", "Decide by", "How many strokes change hands", "combined HCP"; fold "Who gets paid?" into the pot split for 2 teams; "Same game as last time" shows the F-115 label. Build, then show Craig the words | S | F-125, roadmap B7 |
 | **[beta #5]** **F-063 C — APPROVED 2026-10-01 (§5.ce).** Per-cell score rows `(matchup_id, player_id, hole)` plus a localStorage outbox, dual-read. Investigate first (schema, migration on live Supabase, dual-read and backfill, RLS, realtime), then write the build plan into roadmap Phase C. **Show Craig the migration before it touches live** | M | F-063, §5.ce |
 | **[beta #6] F-121, UNEVEN teams (§5.dd, later):** each loser pays the stated $ and the winners share it (3 v 2 at $10: −$30 / +$45 each over three legs); a team pot antes per player (replaces §5.ag). A money change: goldens first, NEW games only, saved games keep per-team. Until then uneven teams ask per team and the label says "a team" | M | §5.dd |
 | **[approved, not a bar item: after the bars it doesn't block]** **Event spine S2 — APPROVED 2026-10-01 (§5.ce); questions ANSWERED 2026-10-12 (§5.cs).** Q3's ledger fix is BUILT (9733d48). Next: the convergence slices S2.0–S2.6, which carry Q2 (own tee), Q4 (per-ball 2BB Stableford), Q5 (scale + scramble %), Q7 (per-player Nassau), Q8 (pool skins rules) and Q9 (index stands in), all for NEW rows only (Q1 keeps legacy rows as they are). Q6: split stays legacy until §5.cp is built. Tournament rounds scored through `game-modes/`, goldens first (`.claude/plans/event-spine.md` §3). Investigate first (corpus, every A/B function vs the registry, what disagrees), then write the build plan into roadmap Phase E and build. Any money/points disagreement goes to Craig before switching | L | §5.bu, §5.ce |

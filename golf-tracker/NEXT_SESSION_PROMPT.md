@@ -9,51 +9,42 @@ So: finish every bar item that doesn't need him, session after session, and BATC
 (below) instead of stopping on it. Each session still takes at most 3 items (BETA §3) and ends by
 rewriting this file with the next 3 from "The road" below.
 
-## State (2026-10-14)
+## State (2026-10-14, end of the 2nd session)
 
 Branch **`series-2026-10-12`** (off main at d6adf75). It is NOT merged or pushed; merging is Craig's
-call (§5.ab). HEAD `0f6646f`. Full gate GREEN at `ac752eb` (the last app commit; only docs since):
-`.claude/verify-2026-10-14-teams-cards-d.log`, 288 passed, VERIFY_EXIT=0.
+call (§5.ab). The full gate's result for this session is in `.claude/verify-2026-10-14-s2.log`
+(check its `VERIFY_EXIT=` line first; if it isn't 0, fixing that comes before anything below).
 
-Built 2026-10-13/14 (§5.da–§5.dh): the game label (F-115), optional event dates and round order (F-116),
-per-player money on even teams (F-121 even), and the **match cards**: step 2 asks "How do the teams play
-each other?"; the teams step arrives dealt and its ONE editor is the cards (playing handicaps, tap two
-players to swap, names in the legend, captain "C", tee time on the card). Team sizes come from step 2
-only. Code: `steps/match-cards.tsx`, `lib/match-cards.ts`.
+Done 2026-10-14 (2nd session): persona walks for bars #1–#3 (`e2e/persona-walks.spec.ts`, counts in
+BETA §4, findings F-122–F-128); F-124 "Welcome" for a first-timer; F-128 the backup script pages past
+PostgREST's 1000-row cap; bar #6 stroke vs match play written up, no math change
+(`.claude/plans/stroke-vs-match-play.md`); bar #8 JSON export investigated (`.claude/plans/json-export.md`,
+its shape is Craig's); the group Rename field fixed.
 
 ## This session: the next 3 (all [beta])
 
-BACKLOG was groomed 2026-10-14: "Now" holds exactly these, every open row is tagged, the after-beta rows
-have their own section, and "Waiting on Craig" is the batch below.
+1. **Bar #5, F-063 C (per-cell score rows + an outbox):** approved (§5.ce). Investigate (schema,
+   migration, dual-read and backfill, RLS, realtime), write the plan into roadmap Phase C, then build it
+   sandbox-first (the fake gains the table). **Hard stop:** show Craig the live Supabase migration before
+   it touches live. If the investigation fills the session, stop there with the plan written.
+2. **Bar #6, F-121 for uneven teams** (§5.dd, decided): goldens first (3 v 2 zero-sum, mutation-checked),
+   NEW games only (a stamp on modeSettings). Write the goldens and put them in Craig's batch; don't wire
+   them into the engine until he has seen them.
+3. **Bar #1, B5 paste names (F-126):** one box on the players step takes a whole list ("Lou Park 14",
+   one per line; handicap optional). Then re-run `e2e/persona-walks.spec.ts` and record walk #1's new
+   count in BETA §4.
 
-1. **Persona walks with tap counts for bars #1, #2 and #3.** Copy `e2e/event-walk.spec.ts`'s `tap()`
-   counter. #1: a first-time organizer from the URL to a shared game (target about 2 minutes, no
-   unexplained jargon). #2: an invited player scores in about 3 taps, and the app remembers their group.
-   #3: a returning organizer runs the same game again (target 2 taps; §5.cm accepted 1 + Next × 6). Record
-   the counts in BETA §4, and log every finding in FINDINGS. Fix only small, mechanical ones; anything with
-   more than one answer goes in Craig's batch.
-2. **Bar #8, the JSON export.** BACKLOG "Backups / JSON export" + §5.cs Q10 (yes, READ-ONLY). Investigate
-   first (which tables, who may export what, where the button lives); if the shape has more than one
-   defensible answer, put the question in Craig's batch and build the rest. All persistence stays in the 5
-   lib files.
-3. **Bar #6, the stroke vs match play check** (§5.ce, BACKLOG "Stroke vs match play handicap
-   investigation"). Pin down the USGA rule and compare it with what the money engine does. Write it down.
-   If the math has to change, STOP: that's Craig's (money math), and it goes in his batch with goldens
-   ready.
-
-Warm-up if time allows (XS, bar #7): the group page's Rename field may be dark-on-dark
-(`home/groups/[id]/page.tsx` ~279). Screenshot it; fix it if so.
+Warm-up if time allows (XS): the groups step still offers tee times as well as the match cards (§5.dh);
+drop the duplicate.
 
 ## The road after that (in order; promote ≤3 per session)
 
-- **Bar #5, F-063 C (per-cell score rows + an outbox):** approved (§5.ce). Investigate, then build it
-  sandbox-first (the fake gains the table). **Hard stop:** show Craig the live Supabase migration before it
-  touches live.
-- **Bar #6, F-121 for uneven teams** (§5.dd, decided): goldens first (3 v 2 zero-sum, mutation-checked),
-  NEW games only (a stamp on modeSettings). Show Craig the goldens before wiring them in.
+- **Bar #2, B6 the guest remembers their group (F-123)**, once Craig answers its one question (the bare
+  URL: a Continue card or straight in). Re-run walk #2 after.
+- **Bar #1, B7 plain words (F-125):** build, then show Craig the words.
+- **Bar #8, the JSON export**, once Craig answers Q1–Q6 (`.claude/plans/json-export.md` has the build plan).
 - **Presses** (§5.cy, [beta]): the eight design questions in BACKLOG go in Craig's batch; build after the
   answers, goldens first.
-- Small: the groups step still offers tee times as well as the cards (§5.dh); drop the duplicate.
 - **Then S2 convergence** (S2.0–S2.6; `.claude/plans/spine-s2.md` §6/§7, answers in §5.cs). It's not a bar
   item, so it comes after the bar items. Run both corpus harnesses before and after every slice.
 - **The design/branding session, LAST before Craig's walk** (bar #7, §5.ci: "when we are almost done with the
@@ -74,6 +65,13 @@ Ask these when he's back, one at a time where the answer shapes code. Don't gues
 - BACKLOG Ideas, **"Truly the best"** (2026-10-14): which, if any, to promote after the beta. Settle up in
   one tap, the season ledger, a shareable recap, live match status, a guest joining at the turn, score fixes
   with a trail.
+- **F-122** a blank game name (A: fall back to the label, rec), **F-123** what the bare URL shows a
+  remembered guest (A: a Continue card, rec), **F-127** Run it back on Home's card (A, rec).
+- **Bar #8 JSON export Q1–Q6** (`.claude/plans/json-export.md`), and one re-run of
+  `node scripts/export-backup.mjs` for a complete backup (F-128).
+- **Bar #6 stroke vs match play** (`.claude/plans/stroke-vs-match-play.md`): a GHIN-app check of G1 (CH 5
+  v 16, four-ball match at 90%: 9 or 10 strokes?), then A (no change) or B (the 2024 rule); D separately
+  (default four-ball stroke play to 85%).
 - Whatever the three items above add.
 
 ## Settled (don't re-ask)
