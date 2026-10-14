@@ -10,8 +10,12 @@
 //                                                                       Playing Handicaps, then off the low
 //   diffFirst(ch, low)      = round((round(ch) − round(low)) × pct)    2024 team match play reading (F-102 h):
 //                                                                       the allowance on the CH DIFFERENCE
-// Our engine: 'full' = strokePlay, 'off-the-low' = roundEach (pool buildHcapMap and the
-// tournament engine alike). diffFirst is NOT implemented anywhere (§5.bx 4: not adopted).
+// Our engine: 'full' = strokePlay, 'off-the-low' = roundEach IN STROKE PLAY (pool buildHcapMap and
+// the tournament engine alike). diffFirst is NOT implemented anywhere (§5.bx 4: not adopted).
+//
+// UPDATE 2026-10-14 (§5.dl): MATCH play now follows the GHIN app's own numbers instead: round the
+// UNROUNDED difference, round(ch × pct − low × pct). Pinned in `match-play-rounding.test.ts`; the
+// pool games below are stroke play (a pot), so their characterization stands.
 //
 // fixtures: Course Handicap == Handicap Index (unrounded) and stroke index == hole number.
 
@@ -36,14 +40,14 @@ function engine(chs: number[], pct: number, method: 'full' | 'off-the-low'): num
 }
 
 /** Tournament engine (live-scoring) total strokes per player, one matchup, off the low. */
-function tournamentTotals(chs: number[], pct: number): number[] {
+function tournamentTotals(chs: number[], pct: number, scoringMethod: 'match-play' | 'stroke-play' = 'stroke-play'): number[] {
   const players = chs.map((ch, i) => makePlayer(i + 1, ch));
   const ids = players.map((p) => p.id);
   const half = Math.ceil(ids.length / 2);
   const matchup = { id: 'mu1', gameId: 'g1', teamAPlayerIds: ids.slice(0, half), teamBPlayerIds: ids.slice(half) } as unknown as RoundMatchup;
   const round = {
     id: 'r1', name: 'R1', dayLabel: 'Day 1', formatId: 'singles', teamMode: 'individual',
-    course: makeCourse(), holesPlaying: '18', groupingMode: 'cross-team', scoringMethod: 'match-play',
+    course: makeCourse(), holesPlaying: '18', groupingMode: 'cross-team', scoringMethod,
     pointsForWin: 1, pointsForTie: 0.5, pointsForLoss: 0, handicapAllowance: pct, strokeMethod: 'off-the-low',
     handicapBasis: 'course', defaultTeeId: null, bonuses: [], matchups: [matchup], status: 'in-progress', order: 0,
   } as unknown as TournamentRound;
@@ -77,7 +81,7 @@ describe('our engine today (characterization)', () => {
     }
   });
 
-  it('so in our engine stroke play and match play ALWAYS give the same relative stroke total', () => {
+  it('so in STROKE play, full and off the low ALWAYS give the same relative stroke total', () => {
     // B's edge over A: full (B − A) == off-the-low (B − A), every allowance, every pair.
     for (const pct of PCTS) {
       for (const [a, b] of [...intPairs, ...fracPairs]) {
@@ -88,9 +92,17 @@ describe('our engine today (characterization)', () => {
     }
   });
 
-  it('the tournament engine agrees with the pool off the low (four-ball goldens)', () => {
+  it('the tournament engine agrees with the pool off the low in stroke play (four-ball goldens)', () => {
     for (const [chs, pct] of [[[3, 8, 14, 19], 90], [[5, 16], 90], [[-4, 16, 7, 26], 90], [[-5, 6], 95]] as const) {
       expect(tournamentTotals([...chs], pct)).toEqual(engine([...chs], pct, 'off-the-low'));
+    }
+  });
+
+  it('§5.dl: in MATCH play the tournament rounds the unrounded difference', () => {
+    for (const pct of PCTS) {
+      for (const [a, b] of [...intPairs, ...fracPairs]) {
+        expect(tournamentTotals([a, b], pct, 'match-play')).toEqual([0, r(b * (pct / 100) - a * (pct / 100))]);
+      }
     }
   });
 });

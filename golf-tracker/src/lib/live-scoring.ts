@@ -1,7 +1,7 @@
 import type { Player, GameScore, TeeSetOption } from './game-state';
 import type { TournamentRound, RoundMatchup, Tournament, SplitPairing } from './tournament-state';
 import { calcCourseHandicap, applyAllowance, nineHoleIndex } from './game-state';
-import { strokesOnHole } from './strokes';
+import { strokesOffTheLow, strokesOnHole } from './strokes';
 import type { TeamMode, StablefordScale, TwoBestBallsVariant } from './formats';
 import { resolveStablefordScale, STABLEFORD_SCALES } from './formats';
 
@@ -183,14 +183,17 @@ function getPlayingHandicap(player: Player, round: TournamentRound, holes: HoleD
   const hcap = getPlayerEffectiveHcap(player, round, holes, holeNumber);
   if (getActiveStrokeMethod(round, holeNumber) === 'full') return hcap;
 
-  // Off the low: each Playing Handicap is rounded FIRST, then the lowest is subtracted (WHS
-  // Appendix C: "the player with the lowest Playing Handicap plays off zero … the other(s)
-  // receive the difference"), exactly as the pool's buildHcapMap does. Subtracting the unrounded
-  // values could hand one extra stroke: CH 4.5 v 15.4 gave 11, the Rules give 15 − 5 = 10
-  // (F-102 g, §5.bx). A plus low counts in full, so everyone else gains.
-  const allHcaps = allMatchupPlayers.map((p) => Math.round(getPlayerEffectiveHcap(p, round, holes, holeNumber)));
-  const lowest = Math.min(...allHcaps);
-  return Math.round(hcap) - lowest;
+  // Off the low matches the GHIN app (§5.dl, `strokesOffTheLow`): stroke play rounds each Playing
+  // Handicap first, then subtracts the rounded low (F-102 g: CH 4.5 v 15.4 gets 15 − 5 = 10); match
+  // play subtracts the unrounded low, then rounds once (the same pair gets round(10.9) = 11). A plus
+  // low counts in full, so everyone else gains.
+  const lowest = Math.min(...allMatchupPlayers.map((p) => getPlayerEffectiveHcap(p, round, holes, holeNumber)));
+  return strokesOffTheLow(hcap, lowest, getActiveScoringMethod(round, holeNumber) === 'match-play');
+}
+
+function getActiveScoringMethod(round: TournamentRound, holeNumber?: number): 'match-play' | 'stroke-play' {
+  if (round.splitFormat && holeNumber && holeNumber > 9) return round.splitFormat.scoringMethod;
+  return round.scoringMethod;
 }
 
 function getPlayerStrokesOnHole(player: Player, holeHandicap: number, round: TournamentRound, holes: HoleData[], allMatchupPlayers: Player[], holeNumber?: number): number {

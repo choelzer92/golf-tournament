@@ -80,27 +80,31 @@ describe('WHS Appendix C/3: off the low with a plus player (90%)', () => {
   });
 });
 
-describe('WHS Appendix C: off the low subtracts ROUNDED Playing Handicaps (F-102 g)', () => {
+describe('WHS Appendix C: off the low subtracts ROUNDED Playing Handicaps in stroke play (F-102 g, §5.dl)', () => {
   // "the player with the lowest Playing Handicap plays off zero … the other player(s) receive(s)
-  // the difference": Playing Handicaps are whole numbers, so each is rounded before the
-  // subtraction. Rounding the difference instead handed one extra stroke.
-  const cases: [number, number, number][] = [[4.5, 15.4, 10], [-2.5, 10.4, 12], [-1.6, 12.3, 14]];
-  for (const [lo, hi, want] of cases) {
-    it(`CH ${formatHandicapIndex(lo)} v ${hi}: the higher receives ${want}, in both engines`, () => {
+  // the difference": in STROKE play each Playing Handicap is rounded before the subtraction.
+  // MATCH play (§5.dl, the GHIN app's own numbers) subtracts the unrounded values, then rounds:
+  // the fourth number below.
+  const cases: [number, number, number, number][] = [[4.5, 15.4, 10, 11], [-2.5, 10.4, 12, 13], [-1.6, 12.3, 14, 14]];
+  for (const [lo, hi, want, wantMatch] of cases) {
+    it(`CH ${formatHandicapIndex(lo)} v ${hi}: the higher receives ${want} in stroke play, ${wantMatch} in match play, in both engines`, () => {
       const game = makeGame({ strokeMethod: 'off-the-low', indexes: [lo, hi] });
       expect(buildHcapMap(game).get('p2')).toBe(want);
       const players = [makePlayer(1, lo), makePlayer(2, hi)];
       const matchup = { id: 'mu1', gameId: 'g1', teamAPlayerIds: ['p1'], teamBPlayerIds: ['p2'] } as unknown as RoundMatchup;
-      const round = {
-        id: 'r1', name: 'R1', dayLabel: 'Day 1', formatId: 'singles', teamMode: 'individual',
-        course: makeCourse(), holesPlaying: '18', groupingMode: 'cross-team', scoringMethod: 'match-play',
-        pointsForWin: 1, pointsForTie: 0.5, pointsForLoss: 0, handicapAllowance: 100, strokeMethod: 'off-the-low',
-        handicapBasis: 'course', defaultTeeId: null, bonuses: [], matchups: [matchup], status: 'in-progress', order: 0,
-      } as unknown as TournamentRound;
-      const total = allEighteen()
-        .map((h) => getPlayerStrokesForHole('p2', h, h, matchup, round, { players } as unknown as Tournament))
-        .reduce((a, b) => a + b, 0);
-      expect(total).toBe(want);
+      const total = (scoringMethod: 'match-play' | 'stroke-play') => {
+        const round = {
+          id: 'r1', name: 'R1', dayLabel: 'Day 1', formatId: 'singles', teamMode: 'individual',
+          course: makeCourse(), holesPlaying: '18', groupingMode: 'cross-team', scoringMethod,
+          pointsForWin: 1, pointsForTie: 0.5, pointsForLoss: 0, handicapAllowance: 100, strokeMethod: 'off-the-low',
+          handicapBasis: 'course', defaultTeeId: null, bonuses: [], matchups: [matchup], status: 'in-progress', order: 0,
+        } as unknown as TournamentRound;
+        return allEighteen()
+          .map((h) => getPlayerStrokesForHole('p2', h, h, matchup, round, { players } as unknown as Tournament))
+          .reduce((a, b) => a + b, 0);
+      };
+      expect(total('stroke-play')).toBe(want);
+      expect(total('match-play')).toBe(wantMatch);
     });
   }
 });

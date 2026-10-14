@@ -2833,3 +2833,29 @@ Asked from `.claude/plans/presses.md` §4 (goldens in `src/test/presses-golden.t
   it; the leader never presses a press; a leader who collapses to 2 down in the leg itself is now losing it
   and may press the leg. Losing a press stops nothing: every bet runs to the end of its nine. His worked
   example pays exactly $20 (G1).
+
+### 5.dl — Strokes match GHIN in stroke play AND match play (2026-10-14; closes §5.di's open rounding item)
+
+Evidence (`.claude/plans/stroke-vs-match-play.md` §7): Spring Creek 3 Stars (71.2/141), 100%, from the GHIN
+app: 6.8 v 3.3 gets 5 strokes in stroke play and 4 in match play; 7.0 v 3.3 gets 5 in both. That fits exactly
+"stroke play = round each, then subtract; match play = round the UNROUNDED difference". Ours rounds each in
+both (probed: 5 and 5). Asked which version we use (round each, both) and whether to change match play,
+Craig: **"we need this to work for stroke and match play games."** So stroke play stays as built, and match
+play moves to GHIN's order.
+
+Follow-ups, same day:
+- **Which games:** "whatever is the most consistent. it should just be a rule. I dont really care about live
+  games, the point is for it to work going forward." So there's NO new-games stamp; one rule for every game.
+- **Below 100%:** Craig checked GHIN at 95/90/85/75% and confirmed both cells the rule predicts ("yes to
+  both": 75% = 4 stroke / 3 match for 6.8 and 7.0; 95% = the 7.0 gets 5 stroke / 4 match). So the same rule
+  holds with any allowance and in a four-ball, where the low is the lowest of the four: round(PH − low PH) on
+  UNROUNDED Playing Handicaps.
+- **What counts as match play:** a classic 2-team match scored hole by hole; a team game compared by match
+  (its default); a matches game counting points or holes. Stroke play includes net strokes, Stableford and
+  every individual game (skins, Wolf, Nines, quota, low total). For a tournament round it's `scoringMethod`
+  (or the split back nine's).
+- This supersedes **F-102 g (§5.bx)** for MATCH play only. F-102 g read Appendix C as "round each, then
+  subtract" for every off-the-low case; the GHIN app does that in stroke play only.
+- BUILT 2026-10-14 (`strokesOffTheLow` in `lib/strokes.ts`, used by the pool, the tournament engine and the
+  play page). Goldens: `match-play-rounding.test.ts`. On the 2026-10-12 backup, 23 of 725 player-rounds move
+  one stroke (all match play), and the season ledger is unchanged.

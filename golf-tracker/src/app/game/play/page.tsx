@@ -14,7 +14,7 @@ import type { SideGameResult } from '@/lib/side-game';
 import type { PoolGame, PoolResult, PoolLeg } from '@/lib/pool-game';
 import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores, buildHcapMap, playerHoleStrokeIndexForGame, numHolesForStrokes, defaultSubTeams, isPoolGameFullyScored, DEFAULT_JUNK_VALUES } from '@/lib/pool-game';
 import { getMoneyStrokesOnHole } from '@/lib/money-games';
-import { strokesOnHole } from '@/lib/strokes';
+import { strokesOffTheLow, strokesOnHole } from '@/lib/strokes';
 import { computeGameResult, isModeEngineGame, gameCountsCtp } from '@/lib/game-modes/result';
 import { sidesForCompute } from '@/lib/game-modes/context';
 import { getGameMode } from '@/lib/game-modes';
@@ -649,13 +649,11 @@ export default function PlayGamePage() {
     const hcap = getPlayerEffectiveHcap(player, holeNumber);
     if (getActiveStrokeMethod(holeNumber) === 'full') return hcap;
 
-    // Pool games pass a fixed field-low baseline so this scorecard matches the
-    // pool leaderboard (which subtracts the low of the whole field, not just
-    // the 4 players on this screen).
-    // Off the low rounds each Playing Handicap FIRST, then subtracts (WHS Appendix C; the pool's
-    // buildHcapMap; F-102 g, §5.bx).
+    // Pool games: the money engine's own map (field low, or each match's low; §5.dl rounding), so
+    // "Plays:" shows the strokes the dots and the payout use.
+    if (poolHcapMap) return poolHcapMap.get(player.id) ?? Math.round(hcap);
     if (setup!.offTheLowBaseline !== undefined) {
-      return Math.round(hcap) - Math.round(setup!.offTheLowBaseline);
+      return strokesOffTheLow(hcap, setup!.offTheLowBaseline, false);
     }
 
     // Off the low: determine the comparison pool
@@ -669,9 +667,23 @@ export default function PlayGamePage() {
       }
     }
 
-    const allHcaps = pool.map((p) => Math.round(getPlayerEffectiveHcap(p, holeNumber)));
-    const lowest = Math.min(...allHcaps);
-    return Math.round(hcap) - lowest;
+    // Stroke play rounds each Playing Handicap first; match play rounds the unrounded difference
+    // (§5.dl, the GHIN app; the same rule as live-scoring's tournament engine).
+    const lowest = Math.min(...pool.map((p) => getPlayerEffectiveHcap(p, holeNumber)));
+    return strokesOffTheLow(hcap, lowest, isActiveMatchPlay(holeNumber));
+  }
+
+  // Match play or stroke play for the strokes off the low (§5.dl): a tournament round's (or its split
+  // back nine's) scoring method; a quick game's match-play or Nassau format.
+  function isActiveMatchPlay(holeNumber?: number): boolean {
+    const round = tournamentCtx
+      ? loadTournament(tournamentCtx.tournamentId)?.rounds.find((r) => r.id === tournamentCtx.roundId)
+      : null;
+    if (round) {
+      const back = setup!.splitFormat && (holeNumber ? holeNumber > 9 : isBackNine);
+      return (back ? setup!.splitFormat!.scoringMethod : round.scoringMethod) === 'match-play';
+    }
+    return setup!.formatId === 'match-play' || setup!.formatId === 'nassau';
   }
 
   function getPlayerStrokesOnHole(player: Player, holeHandicap: number, holeNumber?: number): number {

@@ -191,3 +191,10 @@ game never moves.
 each handicap before subtracting (matches GHIN)": a pool off the low, which is STROKE play. Stroke play rounds
 each player, so that case and today's are the same GHIN behaviour. Only MATCH play takes the difference
 unrounded. The fix would therefore leave stroke play (and that regression) alone and change match play only.
+
+**BUILT 2026-10-14 (§5.dl).** Craig confirmed the rule below 100% as well: at 75% the 6.8 and 7.0 get 4 in
+stroke play and 3 in match play; at 95% the 7.0 gets 5 and 4. It is one rule for every game, with no stamp.
+`strokesOffTheLow` (`lib/strokes.ts`) is used by `buildHcapMap`, live-scoring's `getPlayingHandicap` and the
+play page. The match-play test is `isMatchPlayGame` (`pool-game.ts`). Goldens: `match-play-rounding.test.ts`
+(99 cases: every allowance, every pool shape, the four-ball, the tournament). On the backup corpus, 23 of 725
+player-rounds move one stroke, and the ledger is unchanged.

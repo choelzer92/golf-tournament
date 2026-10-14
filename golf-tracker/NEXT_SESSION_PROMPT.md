@@ -81,11 +81,7 @@ Ask these when he's back, one at a time where the answer shapes code. Don't gues
   with a trail.
 - **Run the backup once:** `node scripts/export-backup.mjs` (fixed by F-128) closes bar #8.
 - **Presses: can the overall be pressed?** (§5.dj OPEN; the design note brings options.)
-- **Stroke vs match rounding: EVIDENCE IN (2026-10-14),** `.claude/plans/stroke-vs-match-play.md` §7. Craig's GHIN
-  numbers at Spring Creek 3 Stars (71.2/141), 100%: 6.8 v 3.3 = 5 stroke / 4 match; 7.0 v 3.3 = 5 / 5. They fit
-  exactly "stroke = round each, subtract; match = round the UNROUNDED difference". Ours gives 5 in match
-  (probed). About 1 pair in 4 differs by one stroke. Craig's call: adopt it for match play only, new games only,
-  goldens first? Still unknown: 90% four-ball (allowance on the unrounded difference?).
+- **Stroke vs match rounding: DONE (§5.dl).** Match play rounds the unrounded difference, and stroke play rounds each. Built 2026-10-14 for all games.
 - Whatever the three items above add.
 
 ## Settled (don't re-ask)

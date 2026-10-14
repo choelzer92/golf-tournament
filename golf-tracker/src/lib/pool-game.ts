@@ -3,6 +3,7 @@ import type { Player, GameScore, CourseSelection, TeeSetOption } from './game-st
 import type { TwoBestBallsVariant } from './formats';
 import { calcCourseHandicap, applyAllowance, nineHoleIndex, formatHandicap } from './game-state';
 import { getMoneyStrokesOnHole } from './money-games';
+import { strokesOffTheLow } from './strokes';
 import { bestBallTeamHoleScore } from './live-scoring';
 import { supabase } from './supabase';
 import { gameVisibleTo, type Viewer } from './game-visibility';
@@ -800,35 +801,43 @@ export function buildHcapMap(game: PoolGame): Map<string, number> {
   // subtracts, so it's the only one that needs care about round ORDER.
   if (game.strokeMethod !== 'off-the-low' || raw.size === 0) return raw;
 
-  // Match GHIN/USGA: round each player's PLAYING handicap (CH × allowance, per
-  // applyAllowance) to a whole number FIRST — the integer GHIN displays — THEN
-  // subtract the field's lowest rounded value. Rounding BEFORE the subtraction
-  // (not once at the end) is what keeps our strokes-off-the-low identical to
-  // GHIN. Doing round(raw − rawLow) instead handed a player ONE EXTRA stroke vs
-  // GHIN's round(raw) − round(rawLow) whenever the low man's fraction rounded up
-  // while the player's own rounded down (e.g. low 3.6→4, player 15.4→15: app
-  // gave 15.4−3.6=11.8→12, GHIN gives 15−4=11). Since F-022 the value being
-  // rounded is the unrounded-CH allowance product, but the subtract-after-round
-  // order is unchanged.
-  const rounded = new Map<string, number>();
-  for (const [id, h] of raw) rounded.set(id, Math.round(h));
-  const low = Math.min(...rounded.values());
+  // Off the low matches the GHIN app (§5.dl): STROKE play rounds each Playing Handicap first, then
+  // subtracts the rounded low (low 3.6→4, player 15.4→15: 11, not 15.4−3.6 = 11.8 → 12); MATCH play
+  // subtracts the unrounded low, then rounds once (Spring Creek 3 Stars, 6.8 v 3.3: 5 in stroke play,
+  // 4 in match play, read off the GHIN app). `strokesOffTheLow` is the one rule; both engines use it.
+  const matchPlay = isMatchPlayGame(game);
+  const fieldLow = Math.min(...raw.values());
   const adjusted = new Map<string, number>();
-  for (const [id, h] of rounded) adjusted.set(id, h - low);
+  for (const [id, h] of raw) adjusted.set(id, strokesOffTheLow(h, fieldLow, matchPlay));
   // F-037 T4 (§5.cn): in head-to-head matches the strokes come off the low player IN EACH MATCH —
-  // the match-play rule — not the field's. Same rounded values, same round-then-subtract order; only
-  // the low changes. Everything that gives strokes reads this map (the engine, the card's dots), so
-  // dots and money move together.
+  // the match-play rule — not the field's. Only the low changes. Everything that gives strokes reads
+  // this map (the engine, the card's dots), so dots and money move together.
   const matches = matchSizeOf(game.modeSettings ?? {}) > 0
     ? matchesOf(sidesOfGame(game), game.teams, matchSizeOf(game.modeSettings ?? {}))
     : null;
   for (const m of matches ?? []) {
-    const ids = m.units.flatMap((u) => u.playerIds).filter((id) => rounded.has(id));
+    const ids = m.units.flatMap((u) => u.playerIds).filter((id) => raw.has(id));
     if (ids.length === 0) continue;
-    const matchLow = Math.min(...ids.map((id) => rounded.get(id)!));
-    for (const id of ids) adjusted.set(id, rounded.get(id)! - matchLow);
+    const matchLow = Math.min(...ids.map((id) => raw.get(id)!));
+    for (const id of ids) adjusted.set(id, strokesOffTheLow(raw.get(id)!, matchLow, matchPlay));
   }
   return adjusted;
+}
+
+/**
+ * Is this game a head-to-head MATCH (holes won), for the strokes-off-the-low rule (§5.dl)? A classic
+ * 2-team match scored hole by hole; a team game compared by match (its default), or one whose matches
+ * count points or holes rather than net strokes. Everything else is stroke play, including the
+ * individual games (skins, Stableford, Wolf, Nines, quota, low total).
+ */
+export function isMatchPlayGame(game: PoolGame): boolean {
+  if (game.gameMode === 'team-2v2') {
+    const st = game.modeSettings ?? {};
+    if (matchSizeOf(st) > 0) return String(st.matchCounting ?? 'points') !== 'strokes';
+    return String(st.result ?? 'match') === 'match';
+  }
+  if (game.gameMode) return false;
+  return game.moneyMode === 'match' && game.matchConfig?.scoring === 'holes' && game.teams.length === 2;
 }
 
 export interface FieldLowInfo {
