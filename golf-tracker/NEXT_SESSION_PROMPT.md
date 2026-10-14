@@ -23,33 +23,48 @@ its shape is Craig's); the group Rename field fixed.
 
 ## This session: the next 3 (all [beta])
 
-1. **Bar #5, F-063 C (per-cell score rows + an outbox):** approved (§5.ce). Investigate (schema,
+Craig answered the whole batch at the end of 2026-10-14 (§5.di, §5.dj). Don't re-ask any of it.
+
+1. **Presses (§5.dj), FIRST.** A setup toggle (off by default); on → **auto press** or **a Press button**
+   during the match. 2 down triggers both; re-presses unlimited (each starts all square); a press is a NEW,
+   SEPARATE bet at the leg's stake, from the next hole to the end of its nine (the original stays live; not
+   double or nothing); automatic once tapped; the scorer taps it; removable any time with a "press removed"
+   note; every head-to-head match. Write a design note (`.claude/plans/presses.md`) and the goldens
+   (zero-sum per press; the worked examples: 2 down after 4, press 5–9, win 5/7/9 → press 3 up AND front 1
+   up; a press won but the leg lost → $0). **OPEN, bring options:** can the OVERALL be pressed? Craig: "someone
+   may want to press a front 9 and then not realize they are pressing the overall too." **Show Craig the note
+   and goldens before wiring** the setting, the button and the settle-up lines (money math, §2).
+2. **Bar #5, F-063 C (per-cell score rows + an outbox):** approved (§5.ce). Investigate (schema,
    migration, dual-read and backfill, RLS, realtime), write the plan into roadmap Phase C, then build it
    sandbox-first (the fake gains the table). **Hard stop:** show Craig the live Supabase migration before
    it touches live. If the investigation fills the session, stop there with the plan written.
-2. **Bar #6, F-121 for uneven teams** (§5.dd, decided): goldens first (3 v 2 zero-sum, mutation-checked),
-   NEW games only (a stamp on modeSettings). Write the goldens and put them in Craig's batch; don't wire
-   them into the engine until he has seen them.
 3. **Bar #1, B5 paste names (F-126):** one box on the players step takes a whole list ("Lou Park 14",
    one per line; handicap optional). Then re-run `e2e/persona-walks.spec.ts` and record walk #1's new
    count in BETA §4.
 
-Warm-up if time allows (XS): the groups step still offers tee times as well as the match cards (§5.dh);
-drop the duplicate.
+Warm-ups if time allows (XS–S, all decided §5.di): F-122 a blank game name falls back to the game label (as
+F-118 does for events), Next always live; F-127 "Run it back" on Home's finished-game card; the groups step's
+duplicate tee times (§5.dh).
 
 ## The road after that (in order; promote ≤3 per session)
 
-- **Bar #2, B6 the guest remembers their group (F-123)**, once Craig answers its one question (the bare
-  URL: a Continue card or straight in). Re-run walk #2 after.
+- **§5.di defaults (money defaults, NEW games only, goldens first):** match play DEFAULTS to off the low (full
+  stays available); the allowance default follows the USGA Appendix C table by format (individual stroke 95%,
+  four-ball stroke 85%, singles match 100%, four-ball match 90%), editable; a saved format and Run it back
+  carry the chosen allowance and stroke settings ("saved as the format if they continue to use it").
+- **Bar #6, F-121 for uneven teams** (§5.dd, decided): goldens first (3 v 2 zero-sum, mutation-checked),
+  NEW games only (a stamp on modeSettings). Show Craig the goldens before wiring them in.
+- **Bar #2, B6 the guest remembers their group (F-123 A):** ask the group once, open straight to that card,
+  hide My Games from guests, and the plain URL shows a "Continue: <game>, <team>" card. Re-run walk #2 after.
 - **Bar #1, B7 plain words (F-125):** build, then show Craig the words.
-- **Bar #8, the JSON export**, once Craig answers Q1–Q6 (`.claude/plans/json-export.md` has the build plan).
-- **Presses** (§5.cy, [beta]): the eight design questions in BACKLOG go in Craig's batch; build after the
-  answers, goldens first.
 - **Then S2 convergence** (S2.0–S2.6; `.claude/plans/spine-s2.md` §6/§7, answers in §5.cs). It's not a bar
   item, so it comes after the bar items. Run both corpus harnesses before and after every slice.
 - **The design/branding session, LAST before Craig's walk** (bar #7, §5.ci: "when we are almost done with the
   beta"): name, icon, theme, and F-114 (event standings on a phone). Then Craig walks the branded app once and
   merges (bar #10). It's a conversation with Craig, so schedule it when he's present.
+
+Bar #8 is no longer an app feature (§5.di): the backup is separate maintenance, the fixed
+`scripts/export-backup.mjs`. Craig runs it once to close the bar.
 
 ## Craig's batch (collect here; he checks locally at the end)
 
@@ -58,26 +73,23 @@ Ask these when he's back, one at a time where the answer shapes code. Don't gues
   (two lines at 390px, `e2e/screenshots/f116-event-round-moved.png`).
 - Merging `series-2026-10-12` (bar #10 needs his walk and merge).
 - The branding/design session (bar #7): theme, icon, name, and F-114 (event standings on a phone).
-- Presses: the eight design questions.
 - Saved formats carrying the pot split.
 - A GHIN-app side-by-side of a four-ball match off the low (F-037 T4, bar #6).
 - The `[tag?]` rows in BACKLOG (BETA §2: [beta] or [after-beta] is his call).
 - BACKLOG Ideas, **"Truly the best"** (2026-10-14): which, if any, to promote after the beta. Settle up in
   one tap, the season ledger, a shareable recap, live match status, a guest joining at the turn, score fixes
   with a trail.
-- **F-122** a blank game name (A: fall back to the label, rec), **F-123** what the bare URL shows a
-  remembered guest (A: a Continue card, rec), **F-127** Run it back on Home's card (A, rec).
-- **Bar #8 JSON export Q1–Q6** (`.claude/plans/json-export.md`), and one re-run of
-  `node scripts/export-backup.mjs` for a complete backup (F-128).
-- **Bar #6 stroke vs match play** (`.claude/plans/stroke-vs-match-play.md`): a GHIN-app check of G1 (CH 5
-  v 16, four-ball match at 90%: 9 or 10 strokes?), then A (no change) or B (the 2024 rule); D separately
-  (default four-ball stroke play to 85%).
+- **Run the backup once:** `node scripts/export-backup.mjs` (fixed by F-128) closes bar #8.
+- **Presses: can the overall be pressed?** (§5.dj OPEN; the design note brings options.)
+- **Stroke vs match rounding** (§5.di, still open): Craig believes they can differ "possibly just in terms of
+  rounding"; the USGA text (read 2026-10-14) matches ours. Next evidence: a GHIN-app screenshot of a round
+  where its stroke and match numbers differ. No rounding change until then (§5.ba).
 - Whatever the three items above add.
 
 ## Settled (don't re-ask)
 
-§5.da–§5.dh (2026-10-13/14: label, dates, per-player money, the match cards on the teams step, one editor,
-sizes from step 2, a tap only swaps). §5.df is superseded by §5.dg. Earlier: see DECISIONS.md.
+§5.da–§5.dj (2026-10-13/14: label, dates, per-player money, the match cards on the teams step, one editor,
+sizes from step 2, a tap only swaps; §5.di the persona-walk answers, the backup, the strokes defaults; §5.dj presses). §5.df is superseded by §5.dg. Earlier: see DECISIONS.md.
 
 ## Machine notes
 

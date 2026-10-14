@@ -117,3 +117,33 @@ the exact answer is 32. No real allowance or CH hits it.
 **Recommendation: C, then A or B according to what GHIN shows.** Until then A, which is today's
 behaviour, and nothing changes for live games. If GHIN gives 10 for G1, the math should change
 (B), and that is Craig's call to authorize. Consider D separately; it is a cheap default.
+
+## 5. UPDATE 2026-10-14: the official text, read (supersedes the "2024 reading" above)
+
+Read from the USGA's own Rules of Handicapping, Appendix C (usga.org, fetched with a real browser after
+plain fetches got 403):
+
+> "Handicap allowances are applied to the unrounded Course Handicap as the final step in calculating a
+> player's Playing Handicap."
+>
+> "In general, after handicap allowances have been applied in stroke-play formats, a player receives
+> their full Playing Handicap."
+>
+> "In general, after handicap allowances have been applied in match-play formats, the player with the
+> lowest Playing Handicap plays off zero strokes relative to the other player(s). The other player(s)
+> receive(s) the difference between their own Playing Handicap and that of the player with the lowest
+> Playing Handicap."
+
+Table: stroke play individual 95%, four-ball 85% (four-ball par/bogey 90%); match play individual 100%,
+four-ball 90%. The C/2 and C/3 examples' "90% of the difference" wording is illustrative: every example
+row computes the same either way, and Note 2 says the examples apply the allowance to the rounded CH
+"for ease of illustration". **The rule text is "the difference between Playing Handicaps", which is what
+our engine does (round each, then subtract). Option B is not supported by the text.**
+
+**Where stroke and match play really differ (Craig's "occasional differences"):** not the totals but
+WHERE the strokes fall. Stroke play gives each player their own Playing Handicap on SI 1..PH; match play
+gives only the difference, on SI 1..diff. CH 10 v 18: stroke play puts B's 8-stroke edge on SI 11–18;
+match play puts it on SI 1–8. Hole-by-hole results (and so a match) can differ. Our scoring step lets
+"Who gets strokes?" be Full handicap OR Off the low under EITHER "Decide by" (`scoring-step.tsx:331`,
+independent of match play), so a match-play game set to Full handicap puts strokes on different holes
+than GHIN would. Question for Craig: tie them (match play → off the low, stroke play → full).

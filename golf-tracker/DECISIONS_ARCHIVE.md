@@ -2768,3 +2768,49 @@ takes any sizes). **Player controls: option A** (Craig: "I like A also"). Tappin
 and is chosen in the Captains panel; tees stay on the Tees step; the handicap breakdown stays on the Players step and
 Review. Rejected: B tap-select + action bar (a tap meaning two things), C a ⋯ on every chip (busy at 390px). B can be
 added later if organizers miss captain-by-tap.
+
+### 5.di — Persona-walk and bar #6/#8 answers (2026-10-14)
+
+Craig answered the session's batch:
+- **F-122 A:** a blank game name falls back to the game label (as an event's does, F-118), shown as the
+  placeholder; Next is always live on step 2.
+- **F-123 A:** a guest with a remembered game sees a "Continue: <game>, <team>" card on the plain URL. B6 is
+  built as roadmap item 6 (ask the group once, open straight to that card, hide My Games from guests).
+- **F-127 A:** "Run it back" goes right on Home's finished-game card.
+- **Bar #8:** the backup is SEPARATE maintenance, not an app feature. "Money history survives" = the backup
+  script (`scripts/export-backup.mjs`, fixed by F-128) exists and is run now and then. No in-app download.
+- **Match-play strokes:** match play DEFAULTS to off the low (the difference, as the USGA text says); "Full
+  handicap" stays available. New games only.
+- **Allowance defaults follow the USGA Appendix C table by format** (individual stroke 95%, four-ball stroke
+  85%, singles match 100%, four-ball match 90%), editable; "the allowance and everything they go with should
+  be saved as the format if they continue to use it" — a saved format and Run it back carry the chosen
+  allowance and stroke settings.
+- **Stroke vs match play stays OPEN on one point.** The USGA Appendix C text (read 2026-10-14) gives match
+  play "the difference between their own Playing Handicap and that of the player with the lowest", which is
+  our order (round each, then subtract), and every worked example agrees. Craig: "I'm not 100% sure... I
+  believe there is a difference in stroke and match play, possibly just in terms of rounding." Next evidence:
+  a GHIN-app screenshot of a round where its stroke and match numbers differ. No rounding change until then (§5.ba).
+
+### 5.dj — Presses: a game setting, auto or a Press button (2026-10-14; refines §5.cy)
+
+Researched first (Craig: "dont make any changes until you truly understand the complete use of a press"):
+Wikipedia "Nassau (bet)", Golf Monthly, Golf Digest's betting games, three betting-guide sites. A press is a
+NEW, SEPARATE bet for the original stake on the remaining holes of that bet, started all square; the original
+stays live, so a comeback can win both (2 down after 4, press 5–9, win 5/7/9: press 3 up AND front 1 up). It
+is not a concession, and not double or nothing. Two down is the most common trigger. A Closeout (a new bet
+after a match is decided) is a different game.
+
+Craig decided:
+- **A toggle on game setup enables presses** (off by default). When it's on, the group picks **auto press**
+  or **a Press button during the match** (§5.cy's "NOT auto-press" is now a choice, not a rule).
+- **Trigger: 2 down in both modes.** Auto starts the press the moment a side goes 2 down; the button shows
+  for the trailing side from 2 down ("if a team is down one through 3 holes, i dont think a press is valid").
+- **Re-presses: yes, no limit** (a press that goes 2 down can be pressed; each starts all square).
+- Earlier answers that stand: every head-to-head match; automatic once tapped (no accept step); a press
+  ends with its nine; the stake is the leg's; the scorer taps Press, and a press can be removed at any time
+  with a "press removed" note.
+- **OPEN: can the OVERALL bet be pressed?** "this maybe should be discussed or toggleable. someone may want
+  to press a front 9 and then not realize they are pressing the overall too. lets think about it." The
+  design note must show options for it; a nine's press must never silently press the overall.
+- Build next session, FIRST: design note + goldens (zero-sum, the worked examples) shown to Craig before the
+  setting, the button and the settle-up lines are wired.

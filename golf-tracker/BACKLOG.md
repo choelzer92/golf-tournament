@@ -21,10 +21,10 @@ The ≤3 items NEXT_SESSION_PROMPT.md promotes (BETA §3), plus a warm-up.
 
 | Item | Size | Source |
 |---|---|---|
+| **[beta] PRESSES — DESIGNED 2026-10-14 (§5.dj), PROMOTED first.** A setup toggle (off by default); on → auto press or a Press button; 2 down triggers; re-presses unlimited; a separate bet at the leg's stake to the end of its nine; removable any time with a note. OPEN with Craig: pressing the overall. Design note + goldens first, shown to him | M | §5.cy, §5.dj |
 | **[beta #5] PROMOTED 2026-10-14 (2nd session):** **F-063 C — per-cell score rows + an outbox.** Approved (§5.ce). Investigate (schema, migration, dual-read + backfill, RLS, realtime), write the plan into roadmap Phase C, build it sandbox-first (the fake gains the table). **Hard stop: show Craig the live migration before it touches live** | M–L | F-063, §5.ce |
-| **[beta #6] PROMOTED:** **F-121 for UNEVEN teams** (§5.dd): goldens first (3 v 2 zero-sum, mutation-checked), NEW games only (a stamp on modeSettings). **Show Craig the goldens before wiring them in** | M | §5.dd |
 | **[beta #1] PROMOTED:** **B5 paste names (F-126):** one box on the players step takes a whole list ("Lou Park 14", one per line; handicap optional), so 8 players stop costing 16 typed fields. Re-run `persona-walks.spec.ts` after and record walk #1's new count | S–M | F-126, roadmap B5 |
-| **WARM-UP:** **[beta #1]** the groups step still offers tee times as well as the match cards (§5.dh); drop the duplicate | XS | §5.dh |
+| **WARM-UPS (decided §5.di):** F-122 a blank game name → the game label; F-127 Run it back on Home's card; the groups step's duplicate tee times (§5.dh) | XS–S | §5.di, §5.dh |
 
 ## Done recently
 
@@ -92,15 +92,12 @@ The ≤3 items NEXT_SESSION_PROMPT.md promotes (BETA §3), plus a warm-up.
 
 | Item | What's needed |
 |---|---|
-| **F-122: a blank game name** | A (rec): falls back to the game label like an event's (F-118), Next always live; B: say "Name the game to continue"; C: pre-fill the label |
-| **F-123 / B6: what the bare URL shows a remembered guest** | A (rec): a "Continue: Saturday game, Team 1" card; B: straight into the last game. Then B6 is built as roadmap item 6 |
-| **F-127: Run it back on Home's finished-game card** | A (rec): saves a tap; B: leave it |
-| **Bar #8 JSON export shape** (`.claude/plans/json-export.md`) | Q1 A (Home "Download my games"), B′ (the script, fixed: F-128), or both; Q2 where the button lives; Q3 include computed money (dated?); Q4 a member's export: roster GHIN #s and indexes, only the games' players, or none; Q5 manual or scheduled; Q6 a per-game export on the pool hub. And: re-run `node scripts/export-backup.mjs` once for a complete backup |
-| **Bar #6 stroke vs match play** (`.claude/plans/stroke-vs-match-play.md`) | Rec C: a GHIN-app check of G1 (CH 5 v 16 four-ball match at 90%: 9 or 10 strokes?) or G3, then A (no change) or B (2024 team-match rule: allowance on the difference); D separately: default four-ball stroke play to 85% |
+| **Run the backup once** (bar #8, §5.di) | `node scripts/export-backup.mjs`, fixed by F-128 |
+| **Stroke vs match rounding** (§5.di, open) | A GHIN-app screenshot of a round where its stroke and match numbers differ; the USGA text matches ours |
 | **The local/phone walk** | Match cards (§5.de–§5.dh), F-037 (closes the P1), the Event, the long labels (`e2e/screenshots/f116-event-round-moved.png`) |
 | **Merge `series-2026-10-12`** | His walk, then merge (bar #10) |
 | **The branding/design session (bar #7)** | Theme, icon, name (D2; "GrudgeMatch" floated), and F-114: the event standings on a phone, "very clear and inviting" |
-| **Presses: the eight design questions** | In the PRESSES row below; one at a time, before any code |
+| **Presses: can the overall be pressed?** | §5.dj OPEN: a nine's press must never silently press the overall; the design note brings options |
 | **[tag?] rows** | BETA §2: whether each is [beta] or [after-beta] is his call |
 | **Course-data correctness audit** | PARKED by him 2026-09-15 ("wait on the course data"); resume on his word |
 | **F-037 [beta #6]: a GHIN-app side-by-side of a four-ball match off the low**, to confirm T4's per-match strokes against the reference (§5.ba). Not blocking: same rounding and order as the verified field low | Size S, from §5.ba, T4 |
@@ -108,16 +105,17 @@ The ≤3 items NEXT_SESSION_PROMPT.md promotes (BETA §3), plus a warm-up.
 
 ## Next few sessions (shaped, ready to build)
 
-In order after the promoted three: B6 guest remembers (bar #2, F-123, once its one question is answered), B7 plain words (bar #1, F-125), the JSON export once answered (bar #8), presses once answered, then S2.
+In order after the promoted three: the §5.di strokes defaults, F-121 uneven (bar #6), B6 guest remembers (bar #2, F-123 A), B7 plain words (bar #1, F-125), then S2.
 
 | Item | Size | Source |
 |---|---|---|
+| **[beta #6] §5.di strokes defaults (NEW games, goldens first):** match play defaults to off the low (full stays); the allowance default follows the USGA Appendix C table by format; saved formats + Run it back carry the chosen allowance and stroke settings | S–M | §5.di |
+| **[beta #6]** **F-121 for UNEVEN teams** (§5.dd): goldens first (3 v 2 zero-sum, mutation-checked), NEW games only (a stamp on modeSettings). **Show Craig the goldens before wiring them in** | M | §5.dd |
 | **[beta #2] B6 the guest remembers their group (F-123):** ask "Which group are you in?" once, remember it on the device, open straight to that card next time, hide My Games from guests; the bare URL per Craig's answer. Re-run walk #2 after | S–M | F-123, roadmap B6 |
 | **[beta #1] B7 plain words (F-125):** a plain label or an info tip for "M", "HCP", "the classic pool", "Best net + best gross", "Decide by", "How many strokes change hands", "combined HCP"; fold "Who gets paid?" into the pot split for 2 teams; "Same game as last time" shows the F-115 label. Build, then show Craig the words | S | F-125, roadmap B7 |
 | **[beta #5]** **F-063 C — APPROVED 2026-10-01 (§5.ce).** Per-cell score rows `(matchup_id, player_id, hole)` plus a localStorage outbox, dual-read. Investigate first (schema, migration on live Supabase, dual-read and backfill, RLS, realtime), then write the build plan into roadmap Phase C. **Show Craig the migration before it touches live** | M | F-063, §5.ce |
 | **[beta #6] F-121, UNEVEN teams (§5.dd, later):** each loser pays the stated $ and the winners share it (3 v 2 at $10: −$30 / +$45 each over three legs); a team pot antes per player (replaces §5.ag). A money change: goldens first, NEW games only, saved games keep per-team. Until then uneven teams ask per team and the label says "a team" | M | §5.dd |
 | **[approved, not a bar item: after the bars it doesn't block]** **Event spine S2 — APPROVED 2026-10-01 (§5.ce); questions ANSWERED 2026-10-12 (§5.cs).** Q3's ledger fix is BUILT (9733d48). Next: the convergence slices S2.0–S2.6, which carry Q2 (own tee), Q4 (per-ball 2BB Stableford), Q5 (scale + scramble %), Q7 (per-player Nassau), Q8 (pool skins rules) and Q9 (index stands in), all for NEW rows only (Q1 keeps legacy rows as they are). Q6: split stays legacy until §5.cp is built. Tournament rounds scored through `game-modes/`, goldens first (`.claude/plans/event-spine.md` §3). Investigate first (corpus, every A/B function vs the registry, what disagrees), then write the build plan into roadmap Phase E and build. Any money/points disagreement goes to Craig before switching | L | §5.bu, §5.ce |
-| **[beta] PRESSES: a "Press" button mid-match (Craig 2026-10-12, §5.cy).** NOT auto-press. During a head-to-head match, a tap on **Press** starts a new bet from the next hole to the end of that nine (or the 18). It's for the same stake as the leg unless set otherwise, and it settles on its own. Presses exist nowhere in the app today (F-112). Design questions for Craig BEFORE code: (1) which games: classic head-to-head legs, the Team → Match matches (§5.co), 1v1 and 2v2 (all of them?); (2) who may press: only the side that's down, or either; (3) does the other side have to accept, or is a press automatic once tapped; (4) can a press be pressed (and is there a cap); (5) do presses on the front carry to the back; (6) is the stake the leg's $ or chosen at the tap; (7) who may tap: any player on the scorecard, or the organizer only; (8) can a press be undone (a mis-tap). Then: a design note, goldens first (§5.z, zero-sum), the scorecard button, the leaderboard and settle-up lines. Money math, so ask first (§2) | M | F-112, §5.cy |
 | **[tag?]** **§5.cp [beta #11 adjacent]: several games on one round sharing its scores** (a late player → a second game for the back nine). Shape it with the Series | L | §5.cp |
 | **[tag?] bar #1 candidate:** **§5.bg money-step redesign** (the deeper F-045 ask, deliberately not built with the fold): the classic pool's money step reads as WHAT EACH LEG PAYS PER PLAYER — editable splits that scale with player count, bonuses added by choice, a visible adds-up check (legs + junk = pot). The "Split total: $X vs pot $Y ✓" line exists; the rest is the redesign. Zero-sum stays the tested invariant; worked-example sign-off before merge (money rule §2) | M | §5.bg part 3 |
 | **[beta #7]** Merge-audit polish: loss-red leg results on the dark board | S | §5.ak |

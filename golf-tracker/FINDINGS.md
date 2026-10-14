@@ -36,7 +36,7 @@ mocked route (the real search UI runs: type the name, Search, pick it). A "type"
 | #2 invited player | the link → "Enter Scores" on their team → a score | 2 | 0 | **Scoring meets it (~3 taps). "Remembers their group" FAILS (F-123)** |
 | #3 returning organizer | Home → last week's game → Run it back → Next × 6 → Create | 9 | 0 | 1 + Next × 6 as §5.cm accepted, plus Home→game and Create. 2 taps is not met by design (F-127) |
 
-### F-122 — Step 2's Next is greyed out, unexplained, until the game has a name (2026-10-14)  [P2] [start] [beta #1] — **OPEN, Craig's batch**
+### F-122 — Step 2's Next is greyed out, unexplained, until the game has a name (2026-10-14)  [P2] [start] [beta #1] — **chosen: A (§5.di)**
 
 A first-timer fills nothing on "How do you want to compete?" (every default is already right) and Next
 stays pale with no reason given; the only empty thing is "What should we call it?" at the top
@@ -45,7 +45,7 @@ event's does (F-118: "4v4 best net & best gross – Persona Pines"), shown as th
 always live. B, keep it required and say so under the button ("Name the game to continue"). C, pre-fill
 the field with the label (editable). **Rec A** (one rule for games and events; nothing to type).
 
-### F-123 — The invited player isn't remembered: the next visit is a dead end (2026-10-14)  [P2] [continue] [beta #2] — **OPEN; it's roadmap B6, ready to build**
+### F-123 — The invited player isn't remembered: the next visit is a dead end (2026-10-14)  [P2] [continue] [beta #2] — **chosen: A, a Continue card (§5.di); B6 ready to build**
 
 After scoring from the link, the player comes back two ways and neither finds their game. The bare URL
 lands on "My Games — Log in with your GHIN account to see the pool games you've created"
@@ -76,7 +76,7 @@ wording of each is Craig's to see on the walk, so build first, then show.
 "paste names" box (one field for the whole list, handicaps optional, GHIN later). GHIN search per player
 costs more, not less. Rec: build B5's paste box; it alone likely brings #1 near 2 minutes.
 
-### F-127 — Run it back from Home is two taps before the wizard starts (2026-10-14)  [P3] [continue] [beta #3] — **OPEN, Craig's batch**
+### F-127 — Run it back from Home is two taps before the wizard starts (2026-10-14)  [P3] [continue] [beta #3] — **chosen: A (§5.di)**
 
 Home → the finished game → Run it back. **Options:** A, a "Run it back" link on Home's finished-game card
 (saves 1 tap). B, leave it (§5.cm already accepted 1 + Next × 6). Rec A, small.

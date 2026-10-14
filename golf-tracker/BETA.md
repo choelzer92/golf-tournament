@@ -17,7 +17,7 @@ dollar is ever lost or wrong.
 | 5 | **No score is ever lost:** two phones, a dead spot, a sleeping phone | F-063 C, offline, an e2e plus unit tests | C1–C2 |
 | 6 | **Money and strokes match GHIN/USGA**, and settle to zero | the stroke vs match play check closed; zero-sum tests | §5.ce |
 | 7 | **It looks like a real app:** a font, an icon, a front door, one theme | a screenshot walk | D1–D4 |
-| 8 | **Money history survives:** an export or backup exists | the JSON export | C |
+| 8 | **Money history survives:** a backup exists | the backup script, run (§5.di: separate maintenance, not an app feature) | C |
 | 9 | **No open P1 finding** | FINDINGS.md | n/a |
 | 10 | **The full gate is green, and Craig has walked it on a phone and merged it** | `npm run verify`; Craig | n/a |
 | 11 | **A multi-day event** (a trip) sets up from a group's preferences and pays cumulative money at the end. *On the bar (§5.cg)* | a persona walk of a 3-day trip | E (Series vs S4, open) |
@@ -75,7 +75,7 @@ block.
 | 1 | **Persona walk MEASURED 2026-10-14** (`e2e/persona-walks.spec.ts`): a stranger, 8 friends, no group, every default: **21 taps + 21 typed fields** URL → shared game (16 of the typed fields are the 8 names + handicaps), ~2½–3 min est. Not yet ~2: F-126 (B5 paste names, promoted) and the jargon in F-125 (B7). F-122 (a blank name blocks Next) is Craig's call; F-124 fixed | 2026-10-14 |
 | 2 | **Persona walk MEASURED 2026-10-14:** link → Enter Scores → a score = **2 taps** (meets ~3). **"Remembers their group" FAILS** (F-123): the bare URL is a GHIN-login dead end and the link reopens the hub, not their card → B6, one question for Craig | 2026-10-14 |
 | 3 | **Persona walk MEASURED 2026-10-14:** Home → last week's game → Run it back → Next × 6 → Create = **9 taps**, as §5.cm accepted (1 + Next × 6, plus Home→game and Create). F-127 would save one | 2026-10-14 |
-| 8 | **Investigated 2026-10-14** (`.claude/plans/json-export.md`): the shape is Craig's (Q1–Q6). The backup script now pages past the 1000-row cap that cut `score_audit` short and adds `feedback_notes` (F-128); it needs one re-run | 2026-10-14 |
+| 8 | **§5.di: the backup is separate maintenance**, no in-app export. The script now pages past the 1000-row cap that cut `score_audit` short and adds `feedback_notes` (F-128). Closes when Craig re-runs it once | 2026-10-14 |
 | others | not yet measured | n/a |
 
 ## 5. The one-time backlog comb
