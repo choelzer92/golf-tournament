@@ -308,7 +308,7 @@ export default function GroupDetailPage() {
                   autoFocus
                   value={renameText}
                   onChange={(e) => setRenameText(e.target.value)}
-                  className="flex-1 min-w-0 rounded-md px-2 py-1 text-base font-bold text-gray-900"
+                  className="flex-1 min-w-0 rounded-md bg-white px-2 py-1 text-base font-bold text-gray-900"
                 />
                 <button type="submit" className="text-sm font-medium text-green-200 hover:text-white">Save</button>
                 <button type="button" onClick={() => setRenaming(false)} className="text-sm text-green-200 hover:text-white">Cancel</button>

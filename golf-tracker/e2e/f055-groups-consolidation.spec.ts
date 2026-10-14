@@ -25,6 +25,8 @@ test('F-055: create a group on /home, rename and delete it on its dashboard', as
   await page.getByRole('button', { name: 'Rename' }).click();
   const nameInput = page.locator('header input');
   await expect(nameInput).toHaveValue('Sunday Skins Crew');
+  // The field is light on the green header, so its dark text reads (was dark-on-dark, BACKLOG bar #7).
+  await expect(nameInput).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await nameInput.fill('Sunday Skins Club');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sunday Skins Club' })).toBeVisible();
