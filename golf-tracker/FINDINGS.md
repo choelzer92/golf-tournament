@@ -81,6 +81,25 @@ costs more, not less. Rec: build B5's paste box; it alone likely brings #1 near 
 Home → the finished game → Run it back. **Options:** A, a "Run it back" link on Home's finished-game card
 (saves 1 tap). B, leave it (§5.cm already accepted 1 + Next × 6). Rec A, small.
 
+### F-129 — A match-play team game's scorecard says "Stroke Play" and "2 back" while the board says "match play" and "2 up" (2026-10-14)  [P2] [beta #1] — **OPEN, found on the presses walk**
+
+Seen on `e2e/screenshots/presses-1-offer.png` (seed "Presses: 2 v 2 match play, 2 down after 2"). The same game reads
+two ways on its two screens:
+- the card's header strip says **"Stroke Play · Best Ball · Full Handicap"**, while the board's label says
+  "best ball · match play";
+- the card's team rows say **"2 back" / "2 ahead"**, while the board's legs say "Dave & Rick 2 up".
+
+Not caused by presses (the strip and the badges predate them). Options: A. read the card's strip from the game label
+(`gameLabel`, F-115) and its badge from the engine's leg status; B. fix only the words ("match play", "2 down"/"2 up")
+where the card computes them. Rec A: one source, the way §5.ah moved the team rows to the engine.
+
+### F-130 — The game label doesn't say presses are on (2026-10-14)  [P3] [beta #1] — **OPEN, Craig's call**
+
+The label still reads "$30 Nassau ($10/$10/$10) · 2v2 · best ball · match play" with presses on, yet presses can
+raise what a player risks beyond that $30 (§5.db: the label states total risked). Options: A. add "· presses" to the
+label (it can't state a maximum, re-presses being unlimited); B. leave the label alone and keep it on the money card
+only. Rec A.
+
 ### F-128 — The backup script stopped every table at 1000 rows, silently (2026-10-14)  [P1 data] [beta #8] — **FIXED 2026-10-14 in `scripts/export-backup.mjs` (not yet re-run against live)**
 
 Found by the JSON-export investigation (`.claude/plans/json-export.md`): PostgREST caps a request at 1000

@@ -292,14 +292,15 @@ export interface PressLine {
   leg: PressLeg;
   /** "Press 5–9", or "Re-press 7–9" for a press of a press. */
   label: string;
-  /** The side that pressed. */
+  /** The side that pressed, and its name. */
   by: string;
+  byName: string;
   holes: number[];
   thru: number;
   complete: boolean;
   /** The side ahead in the press (its winner once complete); null = all square. */
   leader: string | null;
-  /** "Hogs 2 up", "All square", or "–" before a hole is played. */
+  /** "Hogs 2 up", "All square", or "Starts on hole 5" before a hole is played. */
   status: string;
   /** What the press pays, loser to winner, in the caller's unit (per team, or per player). */
   stake: number;
@@ -315,6 +316,8 @@ export interface PressOfferLine {
   /** The pressing side's id. */
   side: string;
   fromHole: number;
+  /** The last hole the press would run to (the end of the bet it presses). */
+  toHole: number;
   /** "Hogs: press the front 9" / "Hogs: press your press (from 5)". */
   label: string;
 }
@@ -376,11 +379,12 @@ export function computePresses(input: {
         leg: leg.key,
         label: `${b.parent === leg.key ? 'Press' : 'Re-press'} ${span(b.holes)}`,
         by: sides[idx(b.pressedBy!)],
+        byName: names[idx(b.pressedBy!)],
         holes: b.holes,
         thru: b.thru,
         complete: b.complete,
         leader: k !== null ? sides[k] : null,
-        status: b.thru === 0 ? '–' : k !== null ? `${names[k]} ${Math.abs(b.margin)} up` : 'All square',
+        status: b.thru === 0 ? `Starts on hole ${b.holes[0]}` : k !== null ? `${names[k]} ${Math.abs(b.margin)} up` : 'All square',
         stake: leg.stake,
         voided,
       });
@@ -389,7 +393,7 @@ export function computePresses(input: {
       for (const o of pressOffers(bets, results)) {
         const parent = bets.find((b) => b.id === o.of)!;
         const what = parent.parent === null ? `press ${LEG_WORDS[leg.key]}` : `press your press (from ${parent.holes[0]})`;
-        offers.push({ ...(match !== undefined ? { match } : {}), ...o, side: sides[idx(o.by)], label: `${names[idx(o.by)]}: ${what}` });
+        offers.push({ ...(match !== undefined ? { match } : {}), ...o, toHole: parent.holes[parent.holes.length - 1], side: sides[idx(o.by)], label: `${names[idx(o.by)]}: ${what}` });
       }
     }
   }

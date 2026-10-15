@@ -881,7 +881,7 @@ function PressBoard({ presses, stakeDivisor, matchLabel, toneOf, note }: {
             <div key={`${p.match ?? ''}|${p.id}`} className="px-4 py-2.5 flex items-center justify-between gap-3" data-testid="press-row">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-gray-200">{p.label} <span className="text-gray-500">· {legName(p.leg)}</span></p>
-                <p className="text-[10px] text-gray-500">{m ? `${m} · ` : ''}{stake(p.stake)}{p.thru > 0 && !p.complete ? ` · ${p.thru} of ${p.holes.length} holes` : ''}</p>
+                <p className="text-[10px] text-gray-500">{m ? `${m} · ` : ''}pressed by {p.byName} · {stake(p.stake)}{p.thru > 0 && !p.complete ? ` · ${p.thru} of ${p.holes.length} holes` : ''}</p>
                 {p.voided && <p className="text-[10px] text-amber-500">pays nothing — its leg is unfinished</p>}
               </div>
               <p className={`text-sm font-medium text-right whitespace-nowrap ${p.voided ? 'text-gray-500 line-through' : p.leader ? toneOf(p.leader) : 'text-gray-400'}`}>

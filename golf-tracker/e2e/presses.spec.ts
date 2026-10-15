@@ -23,7 +23,7 @@ test('presses: tap Press at 2 down, see it on the card and the board, then remov
 
   // The card offers the trailing side the press, naming the bet (§5.dk).
   const panel = page.getByRole('region', { name: 'Presses' });
-  const press = panel.getByRole('button', { name: /Press · Craig & Jym: press the front 9, from hole 3/ });
+  const press = panel.getByRole('button', { name: 'Craig & Jym: press the front 9 (holes 3–9)' });
   await expect(press).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/presses-1-offer.png', fullPage: true });
 
@@ -32,6 +32,8 @@ test('presses: tap Press at 2 down, see it on the card and the board, then remov
   await expect(press).toHaveCount(0);
   await expect(panel.getByText('Press 3–9')).toBeVisible();
   await expect(panel.getByText(/front 9 · \$10 a player/)).toBeVisible();
+  await expect(panel.getByText('Pressed by Craig & Jym')).toBeVisible();
+  await expect(panel.getByText('Starts on hole 3')).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/presses-2-pressed.png', fullPage: true });
 
   // The leaderboard lists it as its own bet, under the legs.
@@ -40,7 +42,8 @@ test('presses: tap Press at 2 down, see it on the card and the board, then remov
   const board = page.getByTestId('press-board');
   await expect(board.getByTestId('press-row')).toHaveCount(1);
   await expect(board).toContainText('Press 3–9');
-  await expect(board).toContainText('$10 a player');
+  await expect(board).toContainText('pressed by Craig & Jym · $10 a player');
+  await expect(board).toContainText('Starts on hole 3');
   await page.screenshot({ path: 'e2e/screenshots/presses-3-board.png', fullPage: true });
 
   // Remove it from the card: it asks first, then leaves a note and offers the press again.
@@ -49,7 +52,7 @@ test('presses: tap Press at 2 down, see it on the card and the board, then remov
   await panel2.getByRole('button', { name: 'Remove', exact: true }).click();
   await panel2.getByRole('button', { name: 'Remove press' }).click();
   await expect(panel2.getByText('Press 3–9')).toHaveCount(0);
-  await expect(panel2.getByText(/Press from hole 3 removed/)).toBeVisible();
+  await expect(panel2.getByText('A press from hole 3 was removed')).toBeVisible();
   await expect(panel2.getByRole('button', { name: /press the front 9/ })).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/presses-4-removed.png', fullPage: true });
 

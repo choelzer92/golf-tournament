@@ -85,7 +85,7 @@ describe('presses: the team engine, two sides', () => {
   it('button: the side 2 down is offered the press of the bet it is losing; nothing until tapped', () => {
     // Through 4 only: a is 2 down in the front. The button names the bet (§5.dk).
     const r = runTwoSide(twoSide({ pressMode: 'button' }), '-B-B' + '.'.repeat(14));
-    expect(r.pressOffers).toEqual([{ of: 'front', by: 'a', side: 'a', fromHole: 5, label: 'Player1 & Player2: press the front 9' }]);
+    expect(r.pressOffers).toEqual([{ of: 'front', by: 'a', side: 'a', fromHole: 5, toHole: 9, label: 'Player1 & Player2: press the front 9' }]);
     expect(r.presses).toEqual([]);
     // Not tapped: the round finishes and pays exactly as without presses.
     expect(sideMoney(runTwoSide(twoSide({ pressMode: 'button' }), G1))).toEqual({ A: 20, B: -20 });
@@ -257,7 +257,7 @@ describe('presses: the classic two-team match', () => {
 
   it('button: offered at 2 down, paid once tapped', () => {
     const r = computePoolResult(classic({ pressMode: 'button' }), scores('-B-B' + '.'.repeat(14)));
-    expect(r.pressOffers).toEqual([{ of: 'front', by: 'a', side: 't1', fromHole: 5, label: 'Team 1: press the front 9' }]);
+    expect(r.pressOffers).toEqual([{ of: 'front', by: 'a', side: 't1', fromHole: 5, toHole: 9, label: 'Team 1: press the front 9' }]);
     const tapped = computePoolResult(classic({ pressMode: 'button' }, { presses: [{ of: 'front', by: 'a', fromHole: 5 }] }), scores(G1));
     expect(tapped.payouts.find((p) => p.teamId === 't1')!.perPersonNet).toBe(30);
   });

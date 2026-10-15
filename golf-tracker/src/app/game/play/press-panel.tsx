@@ -54,7 +54,7 @@ export function PressPanel({
               }))}
               className="w-full min-h-[44px] rounded-md border border-green-600 bg-green-50 px-3 py-2 text-left text-sm font-medium text-green-900 hover:bg-green-100"
             >
-              Press · {o.label}, from hole {o.fromHole}
+              {o.label} (holes {o.fromHole}–{o.toHole})
             </button>
           ))}
         </div>
@@ -69,6 +69,7 @@ export function PressPanel({
                   <span className="min-w-0">
                     <span className="font-medium text-gray-900">{p.label}</span>
                     <span className="text-gray-500"> · {LEG_NAME[p.leg]} · {stake(p.stake)}</span>
+                    <span className="block text-xs text-gray-500">Pressed by {p.byName}</span>
                     <span className="block text-xs text-gray-700">{p.voided ? 'Leg voided, pays nothing' : p.status}{p.complete ? ' (final)' : ''}</span>
                   </span>
                   {confirming !== k && (
@@ -101,7 +102,7 @@ export function PressPanel({
         <ul className="mt-1 text-[11px] text-gray-400">
           {removed.map((t, i) => (
             <li key={`${t.match ?? ''}|${pressIdOf(t)}|${i}`}>
-              Press from hole {t.fromHole} removed · {t.removed!.note}
+              A press from hole {t.fromHole} was removed
             </li>
           ))}
         </ul>
