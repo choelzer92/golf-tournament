@@ -21,7 +21,6 @@ The ≤3 items NEXT_SESSION_PROMPT.md promotes (BETA §3), plus a warm-up.
 
 | Item | Size | Source |
 |---|---|---|
-| **[beta] PRESSES — DESIGNED 2026-10-14 (§5.dj), PROMOTED first.** A setup toggle (off by default); on → auto press or a Press button; 2 down triggers; re-presses unlimited; a separate bet at the leg's stake to the end of its nine; removable any time with a note. OPEN with Craig: pressing the overall. Design note + goldens first, shown to him | M | §5.cy, §5.dj |
 | **[beta #5] PROMOTED 2026-10-14 (2nd session):** **F-063 C — per-cell score rows + an outbox.** Approved (§5.ce). Investigate (schema, migration, dual-read + backfill, RLS, realtime), write the plan into roadmap Phase C, build it sandbox-first (the fake gains the table). **Hard stop: show Craig the live migration before it touches live** | M–L | F-063, §5.ce |
 | **[beta #1] PROMOTED:** **B5 paste names (F-126):** one box on the players step takes a whole list ("Lou Park 14", one per line; handicap optional), so 8 players stop costing 16 typed fields. Re-run `persona-walks.spec.ts` after and record walk #1's new count | S–M | F-126, roadmap B5 |
 | **WARM-UPS (decided §5.di):** F-122 a blank game name → the game label; F-127 Run it back on Home's card; the groups step's duplicate tee times (§5.dh) | XS–S | §5.di, §5.dh |
@@ -99,7 +98,6 @@ The ≤3 items NEXT_SESSION_PROMPT.md promotes (BETA §3), plus a warm-up.
 | **The local/phone walk** | Match cards (§5.de–§5.dh), F-037 (closes the P1), the Event, the long labels (`e2e/screenshots/f116-event-round-moved.png`) |
 | **Merge `series-2026-10-12`** | His walk, then merge (bar #10) |
 | **The branding/design session (bar #7)** | Theme, icon, name (D2; "GrudgeMatch" floated), and F-114: the event standings on a phone, "very clear and inviting" |
-| **Presses: can the overall be pressed?** | §5.dj OPEN: a nine's press must never silently press the overall; the design note brings options |
 | **[tag?] rows** | BETA §2: whether each is [beta] or [after-beta] is his call |
 | **Course-data correctness audit** | PARKED by him 2026-09-15 ("wait on the course data"); resume on his word |
 | **F-037 [beta #6]: a GHIN-app side-by-side of a four-ball match off the low**, to confirm T4's per-match strokes against the reference (§5.ba). Not blocking: same rounding and order as the verified field low | Size S, from §5.ba, T4 |
@@ -111,6 +109,7 @@ In order after the promoted three: the §5.di strokes defaults, F-121 uneven (ba
 
 | Item | Size | Source |
 |---|---|---|
+| **2026-10-14 session 4: PRESSES BUILT** (60b3c11, 657292e, a15bd56, cd8aac4): a setup toggle (off), auto or the Press button, the overall its own toggle; the team engine's two-team match and the classic two-foursome match; the card's Press panel (names the bet, remove with a note) and each press its own leaderboard line. §5.dm: Team → Match games don't press. Full gate green (290 e2e) | — | 2026-10-14 |
 | **[beta #10] verify:quick misses specs for the files it changed (found 2026-10-14).** On the presses diff it picked 53 of 55 specs but skipped `f088-f090-hub` (the hub panels, edited), `phase3-payout` and `split-round-money` (money). Its import-to-route mapping doesn't reach them; and a pick that big should just run the full gate (it differs only by the production build). Fix the mapping, and make an over-25 pick run `npm run verify` instead | S | Craig's catch |
 | **[beta #6] §5.di strokes defaults (NEW games, goldens first):** match play defaults to off the low (full stays); the allowance default follows the USGA Appendix C table by format; saved formats + Run it back carry the chosen allowance and stroke settings | S–M | §5.di |
 | **[beta #6]** **F-121 for UNEVEN teams** (§5.dd): goldens first (3 v 2 zero-sum, mutation-checked), NEW games only (a stamp on modeSettings). **Show Craig the goldens before wiring them in** | M | §5.dd |
