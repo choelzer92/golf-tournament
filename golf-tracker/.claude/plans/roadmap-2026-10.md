@@ -74,7 +74,7 @@ Measure each one: re-walk the three personas and record the tap counts in the ta
    "two phones, one foursome" and lost taps are solved for good. Investigate, then write the build
    plan here, then build. Show Craig the live migration first. **M.**
 
-### C1 build plan (written 2026-10-14, from the investigation; nothing built yet)
+### C1 build plan (written 2026-10-14; BUILT e407b21 + c12e849; migration RUN ON LIVE 2026-10-15, verified; branch not deployed)
 
 **Today** (`tournament-state.ts:286-315`): one `game_scores` row per tee group holds the whole card as a JSONB
 array. Every save upserts that whole array, fire-and-forget: no error check, no retry, the cache is in memory only.

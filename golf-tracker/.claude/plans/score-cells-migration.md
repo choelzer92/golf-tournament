@@ -1,6 +1,9 @@
 # The live migration for F-063 C, in plain terms (for Craig's go / no-go)
 
-File: `supabase/migrations/20261014000000_score_cells.sql`. **Not run on live.** Nothing runs it automatically.
+File: `supabase/migrations/20261014000000_score_cells.sql`. **RUN ON LIVE 2026-10-15** (Craig ran `supabase db push` on his go;
+backup `backups/2026-10-15T03-56-23-836Z` first; rehearsal on that backup: 131 cards → 1,414 cells, all matched). Read-only
+check after (`.claude/check-score-cells-live.mjs`): 131 of 131 cards match their cells, 1,414 cells, 0 tombstones, audit
+untouched (1,129). **The branch is NOT deployed yet**: every phone is on the old app, mirrored into the cells (step 5).
 Proven on a real Postgres in-process (`src/test/score-cells-sql.test.ts`, 8 tests, mutation-checked), and the app
 side on the sandbox (full gate green).
 
