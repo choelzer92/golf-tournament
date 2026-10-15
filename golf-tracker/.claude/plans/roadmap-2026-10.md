@@ -73,6 +73,51 @@ Measure each one: re-walk the three personas and record the tap counts in the ta
 1. **F-063 option C: APPROVED 2026-10-01 (§5.ce).** Per-cell score rows plus a localStorage outbox, so
    "two phones, one foursome" and lost taps are solved for good. Investigate, then write the build
    plan here, then build. Show Craig the live migration first. **M.**
+
+### C1 build plan (written 2026-10-14, from the investigation; nothing built yet)
+
+**Today** (`tournament-state.ts:286-315`): one `game_scores` row per tee group holds the whole card as a JSONB
+array. Every save upserts that whole array, fire-and-forget: no error check, no retry, the cache is in memory only.
+**How a score is lost today:** (1) two phones each write the whole card, so one drops cells the other hasn't seen;
+(2) a failed write (dead spot, 5xx) is swallowed, and a reload or a killed tab loses it; (3) the pagehide flush dies
+with the page; (4) a failed read silently shows the cache; (5) an older write can land last; (6) split scoring's merge
+RPC replaces a whole player's array; (7) a realtime payload can overwrite an edit in flight (opt A fixed this for
+pools only); (8) a rebalance or reshape rewrites from a stale cache; (9) audit rows are dropped silently.
+
+**The shape:**
+1. **`score_cells`** table: `(matchup_id, player_id, hole)` primary key, `gross_score int NULL` (NULL = cleared, a
+   tombstone, since realtime can't filter DELETEs), `tapped_at` (when the scorer tapped), `updated_at`. Open policy +
+   GRANT like every table (§5c), in the realtime publication.
+2. **One write RPC, `upsert_score_cells(cells jsonb)`**: upserts a batch, and a cell only changes when the incoming
+   tap is not older than the stored one (**the conflict rule, Q1 below**). Writes `score_audit` server-side, so the
+   audit can't be dropped or drift. Idempotent: resending a batch changes nothing.
+3. **The outbox** (`lib/score-outbox.ts`, pure queue + a thin localStorage shell): every tap is queued per cell
+   (latest value wins), survives a reload or a killed tab, drains on tap, on `online`, on becoming visible, every few
+   seconds while anything is pending, and on app start from ANY page. A cell leaves the outbox only when the server
+   acks it. The card reads server cells with pending cells laid over them, so a tap never disappears from the screen.
+4. **Reads:** one select of the game's cells (paged past PostgREST's 1000 rows), assembled into the same
+   `GameScore[]` per matchup at the boundary, so `loadGameScores`/`fetchGameScores` keep their shape and ~25 readers
+   and the whole compute layer stay untouched. A failed read says so instead of showing the cache as live.
+5. **Realtime:** per-row events fold into the cache. Clears and reshapes (field editor, tournament resets) become
+   explicit cell writes (tombstones / moves), queued like taps.
+6. **Split scoring:** `merge_game_scores` is retired; per-cell rows make it unnecessary.
+
+**Cutover (the live migration Craig sees first, §5.ce):**
+- M1 migration: create `score_cells` + the RPC; backfill from every `game_scores` row (`jsonb_array_elements`,
+  `ON CONFLICT DO NOTHING`); a trigger keeps `game_scores.data` rebuilt from the cells, so the blob stays a correct
+  derived copy for rollback, the backup and the ledger corpus; and a guarded trigger the other way that adds cells an
+  OLD bundle writes into the blob (insert-only, so a stale old copy can never overwrite a newer cell).
+- The new bundle reads and writes cells only. Rollback = redeploy the old bundle; the blob is current throughout.
+- Backup: add `score_cells` to `scripts/export-backup.mjs`.
+
+**Sandbox-first:** the fake backend needs composite keys (or a synthetic id), several `.eq`/`.in` filters, array
+upserts and the new RPC. Tests: outbox coalescing and ack, the conflict rule, dual-read, backfill shape, and e2e for
+"two phones, one card" (two pages, one store) and "offline tap" (`context.setOffline`, reload, reconnect).
+
+**Q1 (Craig's call, asked 2026-10-14): when two phones change the SAME cell, which one wins?**
+A. The later TAP wins (by the phone's tap time), even if it reaches the server second, e.g. from a dead spot.
+B. The later ARRIVAL wins (server time): a phone coming back from a dead spot overwrites a correction made since.
+Rec A: a correction made on the course is never undone by an old tap catching up. Either way the audit keeps both.
 2. **Offline / PWA.** `sw.js` already caches the app shell. Data and writes are not cached, and a cart path has no signal. **M.**
 3. **The live-scoring pass** (measure first), which Craig asked for and never got a session. **M.**
 4. **Season ledger** on top of P2's stats and §5.cb's visibility.
