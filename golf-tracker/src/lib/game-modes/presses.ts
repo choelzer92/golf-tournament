@@ -5,8 +5,8 @@
 // win 5, 7 and 9 and the press is 3 up AND the front is 1 up. It is not double or nothing.
 //
 // DESIGN NOTE: `.claude/plans/presses.md`. Goldens: `src/test/presses-golden.test.ts`.
-// WIRED (§5.dk) through `computePresses` below: the team engine (two sides), each match of a
-// Team → Match game, and the classic pool's two-team match. All three call the same function.
+// WIRED (§5.dk) through `computePresses` below: the team engine (two sides) and the classic pool's
+// two-team match. Not Team → Match games (§5.dm): a press there never touches the team result.
 //
 // THE RULES THIS FILE ENCODES
 // - The trigger is 2 down, in both modes. Auto starts the press the moment a bet goes 2 down; the
@@ -125,13 +125,15 @@ function byStart(x: PressBet, y: PressBet): number {
 
 /**
  * AUTO PRESS: a side that reaches 2 down in a bet it may press (after a contested hole) starts one
- * press of that bet from the bet's next hole.
+ * press of that bet from the bet's next hole. `removed` holds the ids of presses the scorer removed
+ * (§5.dj: removable any time): each is dropped with its re-presses, and isn't started again.
  */
 export function autoPresses(
   leg: PressLeg,
   holes: number[],
   results: ReadonlyMap<number, HoleResult>,
   trigger = 2,
+  removed: ReadonlySet<string> = new Set(),
 ): PressBet[] {
   const out: PressBet[] = [];
   const queue: BetBase[] = [{ id: leg, leg, parent: null, pressedBy: null, holes }];
@@ -148,7 +150,7 @@ export function autoPresses(
         else if (r === 'b') m--;
         if (forSide(side, m) <= -trigger) {
           const rest = bet.holes.slice(i + 1);
-          if (rest.length) {
+          if (rest.length && !removed.has(`${bet.id}.${side}`)) {
             queue.push({ id: `${bet.id}.${side}`, leg, parent: bet.id, pressedBy: side, holes: rest });
           }
           break;
@@ -261,6 +263,16 @@ export const PRESS_SETTINGS: FormatSetting[] = [
 
 export const PRESS_KEYS: ReadonlySet<string> = new Set(PRESS_SETTINGS.map((s) => s.key));
 
+/**
+ * Can this team game press at all? Only a game where the two teams play EACH OTHER for the money:
+ * two teams, no head-to-head matches inside (§5.dm). In a Team → Match game (Hogs v Dawgs) the
+ * money is the team's, a press must never move it, and a match has no bet of its own to press.
+ * Every surface hides the settings otherwise.
+ */
+export function pressesFit(teamSizes: number[], matchSize: number): boolean {
+  return teamSizes.length === 2 && matchSize === 0;
+}
+
 export interface PressSettings { mode: 'auto' | 'button'; overall: boolean }
 
 /** The game's press settings, or null when presses are off. */
@@ -275,7 +287,7 @@ export function pressSettingsOf(bag: Record<string, string | number | boolean>):
 /** One press, ready for the board and the money card. Side ids are the game's own. */
 export interface PressLine {
   id: string;
-  /** The match it belongs to (Team → Match games); absent for a whole-game match. */
+  /** Reserved for a match's own side bet (§5.dm, not built); absent today. */
   match?: string;
   leg: PressLeg;
   /** "Press 5–9", or "Re-press 7–9" for a press of a press. */
@@ -289,7 +301,7 @@ export interface PressLine {
   leader: string | null;
   /** "Hogs 2 up", "All square", or "–" before a hole is played. */
   status: string;
-  /** What the press pays, loser to winner, in the caller's unit (per side, or per player). */
+  /** What the press pays, loser to winner, in the caller's unit (per team, or per player). */
   stake: number;
   /** Its leg was voided at close-out, so it pays nothing. */
   voided: boolean;
@@ -305,6 +317,11 @@ export interface PressOfferLine {
   fromHole: number;
   /** "Hogs: press the front 9" / "Hogs: press your press (from 5)". */
   label: string;
+}
+
+/** The id of the press a tap starts (or, removed, the press it took away): "front.a". */
+export function pressIdOf(t: Pick<PressTap, 'of' | 'by'>): string {
+  return `${t.of}.${t.by}`;
 }
 
 const LEG_WORDS: Record<PressLeg, string> = { front: 'the front 9', back: 'the back 9', overall: 'the overall' };
@@ -346,7 +363,7 @@ export function computePresses(input: {
   const idx = (s: PressSide) => (s === 'a' ? 0 : 1);
   for (const leg of legs) {
     const bets = settings.mode === 'auto'
-      ? autoPresses(leg.key, leg.holes, results)
+      ? autoPresses(leg.key, leg.holes, results, 2, new Set(taps.filter((t) => t.removed).map(pressIdOf)))
       : tappedPresses(leg.key, leg.holes, results, taps);
     const presses = bets.filter((b) => b.parent !== null);
     const voided = input.voided.has(leg.key);

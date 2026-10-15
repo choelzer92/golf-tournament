@@ -1,8 +1,8 @@
 // PRESSES wired through every engine (DECISIONS.md §5.dj/§5.dk, design note §5).
 //
 // The goldens in presses-golden.test.ts pin the rules module. This file pins the WIRING: the same
-// worked examples settled by the team engine (two sides), by each match of a Team → Match game
-// (paid between that match's players, §5.dk Q4) and by the classic pool's two-team match. Every
+// worked examples settled by the team engine (two sides) and by the classic pool's two-team match,
+// and Team → Match games never pressing (§5.dm). Every
 // expected dollar is worked by hand in the comments, never read back from the engine (§5.z).
 //
 // Scratch players (net == gross), each unit's players shooting the same card, so a hole is won by
@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import { computeGameResult } from '@/lib/game-modes/result';
 import type { IndividualResult } from '@/lib/game-modes/types';
-import type { PressTap } from '@/lib/game-modes/presses';
+import { pressesFit, type PressTap } from '@/lib/game-modes/presses';
 import type { GameScore } from '@/lib/game-state';
 import { computePoolResult, type PoolGame } from '@/lib/pool-game';
 import { perPlayerNets } from '@/lib/stats-ledger';
@@ -99,6 +99,17 @@ describe('presses: the team engine, two sides', () => {
     expect(removed.presses).toEqual([]);
   });
 
+  it('auto: a removed press stays removed, with its re-presses (§5.dj "removable any time")', () => {
+    const removed: PressTap = { of: 'front', by: 'a', fromHole: 5, removed: { note: 'press removed' } };
+    const r = runTwoSide(twoSide({}, { presses: [removed] }), G1);
+    expect(r.presses).toEqual([]);
+    expect(sideMoney(r)).toEqual({ A: 20, B: -20 });
+    // G3 (b wins 1–4, a 5–9): a's press 3–9 and its re-press 5–9. Removing the press takes both.
+    const g3 = 'BBBBAAAAA' + HALVED9;
+    expect(runTwoSide(twoSide({}), g3).presses!.map((p) => p.label)).toEqual(['Press 3–9', 'Re-press 5–9']);
+    expect(runTwoSide(twoSide({}, { presses: [{ of: 'front', by: 'a', fromHole: 3, removed: { note: 'x' } }] }), g3).presses).toEqual([]);
+  });
+
   it('G7: the overall is pressed only when its own toggle is on (§5.dk Q1 B)', () => {
     // b wins 1 and 2, then everything halved. Front: b 2 up (−$10 a); a's press 3–9 all square.
     // Overall: b 2 up (−$10 a). With the overall toggle on, a also presses the overall 3–18,
@@ -174,42 +185,38 @@ function matchScores(m1: string, m2: string) {
   ]);
 }
 
-describe('presses: Team → Match games', () => {
+describe('presses: Team → Match games never press (§5.dm)', () => {
   // Match 1 (p1 p2 v p3 p4) plays G1 on the front, back halved; match 2 halves every hole.
-  // TEAM legs (winner takes, $20 a team): front X 1½–½ (+$20), back ½–½ each... 1–1 (push),
-  // overall X 1½–½ (+$20): X +$40, Y −$40, $10 a player.
-  // THE PRESS (match 1 only): p1 & p2's press 5–9, 3 up, at $5 a player (the leg's $20 ÷ 4):
-  // p1 +5, p2 +5, p3 −5, p4 −5. Match 2's players aren't in it.
+  // TEAM legs (winner takes, $20 a team): front X 1½–½ (+$20), back 1–1 (push), overall X 1½–½
+  // (+$20): X +$40, Y −$40, $10 a player. Craig: a press "wouldnt be something that should affect
+  // the entire team score", and a match has no bet of its own to press yet. So with presses
+  // switched on, nothing is pressed and the money is exactly the team money.
   const M1 = '-B-BA-A-A' + HALVED9;
   const M2 = HALVED9 + HALVED9;
 
-  it('the press pays between its match\'s players, on top of the team result', () => {
+  it('auto, at 2 down in a match: no press, team money unchanged', () => {
     const game = matchGame({});
     const r = computeGameResult(game, matchScores(M1, M2)) as IndividualResult;
+    expect(r.matches).toHaveLength(2);
+    expect(r.presses).toBeUndefined();
+    expect(r.pressOffers).toBeUndefined();
     expect(sideMoney(r)).toEqual({ X: 40, Y: -40 });
-    expect(r.presses!.map((p) => [p.match, p.label, p.by, p.stake])).toEqual([[r.matches![0].id, 'Press 5–9', 'x', 5]]);
-    expect(r.playerMoney).toEqual({ p1: 5, p2: 5, p3: -5, p4: -5, p5: 0, p6: 0, p7: 0, p8: 0 });
-    expect(ledger(game, matchScores(M1, M2))).toEqual({ p1: 15, p2: 15, p5: 10, p6: 10, p3: -15, p4: -15, p7: -10, p8: -10 });
+    expect(ledger(game, matchScores(M1, M2))).toEqual({ p1: 10, p2: 10, p5: 10, p6: 10, p3: -10, p4: -10, p7: -10, p8: -10 });
   });
 
-  it('button: the offer names its match; a tap on one match never presses the other', () => {
+  it('button: no Press offered, and a stray tap pays nothing', () => {
     const partial = '-B-B' + '.'.repeat(14);
     const r = computeGameResult(matchGame({ pressMode: 'button' }), matchScores(partial, partial)) as IndividualResult;
-    const [m1, m2] = r.matches!.map((m) => m.id);
-    expect(r.pressOffers!.map((o) => [o.match, o.of, o.side, o.fromHole])).toEqual([[m1, 'front', 'x', 5], [m2, 'front', 'x', 5]]);
-    const tapped = matchGame({ pressMode: 'button' }, { presses: [{ match: m1, of: 'front', by: 'a', fromHole: 5 }] });
-    const done = computeGameResult(tapped, matchScores(M1, M2)) as IndividualResult;
-    expect(done.presses!.map((p) => p.match)).toEqual([m1]);
-    expect(ledger(tapped, matchScores(M1, M2))).toEqual({ p1: 15, p2: 15, p5: 10, p6: 10, p3: -15, p4: -15, p7: -10, p8: -10 });
+    expect(r.pressOffers).toBeUndefined();
+    const tapped = matchGame({ pressMode: 'button' }, { presses: [{ match: r.matches![0].id, of: 'front', by: 'a', fromHole: 5 }] });
+    expect(sideMoney(computeGameResult(tapped, matchScores(M1, M2)) as IndividualResult)).toEqual({ X: 40, Y: -40 });
   });
 
-  it('uneven teams don\'t press (no per-player stake yet, §5.dd)', () => {
-    const game = matchGame({}, {
-      players: makePlayers([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-      sides: [{ id: 'x', playerIds: ['p1', 'p2', 'p5', 'p6'] }, { id: 'y', playerIds: ['p3', 'p4', 'p7', 'p8'] }, { id: 'z', playerIds: ['p9', 'p10'] }],
-    });
-    const r = computeGameResult(game, matchScores(M1, M2));
-    expect(r.kind === 'individual' && r.presses).toBeFalsy();
+  it('the settings are hidden for it (pressesFit)', () => {
+    expect(pressesFit([4, 4], 1)).toBe(false);
+    expect(pressesFit([4, 4], 2)).toBe(false);
+    expect(pressesFit([4, 4], 0)).toBe(true);
+    expect(pressesFit([2, 2, 2], 0)).toBe(false);
   });
 });
 

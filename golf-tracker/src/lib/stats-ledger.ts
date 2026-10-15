@@ -360,10 +360,6 @@ export function perPlayerNets(
       const perPerson = members.length > 0 ? s.moneyNet / members.length : 0;
       for (const pid of members) out.push({ playerId: pid, playerName: nameOf(pid), net: perPerson });
     }
-    // A match's presses are paid between that match's players (§5.dk Q4), not split by team.
-    if (result.playerMoney) {
-      for (const row of out) row.net += result.playerMoney[row.playerId] ?? 0;
-    }
     return out;
   }
 

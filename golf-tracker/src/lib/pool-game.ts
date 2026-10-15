@@ -14,7 +14,7 @@ import {
 } from './game-modes/team-scoring';
 import { sidesOfGame, type GameSide } from './game-modes/sides';
 import { matchesOf, matchSizeOf } from './game-modes/match-pairing';
-import { computePresses, pressSettingsOf, type HoleResult, type PressLine, type PressOfferLine, type PressTap } from './game-modes/presses';
+import { computePresses, pressIdOf, pressSettingsOf, type HoleResult, type PressLine, type PressOfferLine, type PressTap } from './game-modes/presses';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -2574,6 +2574,40 @@ export function savePoolGame(game: PoolGame) {
     data: game,
     updated_at: new Date().toISOString(),
   }).then();
+}
+
+// PRESSES (§5.dj/§5.dk): the scorer's taps, recorded on the LATEST copy of the game (read-latest-
+// merge, as CTP picks are) so two foursomes pressing at once don't clobber each other's taps.
+
+/** Start a press (button mode). Returns the saved game. */
+export function savePressTap(game: PoolGame, tap: PressTap): PoolGame {
+  const latest = loadPoolGame(game.id) || game;
+  const updated: PoolGame = { ...latest, presses: [...(latest.presses ?? []), tap] };
+  savePoolGame(updated);
+  return updated;
+}
+
+/**
+ * Remove a press, in either mode (§5.dj: "removable any time with a note"). Button mode marks the
+ * tap removed; auto mode records a removed tap, so the re-derived press stays away. The note is
+ * kept for the record; a removed press (and its re-presses) pays nothing.
+ */
+export function removePressTap(game: PoolGame, press: { id: string; match?: string; holes: number[] }, note: string): PoolGame {
+  const latest = loadPoolGame(game.id) || game;
+  const taps = [...(latest.presses ?? [])];
+  const at = taps.findIndex((t) => !t.removed && t.match === press.match && pressIdOf(t) === press.id);
+  const dot = press.id.lastIndexOf('.');
+  const removed = { note };
+  if (at >= 0) taps[at] = { ...taps[at], removed };
+  else {
+    taps.push({
+      of: press.id.slice(0, dot), by: press.id.slice(dot + 1) as PressTap['by'], fromHole: press.holes[0], removed,
+      ...(press.match !== undefined ? { match: press.match } : {}),
+    });
+  }
+  const updated: PoolGame = { ...latest, presses: taps };
+  savePoolGame(updated);
+  return updated;
 }
 
 export function loadPoolGame(id: string): PoolGame | null {

@@ -2859,3 +2859,17 @@ Follow-ups, same day:
 - BUILT 2026-10-14 (`strokesOffTheLow` in `lib/strokes.ts`, used by the pool, the tournament engine and the
   play page). Goldens: `match-play-rounding.test.ts`. On the 2026-10-12 backup, 23 of 725 player-rounds move
   one stroke (all match play), and the season ledger is unchanged.
+
+### 5.dm — Presses never move a team result; Team → Match games don't press (2026-10-14; refines §5.dk Q4)
+
+Wiring §5.dk Q4 ("a match's press is paid between its players at the leg stake"), the build split the team's
+per-team leg by team size to give each match a $5 bet. Craig: **"so what is a singles press in that situation?
+in a 4 v 4 match, how would you singles press that?"** In a Team → Match game (Hogs v Dawgs: two teams of four,
+individual matches inside each foursome, each match a point toward the team) a match has no money of its own; the
+only bet is the team's. Craig: **"there may be side bets for the matches that could be pressed, but in that setting
+a press wouldnt be something that should affect the entire team score."** Also: a press is per game and always money.
+
+- Team → Match games do not press. The derived per-match stake was removed (never shipped or merged).
+- Presses stay on games where two teams play each other for the money: 1 v 1, 2 v 2 in a foursome, two teams
+  across foursomes without individual matches, and the classic two-foursome match.
+- A match's own side bet (pressable, between its players, never in the team score) is a new capability: BACKLOG.

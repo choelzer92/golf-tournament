@@ -240,14 +240,11 @@ export interface IndividualResult {
   // plus junk when junk pays as a pot — each with its dollars and what it paid every side. Already
   // settled into standings.moneyNet; this is for the board. One 'overall' entry when unsliced.
   potSlices?: PotSliceLine[];
-  // PRESSES (§5.dj/§5.dk): every press in the game, each its own bet. Already settled: into the
-  // sides' moneyNet for a whole-game match, into `playerMoney` for a Team → Match game (a match's
-  // press is paid between that match's players). `pressOffers` are the Press buttons to show now.
+  // PRESSES (§5.dj/§5.dk): every press in a two-team match, each its own bet, already settled into
+  // the sides' moneyNet. `pressOffers` are the Press buttons to show now. Never on a Team → Match
+  // game (§5.dm).
   presses?: PressLine[];
   pressOffers?: PressOfferLine[];
-  // Money paid to (+) or by (−) one PLAYER on top of their side's even share of moneyNet. Today
-  // only a match's presses (§5.dk Q4). Zero-sum on its own. perPlayerNets adds it.
-  playerMoney?: Record<string, number>;
   // Skins only (F-101 d, §5.ca): holes someone has posted but not every tee group has, with who is
   // low so far. Display only: these skins aren't won yet, so they pay nothing.
   openSkins?: {

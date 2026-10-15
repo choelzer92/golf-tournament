@@ -4,8 +4,6 @@ import type { GameModeContext, IndividualResult, MatchLine, PlayerStanding, PotS
 import { boolSetting, junkPayout, numberSetting, parseVector, settleJunkForSides, stringSetting, tallyJunkForSides } from './settings';
 import { settleRoundRobin, settleWinnerTakes, sidesOfGame, type GameSide } from './sides';
 import { ballsPerHole, evenValueOnHole, type TeamFormat } from './team-scoring';
-import { computePresses, pressSettingsOf, type HoleResult, type PressLine, type PressOfferLine } from './presses';
-import { evenTeamSize } from './stake-unit';
 
 // TEAM → MATCH → MONEY (F-037, DECISIONS.md §5.cn / §5.co).
 //
@@ -13,6 +11,9 @@ import { evenTeamSize } from './stake-unit';
 // meet the other team's head to head in MATCHES of that size (1 v 1, 2 v 2, foursome v foursome).
 // Each match is scored by the ordinary team engine on just its two units, so a match IS a 2v2
 // (or singles) game, and its result rolls up into its team's total. Team totals settle the money.
+//
+// NO PRESSES HERE (§5.dm): the money is team against team, and a press must never move the team
+// result. A match could only be pressed on its own side bet, which doesn't exist yet (BACKLOG).
 //
 // Who meets whom is READ FROM THE TEE SHEET (§5.co Q6: the app builds the tee groups from the
 // matches, so a foursome holds one 2v2 or two singles). Nothing new is stored but the settings.
@@ -129,16 +130,6 @@ export function computeMatchGame(
   let thruHole = 0;
   const lines: MatchLine[] = [];
 
-  // PRESSES (§5.dk Q4): a press in a match is paid between THAT MATCH'S PLAYERS, at the leg's stake,
-  // on top of the team result. The legs are stored per team (§5.dd), so a press pays each player
-  // the leg's per-player share. Uneven teams have no per-player share yet (§5.dd, later), so they
-  // don't press.
-  const teamSize = evenTeamSize(teams.map((t) => t.playerIds.length));
-  const pressSet = s('result') === 'match' && moneyModel === 'legs' && teamSize ? pressSettingsOf(bag) : null;
-  const pressStakes = { front: n('legFront') / (teamSize ?? 1), back: n('legBack') / (teamSize ?? 1), overall: n('legOverall') / (teamSize ?? 1) };
-  const pressLines: PressLine[] = [];
-  const pressOffers: PressOfferLine[] = [];
-  const playerMoney: Record<string, number> = {};
 
   for (const m of matches) {
     const ids = new Set(m.units.flatMap((u) => u.playerIds));
@@ -204,31 +195,6 @@ export function computeMatchGame(
     });
     if (moneyModel === 'per-hole') {
       m.units.forEach((u, k) => { perHoleMoney[ui[k]] += r.standings.find((x) => x.playerId === u.teamId.toUpperCase())?.moneyNet ?? 0; });
-    }
-    if (pressSet) {
-      const unitName = (k: number) => r.sideLabels?.find((x) => x.id === m.units[k].teamId)?.name ?? m.units[k].teamId;
-      const pressed = computePresses({
-        holeNumbers: ctx.holes.map((h) => h.number),
-        results: new Map<number, HoleResult>(ctx.holes.map((hole, h) => {
-          const va = vals[0][h];
-          const vb = vals[1][h];
-          if (va == null || vb == null) return [hole.number, null];
-          return [hole.number, holeBetter(va, vb) ? 'a' : holeBetter(vb, va) ? 'b' : 'halved'];
-        })),
-        settings: pressSet,
-        taps: ctx.pressTaps ?? [],
-        stakes: pressStakes,
-        voided: new Set(legs.filter((l) => l.voided).map((l) => l.key)),
-        nineOnly: legs.length === 1 ? (legs[0].key === 'back' ? 'back' : 'front') : null,
-        sides: [m.units[0].teamId, m.units[1].teamId],
-        names: [unitName(0), unitName(1)],
-        match: m.id,
-      });
-      pressLines.push(...pressed.lines);
-      pressOffers.push(...pressed.offers);
-      m.units.forEach((u, k) => u.playerIds.forEach((id) => {
-        playerMoney[id] = (playerMoney[id] ?? 0) + (k === 0 ? pressed.aNet : -pressed.aNet);
-      }));
     }
 
     const overall = legs.length === 1 ? legs[0] : legs.find((l) => l.key === 'overall');
@@ -419,7 +385,6 @@ export function computeMatchGame(
     junkLines: junk?.lines ?? undefined,
     potSlices: potSlices.length > 0 ? potSlices : undefined,
     junkSides: junk ? junk.sides.map((x) => ({ ...x, name: names[teams.findIndex((t) => t.id === x.id)] ?? x.id })) : undefined,
-    ...(pressSet ? { presses: pressLines, pressOffers, playerMoney } : {}),
   };
 }
 
