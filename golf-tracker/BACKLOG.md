@@ -92,6 +92,8 @@ The ≤3 items NEXT_SESSION_PROMPT.md promotes (BETA §3), plus a warm-up.
 
 | Item | What's needed |
 |---|---|
+| **[tag?] Match side bets (§5.dm)**: in a Team → Match game, an optional bet on each match between its players (never in the team score), which could then be pressed. A new capability, not built | [beta] or [after-beta]: his call |
+| **Presses: why can't I press here?** (§5.dm) | Today the Presses setting is simply hidden where it can't apply (Team → Match, 3+ teams, stroke-play legs, pot / per-hole / per-point money). Does he want a one-line reason shown in its place? |
 | **Run the backup once** (bar #8, §5.di); **automating it: LATER (Craig 2026-10-14, "lets just worry about that later")** | `node scripts/export-backup.mjs`, fixed by F-128. Options when he's ready: (rec) a NEW **private** repo with a nightly GitHub Action committing the JSON (free, daily history, failure emails, keeps a free Supabase project from pausing); Supabase Pro daily backups (7-day window); Windows Task Scheduler. **Never store a backup in `golf-tournament` or its Actions artifacts: that repo is PUBLIC** and the data holds names, GHIN numbers and handicaps |
 | **Stroke vs match rounding** (§5.di, open) | A GHIN-app screenshot of a round where its stroke and match numbers differ; the USGA text matches ours |
 | **The local/phone walk** | Match cards (§5.de–§5.dh), F-037 (closes the P1), the Event, the long labels (`e2e/screenshots/f116-event-round-moved.png`) |
@@ -109,6 +111,7 @@ In order after the promoted three: the §5.di strokes defaults, F-121 uneven (ba
 
 | Item | Size | Source |
 |---|---|---|
+| **[beta #10] verify:quick misses specs for the files it changed (found 2026-10-14).** On the presses diff it picked 53 of 55 specs but skipped `f088-f090-hub` (the hub panels, edited), `phase3-payout` and `split-round-money` (money). Its import-to-route mapping doesn't reach them; and a pick that big should just run the full gate (it differs only by the production build). Fix the mapping, and make an over-25 pick run `npm run verify` instead | S | Craig's catch |
 | **[beta #6] §5.di strokes defaults (NEW games, goldens first):** match play defaults to off the low (full stays); the allowance default follows the USGA Appendix C table by format; saved formats + Run it back carry the chosen allowance and stroke settings | S–M | §5.di |
 | **[beta #6]** **F-121 for UNEVEN teams** (§5.dd): goldens first (3 v 2 zero-sum, mutation-checked), NEW games only (a stamp on modeSettings). **Show Craig the goldens before wiring them in** | M | §5.dd |
 | **[beta #2] B6 the guest remembers their group (F-123):** ask "Which group are you in?" once, remember it on the device, open straight to that card next time, hide My Games from guests; the bare URL per Craig's answer. Re-run walk #2 after | S–M | F-123, roadmap B6 |

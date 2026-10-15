@@ -800,6 +800,11 @@ export default function NewPoolGamePage() {
     // set gameMode when present so a plain player-group (no mode) stays classic.
     if (typeof d.gameMode === 'string') setGameMode(d.gameMode);
     if (d.modeSettings && typeof d.modeSettings === 'object') setModeSettings(d.modeSettings);
+    // A classic match's presses live on its match config; the wizard asks them from the bag.
+    if (d.matchConfig?.presses) {
+      const mc = d.matchConfig;
+      setModeSettings((prev) => ({ ...prev, presses: true, pressMode: mc.pressMode ?? 'button', pressOverall: mc.pressOverall === true }));
+    }
     // A saved SIDES game (team-2v2) kept its scoring and money in the settings bag; read them
     // back into the neutral scoring/money answers the collapsed wizard asks.
     const sidesMode = getGameMode(d.gameMode);
@@ -932,6 +937,11 @@ export default function NewPoolGamePage() {
         overall: num(matchLegs.overall, DEFAULT_MATCH_CONFIG.legDollars.overall),
       },
       junkPerPoint: num(matchJunkPerPoint, DEFAULT_MATCH_CONFIG.junkPerPoint),
+      // Presses (§5.dk): asked with the team engine's own settings (the same keys, kept in the
+      // wizard's settings bag), stored on the match config. Hole-by-hole legs only (Q3).
+      ...(compareBy === 'match' && modeSettings.presses === true
+        ? { presses: true, pressMode: modeSettings.pressMode === 'auto' ? 'auto' as const : 'button' as const, pressOverall: modeSettings.pressOverall === true }
+        : {}),
     };
   }
 

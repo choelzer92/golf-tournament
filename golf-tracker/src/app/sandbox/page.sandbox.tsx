@@ -401,6 +401,28 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    key: 'presses-two-down',
+    label: 'Presses: 2 v 2 match play, 2 down after 2 (Press button)',
+    detail: '§5.dj/§5.dk: Craig & Jym bogey 1 and 2, so they are 2 down in the front and the card offers "press the front 9". Tap it, then remove it.',
+    build: () => {
+      const ps = players([0, 0, 0, 0]);
+      const game = baseGame({
+        players: ps,
+        name: 'Press test',
+        gameMode: 'team-2v2',
+        subTeams: { a: ['sp1', 'sp2'], b: ['sp3', 'sp4'] },
+        modeSettings: {
+          format: 'best-ball', scoring: 'stroke', result: 'match',
+          moneyModel: 'legs', legFront: 20, legBack: 20, legOverall: 20,
+          junkEnabled: false, presses: true, pressMode: 'button',
+        },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1', teeTime: '8:10' }],
+      });
+      saveGameScores('sm1', scores(ps.map((p) => p.id), [1, 1, 0, 0], [1, 2]));
+      return { game, goTo: (id) => `/pool/${id}` };
+    },
+  },
+  {
     key: 'one-v-one-nassau',
     label: '1 v 1 singles match — Nassau, thru 14',
     detail: 'The two-player match that used to be impossible (playersMin was 4). Front/back/overall settle separately. Check the board reads "Craig" not "Craig (solo)".',

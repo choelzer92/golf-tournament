@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { type PoolGame, DEFAULT_MATCH_CONFIG, isPoolGameFullyScored, poolGameHasAnyScore } from '@/lib/pool-game';
 import { incompleteLegsForCloseOut, persistedSides, sidesOfGame, type IncompleteLeg } from '@/lib/game-modes/sides';
 import { MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
+import { PRESS_KEYS, pressesFit } from '@/lib/game-modes/presses';
+import { matchSizeOf } from '@/lib/game-modes/match-pairing';
 import { type GameScore } from '@/lib/game-state';
 import { fetchGameScores } from '@/lib/tournament-state';
 import { getGameMode, buildGameModeContext, settingValue } from '@/lib/game-modes';
@@ -23,6 +25,7 @@ export function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
     const rows = indMode.settings.filter((s) => {
       // Phase 3 step 3: a 3+-team payout choice says nothing about a two-team game.
       if (fewTeams && MULTI_TEAM_ONLY_KEYS.has(s.key)) return false;
+      if (PRESS_KEYS.has(s.key) && !pressesFit(sidesOfGame(game).map((x) => x.playerIds.length), matchSizeOf(settings))) return false;
       if (!s.showIf) return true;
       const conds = Array.isArray(s.showIf) ? s.showIf : [s.showIf];
       return conds.every((c) => c.in.includes(String(settingValue(indMode.settings, settings, c.key))));
@@ -98,7 +101,10 @@ export function MoneySummary({ game, pot }: { game: PoolGame; pot: number }) {
           </div>
           <div className="px-4 py-2 text-xs text-gray-400 border-t">
             {twoTeams
-              ? <>Each leg is won team against team · loser pays the junk difference · {game.handicapAllowance === 0 ? 'gross' : `${game.handicapAllowance}% handicap`}</>
+              ? <>Each leg is won team against team · loser pays the junk difference · {game.handicapAllowance === 0 ? 'gross' : `${game.handicapAllowance}% handicap`}
+                  {cfg.presses && cfg.scoring === 'holes' && (
+                    <> · presses {cfg.pressMode === 'auto' ? 'start automatically at 2 down' : 'start when the scorer taps Press at 2 down'}{cfg.pressOverall ? ', the overall too' : ', nines only'}</>
+                  )}</>
               : <span className="text-amber-600">Head-to-head needs exactly two foursomes — this game has {game.teams.length}. Payouts show $0 until it&apos;s two teams.</span>}
           </div>
         </div>

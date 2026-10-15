@@ -22,6 +22,7 @@ import { getGameMode, fitExplanation, formatSummaryLine, playerRangeText, type S
 import { sideNameFrom, allSidesAreSolo, MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
 import { GROSS_HIDES, isGross } from '@/components/net-gross-switch';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
+import { PRESS_KEYS, PRESS_SETTINGS, pressesFit } from '@/lib/game-modes/presses';
 import { evenTeamSize, perPlayerAmount, TEAM_STAKE_KEYS } from '@/lib/game-modes/stake-unit';
 import { HandicapChip } from '@/components/handicap-chain';
 import { type Container, type MoneyModel, type MoneyModelOption } from '@/lib/game-structure';
@@ -39,6 +40,8 @@ const SIDES_STAKES_KEYS = new Set([
   // F-037 (§5.co): how a match counts toward the team, Nassau legs, team tiebreak. Shown only with
   // matches on (showIf); the match SIZE itself is asked on the Compete step.
   'matchCounting', 'matchNassau', 'matchPtsFront', 'matchPtsBack', 'matchPtsOverall', 'teamTiebreak',
+  // Presses (§5.dk): match-play legs only (their showIf); two teams, or Team → Match games.
+  ...PRESS_KEYS,
 ]);
 // HOW JUNK PAYS — asked UNDER the bonus grid it depends on (F-093 A, §5.bs), not above it in the
 // stakes. Junk POINTS (birdie / eagle / albatross / all-par / closest) come from that shared grid
@@ -245,6 +248,8 @@ export function CreateStep({
   // F-037: a matches game names its matches, as the hub's label does.
 
   // §5.dd: with even teams the team engine's stakes are asked per player (stored × team size).
+  // Presses are a head-to-head bet (§5.dk): two teams, or Team → Match between even teams.
+  const pressesFitHere = pressesFit((sides ?? []).map((t) => t.playerIds.length), Number(modeSettings.matchSize ?? 0));
   const stakeTeamSize = container === 'sides' ? evenTeamSize(((sides ?? []).length > 0 ? sides! : teams).map((t) => t.playerIds.length)) : null;
 
   return (
@@ -392,7 +397,9 @@ export function CreateStep({
             perPlayer={stakeTeamSize ? { keys: TEAM_STAKE_KEYS, teamSize: stakeTeamSize } : undefined}
             hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_STAKES_KEYS.has(k)
               // A payout choice that only bites with 3+ teams is not asked of a smaller game.
-              || (MULTI_TEAM_ONLY_KEYS.has(k) && (sides ?? []).length < 3))}
+              || (MULTI_TEAM_ONLY_KEYS.has(k) && (sides ?? []).length < 3)
+              // Presses need a head-to-head: two teams, or matches between even teams (§5.dk Q4).
+              || (PRESS_KEYS.has(k) && !pressesFitHere))}
           />
           {/* F-096 A (§5.bs): the pot's SHARES as one row of small boxes — the classic pot-dollars
               layout — instead of three schema rows. Scaled to the pot, so any numbers that read
@@ -552,6 +559,17 @@ export function CreateStep({
           <p className="text-xs text-gray-500 mt-1">
             Each leg is paid by every player on the losing team to the winners; junk points settle at the per-point rate.
           </p>
+          {/* Presses (§5.dk): the team engine's own settings, so both containers ask them alike.
+              Hole-by-hole legs only (Q3); a press pays its leg's $ / player. */}
+          {teams.length === 2 && matchConfig.scoring === 'holes' && (
+            <div className="mt-3">
+              <ModeSettingsEditor
+                schema={PRESS_SETTINGS}
+                values={{ ...modeSettings, moneyModel: 'legs', result: 'match' }}
+                onChangeAction={(key, value) => setModeSettings({ [key]: value })}
+              />
+            </div>
+          )}
           {teams.length !== 2 && (
             <p className="text-xs text-amber-700 mt-2">
               Head-to-head needs exactly two foursomes — you have {teams.length}. Go back and make two teams, or switch to Pool (pot split).

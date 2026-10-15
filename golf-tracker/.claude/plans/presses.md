@@ -1,7 +1,18 @@
 # Presses: design note (§5.dj)
 
-Status 2026-10-14: the rules module and goldens exist; **nothing is wired.** Q1–Q4 ANSWERED (§5.dk). Craig sees this note and the
-goldens before the setting, the Press button and the settle-up lines are built (money math, §2).
+Status 2026-10-14 (4th session): **WIRED** on both axes (§5 below), Q1–Q4 answered (§5.dk). Wiring tests:
+`src/test/presses-wired.test.ts` (team engine, Team → Match, classic match; zero-sum; ledger == board; mutation-checked).
+e2e: `e2e/presses.spec.ts` (tap Press, see it on card + board, remove it).
+
+**Readings made while wiring (for Craig's batch, each changes money only where noted):**
+- **Team → Match press stake = the leg's PER-PLAYER share** (stored per-team leg ÷ team size, §5.dd). A 4 v 4 at $5 a
+  player a leg ($20 stored): a singles press pays $5 player to player; a 2 v 2 press $5 to each of the two. The other
+  reading, the full $20 per match press, would make a singles press 4× the player's leg.
+- **Uneven Team → Match teams don't press** (no per-player amount exists until §5.dd's uneven rule). Hidden in setup.
+- **Pressing defaults to the button** (§5.cy's original ask); auto is the other choice.
+- **Auto presses can be removed too** (§5.dj "removable any time"): the removal is stored, so the press doesn't
+  re-derive.
+- **The hub can turn presses on or off mid-round**, like every other money setting there (no new lock).
 
 - Rules: `src/lib/game-modes/presses.ts` (pure, unused by the app).
 - Goldens: `src/test/presses-golden.test.ts`, 16 tests. Mutation-checked: a 3-down trigger, more than one

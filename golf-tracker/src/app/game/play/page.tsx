@@ -16,6 +16,8 @@ import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, compute
 import { getMoneyStrokesOnHole } from '@/lib/money-games';
 import { strokesOffTheLow, strokesOnHole } from '@/lib/strokes';
 import { computeGameResult, isModeEngineGame, gameCountsCtp } from '@/lib/game-modes/result';
+import { pressSettingsOf } from '@/lib/game-modes/presses';
+import { PressPanel } from './press-panel';
 import { sidesForCompute } from '@/lib/game-modes/context';
 import { getGameMode } from '@/lib/game-modes';
 import { sideNamesForGame } from '@/lib/game-modes/team-game';
@@ -423,6 +425,41 @@ export default function PlayGamePage() {
         .flatMap((m) => m.units.map((u) => ({ id: `${m.id}-${u.teamId}`, name: u.name, values: u.values, total: u.total, place: u.place, status: u.status })));
     }
     return result.sideBreakdown ?? null;
+  })();
+
+  // PRESSES (§5.dj/§5.dk): this card's presses and Press buttons, straight from the engine (both
+  // axes carry them), over every group's scores as the side rows above are. Null when off.
+  const pressView = (() => {
+    if (!poolGame || !poolCtx) return null;
+    const modeGame = isModeEngineGame(poolGame);
+    const set = modeGame
+      ? pressSettingsOf(poolGame.modeSettings ?? {})
+      : poolGame.moneyMode === 'match' ? pressSettingsOf({ ...(poolGame.matchConfig ?? {}) } as Record<string, string | number | boolean>) : null;
+    if (!set) return null;
+    void poolOtherTick;
+    const byMatchup = new Map<string, GameScore[]>([[poolCtx.matchupId, scores]]);
+    for (const t of poolGame.teams) {
+      if (t.matchupId === poolCtx.matchupId) continue;
+      const cached = loadGameScores(t.matchupId);
+      if (Array.isArray(cached)) byMatchup.set(t.matchupId, cached);
+    }
+    const result = computeGameResult(poolGame, byMatchup);
+    if (!result.presses) return null;
+    // A Team → Match game: only the matches with a player on this card.
+    const mine = new Set(poolGame.teams.find((t) => t.matchupId === poolCtx.matchupId)?.playerIds ?? []);
+    const matchIds = result.kind === 'individual' && result.matches
+      ? result.matches.filter((m) => m.units.some((u) => u.playerIds.some((id) => mine.has(id)))).map((m) => m.id)
+      : null;
+    const inScope = (x: { match?: string }) => matchIds === null || (x.match !== undefined && matchIds.includes(x.match));
+    // The stake is per team on a whole-game team match; a match's press and the classic legs are
+    // already per player.
+    const sizes = sidesForCompute(poolGame).map((x) => x.playerIds.length);
+    const stakeDivisor = !modeGame || matchIds !== null ? 1 : sizes.every((k) => k === sizes[0]) ? sizes[0] : null;
+    return {
+      mode: set.mode, matchIds, stakeDivisor,
+      presses: result.presses.filter(inScope),
+      offers: (result.pressOffers ?? []).filter(inScope),
+    };
   })();
 
   // Manual bonuses (sandies, barkies, …) the app can't read off a scorecard. The SCORER
@@ -1893,6 +1930,18 @@ export default function PlayGamePage() {
             </div>
           );
         })()}
+
+        {pressView && poolGame && (
+          <PressPanel
+            game={poolGame}
+            mode={pressView.mode}
+            presses={pressView.presses}
+            offers={pressView.offers}
+            stakeDivisor={pressView.stakeDivisor}
+            matchIds={pressView.matchIds}
+            onSavedAction={setPoolGame}
+          />
+        )}
 
         {/* F-101 d (§5.bw): an individual game across tee groups. This card is this group's; the
             rest of the field is scored on its own cards and ranked on Standings. */}
