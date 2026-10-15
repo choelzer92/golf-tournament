@@ -11,7 +11,8 @@ rewriting this file with the next 3 from "The road" below.
 
 ## State (2026-10-15, end of the 4th session)
 
-Branch **`series-2026-10-12`**, NOT merged or pushed (merging is Craig's call, §5.ab). The full gate is GREEN at the end of the
+**`series-2026-10-12` is MERGED to `main` and pushed (9ffe7e4, 2026-10-15, on Craig's word: nobody was using the app).**
+Start the next session on a NEW branch off `main`; don't merge or push it without Craig (§5.ab). The full gate is GREEN at the end of the
 session (`.claude/verify-2026-10-15-final2.log`: VERIFY_EXIT=0, unit 2888, e2e 292). Check it, then start below.
 
 Done 2026-10-14/15 (4th session):
@@ -54,8 +55,8 @@ play"/"2 up"; Rec A, read both from the engine and the label); the **verify:quic
 ## Craig's batch (collect here; he checks locally at the end)
 
 Ask these when he's back, one at a time where the answer shapes code. Don't guess any of them.
-- **Merge + deploy `series-2026-10-12`**, then the two-phone walk: score on one phone, watch a second phone and
-  the leaderboard update live (closes bar #5; the migration is already live, `.claude/plans/score-cells-migration.md`).
+- **Live updates between two phones** on the new per-cell scores (the one thing screenshots can't show): a glance
+  during a normal round is enough, no dedicated walk (closes bar #5). Fails safe: the 15s check still catches up.
 - The local/phone walk: match cards (§5.de–§5.dh), F-037 (closes the P1), the Event, presses
   (`e2e/screenshots/presses-*.png`), the long labels at 390px.
 - The branding/design session (bar #7): theme, icon, name, and F-114.
