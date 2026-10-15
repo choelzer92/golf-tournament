@@ -21,13 +21,14 @@ The ≤3 items NEXT_SESSION_PROMPT.md promotes (BETA §3), plus a warm-up.
 
 | Item | Size | Source |
 |---|---|---|
-| **[beta #5] PROMOTED 2026-10-14 (2nd session):** **F-063 C — per-cell score rows + an outbox.** Approved (§5.ce). Investigate (schema, migration, dual-read + backfill, RLS, realtime), write the plan into roadmap Phase C, build it sandbox-first (the fake gains the table). **Hard stop: show Craig the live migration before it touches live** | M–L | F-063, §5.ce |
-| **WARM-UPS (decided §5.di):** F-122 a blank game name → the game label; F-127 Run it back on Home's card; the groups step's duplicate tee times (§5.dh) | XS–S | §5.di, §5.dh |
+| **PROMOTED 2026-10-15 for the next session (details in "Next few sessions" below):** 1. [beta #6] §5.di strokes defaults (goldens first); 2. [beta #6] F-121 uneven teams (goldens shown to Craig before wiring); 3. [beta #2] B6 the guest remembers their group (F-123 A). F-063 C is DONE (migration live), it closes with the deploy + Craig's two-phone walk | — | NEXT_SESSION_PROMPT |
 
 ## Done recently
 
 | Item | When |
 |---|---|
+| **2026-10-15 session 4 (cont.):** F-063 C BUILT (e407b21, c12e849) and its migration RUN ON LIVE, verified 131/131 cards; backup run (bar #8 closed); B5 dropped (§5.do); warm-ups F-122, F-127, §5.dh tee times (70b034e) | 2026-10-15 |
+| **2026-10-14 session 4: PRESSES BUILT** (60b3c11, 657292e, a15bd56, cd8aac4): a setup toggle (off), auto or the Press button, the overall its own toggle; the team engine's two-team match and the classic two-foursome match; the card's Press panel (names the bet, remove with a note) and each press its own leaderboard line. §5.dm: Team → Match games don't press. Full gate green (290 e2e) | 2026-10-14 |
 | **2026-10-14 (2nd session):** persona walks for bars #1–#3 measured (`persona-walks.spec.ts`: #1 21 taps + 21 typed fields, #2 2 taps to a score, #3 9 taps), findings F-122–F-128; F-124 "Welcome" for a first-timer (2189d95); F-128 the backup script paged past the 1000-row cap (1eda25e); bar #6 stroke vs match play check written up, no math change (c8bc6df, `.claude/plans/stroke-vs-match-play.md`); bar #8 JSON export investigated (7f7a84a, `.claude/plans/json-export.md`); bar #7 the group Rename field is white (9a2a874) | 2026-10-14 |
 | **2026-10-13/14:** F-115 the game label (ff57f3b, §5.da/§5.db); F-116 optional dates + round order (1442a97, §5.dc); F-121 per-player money on even teams (05d3de3, §5.dd); the MATCH CARDS as the teams step's one editor (ac752eb, §5.de/§5.dg/§5.dh: playing handicaps, tap-to-swap, names in the legend, captain "C", sizes from step 2 only). Groomed: the done rows of Now and Next were cleared (F-097, the collapse merge, the Event + its follow-ups, F-110, F-108, F-106, F-107, F-037 gaps, F-060, F-071, F-073–F-096, hide-holes, Home by group, B1, F-101 a–d, F-100, F-102, F-070, the gate speed work); their history is in git and FINDINGS | 2026-10-14 |
 | **2026-10-13:** bar #11 3-day persona walk measured (2776328); §5.cz; F-120 summary reads the money mode + F-118/F-117 "game type – course" names (661d790); F-119 a–e polish | 2026-10-13 |
@@ -108,7 +109,6 @@ In order after the promoted three: the §5.di strokes defaults, F-121 uneven (ba
 
 | Item | Size | Source |
 |---|---|---|
-| **2026-10-14 session 4: PRESSES BUILT** (60b3c11, 657292e, a15bd56, cd8aac4): a setup toggle (off), auto or the Press button, the overall its own toggle; the team engine's two-team match and the classic two-foursome match; the card's Press panel (names the bet, remove with a note) and each press its own leaderboard line. §5.dm: Team → Match games don't press. Full gate green (290 e2e) | — | 2026-10-14 |
 | **[beta #10] verify:quick misses specs for the files it changed (found 2026-10-14).** On the presses diff it picked 53 of 55 specs but skipped `f088-f090-hub` (the hub panels, edited), `phase3-payout` and `split-round-money` (money). Its import-to-route mapping doesn't reach them; and a pick that big should just run the full gate (it differs only by the production build). Fix the mapping, and make an over-25 pick run `npm run verify` instead | S | Craig's catch |
 | **[beta #6] §5.di strokes defaults (NEW games, goldens first):** match play defaults to off the low (full stays); the allowance default follows the USGA Appendix C table by format; saved formats + Run it back carry the chosen allowance and stroke settings | S–M | §5.di |
 | **[beta #6]** **F-121 for UNEVEN teams** (§5.dd): goldens first (3 v 2 zero-sum, mutation-checked), NEW games only (a stamp on modeSettings). **Show Craig the goldens before wiring them in** | M | §5.dd |

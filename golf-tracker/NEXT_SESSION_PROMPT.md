@@ -9,88 +9,69 @@ So: finish every bar item that doesn't need him, session after session, and BATC
 (below) instead of stopping on it. Each session still takes at most 3 items (BETA §3) and ends by
 rewriting this file with the next 3 from "The road" below.
 
-## State (2026-10-14, end of the 3rd session)
+## State (2026-10-15, end of the 4th session)
 
-Branch **`series-2026-10-12`**, NOT merged or pushed (merging is Craig's call, §5.ab). The full gate's
-result is in `.claude/verify-2026-10-14-s3.log`: check its `VERIFY_EXIT=` line first, and fix anything
-that isn't 0 before the items below.
+Branch **`series-2026-10-12`**, NOT merged or pushed (merging is Craig's call, §5.ab). **The session's final
+full gate was KILLED for low memory** mid-e2e (tsc, build and unit 2888 had passed, no e2e failure seen;
+`.claude/verify-2026-10-15-final.log`). The last COMPLETE green gate was before the warm-ups (c12e849); the
+warm-ups' own specs passed separately. **Run `PW_WORKERS=1 npm run verify` first** and fix anything that isn't 0.
 
-Done 2026-10-14 (3rd session):
-- **Presses rules + goldens** (`src/lib/game-modes/presses.ts`, `src/test/presses-golden.test.ts`, design
-  note `.claude/plans/presses.md`). Craig answered all of it (§5.dk):
-  - the overall = a separate toggle, off by default;
-  - match-play legs only;
-  - a Team → Match press is paid between that match's players;
-  - ONLY THE LOSING SIDE PRESSES: it re-presses its own press when 2 down in it; a collapsed leader may
-    press the leg.
-- **§5.dl BUILT:** match play strokes off the low = round(unrounded difference); stroke play still
-  rounds each. One rule for all games, from Craig's GHIN numbers (`match-play-rounding.test.ts`).
+Done 2026-10-14/15 (4th session):
+- **Presses BUILT** (§5.dj/§5.dk/§5.dm): a setup toggle (off), auto or the Press button, the overall its own
+  toggle; the two-team match (team engine) and the classic two-foursome match; the card's Press panel and each
+  press its own leaderboard line. **§5.dm: Team → Match games (individual matches inside teams) don't press**,
+  since a press must never move a team result; match side bets are a BACKLOG idea.
+- **F-063 C BUILT and its migration RUN ON LIVE (2026-10-15)**: per-cell `score_cells` + a localStorage outbox;
+  the later TAP wins (§5.dn); audit server-side; the old card blob kept current by trigger (rollback =
+  redeploy). Verified on PGlite, on a copy of live, and live read-only (131/131 cards). **Every phone is still
+  on the old app until Craig merges and deploys.** Then his two-phone walk closes bar #5.
+- **Backup run** (bar #8 closed). **B5 paste names dropped** (§5.do: GHIN lookup + groups cover it).
+- Warm-ups: **F-122** (the name is optional, blank = game + course), **F-127** (Run it back on Home's
+  cards), **§5.dh** (a match game's groups step confirms the card's tee time).
 
 ## This session: the next 3 (all [beta])
 
-1. **Wire presses (§5.dj/§5.dk); the goldens are approved.** Follow the design note's §5 wiring plan, on
-   BOTH axes:
-   - engine `team-game.ts` (expose `holeWinner[]`), `matches.ts` per match, and the classic 2-team match in
-     `pool-game.ts`;
-   - settings `presses` + `pressMode` (auto | button) + `pressOverall`, showIf legs + match play + 2 sides,
-     added to the wizard's `SIDES_STAKES_KEYS`; a saved format and Run it back carry them;
-   - button taps stored as `game.presses: PressTap[]` (jsonb, written through `pool-game.ts` only);
-   - the Press button on the scorecard's match row, naming the bet;
-   - each press as its own line on the leaderboard; the money card lists the bets.
-   Zero-sum per press, the ledger == the scorecard, and an e2e that taps Press and removes it. Walk the UI
-   with screenshots before handoff.
-2. **Bar #5, F-063 C (per-cell score rows + an outbox):** approved (§5.ce). Investigate (schema,
-   migration, dual-read and backfill, RLS, realtime), write the plan into roadmap Phase C, then build it
-   sandbox-first. **Hard stop:** show Craig the live Supabase migration before it touches live.
-3. **Bar #1, B5 paste names (F-126):** one box on the players step takes a whole list ("Lou Park 14",
-   one per line; handicap optional). Re-run `e2e/persona-walks.spec.ts` and record walk #1's count in
-   BETA §4.
+1. **§5.di strokes defaults (bar #6, money defaults, NEW games only, goldens first):** match play DEFAULTS to
+   off the low (full stays available); the allowance default follows the USGA Appendix C table by format
+   (individual stroke 95%, four-ball stroke 85%, singles match 100%, four-ball match 90%), editable; a saved
+   format and Run it back carry the chosen allowance and stroke settings. Stamp new games so live ones don't move.
+2. **Bar #6, F-121 for uneven teams** (§5.dd, decided): goldens first (3 v 2 zero-sum, mutation-checked), NEW
+   games only (a stamp on modeSettings). **Show Craig the goldens before wiring them in.**
+3. **Bar #2, B6 the guest remembers their group (F-123 A):** ask the group once, open straight to that card,
+   hide My Games from guests, and the plain URL shows a "Continue: <game>, <team>" card. Re-run walk #2 after.
 
-Warm-ups if time allows (XS–S, all decided §5.di): F-122 a blank game name falls back to the game label (as
-F-118 does for events), Next always live; F-127 "Run it back" on Home's finished-game card; the groups step's
-duplicate tee times (§5.dh).
+Warm-ups if time allows: **F-129** (the match-play card says "Stroke Play"/"2 back" while the board says "match
+play"/"2 up"; Rec A, read both from the engine and the label); the **verify:quick pick gap** (BACKLOG: it skipped
+`f088-f090-hub`, `phase3-payout`, `split-round-money`; a pick over 25 should run the full gate).
 
 ## The road after that (in order; promote ≤3 per session)
 
-- **§5.di defaults (money defaults, NEW games only, goldens first):** match play DEFAULTS to off the low (full
-  stays available); the allowance default follows the USGA Appendix C table by format (individual stroke 95%,
-  four-ball stroke 85%, singles match 100%, four-ball match 90%), editable; a saved format and Run it back
-  carry the chosen allowance and stroke settings ("saved as the format if they continue to use it").
-- **Bar #6, F-121 for uneven teams** (§5.dd, decided): goldens first (3 v 2 zero-sum, mutation-checked),
-  NEW games only (a stamp on modeSettings). Show Craig the goldens before wiring them in.
-- **Bar #2, B6 the guest remembers their group (F-123 A):** ask the group once, open straight to that card,
-  hide My Games from guests, and the plain URL shows a "Continue: <game>, <team>" card. Re-run walk #2 after.
 - **Bar #1, B7 plain words (F-125):** build, then show Craig the words.
 - **Then S2 convergence** (S2.0–S2.6; `.claude/plans/spine-s2.md` §6/§7, answers in §5.cs). It's not a bar
   item, so it comes after the bar items. Run both corpus harnesses before and after every slice.
-- **The design/branding session, LAST before Craig's walk** (bar #7, §5.ci: "when we are almost done with the
-  beta"): name, icon, theme, and F-114 (event standings on a phone). Then Craig walks the branded app once and
-  merges (bar #10). It's a conversation with Craig, so schedule it when he's present.
-
-Bar #8 is no longer an app feature (§5.di): the backup is separate maintenance, the fixed
-`scripts/export-backup.mjs`. Craig runs it once to close the bar.
+- **The design/branding session, LAST before Craig's walk** (bar #7, §5.ci): name, icon, theme, and F-114
+  (event standings on a phone). Then Craig walks the branded app once and merges (bar #10). It's a
+  conversation with Craig, so schedule it when he's present.
 
 ## Craig's batch (collect here; he checks locally at the end)
 
 Ask these when he's back, one at a time where the answer shapes code. Don't guess any of them.
-- The local/phone walk: match cards (§5.de–§5.dh), F-037 (closes the P1), the Event, the long labels
-  (two lines at 390px, `e2e/screenshots/f116-event-round-moved.png`).
-- Merging `series-2026-10-12` (bar #10 needs his walk and merge).
-- The branding/design session (bar #7): theme, icon, name, and F-114 (event standings on a phone).
+- **Merge + deploy `series-2026-10-12`**, then the two-phone walk: score on one phone, watch a second phone and
+  the leaderboard update live (closes bar #5; the migration is already live, `.claude/plans/score-cells-migration.md`).
+- The local/phone walk: match cards (§5.de–§5.dh), F-037 (closes the P1), the Event, presses
+  (`e2e/screenshots/presses-*.png`), the long labels at 390px.
+- The branding/design session (bar #7): theme, icon, name, and F-114.
 - Saved formats carrying the pot split.
 - A GHIN-app side-by-side of a four-ball match off the low (F-037 T4, bar #6).
-- The `[tag?]` rows in BACKLOG (BETA §2: [beta] or [after-beta] is his call).
-- BACKLOG Ideas, **"Truly the best"** (2026-10-14): which, if any, to promote after the beta. Settle up in
-  one tap, the season ledger, a shareable recap, live match status, a guest joining at the turn, score fixes
-  with a trail.
-- **Run the backup once:** `node scripts/export-backup.mjs` (fixed by F-128) closes bar #8.
-- **Stroke vs match rounding: DONE (§5.dl).** Match play rounds the unrounded difference, and stroke play rounds each. Built 2026-10-14 for all games.
-- Whatever the three items above add.
+- The `[tag?]` rows in BACKLOG, including **match side bets** (§5.dm) and **"why can't I press here?"** (a
+  one-line reason where the Presses setting is hidden).
+- **F-130:** add "· presses" to the game label? (Rec A.)
+- BACKLOG Ideas, **"Truly the best"**: which, if any, to promote after the beta.
+- Whatever this session's three items add.
 
 ## Settled (don't re-ask)
 
-§5.da–§5.dl (2026-10-13/14: label, dates, per-player money, the match cards on the teams step, one editor,
-sizes from step 2, a tap only swaps; §5.di the persona-walk answers, the backup, the strokes defaults; §5.dj presses). §5.df is superseded by §5.dg. Earlier: see DECISIONS.md.
+§5.da–§5.do (2026-10-13/15). §5.df is superseded by §5.dg. Earlier: see DECISIONS.md.
 
 ## Machine notes
 
@@ -101,10 +82,14 @@ sizes from step 2, a tap only swaps; §5.di the persona-walk answers, the backup
   then fails with "3201 already used". Clear only this project's: PowerShell `Get-CimInstance
   Win32_Process`, match `*next*start*3201*`, `*playwright*test*` and `*next*build*`, and `Stop-Process`
   each by id. Stop your own `next dev --port 3200` before a gate too.
-- Python on this machine writes cp1252 + CRLF by default. Pass `encoding='utf-8', newline='\n'` to
-  `open()`, or em dashes turn to mojibake. Long inline scripts can trip the shell's quoting: write the
-  script to a file outside the repo and run it with `python -I`.
+- **Live migrations:** auto mode blocks `supabase db push`. Do the backup, a PGlite rehearsal on it
+  (`.claude/rehearse-score-cells.mjs` is the pattern), `migration list` and `db push --dry-run` yourself; then
+  Craig runs `! npx -y supabase@2.121.0 db push --yes`. Never edit permission settings to get past the block.
+- **Shared-lib changes: run the full gate, not verify:quick** (its pick over 25 specs skips some and omits the
+  production build; Craig's catch, 2026-10-14).
+- Python on this machine writes cp1252 + CRLF by default. Pass `encoding='utf-8', newline='\n'` to `open()`.
+  Long inline scripts trip the shell's heredoc quoting: write the script with the Write tool to
+  `%LOCALAPPDATA%\Temp\` and run it with `python -I "$LOCALAPPDATA/Temp/x.py"` (python doesn't see `/tmp`).
 - Vitest's setup swallows `console.log`; probe with a failing `expect(...).toBe('x')` and read "Received".
-- **Mutation-check new tests**: break the fix, confirm the test fails, restore. One today passed blind
-  (it compared captains as a set; a swap of two captains leaves the set unchanged).
+- **Mutation-check new tests**: break the fix, confirm the test fails, restore.
 - If verify shows a TS error inside `.next/dev/types`, delete `.next/dev/types` (a regenerable cache).

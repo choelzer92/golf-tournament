@@ -36,7 +36,7 @@ mocked route (the real search UI runs: type the name, Search, pick it). A "type"
 | #2 invited player | the link → "Enter Scores" on their team → a score | 2 | 0 | **Scoring meets it (~3 taps). "Remembers their group" FAILS (F-123)** |
 | #3 returning organizer | Home → last week's game → Run it back → Next × 6 → Create | 9 | 0 | 1 + Next × 6 as §5.cm accepted, plus Home→game and Create. 2 taps is not met by design (F-127) |
 
-### F-122 — Step 2's Next is greyed out, unexplained, until the game has a name (2026-10-14)  [P2] [start] [beta #1] — **chosen: A (§5.di)**
+### F-122 — Step 2's Next is greyed out, unexplained, until the game has a name (2026-10-14)  [P2] [start] [beta #1] — **BUILT 2026-10-15 (70b034e): the name is optional; blank = game type + course**
 
 A first-timer fills nothing on "How do you want to compete?" (every default is already right) and Next
 stays pale with no reason given; the only empty thing is "What should we call it?" at the top
@@ -76,7 +76,7 @@ wording of each is Craig's to see on the walk, so build first, then show.
 "paste names" box (one field for the whole list, handicaps optional, GHIN later). GHIN search per player
 costs more, not less. Rec: build B5's paste box; it alone likely brings #1 near 2 minutes.
 
-### F-127 — Run it back from Home is two taps before the wizard starts (2026-10-14)  [P3] [continue] [beta #3] — **chosen: A (§5.di)**
+### F-127 — Run it back from Home is two taps before the wizard starts (2026-10-14)  [P3] [continue] [beta #3] — **BUILT 2026-10-15 (70b034e): Run it back on Home's finished-game cards**
 
 Home → the finished game → Run it back. **Options:** A, a "Run it back" link on Home's finished-game card
 (saves 1 tap). B, leave it (§5.cm already accepted 1 + Next × 6). Rec A, small.
