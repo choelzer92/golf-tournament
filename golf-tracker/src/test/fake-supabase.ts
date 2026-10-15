@@ -25,6 +25,8 @@
 // DESIGN RULE: unimplemented methods THROW. A silent empty result would render as
 // plausible-but-wrong UI, which is worse than a crash.
 
+import { resolveCellWrite } from '../lib/score-cells';
+
 type Row = Record<string, unknown>;
 
 // table name -> primary key column. Mirrors supabase/migrations/.
@@ -37,7 +39,12 @@ const PRIMARY_KEYS: Record<string, string> = {
   solo_rounds: 'id',
   feedback_notes: 'id',
   score_audit: '__append__',   // append-only log, no upsert key
+  // F-063 C: one row per (matchup_id, player_id, hole). A composite key, stored under a synthetic
+  // "matchup|player|hole" key; written only through the upsert_score_cells RPC below.
+  score_cells: '__cell__',
 };
+
+const cellRowKey = (r: Row) => `${r.matchup_id}|${r.player_id}|${r.hole}`;
 
 type ChangeHandler = (payload: { new: Row | null; old: Row | null; eventType: string }) => void;
 
@@ -132,6 +139,8 @@ function makeQuery(store: FakeStore, table: string) {
   let orderCol: string | null = null;
   let orderAsc = true;
   let limitN: number | null = null;
+  // A second (and later) .eq() narrows further, as PostgREST's does; the first stays in filterCol.
+  const extraEq: [string, unknown][] = [];
 
   const exec = (): { data: unknown; error: null | { message: string } } => {
     const t = tableOf(store, table);
@@ -140,6 +149,7 @@ function makeQuery(store: FakeStore, table: string) {
     if (mode === 'select') {
       // An append-only table (score_audit) keeps its rows in the log, not the keyed map.
       let rows = pk === '__append__' ? [...(store.appendLog.get(table) ?? [])] : [...t.values()];
+      for (const [col, val] of extraEq) rows = rows.filter((r) => String(r[col]) === String(val));
       if (filterCol !== null) rows = rows.filter((r) => String(r[filterCol!]) === String(filterVal));
       if (inCol !== null) rows = rows.filter((r) => inVals.includes(String(r[inCol!])));
       if (orderCol !== null) {
@@ -163,6 +173,7 @@ function makeQuery(store: FakeStore, table: string) {
 
     if (mode === 'upsert') {
       const rows = Array.isArray(payload) ? payload : [payload!];
+      if (pk === '__cell__') throw new Error('fake-supabase: write score_cells through rpc("upsert_score_cells")');
       for (const row of rows) {
         const key = String(row[pk]);
         t.set(key, { ...row });
@@ -206,7 +217,10 @@ function makeQuery(store: FakeStore, table: string) {
     insert(rows: Row | Row[]) { mode = 'insert'; payload = rows; return builder; },
     delete() { mode = 'delete'; return builder; },
     update(rows: Row) { mode = 'upsert'; payload = rows; return builder; },
-    eq(col: string, val: unknown) { filterCol = col; filterVal = val; return builder; },
+    eq(col: string, val: unknown) {
+      if (filterCol === null) { filterCol = col; filterVal = val; } else extraEq.push([col, val]);
+      return builder;
+    },
     in(col: string, vals: unknown[]) { inCol = col; inVals = vals.map(String); return builder; },
     order(col: string, opts?: { ascending?: boolean }) { orderCol = col; orderAsc = opts?.ascending ?? true; return builder; },
     limit(n: number) { limitN = n; return builder; },
@@ -271,6 +285,50 @@ function mergeGameScores(): never {
   );
 }
 
+// F-063 C: the per-cell write. Unlike merge_game_scores this one IS modelled, because its whole rule
+// is one pure function (`resolveCellWrite`, §5.dn: the later TAP wins) that the SQL applies too:
+// per cell, apply when not older, and audit when the visible score changes. What it can't prove is
+// the SQL's own locking under concurrent requests; the migration's FOR UPDATE row lock does that.
+// A sandbox-only DEAD SPOT for e2e: while sessionStorage holds this flag, the score write fails the
+// way a lost signal does (an error, nothing stored), so a test can tap offline, reload, and reconnect.
+export const SANDBOX_OFFLINE_KEY = '__sandbox_offline__';
+
+function upsertScoreCells(store: FakeStore, args: unknown): { data: null; error: null | { message: string } } {
+  if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(SANDBOX_OFFLINE_KEY) === '1') {
+    return { data: null, error: { message: 'offline (sandbox dead spot)' } };
+  }
+  const cells = ((args as { p_cells?: unknown })?.p_cells ?? []) as {
+    matchupId: string; playerId: string; hole: number; grossScore: number | null; tappedAt: string;
+  }[];
+  const t = tableOf(store, 'score_cells');
+  const audit = store.appendLog.get('score_audit') ?? [];
+  for (const c of cells) {
+    const key = cellRowKey({ matchup_id: c.matchupId, player_id: c.playerId, hole: c.hole });
+    const had = t.get(key);
+    const r = resolveCellWrite(
+      had ? { grossScore: (had.gross_score as number | null) ?? null, tappedAt: String(had.tapped_at) } : null,
+      { grossScore: c.grossScore, tappedAt: c.tappedAt },
+    );
+    if (!r.apply) continue;
+    const row: Row = {
+      matchup_id: c.matchupId, player_id: c.playerId, hole: c.hole,
+      gross_score: c.grossScore, tapped_at: c.tappedAt, updated_at: new Date().toISOString(),
+    };
+    t.set(key, row);
+    store.ops.push({ op: 'upsert', table: 'score_cells', key });
+    emit(store, 'score_cells', { ...row }, 'UPDATE');
+    if (r.audit) {
+      audit.push({
+        changed_at: new Date().toISOString(), matchup_id: c.matchupId, player_id: c.playerId, hole: c.hole,
+        old_score: r.audit.oldScore, new_score: r.audit.newScore,
+      });
+    }
+  }
+  store.appendLog.set('score_audit', audit);
+  persist(store);
+  return { data: null, error: null };
+}
+
 export function createFakeSupabase(store: FakeStore = createFakeStore()) {
   return {
     __store: store,
@@ -282,6 +340,7 @@ export function createFakeSupabase(store: FakeStore = createFakeStore()) {
     },
     rpc(name: string, _args?: unknown) {
       if (name === 'merge_game_scores') return mergeGameScores();
+      if (name === 'upsert_score_cells') return Promise.resolve(upsertScoreCells(store, _args));
       throw new Error(`fake-supabase: rpc("${name}") is not implemented.`);
     },
     channel(name: string) { return makeChannel(store, name); },

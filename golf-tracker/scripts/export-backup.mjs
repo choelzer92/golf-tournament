@@ -33,6 +33,8 @@ const TABLES = {
   solo_rounds: 'id',
   course_scorecards: 'course_id',
   feedback_notes: 'id',
+  // F-063 C: one row per score; a composite key, so it pages ordered by all three columns.
+  score_cells: ['matchup_id', 'player_id', 'hole'],
 };
 
 // PostgREST returns at most 1000 rows per request. A single select('*') silently stopped
@@ -42,7 +44,9 @@ async function selectAll(table, key) {
   const rows = [];
   for (let from = 0; ; from += PAGE) {
     // SELECT only. Never any mutation.
-    const { data, error } = await supabase.from(table).select('*').order(key).range(from, from + PAGE - 1);
+    let q = supabase.from(table).select('*');
+    for (const k of Array.isArray(key) ? key : [key]) q = q.order(k);
+    const { data, error } = await q.range(from, from + PAGE - 1);
     if (error) return { data: null, error };
     rows.push(...data);
     if (data.length < PAGE) return { data: rows, error: null };

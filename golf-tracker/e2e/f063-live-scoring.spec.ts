@@ -38,3 +38,37 @@ test('F-063: a score tapped right before leaving the card is saved (pagehide flu
   await openFirstCard(page, id);
   await expect(page.getByRole('button', { name: '4', exact: true }).first()).toHaveClass(/bg-green-700/);
 });
+
+// F-063 C (§5.ce, BETA bar #5): a DEAD SPOT. The sandbox's score write fails while the flag is set,
+// as a lost signal does. The tap must stay on the card through a reload (it's in the outbox, not
+// only in memory), and reach the backend once the signal is back.
+test('F-063 C: a score tapped in a dead spot survives a reload and is sent when the signal returns', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  const id = await seed(page, 'Classic pool — 2 foursomes, mid-round (thru 6)');
+  await openFirstCard(page, id);
+  await page.evaluate(() => sessionStorage.setItem('__sandbox_offline__', '1'));
+
+  await page.getByRole('button', { name: '4', exact: true }).first().click();
+  // Past the 400ms debounce, so the write has been tried and refused.
+  await page.waitForTimeout(800);
+  const stored = () => page.evaluate(() => {
+    const raw = sessionStorage.getItem('__sandbox_supabase__');
+    const tables = raw ? (JSON.parse(raw).tables as [string, [string, { hole: number; gross_score: number | null }][]][]) : [];
+    const cells = tables.find(([t]) => t === 'score_cells')?.[1] ?? [];
+    return cells.filter(([, r]) => r.hole === 7).length;
+  });
+  const queued = () => page.evaluate(() => JSON.parse(localStorage.getItem('golf-score-outbox-v1') ?? '[]').length as number);
+  expect(await stored()).toBe(0);
+  expect(await queued()).toBe(1);
+
+  // The phone sleeps / the tab is reloaded while still in the dead spot: the tap is still on the card.
+  await page.reload();
+  await expect(page.getByText('Hole 7', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '4', exact: true }).first()).toHaveClass(/bg-green-700/);
+  expect(await stored()).toBe(0);
+
+  // Signal back: the outbox drains, and the score is on the backend.
+  await page.evaluate(() => { sessionStorage.removeItem('__sandbox_offline__'); window.dispatchEvent(new Event('online')); });
+  await expect.poll(stored, { timeout: 10_000 }).toBe(1);
+  await expect.poll(queued).toBe(0);
+});

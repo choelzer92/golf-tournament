@@ -2873,3 +2873,11 @@ a press wouldnt be something that should affect the entire team score."** Also: 
 - Presses stay on games where two teams play each other for the money: 1 v 1, 2 v 2 in a foursome, two teams
   across foursomes without individual matches, and the classic two-foursome match.
 - A match's own side bet (pressable, between its players, never in the team score) is a new capability: BACKLOG.
+
+### 5.dn — F-063 C: when two phones change the same score, the later TAP wins (2026-10-14)
+
+Asked from the C1 build plan (roadmap Phase C, Q1): A, the later tap wins by the phone's tap time even if it reaches
+the server second; or B, the later arrival wins. Craig: **"A, but at the same time, there typically should only be
+one person scoring a round per 4some. but better safe than sorry here. so I like A."** So a correction made on the
+course is never undone by an old tap catching up from a dead spot. The audit keeps both values. One scorer per
+foursome stays the norm; the rule only matters when it isn't followed.

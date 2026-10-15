@@ -227,6 +227,7 @@ promote next. Ideas land in its Ideas section immediately; never build from Idea
 | 5.dk | 2026-10-14: presses Q1 B (a separate 'overall can be pressed' toggle, off), Q3 match play only, Q4 a match's press is paid between its players; Q2 only the LOSING side presses (re-presses its own press; a collapsed leader may press the leg) |
 | 5.dl | 2026-10-14: strokes must match GHIN in BOTH: stroke play rounds each then subtracts (as built); match play rounds the UNROUNDED difference, any allowance, four-ball off the lowest of the four; one rule for ALL games, no stamp; supersedes F-102 g for match play; BUILT |
 | 5.dm | 2026-10-14: a press never moves a team result; Team → Match games (individual matches inside teams) don't press; a match side bet that could be pressed is BACKLOG |
+| 5.dn | 2026-10-14: F-063 C conflict rule A: when two phones change the same score cell, the later TAP (phone tap time) wins, not the later arrival; one scorer per foursome stays the norm |
 
 ---
 

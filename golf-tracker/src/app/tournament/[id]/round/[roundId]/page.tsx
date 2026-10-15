@@ -7,7 +7,7 @@ import { FORMATS, TEAM_MODES, getTeamModeConfig, getUsgaAllowance, getUsgaStroke
 import type { TeamMode } from '@/lib/formats';
 import type { Player, GameSetup, GameScore } from '@/lib/game-state';
 import type { Tournament, TournamentRound, RoundMatchup, RoundBonus, BonusType, SplitFormatConfig, SplitPairing } from '@/lib/tournament-state';
-import { loadTournament, saveTournament, loadGameScores, saveGameScores, fetchGameScores, computeBonuses, fetchTournament, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
+import { loadTournament, saveTournament, loadGameScores, replaceGameScores, fetchGameScores, computeBonuses, fetchTournament, subscribeToTournament, subscribeToScores } from '@/lib/tournament-state';
 import { recomputeMatchResult, getPlayerStrokesForHole, computePlayerStablefordPoints, computeSplitMatchStatuses } from '@/lib/live-scoring';
 
 export default function RoundDetailPage() {
@@ -469,7 +469,7 @@ export default function RoundDetailPage() {
                 }}
                 onReset={() => {
                   if (!confirm('Reset all scores for this matchup? This cannot be undone.')) return;
-                  saveGameScores(matchup.id, []);
+                  replaceGameScores(matchup.id, []);
                   const newMatchupId = crypto.randomUUID();
                   const updatedMatchups = round.matchups.map((m) =>
                     m.id === matchup.id ? { ...m, id: newMatchupId, gameId: null, result: null } : m

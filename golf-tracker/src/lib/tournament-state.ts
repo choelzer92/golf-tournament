@@ -1,6 +1,8 @@
 import type { Player, CourseSelection, GameScore } from './game-state';
 import type { TeamMode } from './formats';
 import { supabase } from './supabase';
+import { cellsToScores, changedCells, overlayPending, replaceCells, type CellWrite, type ScoreCellRow } from './score-cells';
+import { createOutbox } from './score-outbox';
 import { gameVisibleTo, type Viewer } from './game-visibility';
 import { computePlayerStablefordPoints, computePlayerNetTotal, computeSplitMatchStatuses, computeNassauStatus, computeLiveMatchStatus, recomputeMatchResult, getHoleDataForRound, getPlayerStrokesForHole } from './live-scoring';
 import { computeStandingsN, teamsOf } from './tournament-standings';
@@ -251,67 +253,64 @@ export function saveTournament(tournament: Tournament) {
   }).then();
 }
 
-// Append audit rows for any score that was ADDED, CHANGED, or CLEARED between
-// the previous snapshot and the incoming scores for this matchup. Best-effort
-// and fire-and-forget — a logging failure must never block a score save (the
-// score itself persists via the write below). When ownedPlayerIds is given
-// (per-team writes), only those players' changes are diffed, so the other
-// foursome's untouched scores aren't re-logged as spurious changes.
-function auditScoreChanges(matchupId: string, prev: GameScore[] | null, next: GameScore[], ownedPlayerIds?: string[]) {
-  const key = (s: { playerId: string; hole: number }) => `${s.playerId}_${s.hole}`;
-  const inScope = (playerId: string) => !ownedPlayerIds || ownedPlayerIds.includes(playerId);
-  const prevMap = new Map<string, number>();
-  for (const s of prev ?? []) if (inScope(s.playerId)) prevMap.set(key(s), s.grossScore);
-  const nextMap = new Map<string, number>();
-  for (const s of next ?? []) if (inScope(s.playerId)) nextMap.set(key(s), s.grossScore);
+// SCORES ARE PER CELL (F-063 option C, §5.ce / §5.dn). A save sends only the cells it changed, as
+// rows of `score_cells`, through the OUTBOX: queued in localStorage first, sent, and dropped only once
+// the server acknowledges them. So two phones can't erase each other's taps, and a dead spot, a
+// reload or a killed tab loses nothing. The server's `upsert_score_cells` applies the conflict rule
+// (the later TAP wins, §5.dn) and writes `score_audit` itself, so the audit can't be dropped either.
+// The rest of the app still reads one `GameScore[]` per matchup (`cellsToScores`).
+const scoreOutbox = createOutbox({
+  storage: typeof localStorage !== 'undefined' ? localStorage : null,
+  send: async (cells: CellWrite[]) => {
+    const { error } = await supabase.rpc('upsert_score_cells', { p_cells: cells });
+    return !error;
+  },
+  schedule: (fn, ms) => { setTimeout(fn, ms); },
+});
 
-  const rows: { matchup_id: string; player_id: string; hole: number; old_score: number | null; new_score: number | null }[] = [];
-  const seen = new Set<string>();
-  const consider = (s: { playerId: string; hole: number }) => {
-    const k = key(s);
-    if (seen.has(k)) return;
-    seen.add(k);
-    const oldV = prevMap.has(k) ? prevMap.get(k)! : null;
-    const newV = nextMap.has(k) ? nextMap.get(k)! : null;
-    if (oldV !== newV) rows.push({ matchup_id: matchupId, player_id: s.playerId, hole: s.hole, old_score: oldV, new_score: newV });
-  };
-  for (const s of next ?? []) if (inScope(s.playerId)) consider(s);
-  for (const s of prev ?? []) if (inScope(s.playerId)) consider(s);
+// Drain what an earlier visit left queued, from whichever page the app opens on (this module is
+// imported by every scoring surface), and again whenever the phone comes back online or awake.
+let outboxStarted = false;
+export function startScoreOutbox() {
+  if (outboxStarted || typeof window === 'undefined') return;
+  outboxStarted = true;
+  window.addEventListener('online', () => { void scoreOutbox.drain(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void scoreOutbox.drain();
+  });
+  void scoreOutbox.drain();
+}
+startScoreOutbox();
 
-  if (rows.length === 0) return;
-  // Fire-and-forget; swallow errors (e.g. table not yet migrated) so saves never break.
-  supabase.from('score_audit').insert(rows).then(undefined, () => {});
+/** Cells tapped on this device that the server hasn't acknowledged yet (all matchups, or one). */
+export function pendingScoreCells(matchupId?: string): CellWrite[] {
+  return scoreOutbox.pending(matchupId);
 }
 
+/**
+ * Save a card. Sends every score that is new or changed since the server's last copy; never a
+ * clear (the card never clears a score, and a clear read from ABSENCE would erase another phone's
+ * tap). `ownedPlayerIds` (tournament split scoring) limits it to the players this phone scores.
+ */
 export function saveGameScores(matchupId: string, scores: any, ownedPlayerIds?: string[]) {
-  // Audit is fully insulated: anything it does is wrapped so a logging bug can
-  // NEVER prevent the score write below. Diff against the last PERSISTED
-  // snapshot (not scoresCache, which the play page overwrites on every
-  // keystroke), then advance the baseline.
-  try {
-    if (Array.isArray(scores)) {
-      const baseline = lastPersistedScores.get(matchupId) ?? null;
-      auditScoreChanges(matchupId, baseline, scores as GameScore[], ownedPlayerIds);
-      lastPersistedScores.set(matchupId, (scores as GameScore[]).map((s) => ({ ...s })));
-    }
-  } catch { /* never let auditing block a score save */ }
-
+  const next: GameScore[] = Array.isArray(scores) ? scores : [];
+  const baseline = lastPersistedScores.get(matchupId) ?? [];
+  const writes = changedCells(matchupId, baseline, next, new Date().toISOString(), ownedPlayerIds);
   scoresCache.set(matchupId, scores);
+  lastPersistedScores.set(matchupId, overlayPending(baseline, writes));
+  scoreOutbox.push(writes);
+}
 
-  if (ownedPlayerIds && ownedPlayerIds.length > 0) {
-    const ownedScores = (scores as any[]).filter((s: any) => ownedPlayerIds.includes(s.playerId));
-    supabase.rpc('merge_game_scores', {
-      p_matchup_id: matchupId,
-      p_player_ids: ownedPlayerIds,
-      p_scores: ownedScores,
-    }).then();
-  } else {
-    supabase.from('game_scores').upsert({
-      matchup_id: matchupId,
-      data: scores,
-      updated_at: new Date().toISOString(),
-    }).then();
-  }
+/**
+ * REPLACE a card with exactly `scores` (a rebalance emptying a group, a reshape moving a player, a
+ * tournament reset): every cell it knows of that isn't in `scores` is cleared (a tombstone).
+ */
+export function replaceGameScores(matchupId: string, scores: GameScore[]) {
+  const known = [...(lastPersistedScores.get(matchupId) ?? []), ...((scoresCache.get(matchupId) as GameScore[] | undefined) ?? [])];
+  const writes = replaceCells(matchupId, known, scores, new Date().toISOString());
+  scoresCache.set(matchupId, scores);
+  lastPersistedScores.set(matchupId, scores.map((x) => ({ ...x })));
+  scoreOutbox.push(writes);
 }
 
 export function cacheGameScores(matchupId: string, scores: any) {
@@ -415,17 +414,25 @@ export async function fetchTournament(id: string): Promise<Tournament | null> {
   return null;
 }
 
-// Fetch scores for a matchup from Supabase into cache (always hits network)
+// Fetch scores for a matchup from Supabase into cache (always hits network). Reads the per-cell
+// rows; a card with none yet falls back to its old `game_scores` blob (DUAL READ, for a card the
+// migration's backfill hasn't reached). This device's unacknowledged taps are laid over the
+// server's copy, so a queued tap never disappears from the screen.
 export async function fetchGameScores(matchupId: string): Promise<any | null> {
-  const { data } = await supabase.from('game_scores').select('data').eq('matchup_id', matchupId).single();
-  if (data) {
-    scoresCache.set(matchupId, data.data);
-    // Seed the audit baseline to server truth so the next save logs only the
-    // real delta (not every pre-existing score as a fresh entry).
-    lastPersistedScores.set(matchupId, ((data.data as GameScore[]) ?? []).map((s) => ({ ...s })));
-    return data.data;
+  const { data, error } = await supabase.from('score_cells').select('player_id, hole, gross_score').eq('matchup_id', matchupId);
+  if (error || !data) return scoresCache.get(matchupId) || null;
+  let server: GameScore[] | null = cellsToScores(data as ScoreCellRow[]);
+  if ((data as unknown[]).length === 0) {
+    const blob = await supabase.from('game_scores').select('data').eq('matchup_id', matchupId).single();
+    server = blob.data ? ((blob.data.data as GameScore[]) ?? []) : null;
   }
-  return scoresCache.get(matchupId) || null;
+  const pending = scoreOutbox.pending(matchupId);
+  if (server === null && pending.length === 0) return scoresCache.get(matchupId) || null;
+  // The server's copy is the save baseline: the next save sends only what differs from it.
+  lastPersistedScores.set(matchupId, (server ?? []).map((s) => ({ ...s })));
+  const shown = overlayPending(server ?? [], pending);
+  scoresCache.set(matchupId, shown);
+  return shown;
 }
 
 // Re-fetch scores for given matchup IDs when the page becomes visible again
@@ -459,18 +466,20 @@ export function subscribeToScores(matchupId: string, onUpdate: (scores: any) => 
     .on('postgres_changes', {
       event: '*',
       schema: 'public',
-      table: 'game_scores',
+      table: 'score_cells',
       filter: `matchup_id=eq.${matchupId}`,
     }, (payload) => {
-      const scores = (payload.new as any)?.data;
-      if (scores) {
-        scoresCache.set(matchupId, scores);
-        // A realtime update IS the new server truth — advance the audit baseline
-        // so a later local save diffs against it (the change was already logged
-        // by whoever wrote it; don't re-log the other device's edits here).
-        lastPersistedScores.set(matchupId, (scores as GameScore[]).map((s) => ({ ...s })));
-        onUpdate(scores);
-      }
+      // One CELL changed (F-063 C). Fold it into the server copy (the save baseline, so this
+      // device never re-sends another phone's tap as its own), then show it under any taps of
+      // ours still waiting in the outbox.
+      const row = payload.new as ScoreCellRow | null;
+      if (!row || row.matchup_id !== matchupId) return;
+      const base = (lastPersistedScores.get(matchupId) ?? []).filter((s) => !(s.playerId === row.player_id && s.hole === row.hole));
+      const server = row.gross_score == null ? base : [...base, { playerId: row.player_id, hole: row.hole, grossScore: row.gross_score }];
+      lastPersistedScores.set(matchupId, server);
+      const shown = overlayPending(server, scoreOutbox.pending(matchupId));
+      scoresCache.set(matchupId, shown);
+      onUpdate(shown);
     })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {

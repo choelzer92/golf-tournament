@@ -110,11 +110,15 @@ pools only); (8) a rebalance or reshape rewrites from a stale cache; (9) audit r
 - The new bundle reads and writes cells only. Rollback = redeploy the old bundle; the blob is current throughout.
 - Backup: add `score_cells` to `scripts/export-backup.mjs`.
 
+**DEPLOY ORDER (hard rule): run the migration on live BEFORE this branch is deployed.** A new bundle against an
+unmigrated database can't write cells: its taps stay safe in the outbox, but no other phone sees them until the
+migration runs. Nothing applies migrations automatically (no CI; `supabase/config.toml` is the local CLI only).
+
 **Sandbox-first:** the fake backend needs composite keys (or a synthetic id), several `.eq`/`.in` filters, array
 upserts and the new RPC. Tests: outbox coalescing and ack, the conflict rule, dual-read, backfill shape, and e2e for
 "two phones, one card" (two pages, one store) and "offline tap" (`context.setOffline`, reload, reconnect).
 
-**Q1 (Craig's call, asked 2026-10-14): when two phones change the SAME cell, which one wins?**
+**Q1: ANSWERED A (§5.dn), the later tap wins.** When two phones change the SAME cell, which one wins?
 A. The later TAP wins (by the phone's tap time), even if it reaches the server second, e.g. from a dead spot.
 B. The later ARRIVAL wins (server time): a phone coming back from a dead spot overwrites a correction made since.
 Rec A: a correction made on the course is never undone by an old tap catching up. Either way the audit keeps both.
