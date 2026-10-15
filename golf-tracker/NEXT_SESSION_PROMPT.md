@@ -11,10 +11,8 @@ rewriting this file with the next 3 from "The road" below.
 
 ## State (2026-10-15, end of the 4th session)
 
-Branch **`series-2026-10-12`**, NOT merged or pushed (merging is Craig's call, §5.ab). **The session's final
-full gate was KILLED for low memory** mid-e2e (tsc, build and unit 2888 had passed, no e2e failure seen;
-`.claude/verify-2026-10-15-final.log`). The last COMPLETE green gate was before the warm-ups (c12e849); the
-warm-ups' own specs passed separately. **Run `PW_WORKERS=1 npm run verify` first** and fix anything that isn't 0.
+Branch **`series-2026-10-12`**, NOT merged or pushed (merging is Craig's call, §5.ab). The full gate is GREEN at the end of the
+session (`.claude/verify-2026-10-15-final2.log`: VERIFY_EXIT=0, unit 2888, e2e 292). Check it, then start below.
 
 Done 2026-10-14/15 (4th session):
 - **Presses BUILT** (§5.dj/§5.dk/§5.dm): a setup toggle (off), auto or the Press button, the overall its own
