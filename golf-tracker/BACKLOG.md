@@ -109,6 +109,7 @@ In order after the promoted three: the §5.di strokes defaults, F-121 uneven (ba
 
 | Item | Size | Source |
 |---|---|---|
+| **[beta #10] The screenshot catalogue, BEFORE Craig's post-design walk (2026-10-15).** Craig: phone walks over and over aren't how to find every little bug; screenshots are. One Playwright run that walks EVERY flow step by step at 390px (each game shape × start / track / continue, hub, leaderboard, event, presses, guest link) into one paged index he reads to list possible bugs. The phone check stays only for what screenshots can't show (live updates between devices) | M | Craig 2026-10-15 |
 | **[beta #10] verify:quick misses specs for the files it changed (found 2026-10-14).** On the presses diff it picked 53 of 55 specs but skipped `f088-f090-hub` (the hub panels, edited), `phase3-payout` and `split-round-money` (money). Its import-to-route mapping doesn't reach them; and a pick that big should just run the full gate (it differs only by the production build). Fix the mapping, and make an over-25 pick run `npm run verify` instead | S | Craig's catch |
 | **[beta #6] §5.di strokes defaults (NEW games, goldens first):** match play defaults to off the low (full stays); the allowance default follows the USGA Appendix C table by format; saved formats + Run it back carry the chosen allowance and stroke settings | S–M | §5.di |
 | **[beta #6]** **F-121 for UNEVEN teams** (§5.dd): goldens first (3 v 2 zero-sum, mutation-checked), NEW games only (a stamp on modeSettings). **Show Craig the goldens before wiring them in** | M | §5.dd |
