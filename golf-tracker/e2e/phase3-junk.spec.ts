@@ -30,9 +30,10 @@ test('junk POT: the leaderboard bonus board shows points and names the pot, not 
   // F-092 A (§5.bs): the footer names who took the pot.
   await expect(page.getByText(/Junk pot \$20 → .+ \(\d+ pts\)\. Most points takes it/)).toBeVisible();
   // Side A (Craig 3 birdies + Jym) has 3 points to side B's 1: A takes the $20 pot, anted $10 each.
-  // Legs are $10 each and A leads every leg thru 9 (front + overall) → +20 legs +10 junk = +30.
+  // Legs are $10 each and A leads every leg thru 9 (front + overall) → +20 legs +10 junk = +30 for the
+  // team, which the money column shows per player (F-121, §5.dd): +$15 each.
   const body = await page.locator('body').innerText();
-  expect(body).toMatch(/\+\$30/);
+  expect(body).toMatch(/\+\$15 each/);
   await page.screenshot({ path: 'e2e/screenshots/phase3-junk-pot-leaderboard.png', fullPage: true });
 });
 
@@ -55,7 +56,7 @@ test('step 2: two pairs with closest-to-pin — routed to the team engine, hub s
   await addPlayers(page, FOUR_PLAYERS);
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await expect(page.getByText('How do you want to compete?')).toBeVisible();
-  await page.getByPlaceholder('e.g. Saturday Pool').fill('Pairs CTP');
+  await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Pairs CTP');
   await toScoringStep(page, 'teams:2+2');
   await page.getByRole('button', { name: /Next: Select Course/ }).click();
   await page.getByRole('button', { name: /Sandbox National/ }).first().click();

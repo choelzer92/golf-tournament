@@ -3,7 +3,7 @@
 import { formatHandicapIndex, formatHandicap } from '@/lib/game-state';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FORMATS, TEAM_MODES, getTeamModeConfig, resolveAllowance, type GameFormat, type FormatSetting, type TeamMode } from '@/lib/formats';
+import { FORMATS, TEAM_MODES, getTeamModeConfig, resolveAllowance, type GameFormat, type FormatSetting, type TeamMode, UNSCORED_LEGACY_SETTINGS } from '@/lib/formats';
 import type { Player, CourseSelection, TeeSetOption, GameSetup, StrokeMethod, HandicapBasis } from '@/lib/game-state';
 import { calcCourseHandicap } from '@/lib/game-state';
 import { AddPlayerPanel, type AddedPlayer } from '@/components/add-player-panel';
@@ -826,7 +826,7 @@ function SettingsStep({
           </div>
         </div>
 
-        {format.settings?.map((setting) => (
+        {format.settings?.filter((x) => !UNSCORED_LEGACY_SETTINGS.has(x.key)).map((setting) => (
           <SettingControl
             key={setting.key}
             setting={setting}

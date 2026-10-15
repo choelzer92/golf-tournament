@@ -49,7 +49,7 @@ test.describe('group picker on wizard step 1 (§5.au: step 1 is the FIELD)', () 
     // name inherited without typing.
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await expect(page.getByText('How do you want to compete?')).toBeVisible();
-    await expect(page.getByPlaceholder('e.g. Saturday Pool')).toHaveValue('Weekend Warriors');
+    await expect(page.getByPlaceholder('Leave blank to name it by the game and course')).toHaveValue('Weekend Warriors');
     // The handicap rule lives on the scoring step (§5.bk).
     await page.getByRole('button', { name: 'Next: Scoring' }).click();
     await expect(page.getByRole('button', { name: 'Off the low' }))
@@ -258,7 +258,7 @@ test.describe('JY feedback: GHIN sign-in prompt arrives before the search', () =
       await manualAddButton(page).click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('GHIN Timing Test');
+    await page.getByPlaceholder('Leave blank to name it by the game and course').fill('GHIN Timing Test');
     await page.getByRole('button', { name: 'Next: Scoring' }).click();
     await page.getByRole('button', { name: /Next: Select Course/i }).click();
     await page.waitForLoadState('networkidle');
@@ -293,7 +293,7 @@ test.describe('JY feedback: recent courses', () => {
       await manualAddButton(page).click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Recent Course Test');
+    await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Recent Course Test');
     await page.getByRole('button', { name: 'Next: Scoring' }).click();
     await page.getByRole('button', { name: /Next: Select Course/i }).click();
     await page.waitForLoadState('networkidle');
@@ -332,12 +332,12 @@ test.describe('F-003: /home is the default landing page', () => {
     const body = await page.locator('body').innerText();
     expect(body).toContain('Start something');
     expect(body).toContain('Stats & money');
-    expect(body).toContain('Classic dashboard');
+    expect(body).toContain('Course & GHIN lookup');
 
-    // And the dashboard's link back reads as a destination, not an experiment.
-    await page.getByRole('button', { name: 'Classic dashboard' }).click();
+    // The lookups page (§5.cw d) links straight back to Home.
+    await page.getByRole('button', { name: 'Course & GHIN lookup' }).click();
     await page.waitForLoadState('networkidle');
-    await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '← Home' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Try new Home/ })).toHaveCount(0);
   });
 });

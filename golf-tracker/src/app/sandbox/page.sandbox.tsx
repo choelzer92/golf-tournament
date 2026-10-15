@@ -20,7 +20,7 @@ import { setAccessCookie } from '@/lib/invite-gate';
 import { saveGhinIdentity } from '@/lib/pool-identity';
 import type { GameScore, Player, CourseSelection } from '@/lib/game-state';
 import {
-  SANDBOX_GHIN, groupRows, groups as makeGroups, ledgerSeason,
+  SANDBOX_GHIN, groupRows, groups as makeGroups, ledgerSeason, eventWeekend, EVENT_ID,
   rosterPlayers, rosterRows,
 } from '@/test/fixtures-domain';
 
@@ -397,6 +397,28 @@ const SCENARIOS: Scenario[] = [
       saveGameScores('sm1', scores(['sp1', 'sp2', 'sp3', 'sp4', 'sp5'], [0, 1, 2, 1, 0], [1, 2, 3, 4, 5, 6, 7]));
       saveGameScores('sm2', scores(['sp6'], [2], [1, 2, 3, 4, 5, 6, 7]));
       saveGameScores('sm3', scores(['sp7'], [1], [1, 2, 3, 4, 5, 6, 7]));
+      return { game, goTo: (id) => `/pool/${id}` };
+    },
+  },
+  {
+    key: 'presses-two-down',
+    label: 'Presses: 2 v 2 match play, 2 down after 2 (Press button)',
+    detail: '§5.dj/§5.dk: Craig & Jym bogey 1 and 2, so they are 2 down in the front and the card offers "press the front 9". Tap it, then remove it.',
+    build: () => {
+      const ps = players([0, 0, 0, 0]);
+      const game = baseGame({
+        players: ps,
+        name: 'Press test',
+        gameMode: 'team-2v2',
+        subTeams: { a: ['sp1', 'sp2'], b: ['sp3', 'sp4'] },
+        modeSettings: {
+          format: 'best-ball', scoring: 'stroke', result: 'match',
+          moneyModel: 'legs', legFront: 20, legBack: 20, legOverall: 20,
+          junkEnabled: false, presses: true, pressMode: 'button',
+        },
+        teams: [{ id: 'st1', name: 'Group', playerIds: ps.map((p) => p.id), matchupId: 'sm1', teeTime: '8:10' }],
+      });
+      saveGameScores('sm1', scores(ps.map((p) => p.id), [1, 1, 0, 0], [1, 2]));
       return { game, goTo: (id) => `/pool/${id}` };
     },
   },
@@ -873,6 +895,23 @@ const SCENARIOS: Scenario[] = [
         for (const [mid, scores] of scoresByMatchup) saveGameScores(mid, scores);
       }
       return { goTo: '/home/groups/g-weekend-warriors' };
+    },
+  },
+  {
+    key: 'event-weekend',
+    label: 'Event — Myrtle 2026: 4 rounds over 3 days (36 on Saturday), Sunday live',
+    detail: 'A Series (§5.cu/§5.cv): the Weekend Warriors trip. Friday pool, Saturday skins + pool, Sunday 2v2 live thru 9. Lands on the event standings: Total = finished rounds, Projected = with Sunday.',
+    buildDomain: () => {
+      signInAsOrganizer();
+      const roster = rosterPlayers(61);
+      const gs = makeGroups(roster);
+      void seedTable('players', rosterRows(roster));
+      void seedTable('roster_groups', groupRows(gs));
+      for (const { game, scoresByMatchup } of [...ledgerSeason(roster), ...eventWeekend(roster)]) {
+        savePoolGame(game);
+        for (const [mid, scores] of scoresByMatchup) saveGameScores(mid, scores);
+      }
+      return { goTo: '/event/' + EVENT_ID };
     },
   },
   {

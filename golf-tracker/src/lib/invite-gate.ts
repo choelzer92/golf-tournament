@@ -43,9 +43,10 @@ export function generateShareToken(): string {
 }
 
 // Routes a 'pool'-level (share-link) visitor may see. Everything else (dashboard,
-// tournament pages, quick game) requires 'full' access.
+// tournament pages, quick game) requires 'full' access. An event's standings (§5.cv) are
+// allowed: a player on a round's link is a player in that event, and its money is theirs.
 export function isPoolAllowedPath(pathname: string): boolean {
-  return pathname === '/pool' || pathname.startsWith('/pool/') || pathname === '/game/play';
+  return pathname === '/pool' || pathname.startsWith('/pool/') || pathname.startsWith('/event/') || pathname === '/game/play';
 }
 
 export function checkInviteCode(code: string): boolean {

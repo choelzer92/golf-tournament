@@ -16,6 +16,7 @@
 // same class of bug: plausible, on screen, and wrong.
 
 import type { GameModeDescriptor, SettingsBag } from './types';
+import { perPlayerAmount } from './stake-unit';
 
 /** How strokes are handed out, in the words the wizard uses. */
 export interface HandicapSummaryInput {
@@ -76,9 +77,28 @@ export function gameSummary(mode: GameModeDescriptor | undefined, settings: Sett
  * Returns null when there is nothing to say (no money configured), so the caller omits the segment
  * rather than printing "$0".
  */
-export function stakesSummary(mode: GameModeDescriptor | undefined, settings: SettingsBag, entryPerPlayer: number): string | null {
-  // A classic pool antes per player; there is no mode settings bag to read.
-  if (!mode) return entryPerPlayer > 0 ? `$${entryPerPlayer}/player pot` : null;
+export function stakesSummary(
+  mode: GameModeDescriptor | undefined,
+  settings: SettingsBag,
+  entryPerPlayer: number,
+  /** §5.dd: even teams in a team game — state its per-team stakes as one player's share. */
+  teamSize: number | null = null,
+): string | null {
+  // A classic pool has no mode settings bag; the caller passes its money mode. A head-to-head
+  // match pays legs (+ junk per point), a pot antes per player. F-120: reading only the ante said
+  // "$25/player pot" for a $10-a-leg match.
+  if (!mode) {
+    if (settings.moneyMode === 'match') {
+      const f = num(settings, 'legFront', 10);
+      const b = num(settings, 'legBack', 10);
+      const o = num(settings, 'legOverall', 10);
+      const j = num(settings, 'junkPerPoint', 0);
+      const legs = f === 0 && b === 0 && o === 0 ? null : `$${f} / $${b} / $${o} front·back·overall`;
+      const junk = j > 0 ? `$${j} a junk point` : null;
+      return [legs, junk].filter(Boolean).join(', ') || null;
+    }
+    return entryPerPlayer > 0 ? `$${entryPerPlayer}/player pot` : null;
+  }
 
   // Read the mode's OWN money key first, and only fall back to a `moneyModel` switch.
   //
@@ -98,6 +118,7 @@ export function stakesSummary(mode: GameModeDescriptor | undefined, settings: Se
     if (skin > 0) return `$${skin} a skin`;
   }
 
+  const per = (n: number) => (teamSize && mode.category === 'team-within-group' ? perPlayerAmount(n, teamSize) : n);
   const model = settings.moneyModel === undefined || settings.moneyModel === ''
     ? (mode.category === 'team-within-group' ? 'legs' : '')
     : String(settings.moneyModel);
@@ -110,20 +131,21 @@ export function stakesSummary(mode: GameModeDescriptor | undefined, settings: Se
       const b = num(settings, 'legBack', 10);
       const o = num(settings, 'legOverall', 10);
       if (f === 0 && b === 0 && o === 0) return null;
-      return `$${f} / $${b} / $${o} front·back·overall`;
+      return `$${per(f)} / $${per(b)} / $${per(o)} front·back·overall`;
     }
     case 'per-hole': {
       const d = num(settings, 'dollarsPerHole', 2);
-      return d > 0 ? `$${d} a hole` : null;
+      return d > 0 ? `$${per(d)} a hole` : null;
     }
     case 'per-point': {
       const d = num(settings, 'dollarsPerPoint', 1);
-      return d > 0 ? `$${d} a point` : null;
+      return d > 0 ? `$${per(d)} a point` : null;
     }
     case 'pot': {
       // A team pot's `sideBuyIn`, else an individual mode's own buy-in (low total, skins pot).
       const buyIn = num(settings, 'sideBuyIn', num(settings, 'entryPerPlayer', entryPerPlayer));
-      return buyIn > 0 ? `$${buyIn} buy-in pot` : null;
+      if (buyIn <= 0) return null;
+      return per(buyIn) !== buyIn ? `$${per(buyIn)}/player pot` : `$${buyIn} buy-in pot`;
     }
     case 'nassau': {
       return 'Nassau pot';
@@ -164,10 +186,11 @@ export function formatSummaryLine(
   settings: SettingsBag,
   entryPerPlayer: number,
   handicaps: HandicapSummaryInput,
+  teamSize: number | null = null,
 ): string {
   return [
     gameSummary(mode, settings),
-    stakesSummary(mode, settings, entryPerPlayer),
+    stakesSummary(mode, settings, entryPerPlayer, teamSize),
     handicapSummary(handicaps),
   ].filter(Boolean).join(' · ');
 }

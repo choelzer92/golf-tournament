@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { FormatSetting } from '@/lib/formats';
 import type { SettingsBag, SettingValue } from '@/lib/game-modes';
 import { settingValue } from '@/lib/game-modes';
+import { perPlayerAmount, perPlayerField, perTeamAmount } from '@/lib/game-modes/stake-unit';
 
 // Generic renderer for a game mode's FormatSetting[] schema. Each setting becomes
 // a labeled control (toggle / select / number / free text) writing into the
@@ -11,7 +12,7 @@ import { settingValue } from '@/lib/game-modes';
 // appear" work for ANY registered game with zero bespoke UI. Used by both the
 // creation wizard and the hub's live settings editor.
 export function ModeSettingsEditor({
-  schema, values, onChangeAction, lockOptionAction, lockNoteAction, hideKeys,
+  schema, values, onChangeAction, lockOptionAction, lockNoteAction, hideKeys, perPlayer,
 }: {
   schema: FormatSetting[];
   values: SettingsBag;
@@ -30,6 +31,9 @@ export function ModeSettingsEditor({
   // so it can't express "hide the Side D name unless the game has four sides" — that depends on
   // the game's data, not its settings bag. The caller supplies the keys; this stays generic.
   hideKeys?: string[];
+  // Optional (§5.dd): ask these per-team dollar fields PER PLAYER. Shown ÷ teamSize, written back ×
+  // teamSize, so the stored bag (and every payout) is what it always was.
+  perPlayer?: { keys: ReadonlySet<string>; teamSize: number };
 }) {
   // Honor each setting's optional showIf predicate: hide a field unless the
   // referenced setting(s) match (single condition, or an array = AND). Keeps the
@@ -43,16 +47,20 @@ export function ModeSettingsEditor({
   });
   return (
     <div className="space-y-3">
-      {visible.map((s) => (
+      {visible.map((s) => {
+        const scaled = perPlayer && s.type === 'number' && perPlayer.keys.has(s.key) ? perPlayer.teamSize : null;
+        const raw = settingValue(schema, values, s.key);
+        return (
         <SettingField
           key={s.key}
-          setting={s}
-          value={settingValue(schema, values, s.key)}
-          onChange={(v) => onChangeAction(s.key, v)}
+          setting={scaled ? perPlayerField(s, scaled) : s}
+          value={scaled ? perPlayerAmount(Number(raw) || 0, scaled) : raw}
+          onChange={(v) => onChangeAction(s.key, scaled ? perTeamAmount(Number(v) || 0, scaled) : v)}
           lockOption={lockOptionAction ? (ov: string) => lockOptionAction(s.key, ov) : undefined}
           lockNote={lockNoteAction?.(s.key) ?? null}
         />
-      ))}
+        );
+      })}
     </div>
   );
 }

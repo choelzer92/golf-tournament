@@ -36,8 +36,9 @@ test('F-037: the board shows team match points and one row per match, with the p
 
   const text = await page.locator('body').innerText();
   const standings = text.slice(text.indexOf('STANDINGS'), text.indexOf('MATCHES'));
-  expect(standings).toMatch(/The Hogs[\s\S]*\b2\b[\s\S]*\+\$20/);
-  expect(standings).toMatch(/The Dawgs[\s\S]*−\$20/);
+  // F-121 (§5.dd): the money column is per player — the $20 team pot is $5 for each of the four.
+  expect(standings).toMatch(/The Hogs[\s\S]*\b2\b[\s\S]*\+\$5 each/);
+  expect(standings).toMatch(/The Dawgs[\s\S]*−\$5 each/);
   await page.screenshot({ path: 'e2e/screenshots/f037-board.png', fullPage: true });
 });
 
@@ -72,12 +73,12 @@ test('F-037: eight players pick 2 teams of 4 with 2 v 2 matches, and Create buil
   await fieldToGameStep(page, EIGHT_PLAYERS);
   await chooseStructure(page, 'teams:4+4');
 
-  // §5.co Q5: the question shows once there are 2+ teams, off by default.
-  const matches = page.getByRole('radiogroup', { name: 'Head-to-head matches' });
+  // §5.co Q5 / §5.de: the question shows once there are 2+ teams, whole teams by default.
+  const matches = page.getByRole('radiogroup', { name: 'How do the teams play each other?' });
   await expect(matches).toBeVisible();
-  await expect(matches.getByRole('radio', { name: 'No' })).toHaveAttribute('aria-checked', 'true');
-  await matches.getByRole('radio', { name: '2 v 2' }).click();
-  await expect(matches.getByRole('radio', { name: '2 v 2' })).toHaveAttribute('aria-checked', 'true');
+  await expect(matches.getByRole('radio', { name: 'As whole teams — 4 v 4' })).toHaveAttribute('aria-checked', 'true');
+  await matches.getByRole('radio', { name: 'In pairs — two 2 v 2 matches' }).click();
+  await expect(matches.getByRole('radio', { name: 'In pairs — two 2 v 2 matches' })).toHaveAttribute('aria-checked', 'true');
   // The chosen split now describes matches, not "each team plays as its own foursome".
   await expect(page.getByText('Teams split into 2 v 2 matches, one per foursome')).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/f037-wizard-compete.png', fullPage: true });
@@ -104,7 +105,7 @@ test('F-037: eight players pick 2 teams of 4 with 2 v 2 matches, and Create buil
   // sit with the stakes.
   await expect(page.locator('input[name="money-model"][value="pot"]')).toBeChecked();
   await expect(page.getByText('A match counts')).toBeVisible();
-  await expect(page.getByText('2 teams of 4 · pot · 2 matches')).toBeVisible();
+  await expect(page.getByText(/ · 4v4 · two 2v2 matches · /).first()).toBeVisible();
   // Four-ball is the matches default: best ball, hole by hole — not the classic pool's net + gross.
   await expect(page.getByText(/best ball/i).first()).toBeVisible();
   await expect(page.getByText(/best net \+ best gross/)).toHaveCount(0);
@@ -114,14 +115,14 @@ test('F-037: eight players pick 2 teams of 4 with 2 v 2 matches, and Create buil
   await page.waitForURL(/\/pool\/(?!new$)[^/?]+$/, { timeout: 15_000 });
   await closeSendSheet(page);
   await expect(page.getByRole('heading', { name: 'Tee groups' })).toBeVisible();
-  await expect(page.getByText(/2 teams of 4 · pot · 2 matches/).first()).toBeVisible();
+  await expect(page.getByText(/ · 4v4 · two 2v2 matches · /).first()).toBeVisible();
 
   const id = new URL(page.url()).pathname.split('/').pop()!;
   await page.goto(`${BASE}/pool/${id}/leaderboard`);
   await page.waitForURL(/\/leaderboard/);
   // The label is read from the STORED tee sheet through `matchesOf`, so "2 matches" proves the
   // created game pairs. Before any score the board keeps its usual empty state.
-  await expect(page.getByText('2 teams of 4 · pot · 2 matches')).toBeVisible();
+  await expect(page.getByText(/ · 4v4 · two 2v2 matches · /).first()).toBeVisible();
   await expect(page.getByText('No scores yet.')).toBeVisible();
   // ...but the pairings are on the board from Create.
   await expect(page.getByTestId('match-row')).toHaveCount(2);
@@ -135,7 +136,7 @@ test('F-037: no matches question for everyone-for-themselves', async ({ page }) 
   await fieldToGameStep(page, EIGHT_PLAYERS);
   await chooseStructure(page, 'solo');
   await expect(page.getByText('How do you want to compete?')).toBeVisible();
-  await expect(page.getByRole('radiogroup', { name: 'Head-to-head matches' })).toHaveCount(0);
+  await expect(page.getByRole('radiogroup', { name: 'How do the teams play each other?' })).toHaveCount(0);
 });
 
 test('F-037 / §5.cp: Add player is refused in a matches game, with the reason', async ({ page }) => {
@@ -172,7 +173,7 @@ test('F-107 / §5.cq: singles are paired on the groups step and the pairing is s
   await page.waitForLoadState('networkidle');
   await fieldToGameStep(page, EIGHT_PLAYERS);
   await chooseStructure(page, 'teams:4+4');
-  await page.getByRole('radiogroup', { name: 'Head-to-head matches' }).getByRole('radio', { name: '1 v 1' }).click();
+  await page.getByRole('radiogroup', { name: 'How do the teams play each other?' }).getByRole('radio', { name: 'One on one — four 1 v 1 matches' }).click();
   await expect(page.getByText('Teams split into singles matches, two to a foursome')).toBeVisible();
   await toScoringStep(page);
   await page.getByRole('button', { name: /Next: Select Course/ }).click();
@@ -199,5 +200,5 @@ test('F-107 / §5.cq: singles are paired on the groups step and the pairing is s
   // The SAME pairings on the hub: stored with the game, not re-derived from list order.
   const hub = await page.getByTestId('group-match-line').allInnerTexts();
   expect(hub).toEqual([`${shown[0]} · ${shown[1]}`, `${shown[2]} · ${shown[3]}`]);
-  await expect(page.getByText(/· 4 matches/).first()).toBeVisible();
+  await expect(page.getByText(/ · four 1v1 matches · /).first()).toBeVisible();
 });

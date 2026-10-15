@@ -14,8 +14,10 @@ import type { SideGameResult } from '@/lib/side-game';
 import type { PoolGame, PoolResult, PoolLeg } from '@/lib/pool-game';
 import { loadPoolGame, fetchPoolGame, savePoolGame, subscribeToPoolGame, computePoolResult, filterConcealedScores, buildHcapMap, playerHoleStrokeIndexForGame, numHolesForStrokes, defaultSubTeams, isPoolGameFullyScored, DEFAULT_JUNK_VALUES } from '@/lib/pool-game';
 import { getMoneyStrokesOnHole } from '@/lib/money-games';
-import { strokesOnHole } from '@/lib/strokes';
+import { strokesOffTheLow, strokesOnHole } from '@/lib/strokes';
 import { computeGameResult, isModeEngineGame, gameCountsCtp } from '@/lib/game-modes/result';
+import { pressSettingsOf } from '@/lib/game-modes/presses';
+import { PressPanel } from './press-panel';
 import { sidesForCompute } from '@/lib/game-modes/context';
 import { getGameMode } from '@/lib/game-modes';
 import { sideNamesForGame } from '@/lib/game-modes/team-game';
@@ -425,6 +427,41 @@ export default function PlayGamePage() {
     return result.sideBreakdown ?? null;
   })();
 
+  // PRESSES (§5.dj/§5.dk): this card's presses and Press buttons, straight from the engine (both
+  // axes carry them), over every group's scores as the side rows above are. Null when off.
+  const pressView = (() => {
+    if (!poolGame || !poolCtx) return null;
+    const modeGame = isModeEngineGame(poolGame);
+    const set = modeGame
+      ? pressSettingsOf(poolGame.modeSettings ?? {})
+      : poolGame.moneyMode === 'match' ? pressSettingsOf({ ...(poolGame.matchConfig ?? {}) } as Record<string, string | number | boolean>) : null;
+    if (!set) return null;
+    void poolOtherTick;
+    const byMatchup = new Map<string, GameScore[]>([[poolCtx.matchupId, scores]]);
+    for (const t of poolGame.teams) {
+      if (t.matchupId === poolCtx.matchupId) continue;
+      const cached = loadGameScores(t.matchupId);
+      if (Array.isArray(cached)) byMatchup.set(t.matchupId, cached);
+    }
+    const result = computeGameResult(poolGame, byMatchup);
+    if (!result.presses) return null;
+    // A Team → Match game: only the matches with a player on this card.
+    const mine = new Set(poolGame.teams.find((t) => t.matchupId === poolCtx.matchupId)?.playerIds ?? []);
+    const matchIds = result.kind === 'individual' && result.matches
+      ? result.matches.filter((m) => m.units.some((u) => u.playerIds.some((id) => mine.has(id)))).map((m) => m.id)
+      : null;
+    const inScope = (x: { match?: string }) => matchIds === null || (x.match !== undefined && matchIds.includes(x.match));
+    // The stake is per team on a whole-game team match; a match's press and the classic legs are
+    // already per player.
+    const sizes = sidesForCompute(poolGame).map((x) => x.playerIds.length);
+    const stakeDivisor = !modeGame || matchIds !== null ? 1 : sizes.every((k) => k === sizes[0]) ? sizes[0] : null;
+    return {
+      mode: set.mode, matchIds, stakeDivisor,
+      presses: result.presses.filter(inScope),
+      offers: (result.pressOffers ?? []).filter(inScope),
+    };
+  })();
+
   // Manual bonuses (sandies, barkies, …) the app can't read off a scorecard. The SCORER
   // taps them for any player in their foursome — Craig: "the scorer can enter any for
   // anyone in the group". Stored on the pool game (bonusMarks) rather than on GameScore,
@@ -649,13 +686,11 @@ export default function PlayGamePage() {
     const hcap = getPlayerEffectiveHcap(player, holeNumber);
     if (getActiveStrokeMethod(holeNumber) === 'full') return hcap;
 
-    // Pool games pass a fixed field-low baseline so this scorecard matches the
-    // pool leaderboard (which subtracts the low of the whole field, not just
-    // the 4 players on this screen).
-    // Off the low rounds each Playing Handicap FIRST, then subtracts (WHS Appendix C; the pool's
-    // buildHcapMap; F-102 g, §5.bx).
+    // Pool games: the money engine's own map (field low, or each match's low; §5.dl rounding), so
+    // "Plays:" shows the strokes the dots and the payout use.
+    if (poolHcapMap) return poolHcapMap.get(player.id) ?? Math.round(hcap);
     if (setup!.offTheLowBaseline !== undefined) {
-      return Math.round(hcap) - Math.round(setup!.offTheLowBaseline);
+      return strokesOffTheLow(hcap, setup!.offTheLowBaseline, false);
     }
 
     // Off the low: determine the comparison pool
@@ -669,9 +704,23 @@ export default function PlayGamePage() {
       }
     }
 
-    const allHcaps = pool.map((p) => Math.round(getPlayerEffectiveHcap(p, holeNumber)));
-    const lowest = Math.min(...allHcaps);
-    return Math.round(hcap) - lowest;
+    // Stroke play rounds each Playing Handicap first; match play rounds the unrounded difference
+    // (§5.dl, the GHIN app; the same rule as live-scoring's tournament engine).
+    const lowest = Math.min(...pool.map((p) => getPlayerEffectiveHcap(p, holeNumber)));
+    return strokesOffTheLow(hcap, lowest, isActiveMatchPlay(holeNumber));
+  }
+
+  // Match play or stroke play for the strokes off the low (§5.dl): a tournament round's (or its split
+  // back nine's) scoring method; a quick game's match-play or Nassau format.
+  function isActiveMatchPlay(holeNumber?: number): boolean {
+    const round = tournamentCtx
+      ? loadTournament(tournamentCtx.tournamentId)?.rounds.find((r) => r.id === tournamentCtx.roundId)
+      : null;
+    if (round) {
+      const back = setup!.splitFormat && (holeNumber ? holeNumber > 9 : isBackNine);
+      return (back ? setup!.splitFormat!.scoringMethod : round.scoringMethod) === 'match-play';
+    }
+    return setup!.formatId === 'match-play' || setup!.formatId === 'nassau';
   }
 
   function getPlayerStrokesOnHole(player: Player, holeHandicap: number, holeNumber?: number): number {
@@ -1284,7 +1333,8 @@ export default function PlayGamePage() {
                       </p>
                     )}
                   </div>
-                  <div className="flex gap-1.5 flex-wrap">
+                  {/* F-119 c: one row at phone width (7-9 options); the buttons shrink to fit. */}
+                  <div className="flex gap-1">
                     {scoreOptions.map((score) => (
                       <button
                         key={score}
@@ -1292,7 +1342,7 @@ export default function PlayGamePage() {
                           // Set same score for all players on the team
                           tp.forEach((p) => setScore(p.id, currentHole, score));
                         }}
-                        className={`w-9 h-9 rounded-full text-sm font-bold transition ${
+                        className={`h-9 flex-1 max-w-9 rounded-full text-sm font-bold transition ${
                           gross === score
                             ? 'bg-green-700 text-white'
                             : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -1348,12 +1398,13 @@ export default function PlayGamePage() {
                       </p>
                     )}
                   </div>
-                  <div className="flex gap-1.5 flex-wrap">
+                  {/* F-119 c: one row at phone width (7-9 options); the buttons shrink to fit. */}
+                  <div className="flex gap-1">
                     {scoreOptions.map((score) => (
                       <button
                         key={score}
                         onClick={() => setScore(player.id, currentHole, score)}
-                        className={`w-9 h-9 rounded-full text-sm font-bold transition ${
+                        className={`h-9 flex-1 max-w-9 rounded-full text-sm font-bold transition ${
                           gross === score
                             ? 'bg-green-700 text-white'
                             : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -1880,6 +1931,18 @@ export default function PlayGamePage() {
           );
         })()}
 
+        {pressView && poolGame && (
+          <PressPanel
+            game={poolGame}
+            mode={pressView.mode}
+            presses={pressView.presses}
+            offers={pressView.offers}
+            stakeDivisor={pressView.stakeDivisor}
+            matchIds={pressView.matchIds}
+            onSavedAction={setPoolGame}
+          />
+        )}
+
         {/* F-101 d (§5.bw): an individual game across tee groups. This card is this group's; the
             rest of the field is scored on its own cards and ranked on Standings. */}
         {poolGame && poolCtx && getGameMode(poolGame.gameMode)?.category === 'individual' && poolGame.teams.length > 1 && (() => {
@@ -2180,7 +2243,10 @@ export default function PlayGamePage() {
   }
 
   async function finishGame() {
-    if (!confirm('Finish this game and lock scores? This cannot be undone.')) return;
+    // F-119 b: a pool game can be reopened from its hub, so don't say "cannot be undone" there.
+    if (!confirm(poolCtx
+      ? 'Finish this card and lock its scores? The organizer can reopen the game if a score needs fixing.'
+      : 'Finish this game and lock scores? This cannot be undone.')) return;
 
     // Pool money game: persist this foursome's scores and return to the hub.
     // Pool standings/payouts are computed on the leaderboard from all foursomes.

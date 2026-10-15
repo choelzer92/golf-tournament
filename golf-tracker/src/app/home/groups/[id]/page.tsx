@@ -1,28 +1,30 @@
 'use client';
 
 import { formatHandicapIndex } from '@/lib/game-state';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { canEditGroup, getGroupIdsForGhin, getViewer, hydrateGroups, getGroupById, addGroupMember, removeGroupMember, renameGroup, deleteGroup, type RosterGroup } from '@/lib/roster-groups';
-import { hydrateRoster, searchRoster, getRosterPlayerById, rosterDisplayName, type RosterPlayer } from '@/lib/roster';
+import { hydrateRoster, searchRoster, getRosterPlayerById, rosterDisplayName, upsertRosterPlayer, type RosterPlayer } from '@/lib/roster';
+import { AddPlayerPanel, type AddedPlayer } from '@/components/add-player-panel';
 import { getFormats, getGroupFormats, attachFormatToGroup, detachFormatFromGroup } from '@/lib/pool-formats';
-import { hydratePoolGames, loadPoolGame, getPoolGameList, getPoolGameListVisibleTo } from '@/lib/pool-game';
+import { hydratePoolGames, loadPoolGame, getPoolGameList, getPoolGameListVisibleTo, getSeriesRounds, type PoolGame } from '@/lib/pool-game';
+import { nestEvents, shortDate, type NestedRow } from '@/lib/series';
 import { hydrateTournaments, loadTournament, getTournamentList, getTournamentListVisibleTo } from '@/lib/tournament-state';
 import {
   buildGameLedgers, ledgersForGroup, rollupByPlayer,
-  type GameLedger, type PlayerRollup,
+  type GameLedger, type PlayerRollup, unstartedGameIds,
 } from '@/lib/stats-ledger';
 import { isAppOwner } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
-import { POOL_GROUP_SEED_KEY, TOURNAMENT_GROUP_SEED_KEY, FORMAT_SEED_KEY } from '@/lib/group-seed';
+import { POOL_GROUP_SEED_KEY, FORMAT_SEED_KEY, EVENT_SEED_KEY, type EventSeed } from '@/lib/group-seed';
 import { money } from '@/lib/money-format';
 
 // Group detail — the hub for one saved group, reached from /home. Shows the
-// members and lets you (1) start a casual round, (2) start a tournament, or
+// members and lets you (1) start a casual round, (2) start an event (§5.cv), or
 // (3) add/remove members. Starting a game drops a session "seed" (the group id)
 // that the pool / tournament wizard consumes on the relevant step — so a group
 // carries its people (and, for pool, its saved format) straight into a new game.
-// See POOL_GROUP_SEED_KEY / TOURNAMENT_GROUP_SEED_KEY in lib/group-seed.
+// See POOL_GROUP_SEED_KEY / EVENT_SEED_KEY in lib/group-seed.
 
 export default function GroupDetailPage() {
   const router = useRouter();
@@ -50,7 +52,9 @@ export default function GroupDetailPage() {
   // group that was a 5,249px phone scroll of 61 cards, each with a full-width Remove,
   // while the things a group is actually FOR (recent games, money) were absent. Craig:
   // "make it a group dashboard". See FINDINGS.md F-010.
-  const [recent, setRecent] = useState<GameLedger[]>([]);
+  // §5.cw c: an event is ONE row with its rounds nested under it.
+  const [recent, setRecent] = useState<NestedRow<GameLedger>[]>([]);
+  const [eventRounds, setEventRounds] = useState<Record<string, { name: string; rounds: PoolGame[]; unstarted: Set<string> }>>({});
   const [groupNet, setGroupNet] = useState<PlayerRollup[]>([]);
   // Members are collapsed by default and searchable when open — 61 names is a list to
   // look something up in, not something to scroll past on the way to everything else.
@@ -83,7 +87,18 @@ export default function GroupDetailPage() {
         .filter((x): x is NonNullable<typeof x> => !!x);
       const all = await buildGameLedgers(poolGames, tournaments);
       const mine = ledgersForGroup(all, g);
-      setRecent(mine.slice(0, 5));
+      const rows = nestEvents(mine, (l) => (l.gameKind === 'pool' ? loadPoolGame(l.gameId)?.series?.id : undefined)).slice(0, 5);
+      const events: Record<string, { name: string; rounds: PoolGame[]; unstarted: Set<string> }> = {};
+      for (const r of rows) {
+        if (r.kind !== 'event') continue;
+        const rounds = getSeriesRounds(r.seriesId);
+        const latest = rounds.reduce((a, b) => (b.series!.seq > a.series!.seq ? b : a));
+        // A live round with no score yet reads "Not started" here too (§5.cw a).
+        const unstarted = await unstartedGameIds(rounds.filter((x) => x.status === 'active')).catch(() => new Set<string>());
+        events[r.seriesId] = { name: latest.series!.name, rounds, unstarted };
+      }
+      setEventRounds(events);
+      setRecent(rows);
       setGroupNet(rollupByPlayer(mine));
     } catch {
       /* a group page is still useful without its ledger */
@@ -141,6 +156,16 @@ export default function GroupDetailPage() {
   // pick one first (or "New/custom"); otherwise go straight in on the group's
   // single baked-in default (today's behavior).
   function startCasualRound() {
+    eventRef.current = false;
+    if (groupFormats.length > 0) { setShowFormatPicker(true); return; }
+    launchCasual(null);
+  }
+
+  // §5.cv: "Start an event" is a casual round that opens Review on "new event, round 1". The
+  // group's players and its usual format seed it, exactly as a casual round (§5.cf).
+  const eventRef = useRef(false);
+  function startEvent() {
+    eventRef.current = true;
     if (groupFormats.length > 0) { setShowFormatPicker(true); return; }
     launchCasual(null);
   }
@@ -151,6 +176,12 @@ export default function GroupDetailPage() {
   // (members only; configure settings in the wizard).
   function launchCasual(format: RosterGroup | null) {
     sessionStorage.setItem(POOL_GROUP_SEED_KEY, groupId);
+    if (eventRef.current) {
+      const seed: EventSeed = { mode: 'new' };
+      sessionStorage.setItem(EVENT_SEED_KEY, JSON.stringify(seed));
+    } else {
+      sessionStorage.removeItem(EVENT_SEED_KEY);
+    }
     if (format?.defaults) {
       sessionStorage.setItem(FORMAT_SEED_KEY, JSON.stringify({ name: format.name, defaults: format.defaults }));
     } else {
@@ -189,11 +220,6 @@ export default function GroupDetailPage() {
     router.push('/home');
   }
 
-  function startTournament() {
-    sessionStorage.setItem(TOURNAMENT_GROUP_SEED_KEY, groupId);
-    router.push('/tournament/new');
-  }
-
   async function addMember(rp: RosterPlayer) {
     if (!group) return;
     setAdding(true);
@@ -204,6 +230,21 @@ export default function GroupDetailPage() {
     setQuery('');
     setResults(searchRoster(''));
     setAdding(false);
+  }
+
+  const [newOpen, setNewOpen] = useState(false);
+  // F-111: someone not saved yet, found by GHIN (or added by hand), is saved to the roster AND
+  // added to the group in one step. The roster merges by GHIN number, so no duplicate is made.
+  async function addNewPlayer(info: AddedPlayer) {
+    const rp = await upsertRosterPlayer({
+      id: crypto.randomUUID(),
+      ghinNumber: info.ghinNumber,
+      name: info.name,
+      handicapIndex: info.handicapIndex,
+      gender: info.gender,
+      defaultTeeName: null,
+    });
+    await addMember(rp);
   }
 
   async function removeMember(rp: RosterPlayer) {
@@ -267,7 +308,7 @@ export default function GroupDetailPage() {
                   autoFocus
                   value={renameText}
                   onChange={(e) => setRenameText(e.target.value)}
-                  className="flex-1 min-w-0 rounded-md px-2 py-1 text-base font-bold text-gray-900"
+                  className="flex-1 min-w-0 rounded-md bg-white px-2 py-1 text-base font-bold text-gray-900"
                 />
                 <button type="submit" className="text-sm font-medium text-green-200 hover:text-white">Save</button>
                 <button type="button" onClick={() => setRenaming(false)} className="text-sm text-green-200 hover:text-white">Cancel</button>
@@ -308,12 +349,14 @@ export default function GroupDetailPage() {
                 {groupFormats.length > 0 ? 'Pick one of this group’s formats — or start fresh.' : 'Members and this group’s saved settings pre-loaded.'}
               </p>
             </button>
+            {/* §5.cv Q3: an Event (a Series of ordinary games) replaces the legacy multi-round
+                builder for new play. Existing tournaments stay reachable from their own pages. */}
             <button
-              onClick={startTournament}
+              onClick={startEvent}
               className="flex-1 rounded-lg bg-green-900 px-6 py-5 text-white text-left hover:bg-green-950 shadow-md"
             >
-              <p className="font-bold text-lg">Multi-round event</p>
-              <p className="text-sm text-green-100 mt-0.5">Members pre-filled; split into teams and add rounds.</p>
+              <p className="font-bold text-lg">Start an event</p>
+              <p className="text-sm text-green-100 mt-0.5">Several rounds, like a trip. The money adds up and settles at the end.</p>
             </button>
           </div>
         </section>
@@ -357,7 +400,53 @@ export default function GroupDetailPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Recent games</h2>
             <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
-              {recent.map((l) => (
+              {recent.map((row) => {
+                if (row.kind === 'event') {
+                  const ev = eventRounds[row.seriesId];
+                  if (!ev) return null;
+                  const done = ev.rounds.filter((r) => r.status === 'completed').length;
+                  return (
+                    <div key={`event:${row.seriesId}`} data-testid="recent-event">
+                      <button
+                        onClick={() => router.push(`/event/${row.seriesId}`)}
+                        className="w-full text-left flex items-center justify-between px-4 py-2.5 hover:bg-gray-50"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 truncate">
+                            <span className="mr-2 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase bg-emerald-100 text-emerald-800">Event</span>
+                            {ev.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {ev.rounds.length} {ev.rounds.length === 1 ? 'round' : 'rounds'} · {done} finished
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-xs text-green-700">Standings →</span>
+                      </button>
+                      <ul className="pb-1.5">
+                        {ev.rounds.map((r, i) => {
+                          const state = r.status === 'completed' ? 'Final'
+                            : r.status === 'active' && !ev.unstarted.has(r.id) ? 'Live' : 'Not started';
+                          return (
+                            <li key={r.id}>
+                              <button
+                                onClick={() => router.push(`/pool/${r.id}`)}
+                                className="w-full text-left flex items-center justify-between gap-2 pl-8 pr-4 py-1.5 min-h-[36px] hover:bg-gray-50"
+                              >
+                                <span className="min-w-0 truncate text-sm text-gray-800">
+                                  Round {i + 1} · {r.name}
+                                  {r.series!.date && <span className="ml-1 text-xs text-gray-500">{shortDate(r.series!.date)}</span>}
+                                </span>
+                                <span className={`shrink-0 text-xs ${state === 'Live' ? 'text-amber-700' : 'text-gray-400'}`}>{state}</span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  );
+                }
+                const l = row.item;
+                return (
                 <button
                   key={l.gameId}
                   onClick={() => router.push(l.gameKind === 'pool' ? `/pool/${l.gameId}` : `/tournament/${l.gameId}`)}
@@ -373,7 +462,8 @@ export default function GroupDetailPage() {
                     {l.playerIds.length} player{l.playerIds.length !== 1 ? 's' : ''}
                   </span>
                 </button>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}
@@ -557,6 +647,27 @@ export default function GroupDetailPage() {
                 </button>
               ))}
             </div>
+          )}
+          {/* F-111: not saved yet? Find them on GHIN (or add by hand) right here. Behind one
+              tap so the page stays short (F-010). */}
+          {newOpen ? (
+            <div className="mt-4">
+              <p className="mb-1 text-sm font-medium text-gray-800">Someone new</p>
+              <AddPlayerPanel
+                existingGhins={new Set(members.map((m) => m.ghinNumber).filter((n): n is number => n != null))}
+                getTokenAction={() => sessionStorage.getItem('ghin_token')}
+                onAddAction={addNewPlayer}
+                addDisabled={adding}
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setNewOpen(true)}
+              className="mt-3 w-full rounded-md border border-green-700 bg-white px-4 py-2.5 text-sm font-semibold text-green-800 hover:bg-green-50"
+            >
+              + Someone new: find on GHIN or add by hand
+            </button>
           )}
         </section>
         )}

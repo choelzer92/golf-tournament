@@ -2,6 +2,7 @@ import type { Player, GameScore } from '../game-state';
 import type { FormatSetting } from '../formats';
 import type { HoleData, WolfHoleDecision } from '../pool-game';
 import type { GameSide } from './sides';
+import type { PressLine, PressOfferLine, PressTap } from './presses';
 
 // A game mode's category decides which result axis (and leaderboard) it uses.
 //   'team'              — the classic pool: compare foursomes (computePoolResult).
@@ -98,6 +99,8 @@ export interface GameModeContext {
   // Head-to-head matches (F-037): the in-scope tee groups WITH their stored singles pairings
   // (§5.cq). Always set, unlike `teeGroups`, so a one-foursome singles game pairs as stored too.
   matchSheet?: { playerIds: string[]; singles?: string[][] }[];
+  // Presses (§5.dk): the scorer's Press taps, from game.presses. Read only in button mode.
+  pressTaps?: PressTap[];
 }
 
 export interface PlayerStanding {
@@ -237,6 +240,11 @@ export interface IndividualResult {
   // plus junk when junk pays as a pot — each with its dollars and what it paid every side. Already
   // settled into standings.moneyNet; this is for the board. One 'overall' entry when unsliced.
   potSlices?: PotSliceLine[];
+  // PRESSES (§5.dj/§5.dk): every press in a two-team match, each its own bet, already settled into
+  // the sides' moneyNet. `pressOffers` are the Press buttons to show now. Never on a Team → Match
+  // game (§5.dm).
+  presses?: PressLine[];
+  pressOffers?: PressOfferLine[];
   // Skins only (F-101 d, §5.ca): holes someone has posted but not every tee group has, with who is
   // low so far. Display only: these skins aren't won yet, so they pay nothing.
   openSkins?: {

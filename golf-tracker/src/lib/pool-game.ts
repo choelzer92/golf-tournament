@@ -1,7 +1,9 @@
+import { seriesGames, type SeriesStamp } from './series';
 import type { Player, GameScore, CourseSelection, TeeSetOption } from './game-state';
 import type { TwoBestBallsVariant } from './formats';
 import { calcCourseHandicap, applyAllowance, nineHoleIndex, formatHandicap } from './game-state';
 import { getMoneyStrokesOnHole } from './money-games';
+import { strokesOffTheLow } from './strokes';
 import { bestBallTeamHoleScore } from './live-scoring';
 import { supabase } from './supabase';
 import { gameVisibleTo, type Viewer } from './game-visibility';
@@ -12,6 +14,7 @@ import {
 } from './game-modes/team-scoring';
 import { sidesOfGame, type GameSide } from './game-modes/sides';
 import { matchesOf, matchSizeOf } from './game-modes/match-pairing';
+import { computePresses, pressIdOf, pressSettingsOf, type HoleResult, type PressLine, type PressOfferLine, type PressTap } from './game-modes/presses';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -154,6 +157,11 @@ export interface PoolMatchConfig {
   junkPerPoint: number;
   scoring?: 'stroke' | 'holes';
   pointsPerHole?: { win: number; tie: number; loss: number };
+  // Presses (§5.dk), the same keys as the team engine's PRESS_SETTINGS. Absent = off. Only a
+  // two-team match played hole by hole ('holes') presses.
+  presses?: boolean;
+  pressMode?: 'auto' | 'button';
+  pressOverall?: boolean;
 }
 
 export const DEFAULT_MATCH_POINTS = { win: 1, tie: 0.5, loss: 0 };
@@ -198,6 +206,9 @@ export interface PoolGame {
   nineHandicapBasis?: '18' | '9';
   handicapsRefreshedAt?: string;               // ISO time this game's handicaps were last pulled from GHIN
   createdByGhin?: number;                       // GHIN number of the organizer who created it (for their history)
+  // The EVENT (a Series) this game is one round of: DECISIONS.md §5.cu. ABSENT on every
+  // ordinary game. An event is the set of games sharing series.id; see lib/series.ts.
+  series?: SeriesStamp;
   sourceGroupId?: string;                       // the saved group this game was created FROM (exact stats/ledger link; absent = made outside a group). See lib/stats-ledger.ts
   lockedGroups?: string[][];                    // player-id groups kept on the same team through auto-balance
   teamBuild?: PoolTeamBuild;                     // how the current teams were built (for the read-only "how these were built" summary)
@@ -259,6 +270,10 @@ export interface PoolGame {
   // reopened the game. Recomputing from hole counts would also silently change a settled
   // game's money if a late score were added.
   voidedLegs?: ('front' | 'back' | 'overall')[];
+  // The scorer's Press taps (§5.dj/§5.dk), button mode only. ABSENT on every game without one.
+  // Stored, not derived, because a tap is a bet that was MADE: it stands if a score is corrected
+  // later, and a removed press keeps its note. Auto presses are re-derived from the scores.
+  presses?: PressTap[];
 }
 
 // One hole's Wolf decision. `mode`: 'partner' = Wolf + partnerId vs the other two
@@ -415,6 +430,8 @@ export interface PoolTeamPayout {
   back: number;
   overall: number;
   junk: number;
+  // Match mode only: the presses' money, per player (§5.dk). Absent when nothing was pressed.
+  presses?: number;
   grossTotal: number;
   entryPaid: number;
   net: number;
@@ -434,6 +451,9 @@ export interface PoolResult {
   payouts: PoolTeamPayout[];
   holeScores: PoolHoleScore[];
   thruHole: number;
+  // Two-team match play with presses on (§5.dk): each press, and the Press buttons to show now.
+  presses?: PressLine[];
+  pressOffers?: PressOfferLine[];
 }
 
 export interface HoleData {
@@ -796,35 +816,43 @@ export function buildHcapMap(game: PoolGame): Map<string, number> {
   // subtracts, so it's the only one that needs care about round ORDER.
   if (game.strokeMethod !== 'off-the-low' || raw.size === 0) return raw;
 
-  // Match GHIN/USGA: round each player's PLAYING handicap (CH × allowance, per
-  // applyAllowance) to a whole number FIRST — the integer GHIN displays — THEN
-  // subtract the field's lowest rounded value. Rounding BEFORE the subtraction
-  // (not once at the end) is what keeps our strokes-off-the-low identical to
-  // GHIN. Doing round(raw − rawLow) instead handed a player ONE EXTRA stroke vs
-  // GHIN's round(raw) − round(rawLow) whenever the low man's fraction rounded up
-  // while the player's own rounded down (e.g. low 3.6→4, player 15.4→15: app
-  // gave 15.4−3.6=11.8→12, GHIN gives 15−4=11). Since F-022 the value being
-  // rounded is the unrounded-CH allowance product, but the subtract-after-round
-  // order is unchanged.
-  const rounded = new Map<string, number>();
-  for (const [id, h] of raw) rounded.set(id, Math.round(h));
-  const low = Math.min(...rounded.values());
+  // Off the low matches the GHIN app (§5.dl): STROKE play rounds each Playing Handicap first, then
+  // subtracts the rounded low (low 3.6→4, player 15.4→15: 11, not 15.4−3.6 = 11.8 → 12); MATCH play
+  // subtracts the unrounded low, then rounds once (Spring Creek 3 Stars, 6.8 v 3.3: 5 in stroke play,
+  // 4 in match play, read off the GHIN app). `strokesOffTheLow` is the one rule; both engines use it.
+  const matchPlay = isMatchPlayGame(game);
+  const fieldLow = Math.min(...raw.values());
   const adjusted = new Map<string, number>();
-  for (const [id, h] of rounded) adjusted.set(id, h - low);
+  for (const [id, h] of raw) adjusted.set(id, strokesOffTheLow(h, fieldLow, matchPlay));
   // F-037 T4 (§5.cn): in head-to-head matches the strokes come off the low player IN EACH MATCH —
-  // the match-play rule — not the field's. Same rounded values, same round-then-subtract order; only
-  // the low changes. Everything that gives strokes reads this map (the engine, the card's dots), so
-  // dots and money move together.
+  // the match-play rule — not the field's. Only the low changes. Everything that gives strokes reads
+  // this map (the engine, the card's dots), so dots and money move together.
   const matches = matchSizeOf(game.modeSettings ?? {}) > 0
     ? matchesOf(sidesOfGame(game), game.teams, matchSizeOf(game.modeSettings ?? {}))
     : null;
   for (const m of matches ?? []) {
-    const ids = m.units.flatMap((u) => u.playerIds).filter((id) => rounded.has(id));
+    const ids = m.units.flatMap((u) => u.playerIds).filter((id) => raw.has(id));
     if (ids.length === 0) continue;
-    const matchLow = Math.min(...ids.map((id) => rounded.get(id)!));
-    for (const id of ids) adjusted.set(id, rounded.get(id)! - matchLow);
+    const matchLow = Math.min(...ids.map((id) => raw.get(id)!));
+    for (const id of ids) adjusted.set(id, strokesOffTheLow(raw.get(id)!, matchLow, matchPlay));
   }
   return adjusted;
+}
+
+/**
+ * Is this game a head-to-head MATCH (holes won), for the strokes-off-the-low rule (§5.dl)? A classic
+ * 2-team match scored hole by hole; a team game compared by match (its default), or one whose matches
+ * count points or holes rather than net strokes. Everything else is stroke play, including the
+ * individual games (skins, Stableford, Wolf, Nines, quota, low total).
+ */
+export function isMatchPlayGame(game: PoolGame): boolean {
+  if (game.gameMode === 'team-2v2') {
+    const st = game.modeSettings ?? {};
+    if (matchSizeOf(st) > 0) return String(st.matchCounting ?? 'points') !== 'strokes';
+    return String(st.result ?? 'match') === 'match';
+  }
+  if (game.gameMode) return false;
+  return game.moneyMode === 'match' && game.matchConfig?.scoring === 'holes' && game.teams.length === 2;
 }
 
 export interface FieldLowInfo {
@@ -2089,7 +2117,8 @@ function computeMatchPayouts(
   front: PoolLeg,
   back: PoolLeg,
   overall: PoolLeg,
-  junkDetails: PoolTeamJunk[]
+  junkDetails: PoolTeamJunk[],
+  pressPerPlayer: Record<string, number> = {},
 ): PoolTeamPayout[] {
   const cfg = game.matchConfig ?? DEFAULT_MATCH_CONFIG;
   // Per-player signed leg amounts, accumulated per team.
@@ -2124,7 +2153,8 @@ function computeMatchPayouts(
 
   return game.teams.map((team) => {
     const a = legAmt[team.id];
-    const perPersonNet = a.front + a.back + a.overall + a.junk;
+    const presses = pressPerPlayer[team.id] ?? 0;
+    const perPersonNet = a.front + a.back + a.overall + a.junk + presses;
     const playerCount = team.playerIds.length || 1;
     const net = perPersonNet * playerCount;
     return {
@@ -2135,6 +2165,7 @@ function computeMatchPayouts(
       back: a.back,
       overall: a.overall,
       junk: a.junk,
+      ...(presses !== 0 ? { presses } : {}),
       grossTotal: net,
       entryPaid: 0,
       net,
@@ -2291,6 +2322,35 @@ export function computePoolResult(
     annotate(overall, holes);
   }
 
+  // PRESSES (§5.dj/§5.dk): a two-team match played hole by hole. A press pays the leg's stake PER
+  // PLAYER, as the legs do here (computeMatchPayouts), from the shared rules in presses.ts.
+  const pressSet = isMatch && matchCfg0.scoring === 'holes' && game.teams.length === 2
+    ? pressSettingsOf({ ...matchCfg0 } as unknown as Record<string, string | number | boolean>)
+    : null;
+  let pressed: ReturnType<typeof computePresses> | null = null;
+  if (pressSet) {
+    const [tA, tB] = game.teams;
+    const aMap = holeScoresByTeam.get(tA.id);
+    const bMap = holeScoresByTeam.get(tB.id);
+    const results = new Map<number, HoleResult>(holes.map((h) => {
+      const a = aMap?.get(h.number);
+      const b = bMap?.get(h.number);
+      if (a == null || b == null) return [h.number, null];
+      return [h.number, a === b ? 'halved' : betterValue(legScoring.basis, a, b) ? 'a' : 'b'];
+    }));
+    pressed = computePresses({
+      holeNumbers: holes.map((h) => h.number),
+      results,
+      settings: pressSet,
+      taps: game.presses ?? [],
+      stakes: matchCfg0.legDollars,
+      voided: new Set(),
+      nineOnly: nineOnly ? (holes.every((h) => h.number > 9) ? 'back' : 'front') : null,
+      sides: [tA.id, tB.id],
+      names: [tA.name, tB.name],
+    });
+  }
+
   // Junk leg — ranked by most points (higher is better).
   const junkDetails = computeJunk(game, holes, scoresByMatchup);
   const junkSubPot = pot * game.potSplit.junk;
@@ -2337,7 +2397,8 @@ export function computePoolResult(
   // junk differential); pot mode splits the buy-in pot by finishing place.
   const payoutFor = (leg: PoolLeg, teamId: string) => leg.standings.find((s) => s.teamId === teamId)?.payout ?? 0;
   const payouts: PoolTeamPayout[] = isMatch
-    ? computeMatchPayouts(game, front, back, overall, junkDetails)
+    ? computeMatchPayouts(game, front, back, overall, junkDetails,
+        pressed ? { [game.teams[0].id]: pressed.aNet, [game.teams[1].id]: -pressed.aNet } : {})
     : game.teams.map((team) => {
         const f = payoutFor(front, team.id);
         const b = payoutFor(back, team.id);
@@ -2363,7 +2424,10 @@ export function computePoolResult(
       });
   payouts.sort((a, b) => b.net - a.net);
 
-  return { pot, legs, junkDetails, payouts, holeScores, thruHole };
+  return {
+    pot, legs, junkDetails, payouts, holeScores, thruHole,
+    ...(pressed ? { presses: pressed.lines, pressOffers: pressed.offers } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -2512,6 +2576,40 @@ export function savePoolGame(game: PoolGame) {
   }).then();
 }
 
+// PRESSES (§5.dj/§5.dk): the scorer's taps, recorded on the LATEST copy of the game (read-latest-
+// merge, as CTP picks are) so two foursomes pressing at once don't clobber each other's taps.
+
+/** Start a press (button mode). Returns the saved game. */
+export function savePressTap(game: PoolGame, tap: PressTap): PoolGame {
+  const latest = loadPoolGame(game.id) || game;
+  const updated: PoolGame = { ...latest, presses: [...(latest.presses ?? []), tap] };
+  savePoolGame(updated);
+  return updated;
+}
+
+/**
+ * Remove a press, in either mode (§5.dj: "removable any time with a note"). Button mode marks the
+ * tap removed; auto mode records a removed tap, so the re-derived press stays away. The note is
+ * kept for the record; a removed press (and its re-presses) pays nothing.
+ */
+export function removePressTap(game: PoolGame, press: { id: string; match?: string; holes: number[] }, note: string): PoolGame {
+  const latest = loadPoolGame(game.id) || game;
+  const taps = [...(latest.presses ?? [])];
+  const at = taps.findIndex((t) => !t.removed && t.match === press.match && pressIdOf(t) === press.id);
+  const dot = press.id.lastIndexOf('.');
+  const removed = { note };
+  if (at >= 0) taps[at] = { ...taps[at], removed };
+  else {
+    taps.push({
+      of: press.id.slice(0, dot), by: press.id.slice(dot + 1) as PressTap['by'], fromHole: press.holes[0], removed,
+      ...(press.match !== undefined ? { match: press.match } : {}),
+    });
+  }
+  const updated: PoolGame = { ...latest, presses: taps };
+  savePoolGame(updated);
+  return updated;
+}
+
 export function loadPoolGame(id: string): PoolGame | null {
   return poolGameCache.get(id) || null;
 }
@@ -2552,6 +2650,9 @@ export interface PoolGameListItem {
   groupSizes: number[];
   sideSizes: number[];
   money?: string;
+  // §5.ck / §5.cu: Home groups games by their group, and an event's rounds by their stamp.
+  sourceGroupId?: string;
+  series?: SeriesStamp;
 }
 
 // All pool games (newest first). Owner/dashboard view.
@@ -2599,9 +2700,38 @@ export function getPoolGameList(filter?: (g: PoolGame) => boolean): PoolGameList
       groupSizes: g.teams.map((t) => t.playerIds.length),
       sideSizes: g.gameMode ? sidesOfGame(g).map((s) => s.playerIds.length) : [],
       money: g.gameMode ? String(g.modeSettings?.moneyModel ?? 'legs') : g.moneyMode,
+      sourceGroupId: g.sourceGroupId,
+      series: g.series,
     });
   }
   return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+// One event's rounds (§5.cu), from the cache, in play order. Hydrate first.
+export function getSeriesRounds(seriesId: string): PoolGame[] {
+  return seriesGames([...poolGameCache.values()], seriesId);
+}
+
+// §5.cw b: rename an event = rewrite the name on every round's stamp (§5.cu). Each round is
+// re-read first so a stale cached copy never overwrites a newer save; its own name is untouched.
+export async function renameSeries(seriesId: string, name: string): Promise<void> {
+  await Promise.all(getSeriesRounds(seriesId).map(async (r) => {
+    const fresh = (await fetchPoolGame(r.id)) ?? r;
+    if (fresh.series?.id !== seriesId || fresh.series.name === name) return;
+    savePoolGame({ ...fresh, series: { ...fresh.series, name } });
+  }));
+}
+
+// §5.dc: the organizer moves a round on the event screen = rewrite `seq` on every stamp that changed
+// (moveRound gives the whole new order). Each round is re-read first, as renameSeries does.
+export async function reorderSeries(seriesId: string, order: { gameId: string; seq: number }[]): Promise<void> {
+  await Promise.all(order.map(async ({ gameId, seq }) => {
+    const cached = getSeriesRounds(seriesId).find((r) => r.id === gameId);
+    if (!cached) return;
+    const fresh = (await fetchPoolGame(gameId)) ?? cached;
+    if (fresh.series?.id !== seriesId || fresh.series.seq === seq) return;
+    savePoolGame({ ...fresh, series: { ...fresh.series, seq } });
+  }));
 }
 
 // Only the games created by a given GHIN number (an organizer's own history).

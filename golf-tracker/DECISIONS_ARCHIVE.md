@@ -2544,3 +2544,349 @@ n mod numHoles. A plus handicap mirrors that, from the easiest hole. Up to 2 × 
 18, 18 on a nine) the numbers are identical to before, so no live game with a course handicap ≤ 36
 moves. A GHIN-app side-by-side for a CH ≥ 37 player stays on the backlog as a confirmation (§5.ba).
 Craig then asked to merge and push the branch, and to continue in a new session.
+
+### 5.cu — Series storage: each game carries the stamp; the unit is a ROUND, not a day (2026-10-12)
+
+Asked Q1 of `.claude/plans/series.md`. Craig picked **stamp each game**: `PoolGame.series =
+{id, name, rollup}` inside the game's existing `data` jsonb. That means no migration and no new
+roster_groups kind. A Series is the set of games that share `series.id`. Creating a trip creates its
+first game. Craig added: "this needs to be principled, understanding that there are more than 1
+round on certain days sometimes." So the member is a GAME (a round), never "a day":
+- a day can hold several rounds (36 holes);
+- one round can carry two games (§5.cp);
+- each counts once;
+- the rollup columns are rounds, grouped under their date;
+- the order is an explicit sequence number in the stamp, not inferred from timestamps;
+- "Next day" is **"Add a round"**, and the new round asks its date (default the next day).
+
+### 5.cv — Series design answers: on screen it's an EVENT; it replaces the legacy builder; Home-by-group ships with it (2026-10-12)
+
+Asked Q2–Q6 of `.claude/plans/series.md`, one at a time.
+- **Q2, the entry point: both.** "Start an event" on the group page seeds the wizard with the group's
+  players and its usual format (§5.cf). The wizard's Review step also has an optional "Part of an
+  event?" field (new, named / add to an existing one), so an event doesn't need a saved group.
+- **Q3: it REPLACES Home's legacy "Multi-round event".** New multi-round play goes through the Series
+  only. Existing tournaments stay reachable and keep computing (§5.cs Q1). Craig: "i think we call it
+  something other than a trip". Asked, he picked **"Event"** for the on-screen name. Code says Series.
+- **Q4, the next round:** Craig first asked "what is this add a round? isnt that for events?" Yes:
+  it only appears on a round that belongs to an event. Re-asked, he picked the **event screen + every
+  round's hub** (organizer only, live or finished), so a 36-hole day's afternoon round can be set up
+  at lunch.
+- **Q5, a live round:** "yes, and call this projected". TOTAL counts only finished rounds (real
+  money; settle-up uses it). The live round's column and a second total are labelled **Projected**.
+- **Q6, Home:** build §5.ck Home-by-group IN this branch, with events in it. A group card shows its
+  latest event or game; the Continue card on a live round links to the round and its event.
+
+### 5.cw — Event follow-ups (a)–(e) answered; the classic dashboard RETIRES (2026-10-12)
+
+Asked one at a time, (e) first because it's an access change.
+- **(e) Guests on a round's link may open the event standings: KEEP, as built.** A player in a round
+  is a player in the event, and its money is theirs (§5h is group-scoped). Same trust level as
+  `/pool/` (§5c deferred).
+- **(a) A round created ahead reads "Not started" until its first score.** It's derived from the
+  scores, not a new stored status. It stays out of Projected, and Home gives it no Continue card
+  (it still lists under its group or event). The first score makes it live.
+- **(b) Rename: YES, on the event screen,** organizer only. It rewrites the name stamp on every round
+  of the event (§5.cu); the rounds' own game names are untouched.
+- **(c) The group page shows an event as ONE row with its rounds nested** (indented) under it, each
+  round tappable to its hub.
+- **(d) Craig: "we need this to be clean long term. what is the real best option here? the plan is
+  to phase out the legacy stuff anyways, right?"** Yes, phasing out legacy is the direction. I first
+  proposed retiring `/dashboard` (Home lists the legacy tournaments and creates through the wizard),
+  and Craig picked it. Then I found that the dashboard also holds a **GHIN lookup** (index by GHIN #) and a
+  **Course Lookup** (tee ratings, slope, hole table, course handicap) that Home doesn't have, and I
+  re-asked. Craig: **"I think retirement may not be needed. We need to really investigate to make
+  sure everything still will work as intended. the ghin and course search are extremely
+  necessary."** So: **retirement is ON HOLD.** First a full investigation: what's on `/dashboard`,
+  what links to it, which routes only it reaches, and what exists elsewhere. The GHIN and course
+  lookups MUST survive whatever is chosen. Options go to Craig before any change. Lesson: inventory a
+  whole surface before proposing to remove it (§5.y).
+
+### 5.cx — Lookups page, GHIN add on the group page, and F-113 (2026-10-12)
+
+- **The dashboard (§5.cw d) is kept, as the LOOKUPS:** Course Lookup plus a read-only "look up any
+  golfer" by name or GHIN number. Copies of Home's content leave. Game headers and not-found fallbacks
+  go to Home. Craig: "the ghin and course search are extremely necessary"; the GHIN refresh for games
+  is untouched (it lives in the wizard, roster and hub). Built: a8d3a3b, 525c08b.
+- **F-110 A:** the header's Link fills in your missing index and never your identity (293b06d).
+- **F-111:** Craig: "in terms of setting up games, adding players to groups, we need to be able to
+  use the ghin to find users handicaps." The group page gets the shared add-player panel (7436d39).
+- **The old builders:** Money Game and Quick game can go once proven in the wizard (the Money Game
+  never paid its dollars, F-112); Team tournament stays until the Event points rollup. Logged on
+  Craig's word: the custom Stableford scale for TEAM games (BACKLOG, after-beta).
+- **F-113 (P1 money): fix it,** goldens/e2e first. **Live games: count them READ-ONLY** (no writes);
+  Craig decides game by game, and any correction is a separate approved step (§5.be).
+
+### 5.cy — Presses go on the beta list as a manual "Press" button, not auto-press (2026-10-12)
+
+Asked whether the old builders' dead settings exist in the wizard: skins carryover and $ per skin
+do (and work, `game-modes/skins.ts`); presses exist nowhere (F-112). Craig: **"add to beta list, not
+an auto press, but a button mid match you can click to press."** BACKLOG carries the design questions
+(which games, who may press, accept or automatic, press of a press, carry to the back, stake, who
+taps, undo). They're asked before any code; it's money math, so goldens come first.
+
+### 5.cz — The bar #11 walk's findings (2026-10-13)
+
+The 3-day event walk (`e2e/event-walk.spec.ts`, FINDINGS "Bar #11 walk record") logged F-114 to F-120.
+Craig's answers:
+- **F-114 (standings clipped on a phone):** leaning sticky Player + Total with the rounds scrolling,
+  but **"lets go over this in the design session."** Not built.
+- **F-115 ("head-to-head" means two things):** wants it clear, and leans to renaming the money model,
+  but **not "Nassau"**: "is it only nassau? what if there isnt a nassau and its just overall?" (the legs
+  model also covers an overall-only bet). He doesn't like "matches inside the foursome" for step 2.
+  OPEN: bring new names for both.
+- **F-116 (36-hole-day date):** "I think we may need to re think this, im not sure dates have to be
+  included. i think it makes more sense to just set up the rounds and then play them." A DESIGN
+  rethink of §5.cu's date columns. BACKLOG, not built.
+- **F-117:** an event round's default name is **"game type – course"**, shown as Round 1, Round 2, ...
+- **F-118:** "You should be able to name an event, offering a name slot when creating, but if no name
+  given, just call it 'type of game - course being played'". The slot stays on Review; a blank name
+  falls back to the game-kind label + course, and the slot shows it as its placeholder.
+- **F-119:** fix a+b (closed hub), c (score pad wrap), d+e (step 1 on later rounds). g (the date hint)
+  is dropped, since F-116 may remove dates.
+- **F-120 A:** the classic-pool summary reads its money mode (legs, or pot), with a unit test per mode.
+- **F-115 follow-up (same day).** The MONEY label states **total risked, game type, teams, scoring,
+  split**. Craig: "$20 match play 18 holes" (best ball, overall only); "$30 nassau 2v2 match play
+  ($10/$10/$10)"; "$30 nassau 4v4 best net & best gross ($10/$10/$10)". "does that make sense?" Yes;
+  the rule details are to confirm before building (see FINDINGS F-115). **Step 2's match question: discuss
+  first.** "If it isnt being set up as a 4 v 4, wouldnt this always be the case? I want to make sure
+  this is clear when setting up a game how we can make it as obvious as possible. and think through
+  options." Options are in F-115; not built.
+
+### 5.da — The game label, step 2's matches, event dates, phone standings (2026-10-13)
+
+Follow-up to §5.cz (F-114/F-115/F-116):
+- **The label (F-115) names what is being played so someone opening a sent game knows.** Confirmed:
+  total risked; game type (Nassau, or the holes a single bet covers); teams (2v2, 4v4). Scoring is
+  match play or stroke play, and **Stableford can be either** ("Stableford match play" / "Stableford
+  stroke play"). **The format is named ALWAYS**, plain best ball included: "There are many formats in
+  golf, best ball, four ball, alternate shot, etc. we need to be clear what is being played so someone
+  knows when they just open up the game that was sent to them." Craig asked what a "pot game" is here
+  (answered in session; the pot label shape is still to confirm).
+- **Step 2's match question: option A** ("How do the teams play each other?" whole teams / pairs /
+  one on one). But Craig: "this is what I think we need to clarify or make easy to determine early in
+  the game set up, because this information would help inform how matchups should be decided, no?
+  maybe a clear visual that can be moved around in the wizard?" A matchup visual the organizer can
+  rearrange, early in the wizard. DESIGN first.
+- **F-116: dates are OPTIONAL**, not required.
+- **F-114: the standings on a phone "need to be very clear and inviting so users enjoy the app."** Design
+  session.
+- **The pot label: the WHOLE pot first, the entry in brackets, then how it pays.** E.g. "$200 pot ($25
+  each) · 2 teams of 4 · best net & best gross · stroke play · Pays front / back / overall / junk (25%
+  each)". Craig: "it should show the whole pot, but also winner takes all or the split if there is one."
+- **The matchup visual: a design note first, next session.** 2–3 mocked layouts (where it sits in the
+  wizard, how swapping works, how it drives pairings and tee groups); Craig picks before code. Option A's
+  wording waits for it.
+- **Front + back with no overall** reads as the total risked, the legs it covers, then the split: "$40 front &
+  back ($20/$20)". Craig: "along those lines": every partial bet follows the same pattern.
+
+### 5.db — The game label's details (2026-10-13)
+
+Follow-up to §5.da, asked before building F-115:
+- **Total risked is what ONE PLAYER risks.** The engines differ: a classic head-to-head pool's
+  `legDollars` are per player; a team game's legs (and $/hole, $/point, pot buy-in) are per TEAM, split
+  evenly across its players (`perPlayerNets`). So a 2v2 team game at $10 a leg reads "$15 Nassau
+  ($5/$5/$5)". No money math changes; only the label divides.
+- **Teams: "2v2" / "4v4" for two even teams**, "3 teams of 4" with three or more, uneven shapes as before.
+- **The split sits next to the bet:** "$30 Nassau ($10/$10/$10) · 2v2 · best ball · match play".
+- **The legs money model is called "Bet per nine & overall"** (money step: "Bet per nine & overall — fixed $
+  on front / back / overall"); the hub's money card heads with the label's bet ("$30 Nassau") instead of
+  "Head-to-Head Match".
+
+### 5.dc — Event rounds: set-up order, movable, dates optional (2026-10-13)
+
+F-116 follow-up to §5.da ("dates are OPTIONAL"):
+- **Order:** the rounds run in the order they're set up (`seq`), and that order **"should be movable within
+  the event overview"** (Craig's note, with no option picked; read as set-up order + reorder on the event
+  screen). A date, when set, only puts a day header over consecutive rounds that share it.
+- **The wizard's date field starts BLANK** ("Date (optional)"); nothing is suggested.
+- The §5.cp "two games on one round" golden is hypothetical until that feature is built. When it is, the
+  second game shares its round's slot.
+
+### 5.dd — Money amounts are PER PLAYER, except the size of the whole pot (2026-10-13)
+
+F-121 (a team game's stakes were per TEAM, a classic match's per PLAYER). Craig: **"the money amount should be
+per player unless its showing the size of the overall pot."** Every $ the app asks for or shows (legs, $/hole,
+$/point, junk, an entry) means what ONE PLAYER wins or risks; only a pot's total ("$200 pot") is a whole-game
+figure. How the team game gets there, and uneven teams, are asked separately (below, when answered).
+- **Uneven teams, fixed stakes (legs, $/hole, $/point, junk):** every LOSER pays the stated amount and the
+  winners share it evenly. 3 v 2 at $10: the Hogs (3) lose → each −$10, each Dawg +$15; the Dawgs lose →
+  each −$10, each Hog +$6.67. Zero-sum, and nobody risks more than the stated amount.
+- **A team pot antes PER PLAYER** ("$25 each"; the label reads "$125 pot ($25 each)"), like the classic pool.
+  This replaces §5.ag's per-team buy-in: with uneven teams the bigger team puts in more for the same prize,
+  and the money step says so.
+- Build: goldens first (§5.z); NEW games only carry the per-player unit, and saved games keep computing as
+  they were (the S2 Q1 precedent, §5.cs).
+
+### 5.de — The matchup visual: layout A, match cards on step 2 (2026-10-13)
+
+From `.claude/plans/matchup-visual.md`. Craig: **"matchup layout A is best."**
+- Step 2 asks "How do the teams play each other?" (whole teams / pairs / one on one, default first), and right
+  under it shows the MATCH CARDS: one card per tee group, saying who plays whom, auto-dealt and balanced.
+- **Tap a player, then any other player, to swap them**, across teams too. One gesture moves players
+  between teams and re-pairs within one. The team handicap totals update live.
+- **The tee time is edited on the card** (tap "8:00"), so the groups step no longer has to ask.
+- The later teams/groups steps become confirmations of what the cards decided.
+- **Correction + build order (same day).** Craig asked "shouldnt it just be visual?". A probe showed: for EVEN
+  teams it IS visual. The money step asks "$ / player" and stores × team size, so the engine, every saved
+  game and every payout are unchanged. Only UNEVEN teams pay differently under the rule above (3 v 2 at
+  $10/$10/$10 today: losers −$10 each and winners +$15 each; under §5.dd losers −$30 and winners +$45).
+  **Craig: visual now, uneven later.** Even teams show and ask per player now; uneven teams keep today's
+  payouts and the label keeps "a team"; the uneven payout rule is built later, goldens first.
+- **The standings' money column is per player too** ("+$5 each" on a team row; a team of one has no "each"),
+  on both engines. It's display only: each team's money is already split evenly across its own players.
+
+### 5.df — Match cards deal on Handicap Index, re-deal on playing handicap if untouched (2026-10-13)
+
+From `.claude/plans/match-cards-step-order.md` Q1. The cards sit on step 2, before course and tees, so course
+handicaps aren't known. Craig picked **C**: the cards deal and show Handicap Index; when the teams step opens,
+if nobody tapped a swap on the cards, it quietly re-deals on the real playing handicap. A tapped swap is never
+undone.
+- Craig asked: "doesnt allowance potentially affect the balancing of teams?" Yes, which is why the re-deal
+  uses the full playing handicap (course handicap × allowance, full or off-the-low, the nine basis). By the
+  teams step all of those are known (scoring comes before course). A uniform % moves team totals only by
+  rounding; per-player tees (different slopes) and off-the-low on UNEVEN teams move them more.
+- The step order stays field → compete (+ cards) → scoring → course → tees → teams → groups → create.
+
+### 5.dg — The match cards live on the TEAMS step, on the game's own handicaps (2026-10-14; replaces §5.df)
+
+Craig, on §5.df: "there is a chance this is confusing to users ... i dont think it will be useful making teams
+show different numbers than what show during the game." Picked: **step 2 keeps the question** (whole teams /
+pairs / one on one), which needs no numbers; **the cards move to the teams step**, after course, tees and the
+allowance, and show exactly the playing handicaps the game uses (`getPoolPlayingHandicap`). No Handicap Index
+deal, no re-deal rule. The step order is unchanged (field → compete → scoring → course → tees → teams → groups
+→ create). Rejected: moving course + tees before step 2 (the allowance would still come later, so the numbers
+could still shift).
+
+### 5.dh — The cleaner teams step: the cards are the one editor; sizes come from step 2 (2026-10-14)
+
+Craig: "to honor the goal of the app, we need to adjust to this cleaner version." The teams step becomes the
+match cards plus one compact panel (captains on/off, the three build methods, keep-players-together). The old
+team list (Move to, ▲▼, + Add team, × remove) goes. **Team sizes come from step 2** (picked over keeping a "Move
+here"): a swap keeps sizes, and a 5 v 3 or an extra team is a different split chosen on step 2 ("Other split…"
+takes any sizes). **Player controls: option A** (Craig: "I like A also"). Tapping a player only swaps. The captain shows as a "C" on the chip
+and is chosen in the Captains panel; tees stay on the Tees step; the handicap breakdown stays on the Players step and
+Review. Rejected: B tap-select + action bar (a tap meaning two things), C a ⋯ on every chip (busy at 390px). B can be
+added later if organizers miss captain-by-tap.
+
+### 5.di — Persona-walk and bar #6/#8 answers (2026-10-14)
+
+Craig answered the session's batch:
+- **F-122 A:** a blank game name falls back to the game label (as an event's does, F-118), shown as the
+  placeholder; Next is always live on step 2.
+- **F-123 A:** a guest with a remembered game sees a "Continue: <game>, <team>" card on the plain URL. B6 is
+  built as roadmap item 6 (ask the group once, open straight to that card, hide My Games from guests).
+- **F-127 A:** "Run it back" goes right on Home's finished-game card.
+- **Bar #8:** the backup is SEPARATE maintenance, not an app feature. "Money history survives" = the backup
+  script (`scripts/export-backup.mjs`, fixed by F-128) exists and is run now and then. No in-app download.
+- **Match-play strokes:** match play DEFAULTS to off the low (the difference, as the USGA text says); "Full
+  handicap" stays available. New games only.
+- **Allowance defaults follow the USGA Appendix C table by format** (individual stroke 95%, four-ball stroke
+  85%, singles match 100%, four-ball match 90%), editable; "the allowance and everything they go with should
+  be saved as the format if they continue to use it" — a saved format and Run it back carry the chosen
+  allowance and stroke settings.
+- **Stroke vs match play stays OPEN on one point.** The USGA Appendix C text (read 2026-10-14) gives match
+  play "the difference between their own Playing Handicap and that of the player with the lowest", which is
+  our order (round each, then subtract), and every worked example agrees. Craig: "I'm not 100% sure... I
+  believe there is a difference in stroke and match play, possibly just in terms of rounding." Next evidence:
+  a GHIN-app screenshot of a round where its stroke and match numbers differ. No rounding change until then (§5.ba).
+
+### 5.dj — Presses: a game setting, auto or a Press button (2026-10-14; refines §5.cy)
+
+Researched first (Craig: "dont make any changes until you truly understand the complete use of a press"):
+Wikipedia "Nassau (bet)", Golf Monthly, Golf Digest's betting games, three betting-guide sites. A press is a
+NEW, SEPARATE bet for the original stake on the remaining holes of that bet, started all square; the original
+stays live, so a comeback can win both (2 down after 4, press 5–9, win 5/7/9: press 3 up AND front 1 up). It
+is not a concession, and not double or nothing. Two down is the most common trigger. A Closeout (a new bet
+after a match is decided) is a different game.
+
+Craig decided:
+- **A toggle on game setup enables presses** (off by default). When it's on, the group picks **auto press**
+  or **a Press button during the match** (§5.cy's "NOT auto-press" is now a choice, not a rule).
+- **Trigger: 2 down in both modes.** Auto starts the press the moment a side goes 2 down; the button shows
+  for the trailing side from 2 down ("if a team is down one through 3 holes, i dont think a press is valid").
+- **Re-presses: yes, no limit** (a press that goes 2 down can be pressed; each starts all square).
+- Earlier answers that stand: every head-to-head match; automatic once tapped (no accept step); a press
+  ends with its nine; the stake is the leg's; the scorer taps Press, and a press can be removed at any time
+  with a "press removed" note.
+- **OPEN: can the OVERALL bet be pressed?** "this maybe should be discussed or toggleable. someone may want
+  to press a front 9 and then not realize they are pressing the overall too. lets think about it." The
+  design note must show options for it; a nine's press must never silently press the overall.
+- Build next session, FIRST: design note + goldens (zero-sum, the worked examples) shown to Craig before the
+  setting, the button and the settle-up lines are wired.
+
+### 5.dk — Presses: the design note's answers (2026-10-14; refines §5.dj)
+
+Asked from `.claude/plans/presses.md` §4 (goldens in `src/test/presses-golden.test.ts`, unwired):
+- **Q1, the overall: option B.** A second toggle, "The overall can be pressed too", off by default and shown
+  only when presses are on. An overall press is its own bet to 18 with its own "Press the overall" button;
+  pressing a nine never presses the overall.
+- **Q3, stroke play: match play only.** The presses toggle hides when the legs are stroke play.
+- **Q4, Team → Match games: between its players.** A press in one match is paid between that match's
+  players at the leg stake, on top of the team result.
+- **Q2, does the side AHEAD get pressed against: OPEN.** Craig: "how does this work in regular games people
+  play? if you lose the press, dont the other matches continue? this feels like it is making it overly
+  complicated for how presses are actually used." Researched: Wikipedia's "Nassau (bet)" says the press is
+  "offered ... by the side that is losing", and that a press "can themselves be pressed if the player falls
+  two points behind on the press bet". Nothing there has the leader pressing. Proposed, and Craig: **"yes, i
+  agree with those rules"**: ONLY THE SIDE THAT'S LOSING PRESSES. It re-presses its own press when 2 down in
+  it; the leader never presses a press; a leader who collapses to 2 down in the leg itself is now losing it
+  and may press the leg. Losing a press stops nothing: every bet runs to the end of its nine. His worked
+  example pays exactly $20 (G1).
+
+### 5.dl — Strokes match GHIN in stroke play AND match play (2026-10-14; closes §5.di's open rounding item)
+
+Evidence (`.claude/plans/stroke-vs-match-play.md` §7): Spring Creek 3 Stars (71.2/141), 100%, from the GHIN
+app: 6.8 v 3.3 gets 5 strokes in stroke play and 4 in match play; 7.0 v 3.3 gets 5 in both. That fits exactly
+"stroke play = round each, then subtract; match play = round the UNROUNDED difference". Ours rounds each in
+both (probed: 5 and 5). Asked which version we use (round each, both) and whether to change match play,
+Craig: **"we need this to work for stroke and match play games."** So stroke play stays as built, and match
+play moves to GHIN's order.
+
+Follow-ups, same day:
+- **Which games:** "whatever is the most consistent. it should just be a rule. I dont really care about live
+  games, the point is for it to work going forward." So there's NO new-games stamp; one rule for every game.
+- **Below 100%:** Craig checked GHIN at 95/90/85/75% and confirmed both cells the rule predicts ("yes to
+  both": 75% = 4 stroke / 3 match for 6.8 and 7.0; 95% = the 7.0 gets 5 stroke / 4 match). So the same rule
+  holds with any allowance and in a four-ball, where the low is the lowest of the four: round(PH − low PH) on
+  UNROUNDED Playing Handicaps.
+- **What counts as match play:** a classic 2-team match scored hole by hole; a team game compared by match
+  (its default); a matches game counting points or holes. Stroke play includes net strokes, Stableford and
+  every individual game (skins, Wolf, Nines, quota, low total). For a tournament round it's `scoringMethod`
+  (or the split back nine's).
+- This supersedes **F-102 g (§5.bx)** for MATCH play only. F-102 g read Appendix C as "round each, then
+  subtract" for every off-the-low case; the GHIN app does that in stroke play only.
+- BUILT 2026-10-14 (`strokesOffTheLow` in `lib/strokes.ts`, used by the pool, the tournament engine and the
+  play page). Goldens: `match-play-rounding.test.ts`. On the 2026-10-12 backup, 23 of 725 player-rounds move
+  one stroke (all match play), and the season ledger is unchanged.
+
+### 5.dm — Presses never move a team result; Team → Match games don't press (2026-10-14; refines §5.dk Q4)
+
+Wiring §5.dk Q4 ("a match's press is paid between its players at the leg stake"), the build split the team's
+per-team leg by team size to give each match a $5 bet. Craig: **"so what is a singles press in that situation?
+in a 4 v 4 match, how would you singles press that?"** In a Team → Match game (Hogs v Dawgs: two teams of four,
+individual matches inside each foursome, each match a point toward the team) a match has no money of its own; the
+only bet is the team's. Craig: **"there may be side bets for the matches that could be pressed, but in that setting
+a press wouldnt be something that should affect the entire team score."** Also: a press is per game and always money.
+
+- Team → Match games do not press. The derived per-match stake was removed (never shipped or merged).
+- Presses stay on games where two teams play each other for the money: 1 v 1, 2 v 2 in a foursome, two teams
+  across foursomes without individual matches, and the classic two-foursome match.
+- A match's own side bet (pressable, between its players, never in the team score) is a new capability: BACKLOG.
+
+### 5.dn — F-063 C: when two phones change the same score, the later TAP wins (2026-10-14)
+
+Asked from the C1 build plan (roadmap Phase C, Q1): A, the later tap wins by the phone's tap time even if it reaches
+the server second; or B, the later arrival wins. Craig: **"A, but at the same time, there typically should only be
+one person scoring a round per 4some. but better safe than sorry here. so I like A."** So a correction made on the
+course is never undone by an old tap catching up from a dead spot. The audit keeps both values. One scorer per
+foursome stays the norm; the rule only matters when it isn't followed.
+
+### 5.do — B5 "paste names" is not built (2026-10-15; closes F-126)
+
+Offered as a paste-a-list box for the players step (F-126: 16 of walk #1's 21 typed fields were names and
+handicaps), then reshaped as paste-names-matched-to-GHIN after Craig: **"the majority of players will be
+lookupable in ghin, which is one of the best features here and it auto updates each day."** Then: **"honestly,
+thats the same thing that is there on the ghin lookup in the first place, and why we add players to groups. I dont
+think we need this."** So GHIN lookup + saved groups are the answer to a big field: the first game's typing is a
+one-time cost, and the group makes every game after it cheap. F-126 closed, not built; B5 off the road.

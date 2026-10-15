@@ -6,11 +6,14 @@ import { type Player } from '@/lib/game-state';
 import { type PoolGame, type PoolJunkValues, type PoolMoneyMode, getPar3Holes, defaultSubTeams, DEFAULT_MATCH_CONFIG, DEFAULT_MATCH_POINTS, DEFAULT_JUNK_VALUES, poolSplitDollarsForTeams, dollarsToPotSplit } from '@/lib/pool-game';
 import { gameCountsCtp } from '@/lib/game-modes/result';
 import { MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
+import { PRESS_KEYS, PRESS_SETTINGS, pressesFit } from '@/lib/game-modes/presses';
 import { formatOfGame, isOneBall, persistedTeamScoring, TEAM_FORMAT_OPTIONS, type ScoreBasis, type TeamFormat } from '@/lib/game-modes/team-scoring';
 import { fromLegacySubTeams, moveToSide, nextSideId, sideOfPlayer, sidesOfGame, sidesPatch, type GameSide } from '@/lib/game-modes/sides';
 import { fetchGameScores } from '@/lib/tournament-state';
 import { getGameMode, GAME_MODES, defaultSettings, type SettingsBag, type SettingValue } from '@/lib/game-modes';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
+import { TEAM_STAKE_KEYS } from '@/lib/game-modes/stake-unit';
+import { stakeTeamSizeOf } from '@/lib/game-label';
 import { SideNames } from '@/components/side-names';
 import { NumberField } from './shared';
 import { GROSS_HIDES, NetGrossSwitch, isGross, netAllowance } from '@/components/net-gross-switch';
@@ -98,6 +101,7 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
   // the mode's own toggleable options (+ a Sides editor for 2v2). No pot/match/
   // ball/team settings apply.
   const indMode = getGameMode(game.gameMode);
+  const stakeTeamSize = stakeTeamSizeOf(game);
   if (indMode && (indMode.category === 'individual' || indMode.category === 'team-within-group')) {
     const isWithinGroup = indMode.category === 'team-within-group';
     const modeSettings = game.modeSettings ?? defaultSettings(indMode.settings);
@@ -214,6 +218,8 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
               schema={indMode.settings}
               values={modeSettings}
               onChangeAction={setModeSetting}
+              // §5.dd: even teams see the team engine's stakes per player (stored × team size).
+              perPlayer={stakeTeamSize ? { keys: TEAM_STAKE_KEYS, teamSize: stakeTeamSize } : undefined}
               lockOptionAction={lockModeOption}
               lockNoteAction={lockModeNote}
               /* Side names left the settings schema (F-014), so they need no hiding here. The one
@@ -222,6 +228,8 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
               hideKeys={[
                 ...(sidesOfGame(game).length < 3 ? Array.from(MULTI_TEAM_ONLY_KEYS) : []),
                 ...(isGross(game.handicapAllowance) ? GROSS_HIDES : []),
+                // Presses need a head-to-head (§5.dk): two teams, or matches between even teams.
+                ...(pressesFit(sidesOfGame(game).map((s) => s.playerIds.length), matchSizeOf(modeSettings)) ? [] : Array.from(PRESS_KEYS)),
                 // F-037: head-to-head matches only where the teams can be split into them (or to turn
                 // them off). Turning them on still has to pass the tee-sheet check on save.
                 ...(indMode.id === 'team-2v2' && matchSizeOf(modeSettings) === 0
@@ -329,7 +337,7 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
         <div>
           <label className="block text-sm font-medium text-gray-800 mb-1">Game type</label>
           <div className="flex gap-2">
-            {([{ v: 'pot', label: 'Pool (pot split)' }, { v: 'match', label: 'Head-to-head match' }] as const).map(({ v, label }) => (
+            {([{ v: 'pot', label: 'Pool (pot split)' }, { v: 'match', label: 'Bet per nine & overall' }] as const).map(({ v, label }) => (
               <button
                 key={v}
                 type="button"
@@ -456,6 +464,17 @@ export function GameSettingsEditor({ game, onSave }: { game: PoolGame; onSave: (
                   ))}
                 </div>
                 <p className="text-[11px] text-gray-400 mt-1">The leg is always won by more holes; points just set how the match score reads (e.g. 5½–3½).</p>
+              </div>
+            )}
+
+            {/* Presses (§5.dk): the team engine's own settings, stored on the match config. */}
+            {(matchCfg.scoring ?? 'stroke') === 'holes' && game.teams.length === 2 && (
+              <div className="mb-3">
+                <ModeSettingsEditor
+                  schema={PRESS_SETTINGS}
+                  values={{ moneyModel: 'legs', result: 'match', presses: matchCfg.presses === true, pressMode: matchCfg.pressMode ?? 'button', pressOverall: matchCfg.pressOverall === true }}
+                  onChangeAction={(key, value) => onSave({ ...game, matchConfig: { ...matchCfg, [key]: key === 'pressMode' ? (value === 'auto' ? 'auto' : 'button') : value === true } })}
+                />
               </div>
             )}
 

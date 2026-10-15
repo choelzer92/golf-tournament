@@ -17,7 +17,7 @@ dollar is ever lost or wrong.
 | 5 | **No score is ever lost:** two phones, a dead spot, a sleeping phone | F-063 C, offline, an e2e plus unit tests | C1–C2 |
 | 6 | **Money and strokes match GHIN/USGA**, and settle to zero | the stroke vs match play check closed; zero-sum tests | §5.ce |
 | 7 | **It looks like a real app:** a font, an icon, a front door, one theme | a screenshot walk | D1–D4 |
-| 8 | **Money history survives:** an export or backup exists | the JSON export | C |
+| 8 | **Money history survives:** a backup exists | the backup script, run (§5.di: separate maintenance, not an app feature) | C |
 | 9 | **No open P1 finding** | FINDINGS.md | n/a |
 | 10 | **The full gate is green, and Craig has walked it on a phone and merged it** | `npm run verify`; Craig | n/a |
 | 11 | **A multi-day event** (a trip) sets up from a group's preferences and pays cumulative money at the end. *On the bar (§5.cg)* | a persona walk of a 3-day trip | E (Series vs S4, open) |
@@ -64,13 +64,23 @@ block.
 
 | # | Status | Last moved |
 |---|---|---|
-| 4 | §5.cb visibility built + e2e (14cd287); F-104 A closes owner-less creates | 2026-10-05 |
+| 2/3 | §5.ck Home-by-group BUILT 2026-10-12: live Continue on top, each group's latest game or event, then Other games | 2026-10-12 |
+| 4 | §5.cb visibility built + e2e (14cd287); F-104 A closes owner-less creates; F-110: the GHIN Link no longer wipes who you are (293b06d) | 2026-10-12 |
 | 7 | D1, D3, D4 (light), D5 done; the icon/name and theme wait on branding / §7 q4 | 2026-10-05 |
-| 1 | B3 + F-105: Create is the share moment (745688c); B9: Close out / Finish hidden until a score exists (f7fe1ec); hide-holes in the wizard (477b1f9). The persona walk with tap counts is not done yet | 2026-10-05 |
+| 1 | B3 + F-105: Create is the share moment (745688c); B9: Close out / Finish hidden until a score exists (f7fe1ec); hide-holes in the wizard (477b1f9); F-111 the group page adds new players by GHIN (7436d39); game headers go to Home. **F-115 (2026-10-13):** every game reads its bet, teams, format and play ("$30 Nassau ($10/$10/$10) · 4v4 · best ball · match play"); **Match cards BUILT on the teams step (§5.de/§5.dg):** who plays whom, tap to swap, tee time on the card. The persona walk with tap counts is not done yet | 2026-10-13 |
 | 3 | B1 Run it back built (97fe68e, d99a8db): hub button on a finished game + "Start from a recent game". It's 1 tap plus Next × 6 rather than 2, because Craig chose to walk the steps (§5.cm). Not yet measured by a persona walk | 2026-10-05 |
 | 9 | F-037 BUILT as Team → Match (§5.co, T0–T4 + polish, F-106/F-107). No other open P1. It closes after Craig's phone walk | 2026-10-12 |
-| 11 | Series first (§5.cr). The Team → Match roll-up is the per-day piece. The Series itself is not built yet; it's next | 2026-10-12 |
-| 6 | The ledger plays the round's real handicap (§5.cs Q3; T0's split round had ~double strokes). F-108: no stroke cap, max index 54.0. The stroke vs match play check is still open | 2026-10-12 |
+| 11 | The EVENT is BUILT (§5.cu/§5.cv/§5.cw). **The 3-day persona walk is MEASURED (2026-10-13, `e2e/event-walk.spec.ts`):** 12 taps group → round 1, 9–10 per added round, 1 to settle; it settles zero-sum. Its findings F-117 to F-120 are built. **F-116 built (§5.dc):** rounds run in set-up order and can be moved; dates are optional. Open: F-114 (standings on a phone → design session). Craig's phone walk remains | 2026-10-13 |
+| 6 | The ledger plays the round's real handicap (§5.cs Q3). F-108: no stroke cap, max index 54.0. **F-113 [P1] fixed:** the wizard dropped "Hole by hole" on head-to-head games (none live affected). F-112: dead legacy settings hidden. Presses added as [beta] (§5.cy). **Stroke vs match play checked 2026-10-14** (`.claude/plans/stroke-vs-match-play.md`, `stroke-vs-match-play.test.ts`): our two totals are identical (round each, then the difference); the 2024 team-match reading would move 1 stroke for ~¼ of players at 85–95%. Needs a GHIN-app check (G1/G3), then Craig picks A or B | 2026-10-14 |
+| 1 | **Persona walk MEASURED 2026-10-14** (`e2e/persona-walks.spec.ts`): a stranger, 8 friends, no group, every default: **21 taps + 21 typed fields** URL → shared game (16 of the typed fields are the 8 names + handicaps), ~2½–3 min est. Not yet ~2: F-126 (B5 paste names, promoted) and the jargon in F-125 (B7). F-122 (a blank name blocks Next) is Craig's call; F-124 fixed | 2026-10-14 |
+| 2 | **Persona walk MEASURED 2026-10-14:** link → Enter Scores → a score = **2 taps** (meets ~3). **"Remembers their group" FAILS** (F-123): the bare URL is a GHIN-login dead end and the link reopens the hub, not their card → B6, one question for Craig | 2026-10-14 |
+| 3 | **Persona walk MEASURED 2026-10-14:** Home → last week's game → Run it back → Next × 6 → Create = **9 taps**, as §5.cm accepted (1 + Next × 6, plus Home→game and Create). F-127 would save one | 2026-10-14 |
+| 1/3 | **Re-measured 2026-10-15 after F-122 + F-127:** walk #1 = **21 taps + 20 typed** (the name is optional now); walk #3 = **8 taps** (Run it back on Home's card) | 2026-10-15 |
+| 1 | **B5 dropped (§5.do, 2026-10-15):** a big field is GHIN lookup + saved groups; walk #1 stays ~2½–3 min for a stranger with no group, which is a one-time cost. What's left on #1: B7 plain words (F-125) | 2026-10-15 |
+| 5 | **F-063 C BUILT + migration live (2026-10-15):** per-cell score rows + a localStorage outbox (dead spot, reload, killed tab: e2e + unit), later tap wins (§5.dn), audit server-side; SQL proven on PGlite and on a copy of live; live check 131/131 cards. Closes with the deploy (merge, Craig) and his two-phone walk | 2026-10-15 |
+| 8 | **Backup RUN 2026-10-15** (`backups/2026-10-15T03-56-23-836Z`, 1,444 rows, score_audit paged past 1000): bar #8 closed | 2026-10-15 |
+| 6 | **Presses BUILT 2026-10-14** (§5.dj/§5.dk/§5.dm): zero-sum per press, ledger == board, on the two-team match and the classic match; Team → Match games don't press | 2026-10-14 |
+| 8 | **§5.di: the backup is separate maintenance**, no in-app export. The script now pages past the 1000-row cap that cut `score_audit` short and adds `feedback_notes` (F-128). Closes when Craig re-runs it once | 2026-10-14 |
 | others | not yet measured | n/a |
 
 ## 5. The one-time backlog comb

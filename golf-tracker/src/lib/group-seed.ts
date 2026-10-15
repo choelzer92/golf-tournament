@@ -18,3 +18,9 @@ export const FORMAT_SEED_KEY = 'pool_format_seed';
 // B1 Run it back (§5.cm): a past game's id. The pool wizard reads it on mount, pre-fills the
 // game's format, field, course and pairings (rerunPlanFromGame), and clears it — once.
 export const RERUN_SEED_KEY = 'pool_rerun_seed';
+
+// An EVENT (a Series, §5.cv): JSON { mode: 'new' } from the group page's "Start an event", or
+// { mode: 'add', seriesId } from "Add round N" (set alongside RERUN_SEED_KEY, which copies the
+// round). The wizard's Review step opens on that event choice. Consumed once.
+export const EVENT_SEED_KEY = 'pool_event_seed';
+export type EventSeed = { mode: 'new' } | { mode: 'add'; seriesId: string };

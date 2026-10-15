@@ -22,10 +22,16 @@ test.beforeEach(async ({ context, page }) => {
 
 test('§5.cb: home lists his group games, a game he played, and the old event he was in', async ({ page }) => {
   await expect(page.getByText(/Welcome back, Jym/)).toBeVisible();
-  await page.getByRole('button', { name: /Your golf/ }).click();
-  for (const name of VISIBLE) await expect(page.getByText(name).first()).toBeVisible();
+  // §5.ck: Home shows each group's latest game on its card and everything else below; the
+  // group's full history is on its page. Together they're everything he may see.
+  const home = await page.locator('main').innerText();
   for (const name of HIDDEN) await expect(page.getByText(name)).toHaveCount(0);
   await page.screenshot({ path: 'e2e/screenshots/5cb-home-member.png', fullPage: true });
+  await page.goto(`${BASE}/home/groups/g-weekend-warriors`);
+  await expect(page.getByRole('heading', { name: 'Weekend Warriors' })).toBeVisible();
+  const group = await page.locator('main').innerText();
+  for (const name of VISIBLE) expect(home.includes(name) || group.includes(name), name).toBe(true);
+  for (const name of HIDDEN) expect(group).not.toContain(name);
 });
 
 test('§5.cj: he sees his group (read-only), not one he isn\'t in', async ({ page }) => {
@@ -45,7 +51,7 @@ test('§5.cj: he sees his group (read-only), not one he isn\'t in', async ({ pag
   await expect(page.getByRole('heading', { name: 'Group not found' })).toBeVisible();
 });
 
-test('§5.cb: /pool and /dashboard follow the same rule', async ({ page }) => {
+test('§5.cb: /pool follows the same rule (and /dashboard, now the lookups, lists no games)', async ({ page }) => {
   await page.goto(`${BASE}/pool`);
   await expect(page.getByRole('heading', { name: 'My Games' })).toBeVisible();
   await expect(page.getByText('Craig & Jym — Thursday')).toBeVisible();
@@ -53,10 +59,10 @@ test('§5.cb: /pool and /dashboard follow the same rule', async ({ page }) => {
   await expect(page.getByText('Tuesday Crew — Skins Day')).toHaveCount(0);
 
   await page.goto(`${BASE}/dashboard`);
-  await expect(page.getByText('Craig & Jym — Thursday')).toBeVisible();
-  await expect(page.getByText('Old Trip — with Jym')).toBeVisible();
-  await expect(page.getByText('Old Trip — without Jym')).toHaveCount(0);
-  await expect(page.getByText('Untagged Saturday')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Course & GHIN lookup' })).toBeVisible();
+  for (const n of ['Craig & Jym — Thursday', 'Old Trip — with Jym', 'Old Trip — without Jym', 'Untagged Saturday']) {
+    await expect(page.getByText(n)).toHaveCount(0);
+  }
 });
 
 test('§5.cj: stats show the Warriors ledger, nothing from Tuesday Crew', async ({ page }) => {

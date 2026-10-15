@@ -23,6 +23,217 @@ Status flow: `open` → `chosen: X` → `fixed (commit)` → `verified (e2e)`
 
 ## Open
 
+### Bars #1–#3 persona walk record (2026-10-14): first-timer, invited player, returning organizer
+
+`e2e/persona-walks.spec.ts` (screens `e2e/screenshots/persona-w1-…`, `-w2-…`, `-w3-…`). A stranger,
+Pat Newman (own GHIN, not the app owner), 8 friends, no group, every default taken. The sandbox can't
+reach GHIN, so the sign-in form is counted (2 fields + Sign in) and the course search answers from a
+mocked route (the real search UI runs: type the name, Search, pick it). A "type" is one field filled.
+
+| Walk | Path | Taps | Typed fields | Bar |
+|---|---|---|---|---|
+| #1 first-time organizer | URL → invite code → GHIN sign-in → New game → 8 players by hand → 7 steps (name the game, search the course) → Create → send the link | 21 | 21 (16 of them the 8 names + handicaps) | ~2½–3 min for a person (est.: ~1 min of taps, ~1½ min typing, 7 screens to read). Over the 2-minute target, mostly the typing (F-126); jargon remains (F-125) |
+| #2 invited player | the link → "Enter Scores" on their team → a score | 2 | 0 | **Scoring meets it (~3 taps). "Remembers their group" FAILS (F-123)** |
+| #3 returning organizer | Home → last week's game → Run it back → Next × 6 → Create | 9 | 0 | 1 + Next × 6 as §5.cm accepted, plus Home→game and Create. 2 taps is not met by design (F-127) |
+
+### F-122 — Step 2's Next is greyed out, unexplained, until the game has a name (2026-10-14)  [P2] [start] [beta #1] — **BUILT 2026-10-15 (70b034e): the name is optional; blank = game type + course**
+
+A first-timer fills nothing on "How do you want to compete?" (every default is already right) and Next
+stays pale with no reason given; the only empty thing is "What should we call it?" at the top
+(`persona-w1-07-stuck-1.png`). **Options:** A, a blank name falls back to the game label, the way an
+event's does (F-118: "4v4 best net & best gross – Persona Pines"), shown as the placeholder, so Next is
+always live. B, keep it required and say so under the button ("Name the game to continue"). C, pre-fill
+the field with the label (editable). **Rec A** (one rule for games and events; nothing to type).
+
+### F-123 — The invited player isn't remembered: the next visit is a dead end (2026-10-14)  [P2] [continue] [beta #2] — **chosen: A, a Continue card (§5.di); B6 ready to build**
+
+After scoring from the link, the player comes back two ways and neither finds their game. The bare URL
+lands on "My Games — Log in with your GHIN account to see the pool games you've created"
+(`persona-w2-04`), which a guest can't use. The link again opens the hub, not their card (`persona-w2-05`),
+and the hub's "My Games" button leads to the same login. Roadmap B6 (2026-10-01) already has the design:
+ask "Which group are you in?" once, remember it on the device, open straight to that card next time, hide
+My Games from guests. **One question for Craig:** on the bare URL, a guest with a remembered game should
+see A, a "Continue: Saturday game, Team 1" card (rec), or B, go straight into the last game.
+
+### F-124 — A first-timer is greeted "Welcome back" (2026-10-14)  [P3] [start] [beta #1] — **FIXED 2026-10-14**
+
+Home said "Welcome back, Pat Newman" before Pat had played anything. Now "Welcome, …" when there are no
+groups and no games, "Welcome back, …" after. Pinned in `persona-walks.spec.ts` (both ways; mutation-checked).
+
+### F-125 — Words a stranger meets with no explanation (2026-10-14)  [P2] [start] [beta #1] — **OPEN; roadmap B7 (plain words) covers most**
+
+From walk #1, in order: step 1 the "M" chip on every player and "HCP"; step 2 "the classic pool" (the
+format name means nothing to a stranger); step 3 "Best net + best gross", "Decide by", "How many strokes
+change hands?"; teams "combined HCP"; money "Who gets paid? 100" sits above "Pot Split ($ per pot)", two
+controls for one question, and with 2 teams "places" can't matter. Walk #3's "Same game as last time"
+still reads "Pool · $25/player pot · off the low", not the F-115 label the hub shows. **Rec:** build B7
+(plain labels or an info tip at each), and show the F-115 label on "Same game as last time". The
+wording of each is Craig's to see on the walk, so build first, then show.
+
+### F-126 — Typing the field is most of the first-time cost (2026-10-14)  [P2] [start] [beta #1] — **CLOSED, not built (§5.do): GHIN lookup + saved groups cover it**
+
+8 players by hand = 16 of walk #1's 21 typed fields and 8 of its 21 taps. Roadmap B5 is the lever: a
+"paste names" box (one field for the whole list, handicaps optional, GHIN later). GHIN search per player
+costs more, not less. Rec: build B5's paste box; it alone likely brings #1 near 2 minutes.
+
+### F-127 — Run it back from Home is two taps before the wizard starts (2026-10-14)  [P3] [continue] [beta #3] — **BUILT 2026-10-15 (70b034e): Run it back on Home's finished-game cards**
+
+Home → the finished game → Run it back. **Options:** A, a "Run it back" link on Home's finished-game card
+(saves 1 tap). B, leave it (§5.cm already accepted 1 + Next × 6). Rec A, small.
+
+### F-129 — A match-play team game's scorecard says "Stroke Play" and "2 back" while the board says "match play" and "2 up" (2026-10-14)  [P2] [beta #1] — **OPEN, found on the presses walk**
+
+Seen on `e2e/screenshots/presses-1-offer.png` (seed "Presses: 2 v 2 match play, 2 down after 2"). The same game reads
+two ways on its two screens:
+- the card's header strip says **"Stroke Play · Best Ball · Full Handicap"**, while the board's label says
+  "best ball · match play";
+- the card's team rows say **"2 back" / "2 ahead"**, while the board's legs say "Dave & Rick 2 up".
+
+Not caused by presses (the strip and the badges predate them). Options: A. read the card's strip from the game label
+(`gameLabel`, F-115) and its badge from the engine's leg status; B. fix only the words ("match play", "2 down"/"2 up")
+where the card computes them. Rec A: one source, the way §5.ah moved the team rows to the engine.
+
+### F-130 — The game label doesn't say presses are on (2026-10-14)  [P3] [beta #1] — **OPEN, Craig's call**
+
+The label still reads "$30 Nassau ($10/$10/$10) · 2v2 · best ball · match play" with presses on, yet presses can
+raise what a player risks beyond that $30 (§5.db: the label states total risked). Options: A. add "· presses" to the
+label (it can't state a maximum, re-presses being unlimited); B. leave the label alone and keep it on the money card
+only. Rec A.
+
+### F-128 — The backup script stopped every table at 1000 rows, silently (2026-10-14)  [P1 data] [beta #8] — **FIXED 2026-10-14 in `scripts/export-backup.mjs` (not yet re-run against live)**
+
+Found by the JSON-export investigation (`.claude/plans/json-export.md`): PostgREST caps a request at 1000
+rows, and the 2026-10-12 backup saved `score_audit` at exactly 1000. It also skipped `feedback_notes`. The
+script now pages by primary key until a short page, and includes `feedback_notes`. The app's own
+load-everything calls share the cap (`pool_games` is at 68 rows, far from it); noted, not changed.
+Craig: re-run `node scripts/export-backup.mjs` once to get a complete backup.
+
+### F-121 — A team game's "$10 a leg" is per TEAM, a classic match's is per PLAYER (2026-10-13)  [P2] [beta #6] — **EVEN TEAMS BUILT 2026-10-13 (§5.dd, display only): stakes asked/shown per player, standings "+$5 each"; uneven-team payout rule waits (goldens first)**
+
+Found while building F-115's label. The classic head-to-head pool's legs are per player (`legDollars`,
+`pool-game.ts:141`; its money step says "Match Payouts ($ / player)"). The team game (sides engine) settles
+each leg per TEAM, and `perPlayerNets` splits it evenly across the team's players. So a 2v2 team game at
+$10/$10/$10 risks $15 a player, not $30, and its money step's "Front 9 ($)" doesn't say which. Golfers
+usually mean "$10 Nassau" per man. §5.db: the label states the per-player figure ("$15 Nassau ($5/$5/$5)"),
+and no math changed. **Options:** A, label the team game's inputs "$ / team" (no math change). B, make
+team-game stakes per player for NEW games (a money change, so goldens first, and legacy games keep
+computing per team, as S2 Q1 does). C, leave it (the label already tells players the truth).
+**Rec A now; B is worth asking in the S2 convergence.**
+
+### Bar #11 walk record (2026-10-13): a 3-day trip from a group, measured
+
+`e2e/event-walk.spec.ts`: the Tuesday Crew (8 players, no saved formats). Group → Start an event → 7-step
+wizard → round 1; score both foursomes; event standings; Add round 2 (next day); Add round 3 (same
+day, a 36-hole day); settle. Screens: `e2e/screenshots/ewalk-01…45`. **It works end to end:** three
+rounds over two dates, Total zero-sum, a four-line settle-up. Every Finish Game on the last card
+closes the round by itself, so no separate Close out is needed.
+
+| Phase | Taps |
+|---|---|
+| Group → round 1 created (incl. typing the event name) | 13 |
+| Score one foursome, 18 holes (4 pad taps + "›" per hole, open + Finish) | 91 |
+| Add round 2 (Add round → 6 × Next → Create → close the sheet) | 9 |
+| Add round 3 on the same day (+ fix the date by hand) | 10 + a date picker |
+| Settle (open the event) | 1 |
+
+Findings F-114 to F-120 below. One not logged: "+ Add round N" showing before a round has scores is §5.cv by design.
+
+### F-120 — "Same game as last time" describes a head-to-head game as a $25 pot (2026-10-13)  [P2 money text] [beta #11 #3] — **FIXED 2026-10-13 (opt A, §5.cz, 661d790)**
+
+Add round 2 / round 3 of a classic head-to-head event: steps 2 and 3 show "Same game as last time — Pool ·
+$25/player pot · off the low · 90%" (ewalk-22/23). The game is $10 a leg + $5 junk, and the copy IS right:
+step 7 and the created hub both show $10/$10/$10 + $5. **Cause:** `stakesSummary`
+(`game-modes/summary.ts:81`) has no mode for a classic pool and only states `entryPerPlayer`, ignoring
+`moneyMode: 'match'` and its leg dollars. Every copy of a classic head-to-head game (Add round, Run it back,
+a saved format with moneyMode match) says the same. On step 3 it's the only thing on screen. No money math is
+wrong. **Options:** A, the classic-pool summary reads `moneyMode` ("$10 front / back / overall, $5 junk"); a
+unit test per money mode. B, drop the stakes part for classic pools. **Rec A.**
+
+
+### F-119 — Event walk polish (2026-10-13)  [P3] [beta #11] — **a–e FIXED 2026-10-13 (§5.cz); g dropped (dates may go, F-116)**
+
+From the bar #11 walk (screens `ewalk-*`):
+- **a.** A closed round's hub still leads with big green "Enter Scores" buttons on every foursome, and the
+  payouts sit below them at the bottom (ewalk-19, 44).
+- **b.** The Finish Game dialog says "This cannot be undone", but the closed hub offers "Reopen game".
+- **c.** The 1–8 score pad wraps its "8" onto a line of its own at 390px (ewalk-15, 29).
+- **d.** On rounds 2+, step 1 lists the whole 61-player roster unchecked-first, and highlights no group
+  chip (ewalk-21). Round 1 showed just "TUESDAY CREW · 8".
+- **e.** Saved formats show among "Your groups" as chips with 0 players ("Saturday Nassau 0").
+- **f.** The card header reads "Stroke Play" while the hub says "Head-to-Head Match". The "124 · thru 18" has
+  no unit, and the hub doesn't say which scores count (that last part is already in BACKLOG).
+- **g.** Hint grammar: "Its last round was Tue, Oct 13."
+
+Options: fix each as a one-liner (recommended for a–e, g); f waits for the BACKLOG item.
+
+### F-118 — "Start an event" asks nothing about the event until the bottom of step 7 (2026-10-13)  [P2] [beta #11 #1] — **FIXED 2026-10-13 (§5.cz, 661d790): a blank name = "game type – course"**
+
+The organizer taps "Start an event". Six steps then go by with no mention of it, and the event name is an empty
+field under bonuses and Hide holes (ewalk-11). It's easy to create round 1 of an unnamed trip.
+**Options:** A, when launched from "Start an event", the Review scrolls to and focuses the event field
+and Create is disabled until it has a name. B, ask the event's name first (on step 1, one field). C, leave it.
+**Rec A:** it changes no step order (§5.e).
+
+### F-117 — Every round in an event is named after the group (2026-10-13)  [P3] [beta #11] — **FIXED 2026-10-13 (§5.cz, 661d790): rounds default to "game type – course"**
+
+All three rows read "Round N · Tuesday Crew" (ewalk-45), and so do the hub titles. The name adds nothing, and
+Home's Continue card can't tell rounds apart by name.
+**Options:** A, a round added to an event defaults its name to the day and slot ("Wed AM", "Wed PM") or
+"Round 2". B, the event rows show the format/course and drop the name. C, leave it (rename by hand).
+
+### F-116 — 36-hole day: the date defaults to the next day, and the fix is a date picker (2026-10-13)  [P3] [beta #11] — **BUILT 2026-10-13 (§5.dc): rounds run in set-up order, movable on the event screen; the date is optional and starts blank**
+
+Round 3 on round 2's day: Review suggests the day after the last round. The only cue is small grey text,
+"Playing 36 that day? Set the same date", and the organizer edits a native date picker (ewalk-38/39).
+**Options:** A, a "Same day as round 2" chip beside the date (one tap). B, default to the last round's date
+when that is today. **Rec A.**
+
+### F-115 — "Head-to-head" means two different things in the wizard (2026-10-13)  [P2] [beta #1] — **LABEL BUILT 2026-10-13 (§5.da/§5.db, ff57f3b); step 2 → matchup-visual design note `.claude/plans/matchup-visual.md`, Craig picks**
+
+Step 2 asks "Head-to-head matches? **No**" (F-037's individual matches). Step 7 then titles the game
+"2 teams of 4 · **head-to-head**", Type "Match", and picks "**Head-to-head match** — fixed $ per front / back /
+overall" (ewalk-04 vs ewalk-11). The hub says "Head-to-Head Match" too. A first-timer reads it as their
+"No" being ignored. **Options:** A, call the money model by what it pays: "Nassau: fixed $ per front / back / overall",
+with the hub/subtitle following. B, rename the step 2 question "Players matched up inside the foursome?".
+C, both. **Craig's call (vocabulary).**
+
+**2026-10-13, Craig's answer on the MONEY label (§5.cz):** state *total risked · game type · teams ·
+scoring · split*: "$20 match play 18 holes", "$30 Nassau 2v2 match play ($10/$10/$10)", "$30 Nassau 4v4
+best net & best gross ($10/$10/$10)". Rules to confirm before building:
+1. "Total risked" = one player's legs summed (per player, as the legs are today).
+2. "Nassau" when front, back and overall are all set. One leg alone names its holes ("18 holes", "front 9").
+   Front + back only = "front & back"?
+3. Scoring word: "match play" when legs go hole by hole, "stroke play" when they're totals.
+4. Format: shown when it isn't plain best ball (the third example names "best net & best gross").
+5. Junk stays a separate "+ $5 a junk point".
+6. Where: the money step's option, the hub's money card, the game-kind subtitle and the summary line.
+   A pot keeps "$25 pot".
+
+**Step 2's match question: discuss first.** The question shows only when every team is bigger than the
+match size (`matchSizesFor`, `matches.ts:455`). Teams of 2 get "1 v 1" only (two singles in place of the 2 v 2);
+teams of 4 get 1 v 1 or 2 v 2. So for a 2 v 2 the team IS the match, as Craig says. The question is really
+"split a bigger team into smaller matches?". Options:
+- **A. Ask it as "How do the teams play each other?"** with the default first: "As whole teams (4 v 4)" / "In
+  pairs: two 2 v 2 matches" / "One on one: four 1 v 1 matches". It always shows an answer, never a bare "No".
+- **B. Make it part of the team choice:** step 2's list grows "Two teams of 4, played as 2 v 2 matches" etc., and
+  there's no second question.
+- **C. Show it only for teams of 3+**, so a 2 v 2 never sees it (singles inside a 2 v 2 stay reachable under "Other").
+
+**2026-10-13, settled (§5.da):** the label ALWAYS names the format (best ball too); scoring is match or
+stroke play, and Stableford either way. A pot reads "$200 pot ($25 each) · 2 teams of 4 · best net & best
+gross · stroke play · Pays front / back / overall / junk (25% each)", or "Winner takes all". Step 2 = **option A**,
+but decided early with a movable matchup visual: a **design note first** (next session). Front + back only
+= "$40 front & back ($20/$20)", and every partial bet follows that pattern.
+
+### F-114 — The event standings are clipped on a phone at 3 rounds (2026-10-13)  [P2] [beta #11] — **→ design session (§5.cz/§5.da): "very clear and inviting so users enjoy the app"**
+
+At 390px the R3 column is cut mid-number and its header reads "R" (ewalk-45). Nothing says the table scrolls
+sideways, and the "Wed, Oct 14" header looks like it covers R2 only, so the 36-hole day doesn't read as one day.
+A real trip (4–6 rounds) would hide most of the round columns. Total and the settle-up are right.
+**Options:** A, sticky Player + Total, with the rounds scrolling under a visible scroll cue (fade/"→").
+B, on a phone, one column per DAY (its rounds summed), with tap-to-expand. C, per-player rows with the rounds
+listed under the name. **Craig's call.**
+
 ### F-002 — Share links: every visitor shares one static token, and RLS is open  [P1] [continue]
 
 **Screens:** `src/components/pool-share.tsx`, `src/lib/invite-gate.ts`,
@@ -1463,6 +1674,126 @@ A and C combine. Tag: [beta #1]. **Craig picked A + C (§5.cl).**
 
 
 ---
+
+### F-113 — The wizard drops "Hole by hole (match play)" on a classic head-to-head game: its legs settle on stroke totals (2026-10-12)  [P1 money] [beta #6] — **FIXED 2026-10-12; no live game affected**
+
+Found by the F-109 builder check (`e2e/f109-money-game-in-wizard.spec.ts`, which fails on today's code).
+The router builds the right config: `routedFields` (`game-structure.ts:605`) sets
+`matchConfig.scoring = 'holes'` when the scoring step says match play. Then `createPoolGame`
+(`pool/new/page.tsx:806`) overwrites `matchConfig` with `buildMatchConfig()` (~716), which returns
+only `legDollars` and `junkPerPoint`. `scoring` is lost, and `computePoolResult` treats a missing
+value as `'stroke'` (`pool-game.ts` ~2266). So a 2-team, teams-of-4, head-to-head ("legs") game set
+up as "Hole by hole (match play)" pays each leg to the LOWER TOTAL, not the team that won more holes.
+The saved format path (`page.tsx` ~551) uses the same `buildMatchConfig`, and so does ~745.
+**Since 2026-09-16** (c6c45f2, the collapse; it shipped to main and the friends use it). Not affected:
+pot games, and the sides/matches engines. **An existing game can be corrected by hand:** the hub's
+settings editor has a Stroke / "Match play (holes won)" toggle (`settings-editor.tsx:414`).
+
+**Fix (proposed):** `buildMatchConfig()` keeps the router's `scoring` (and `pointsPerHole`), e.g.
+`{ ...DEFAULT_MATCH_CONFIG, scoring: compareBy === 'match' ? 'holes' : 'stroke', legDollars, junkPerPoint }`.
+The e2e then passes. A unit golden is needed: the same scores where holes-won and the total disagree.
+**Live games, counted READ-ONLY 2026-10-12** (Craig approved; `.claude/f113/count.mjs`, SELECT
+only): 68 pool games; 8 are classic 2-team head-to-head. **None was hit.** The 4 without `scoring` are
+from 2026-07-29/30, before match-play scoring existed (07-31), so they're stroke-total games as they
+were meant to be. The other 4 carry `scoring=holes`, including the only one made after the
+collapse (2026-09-18, "The Big Boss Invitational"). No backfill needed.
+
+**FIXED 2026-10-12:** `buildMatchConfig()` carries `scoring` + `pointsPerHole`. Pinned by
+`e2e/f109-money-game-in-wizard.spec.ts` (fails before, passes after) and
+`src/test/f113-match-scoring-kept.test.ts` (on these scores the setting is a $30-a-player swing).
+
+### F-112 — The old builders offer settings that nothing scores: auto-press, and quick-game skins money (2026-10-12)  [P2] [beta #6]
+
+Found by the builder check for §5.cw d. "Auto-press when 2 down" (`formats.ts` 162-166 and 180-184;
+shown at `tournament/new` 872-899 and `game/new` 829-836) is stored and never read: there are **no presses
+anywhere** in the app, old or new. Quick-game "Skins" with carryover and $ per skin (`formats.ts` 196-209) is
+scored as plain match play on `/game/play` (~1455), so it never paid skins. A user who picks either
+would believe it counted. The wizard's skins (game-modes/skins.ts) do work. **Worse, the Money Game's dollars are never paid.** `/money-game` saves `moneyConfig` (Nassau
+front/back/overall $ and birdie/eagle $) on the tournament and in `sessionStorage money_config_<id>`,
+and nothing reads either one. `computeMoneyResult` (`money-game.ts`) has no caller, and
+`/tournament/[id]/money` computes only from `tournament.moneyGames`, which the builder never sets. So
+it runs as a points race whose bonus NAMES carry dollar amounts ("Front 9 ($10)"). Presses don't exist at all,
+and they're a very common money game (BACKLOG Ideas). Fix: hide the dead settings, or remove the old
+builders that show them.
+
+### F-111 — The group page can't add a new player by GHIN; it only lists saved players (2026-10-12)  [P2] [beta #1]
+
+Craig: "in terms of setting up games, adding players to groups, we need to be able to use the ghin
+to find users handicaps." F-040 B made ONE add-player stack (`components/add-player-panel.tsx`: GHIN
+name search, then manual, then GHIN numbers). Two surfaces drifted from it:
+
+| Surface | Saved | GHIN name search | GHIN # | Manual |
+|---|---|---|---|---|
+| Wizard player step | ✓ | ✓ | ✓ list | ✓ |
+| `/pool/roster` | ✓ | ✓ | ✓ | ✓ |
+| Hub "Add a player" (`field-editor.tsx` own panel) | ✓ | ✗ | ✓ | ✗ |
+| **Group page "Add players"** | ✓ | ✗ | ✗ | ✗ |
+
+On the group page, someone new means a detour: Full roster manager, GHIN search, save, back, then add.
+**Fix:** put the shared panel under the saved-player search; one add saves them to the roster AND adds
+them to the group. The hub's late-player panel could take the same name search (asked separately).
+
+### F-110 — The dashboard's GHIN "Link" wipes the signed-in identity for the session (2026-10-12)  [P2] [beta #4]
+
+**Observation:** the `/dashboard` header shows an "Enter GHIN #" + Link form only when the signed-in
+user's own index is empty (`dashboard/page.tsx` ~206). `lookupHandicap` (~157) overwrites
+`sessionStorage.ghin_golfer` with `{handicap_index, clubs, first_name, last_name}`. That object has no
+`ghin`/`golfer_id`, and `readGolfer()` reads session before local (`pool-identity.ts:45`), so
+`getCreatorGhin()` returns null until sign-out. Games created after a Link get no `createdByGhin`,
+and the viewer sees only owner-less rows (§5.cb). The same family of bug as the pool login loop.
+Typing someone ELSE's number also renames "you" to them. It is not a general lookup.
+
+**Options:** (A) keep the GHIN number in the stored object (`ghin: Number(ghinInput)`) and only
+replace the index, never the identity; (B) make it a read-only lookup that never writes the session.
+**Reproduced in the sandbox 2026-10-12** (a throwaway probe, not kept). The setup was a login whose
+handicap lookup failed, which is the only way the index comes back empty
+(`api/ghin/login/route.ts` falls back to the bare login identity), or a golfer with no index yet.
+After Link, the stored record is `{"handicap_index":"8.1","clubs":[],"first_name":"Craig","last_name":"Hoelzer"}`,
+with no number. Then: (1) **Create is refused** with "Log in to create the game" (`pool/new/page.tsx:750`)
+although the user IS logged in; (2) "Start from a recent game" disappears (`start-from.tsx:17`
+lists by `getCreatorGhin()`); (3) "Part of an event? → Add to …" lists none of their events
+(`page.tsx:527`). Signing out and in clears it.
+
+### F-109 — `/dashboard` inventory: what retiring it would remove (2026-10-12)  [P3] [beta #7] — **investigation for §5.cw d**
+
+Craig (§5.cw d): retirement ON HOLD; "the ghin and course search are extremely necessary". Sweep:
+
+| On `/dashboard` | Anywhere else reachable from Home? |
+|---|---|
+| Own index in the header; GHIN "Link" when it's empty (see F-110) | No. Home shows the name, not the index. The nearest GHIN search is the add-player panel (roster, wizard field step). It can only be reached through an EDITABLE group, and it adds people |
+| **Course Lookup**: search, then each tee's yardage, par, CR/Slope for 18/F9/B9, course HCP from your index, and a par/yards/stroke-index hole table | **No.** The wizard and solo searches only PICK a course and tee (a tee `<select>`); no rating, slope or hole table is shown anywhere |
+| Money Game (`/money-game`) | No other link at all |
+| New Game (`/game/new`) | Only a `/game/play` fallback |
+| New Tournament (`/tournament/new`) | Replaced by Start an event (§5.cv); also "Duplicate Format" on a legacy tournament |
+| Pool Game, Solo | Yes (Home) |
+| Import Tournament | No. It's the only `importTournament` caller, while Export still exists on `/tournament/[id]` |
+| Tournament and pool game lists | Yes (the Home feed and group pages) |
+| Share organizer link | On `/pool` only |
+
+**About 20 redirects point at `/dashboard`.** The ones that matter: the **pool hub's back button for
+every full user** (`pool/[id]/page.tsx:393`); the legacy tournament header (`tournament/[id]:168`);
+every "not found" fallback (pool hub, leaderboard, scorecards, teams; tournament pages); `/game/play`
+End/finish (F-066). Three e2e specs use the route (f059, visibility-5cb, verify-wizard-home). The legacy
+pages `/game/play` and `/tournament/[id]` must stay whatever is chosen, because Home lists old rows.
+
+**Options:**
+- (A) Keep `/dashboard` as is. Point the pool hub's back button and the not-found fallbacks at Home
+  (the user came from Home).
+- (B) Keep `/dashboard`, but slim it into "Lookups": GHIN and Course Lookup stay; the legacy creators
+  and Import leave. Repoint the back buttons and fallbacks to Home.
+- (C) Move the two lookups to a Home-linked page (`/home/lookup`), redirect `/dashboard` to Home, and
+  repoint the ~20 redirects. Import goes, or moves next to Export.
+**Builder check (2026-10-12):** **Money Game:** the wizard does all of it (two teams, 2 best net,
+Nassau $ per player, birdie/eagle differential via junk). **Quick game:** all of it except a custom
+Stableford scale in a TEAM game (the wizard's team Stableford is fixed at 5/4/3/2/1/0; custom
+scales are individual only). **Team tournament: NOT covered.** It has the points race across rounds
+(Ryder Cup, target score, match-winner points), front/back split formats, skins carrying across
+rounds, money games and side games on the SAME scores as the match, best-individual points bonuses,
+and the hype, recap and rules pages. Most of that waits for the Event points rollup [after-beta]. Two
+of its settings never worked at all (F-112).
+
+In every option the lookups survive. The course reference could also live INSIDE the wizard's tee
+step (show CR/Slope/holes there), but that's additive, not a replacement.
 
 ### F-108 — The shared stroke allocator caps strokes at 2 a hole, so a course handicap over 36 loses strokes (2026-10-12)  [P2] [beta #6] — **OPEN, Craig's call (handicap math)**
 

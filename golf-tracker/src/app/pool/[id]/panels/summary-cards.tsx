@@ -206,12 +206,22 @@ export function FoursomeCard({
           );
         })}
       </div>
-      <button
-        onClick={onEnterScores}
-        className="w-full bg-green-700 hover:bg-green-600 text-white font-medium py-2.5 rounded-lg text-sm"
-      >
-        Enter Scores
-      </button>
+      {/* F-119 a: a closed game is read, not scored — a quiet link, so the payouts lead. */}
+      {game.status === 'completed' ? (
+        <button
+          onClick={onEnterScores}
+          className="w-full border border-gray-300 text-gray-700 hover:border-green-500 font-medium py-2 rounded-lg text-sm"
+        >
+          View card
+        </button>
+      ) : (
+        <button
+          onClick={onEnterScores}
+          className="w-full bg-green-700 hover:bg-green-600 text-white font-medium py-2.5 rounded-lg text-sm"
+        >
+          Enter Scores
+        </button>
+      )}
 
       {detail && detail.players.length > 0 && (
         <div className="mt-2">

@@ -1,82 +1,93 @@
-# Next session: the Series (multi-day trip, bar #11), then S2 convergence
+# Next session: the road to the end of the beta
 
 Say this in a fresh session: **"Read NEXT_SESSION_PROMPT.md and follow it."**
 
-Read `AGENTS.md`, `DECISIONS.md` (whole) and `BETA.md` first. Grep the archive only for the § you
-touch: §5.co–§5.ct for this session's calls, §5.cf/§5.cr for the Series.
+Read `AGENTS.md`, `DECISIONS.md` (whole) and `BETA.md` first. Grep the archive only for the § you touch.
 
-## State (2026-10-12)
+**Craig's goal (2026-10-14):** "get to the end of the beta, and then I will check everything out locally."
+So: finish every bar item that doesn't need him, session after session, and BATCH what does need him
+(below) instead of stopping on it. Each session still takes at most 3 items (BETA §3) and ends by
+rewriting this file with the next 3 from "The road" below.
 
-Branch `phase-b-2026-10-05` was **merged to main and pushed on Craig's word** at the end of the
-session, after a green full `npm run verify` (`.claude/verify-2026-10-12-final.log`). Start the next
-work on a NEW feature branch (§5.ab). Landed:
+## State (2026-10-15, end of the 4th session)
 
-- **F-037 Team → Match** (§5.co; T0–T4, polish):
-  - the Compete step asks "Head-to-head matches? No / 1 v 1 / 2 v 2";
-  - the tee sheet is built from fair suggested pairings;
-  - match points (or holes won / net strokes) roll up to team totals;
-  - all four money models; tiebreaks; Nassau legs with points per leg;
-  - off the low per match (T4);
-  - an unpairable sheet is refused everywhere.
-- **F-106:** the swap preview recomputes strokes per arrangement.
-- **F-107 (§5.cq):** singles pairings are stored on the tee group and shown on every card.
-- **§5.cp:** a late player never joins a match. The answer is a second game on the round (BACKLOG, not built).
-- **§5.cr:** the multi-day trip is a **Series** of ordinary games. §5.cs: the S2 questions are answered.
-- **The ledger fix (S2 Q3):**
-  - money strokes follow the round's real handicap;
-  - split rounds default to the 18-hole handicap on the card's stroke index, with per-nine as a
-    Money Games choice;
-  - T0's round 3 had about double strokes;
-  - the before/after is in `.claude/plans/spine-s2.md` §8. Craig verified the cause.
-- **F-108 (§5.ct):** no 2-strokes-a-hole cap. The maximum index is 54.0. No live player-round moved.
-- **Read-only corpus harnesses**, skipped without an export:
-  - `src/test/ledger-corpus.test.ts`
-  - `src/test/strokes-corpus.test.ts`
-  - Run them with `LEDGER_CORPUS=backups/<stamp>` after `node scripts/export-backup.mjs` (Q10 yes).
+Branch **`series-2026-10-12`**, NOT merged or pushed (merging is Craig's call, §5.ab). The full gate is GREEN at the end of the
+session (`.claude/verify-2026-10-15-final2.log`: VERIFY_EXIT=0, unit 2888, e2e 292). Check it, then start below.
 
-## Step 1: the Series, design note first, then build (bar #11)
+Done 2026-10-14/15 (4th session):
+- **Presses BUILT** (§5.dj/§5.dk/§5.dm): a setup toggle (off), auto or the Press button, the overall its own
+  toggle; the two-team match (team engine) and the classic two-foursome match; the card's Press panel and each
+  press its own leaderboard line. **§5.dm: Team → Match games (individual matches inside teams) don't press**,
+  since a press must never move a team result; match side bets are a BACKLOG idea.
+- **F-063 C BUILT and its migration RUN ON LIVE (2026-10-15)**: per-cell `score_cells` + a localStorage outbox;
+  the later TAP wins (§5.dn); audit server-side; the old card blob kept current by trigger (rollback =
+  redeploy). Verified on PGlite, on a copy of live, and live read-only (131/131 cards). **Every phone is still
+  on the old app until Craig merges and deploys.** Then his two-phone walk closes bar #5.
+- **Backup run** (bar #8 closed). **B5 paste names dropped** (§5.do: GHIN lookup + groups cover it).
+- Warm-ups: **F-122** (the name is optional, blank = game + course), **F-127** (Run it back on Home's
+  cards), **§5.dh** (a match game's groups step confirms the card's tee time).
 
-The shape is `Series { gameIds, sourceGroupId, rollup: 'money' | 'points' }` (§5.cr). Each day is
-an ordinary game; cumulative money is the sum of per-player `moneyNet` (the F-068 split). Write a
-short design note in `.claude/plans/` covering:
-- create a trip from a group's preferences (§5.cf);
-- add a day (Run it back fits, §5.cm);
-- the rollup screen;
-- where it lives on Home (§5.ck group cards);
-- a points rollup later (Ryder Cup, built on Team → Match).
+## This session: the next 3 (all [beta])
 
-Ask Craig what's his call, ONE question at a time, then build goldens first.
+1. **§5.di strokes defaults (bar #6, money defaults, NEW games only, goldens first):** match play DEFAULTS to
+   off the low (full stays available); the allowance default follows the USGA Appendix C table by format
+   (individual stroke 95%, four-ball stroke 85%, singles match 100%, four-ball match 90%), editable; a saved
+   format and Run it back carry the chosen allowance and stroke settings. Stamp new games so live ones don't move.
+2. **Bar #6, F-121 for uneven teams** (§5.dd, decided): goldens first (3 v 2 zero-sum, mutation-checked), NEW
+   games only (a stamp on modeSettings). **Show Craig the goldens before wiring them in.**
+3. **Bar #2, B6 the guest remembers their group (F-123 A):** ask the group once, open straight to that card,
+   hide My Games from guests, and the plain URL shows a "Continue: <game>, <team>" card. Re-run walk #2 after.
 
-## Step 2: S2 convergence (S2.0–S2.6), after or in parallel
+Warm-ups if time allows: **F-129** (the match-play card says "Stroke Play"/"2 back" while the board says "match
+play"/"2 up"; Rec A, read both from the engine and the label); the **verify:quick pick gap** (BACKLOG: it skipped
+`f088-f090-hub`, `phase3-payout`, `split-round-money`; a pick over 25 should run the full gate).
 
-Plan: `.claude/plans/spine-s2.md` §6 and §7. The answers are in §5.cs and cover NEW rows only; legacy
-tournaments keep computing as today (Q1):
-- Q2: each player's own tee;
-- Q4: per-ball two-best-balls Stableford;
-- Q5: scale + scramble % settings;
-- Q7: a per-player Nassau stake;
-- Q8: the pool's skins rules;
-- Q9: the index stands in.
+## The road after that (in order; promote ≤3 per session)
 
-Split rounds stay legacy (Q6 → §5.cp). Run both corpus harnesses before and after every slice.
+- **Bar #1, B7 plain words (F-125):** build, then show Craig the words.
+- **Then S2 convergence** (S2.0–S2.6; `.claude/plans/spine-s2.md` §6/§7, answers in §5.cs). It's not a bar
+  item, so it comes after the bar items. Run both corpus harnesses before and after every slice.
+- **The design/branding session, LAST before Craig's walk** (bar #7, §5.ci): name, icon, theme, and F-114
+  (event standings on a phone). Then Craig walks the branded app once and merges (bar #10). It's a
+  conversation with Craig, so schedule it when he's present.
 
-## Then
-- The persona walks with tap counts (bars #1–#3).
-- F-063 C (bar #5), the stroke vs match play check (bar #6), the JSON export (bar #8).
-- Saved formats keeping their pot split (BACKLOG, Craig's call; ask).
-- GHIN-app side-by-sides, as confirmations:
-  - a four-ball match off the low (T4);
-  - a CH ≥ 37 player (F-108).
-- **End of each session:** groom BACKLOG, update `BETA.md` §4, run the full `npm run verify` once,
-  and rewrite this file.
+## Craig's batch (collect here; he checks locally at the end)
 
-## Waiting on Craig (don't guess)
-- **The Series design questions** (Step 1).
-- **Saved formats carrying the pot split.**
-- **His phone walk of F-037** (which closes the P1).
-- **Branding/design session:** the theme, the icon, the name.
-- **No-GHIN organizer: DEFERRED (§5.ch).**
+Ask these when he's back, one at a time where the answer shapes code. Don't guess any of them.
+- **Merge + deploy `series-2026-10-12`**, then the two-phone walk: score on one phone, watch a second phone and
+  the leaderboard update live (closes bar #5; the migration is already live, `.claude/plans/score-cells-migration.md`).
+- The local/phone walk: match cards (§5.de–§5.dh), F-037 (closes the P1), the Event, presses
+  (`e2e/screenshots/presses-*.png`), the long labels at 390px.
+- The branding/design session (bar #7): theme, icon, name, and F-114.
+- Saved formats carrying the pot split.
+- A GHIN-app side-by-side of a four-ball match off the low (F-037 T4, bar #6).
+- The `[tag?]` rows in BACKLOG, including **match side bets** (§5.dm) and **"why can't I press here?"** (a
+  one-line reason where the Presses setting is hidden).
+- **F-130:** add "· presses" to the game label? (Rec A.)
+- BACKLOG Ideas, **"Truly the best"**: which, if any, to promote after the beta.
+- Whatever this session's three items add.
 
 ## Settled (don't re-ask)
-§5.co (all six Team → Match answers + money), §5.cp, §5.cq, §5.cr, §5.cs (Q1–Q10 + the split-round
-rule), §5.ct. Earlier: see DECISIONS.md.
+
+§5.da–§5.do (2026-10-13/15). §5.df is superseded by §5.dg. Earlier: see DECISIONS.md.
+
+## Machine notes
+
+- **Memory is tight on this machine.** Run the full gate as `PW_WORKERS=1 npm run verify` (~15–17 min).
+  Claude Code has killed gates for low memory; Craig can start it with
+  `CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP=1` to prevent that.
+- **A killed gate leaves orphans** (its Playwright run and `next start --port 3201`), and the next gate
+  then fails with "3201 already used". Clear only this project's: PowerShell `Get-CimInstance
+  Win32_Process`, match `*next*start*3201*`, `*playwright*test*` and `*next*build*`, and `Stop-Process`
+  each by id. Stop your own `next dev --port 3200` before a gate too.
+- **Live migrations:** auto mode blocks `supabase db push`. Do the backup, a PGlite rehearsal on it
+  (`.claude/rehearse-score-cells.mjs` is the pattern), `migration list` and `db push --dry-run` yourself; then
+  Craig runs `! npx -y supabase@2.121.0 db push --yes`. Never edit permission settings to get past the block.
+- **Shared-lib changes: run the full gate, not verify:quick** (its pick over 25 specs skips some and omits the
+  production build; Craig's catch, 2026-10-14).
+- Python on this machine writes cp1252 + CRLF by default. Pass `encoding='utf-8', newline='\n'` to `open()`.
+  Long inline scripts trip the shell's heredoc quoting: write the script with the Write tool to
+  `%LOCALAPPDATA%\Temp\` and run it with `python -I "$LOCALAPPDATA/Temp/x.py"` (python doesn't see `/tmp`).
+- Vitest's setup swallows `console.log`; probe with a failing `expect(...).toBe('x')` and read "Received".
+- **Mutation-check new tests**: break the fix, confirm the test fails, restore.
+- If verify shows a TS error inside `.next/dev/types`, delete `.next/dev/types` (a regenerable cache).

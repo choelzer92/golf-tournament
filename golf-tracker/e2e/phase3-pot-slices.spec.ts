@@ -23,10 +23,11 @@ test('Q-E: a sliced pairs pot shows each slice, who took it, and A +40 / B −10
   expect(text).toMatch(/\$20 → Dave & Rick, Sam & Tony tied — split/);
   expect(text).toContain('Craig & Jym · 3 pts');
   expect(text).not.toContain('slices');
-  // The money column carries the settlement, zero-sum.
-  expect(text).toContain('+$40');
-  expect(text).toContain('−$20');
-  expect((text.match(/−\$10/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  // The money column carries the settlement, zero-sum (A +40 / B −10 / C −10 / D −20 per team),
+  // shown per player for these pairs (F-121, §5.dd).
+  expect(text).toContain('+$20 each');
+  expect(text).toContain('−$10 each');
+  expect((text.match(/−\$5 each/g) ?? []).length).toBeGreaterThanOrEqual(2);
   // The junk board names the slice, not a separate ante.
   expect(text).toContain('Junk pot $20 (a slice of the buy-in)');
   await page.screenshot({ path: 'e2e/screenshots/phase3-pot-slices-leaderboard.png', fullPage: true });
@@ -45,7 +46,7 @@ test('Q-E: a sliced pairs pot shows each slice, who took it, and A +40 / B −10
 test('an unsliced pot (one prize on the overall) shows no slice board — nothing saved changes', async ({ page }) => {
   await seed(page, 'Three teams playing a POT (uneven 3/2/1)');
   await page.waitForURL(/\/leaderboard$/);
-  await expect(page.getByText('$60 pot')).toBeVisible();
+  await expect(page.getByText('$60 pot', { exact: true })).toBeVisible();
   const text = await page.locator('body').innerText();
   expect(text).not.toContain('slices');
   expect(text).not.toContain('not started — split');

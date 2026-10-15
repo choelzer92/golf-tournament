@@ -970,14 +970,14 @@ describe('gameListSubtitle', () => {
     expect(gameListSubtitle({ gameMode: 'team-2v2', playerCount: 8, groupSizes: [4, 4], sideSizes: [2, 2, 2, 2], money: 'per-point' }))
       .toBe('4 pairs · $/point · 2 groups');
     expect(gameListSubtitle({ gameMode: 'team-2v2', playerCount: 4, groupSizes: [4], sideSizes: [2, 2], money: 'legs' }))
-      .toBe('2 pairs · head-to-head');
+      .toBe('2 pairs · bet per nine');
   });
 
   it('the classic pool reads its structure and money word — no "Pool", no "foursomes"', () => {
     expect(gameListSubtitle({ gameMode: undefined, playerCount: 8, groupSizes: [4, 4], sideSizes: [], money: 'pot' }))
       .toBe('2 teams of 4 · pot');
     expect(gameListSubtitle({ gameMode: undefined, playerCount: 8, groupSizes: [4, 4], sideSizes: [], money: 'match' }))
-      .toBe('2 teams of 4 · head-to-head');
+      .toBe('2 teams of 4 · bet per nine');
   });
 });
 

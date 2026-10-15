@@ -21,16 +21,37 @@ import { createClient } from '@supabase/supabase-js';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-const TABLES = [
-  'pool_games',
-  'tournaments',
-  'game_scores',
-  'players',
-  'roster_groups',
-  'score_audit',
-  'solo_rounds',
-  'course_scorecards',
-];
+// table → its primary key, which orders the pages (offset paging with no ORDER BY can skip
+// or repeat rows).
+const TABLES = {
+  pool_games: 'id',
+  tournaments: 'id',
+  game_scores: 'matchup_id',
+  players: 'id',
+  roster_groups: 'id',
+  score_audit: 'id',
+  solo_rounds: 'id',
+  course_scorecards: 'course_id',
+  feedback_notes: 'id',
+  // F-063 C: one row per score; a composite key, so it pages ordered by all three columns.
+  score_cells: ['matchup_id', 'player_id', 'hole'],
+};
+
+// PostgREST returns at most 1000 rows per request. A single select('*') silently stopped
+// score_audit at exactly 1000 (2026-10-12 backup), so page until a short page comes back.
+const PAGE = 1000;
+async function selectAll(table, key) {
+  const rows = [];
+  for (let from = 0; ; from += PAGE) {
+    // SELECT only. Never any mutation.
+    let q = supabase.from(table).select('*');
+    for (const k of Array.isArray(key) ? key : [key]) q = q.order(k);
+    const { data, error } = await q.range(from, from + PAGE - 1);
+    if (error) return { data: null, error };
+    rows.push(...data);
+    if (data.length < PAGE) return { data: rows, error: null };
+  }
+}
 
 // Read .env.local ourselves — this runs outside Next, so nothing injects it.
 function loadEnv() {
@@ -73,9 +94,8 @@ let totalRows = 0;
 let totalBytes = 0;
 const summary = [];
 
-for (const table of TABLES) {
-  // SELECT only. Never any mutation.
-  const { data, error } = await supabase.from(table).select('*');
+for (const [table, pk] of Object.entries(TABLES)) {
+  const { data, error } = await selectAll(table, pk);
 
   if (error) {
     // A missing table isn't fatal (course_scorecards may not exist on older DBs).

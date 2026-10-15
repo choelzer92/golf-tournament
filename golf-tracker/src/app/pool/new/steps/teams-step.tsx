@@ -1,25 +1,18 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import type { CourseSelection, Player } from '@/lib/game-state';
 import {
   type PoolGame,
   type PoolTeam,
-  getPoolPlayingHandicap,
-  balanceTeamsWithCaptains,
   captainsDealTeams,
-  balanceTeamsWithLocks,
   pickCaptains,
   sortPlayerIdsByHcap,
   orderPlayerIdsWithCaptain,
-  teeOptionsForPlayer,
 } from '@/lib/pool-game';
-import { upsertRosterPlayer } from '@/lib/roster';
 import { PairingLocks } from '@/components/pairing-locks';
 import { CaptainsPanel } from '@/components/captains-panel';
-import { TeeTimePicker } from '@/components/tee-time-picker';
-import { HandicapChip } from '@/components/handicap-chain';
-import { formatHandicap } from '@/lib/game-state';
+import { dealBalancedTeams } from '@/lib/match-cards';
 
 function makeTeam(index: number, playerIds: string[], captainId?: string, blankName = false): PoolTeam {
   return {
@@ -47,12 +40,12 @@ function makeTeam(index: number, playerIds: string[], captainId?: string, blankN
 // sheet (tee times, send-out order — the groups step owns those) and requires every team to have
 // someone on it; the caller derives the sides and lays the tee sheet on leaving.
 export function TeamsStep({
-  course, players, setPlayers, teams, setTeams, lockedGroups, setLockedGroups, captainIds, setCaptainIds,
+  course, players, teams, setTeams, lockedGroups, setLockedGroups, captainIds, setCaptainIds,
   excludeCaptains, setExcludeCaptains, useCaptains, setUseCaptains, teamBuild, setTeamBuild, teamSizes, handicapAllowance, handicapBasis, nine, onNext, onBack,
-  mode = 'tee-groups', subtitle, nextLabel = 'Next: Review & Create', namePlaceholder,
+  mode = 'tee-groups', subtitle, nextLabel = 'Next: Review & Create', cards,
 }: {
   course: CourseSelection | null;
-  players: Player[]; setPlayers: (p: Player[]) => void;
+  players: Player[];
   teams: PoolTeam[]; setTeams: (t: PoolTeam[]) => void;
   lockedGroups: string[][]; setLockedGroups: (g: string[][]) => void;
   captainIds: string[]; setCaptainIds: (ids: string[]) => void;
@@ -71,15 +64,12 @@ export function TeamsStep({
   /** One line under the heading: the structure in words ("Four pairs — partners share a foursome"). */
   subtitle?: string;
   nextLabel?: string;
-  /** What the board will call an unnamed team — shown as the name input's placeholder. */
-  namePlaceholder?: (team: PoolTeam, index: number) => string;
+  /** §5.de / §5.dg: the match cards — who plays whom, tap two players to swap — atop the step. */
+  cards?: ReactNode;
 }) {
   const moneyTeams = mode === 'money-teams';
   const mk = (index: number, playerIds: string[], captainId?: string) => makeTeam(index, playerIds, captainId, moneyTeams);
 
-  function hcapOf(p: Player): number {
-    return course ? getPoolPlayingHandicap(p, course, handicapAllowance, handicapBasis, nine) : (p.handicapIndex ?? 0);
-  }
 
   // The team count comes from the STRUCTURE (§5.bk) — two teams of 4, three of 3 + 3 + 2 — and the
   // balancers deal the field evenly into that many, which is exactly the shape groupShapesFor
@@ -106,34 +96,6 @@ export function TeamsStep({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [players, numTeams]);
-
-  function changePlayerTee(id: string, teeSetId: number) {
-    setPlayers(players.map((p) => (p.id === id ? { ...p, teeSetId } : p)));
-    const player = players.find((p) => p.id === id);
-    const teeName = course?.teeSets.find((t) => t.id === teeSetId)?.name;
-    if (player && teeName) {
-      upsertRosterPlayer({
-        id: player.id,
-        ghinNumber: player.ghinNumber ?? null,
-        name: player.name,
-        handicapIndex: player.handicapIndex,
-        gender: player.gender ?? null,
-        defaultTeeName: teeName,
-      });
-    }
-  }
-
-  // The lowest course handicap on a team becomes its captain when we don't have
-  // an explicit pick for the slot (e.g. plain auto-generate).
-  function lowestHcapId(ids: string[]): string | undefined {
-    return sortPlayerIdsByHcap(ids, players, course, handicapAllowance, handicapBasis)[0];
-  }
-
-  // Flag the current build as hand-adjusted after a move/make-captain, so the
-  // read-only summary reads "hand-adjusted after". Nothing built yet → 'manual'.
-  function markAdjusted() {
-    setTeamBuild({ ...(teamBuild ?? { method: 'manual' }), adjustedAfter: true });
-  }
 
   // Auto-generate: sequential teams in the structure's sizes, each sorted low->high, lowest = captain.
   function autoGenerate() {
@@ -183,119 +145,22 @@ export function TeamsStep({
     });
   }
 
+  // The same deal the match cards make on step 2 (§5.df), on the real playing handicaps here.
   function autoBalance() {
-    if (!useCaptains) {
-      const groups = balanceTeamsWithLocks(players, numTeams, hcapOf, lockedGroups);
-      setTeams(groups.map((ids, i) => {
-        const ordered = sortPlayerIdsByHcap(ids, players, course, handicapAllowance, handicapBasis);
-        return mk(i, ordered); // no captainId
-      }));
-      setTeamBuild({
-        method: 'balanced',
-        excludeCaptains: false,
-        hadCaptains: false,
-        hadLocks: lockedGroups.some((g) => g.length >= 2),
-        adjustedAfter: false,
-      });
-      return;
-    }
-    const captainByTeam = Array.from({ length: numTeams }, (_, i) => captainIds[i] || undefined);
-    const groups = balanceTeamsWithCaptains(players, numTeams, hcapOf, captainByTeam, lockedGroups, excludeCaptains);
-    setTeams(groups.map((ids, i) => {
-      const captainId = captainByTeam[i] && ids.includes(captainByTeam[i]!) ? captainByTeam[i] : lowestHcapId(ids);
-      const ordered = orderPlayerIdsWithCaptain(ids, captainId, players, course, handicapAllowance, handicapBasis);
-      return mk(i, ordered, captainId);
-    }));
+    const dealt = dealBalancedTeams(players, numTeams, {
+      course, allowance: handicapAllowance, basis: handicapBasis, nine,
+      captains: useCaptains, captainByTeam: captainIds, excludeCaptains, locks: lockedGroups,
+    });
+    setTeams(dealt.map((d, i) => mk(i, d.playerIds, d.captainId)));
     // Snapshot the settings used, so the read-only summary reflects the actual
     // build rather than the live toggle later.
     setTeamBuild({
       method: 'balanced',
-      excludeCaptains,
-      hadCaptains: captainByTeam.some(Boolean),
+      excludeCaptains: useCaptains ? excludeCaptains : false,
+      hadCaptains: dealt.some((d) => !!d.captainId),
       hadLocks: lockedGroups.some((g) => g.length >= 2),
       adjustedAfter: false,
     });
-  }
-
-  function movePlayer(playerId: string, fromTeamId: string, toTeamId: string) {
-    if (fromTeamId === toTeamId) return;
-    setTeams(teams.map((t) => {
-      if (t.id === fromTeamId) {
-        const remaining = t.playerIds.filter((id) => id !== playerId);
-        // If the captain left, the next-lowest handicap takes over the slot.
-        const captainId = t.captainId === playerId ? sortPlayerIdsByHcap(remaining, players, course, handicapAllowance, handicapBasis)[0] : t.captainId;
-        return { ...t, playerIds: remaining, captainId };
-      }
-      if (t.id === toTeamId) {
-        return { ...t, playerIds: orderPlayerIdsWithCaptain([...t.playerIds, playerId], t.captainId, players, course, handicapAllowance, handicapBasis) };
-      }
-      return t;
-    }));
-    markAdjusted();
-  }
-
-  // Make a player the captain of their team (moves them to the top of the list).
-  // Also mirrors the pick into the captainIds slot for that team so the Captains
-  // panel stays in sync.
-  function makeCaptain(teamId: string, playerId: string) {
-    const idx = teams.findIndex((t) => t.id === teamId);
-    setTeams(teams.map((t) => (
-      t.id === teamId
-        ? { ...t, captainId: playerId, playerIds: orderPlayerIdsWithCaptain(t.playerIds, playerId, players, course, handicapAllowance, handicapBasis) }
-        : t
-    )));
-    if (idx >= 0) {
-      const next = [...captainIds];
-      // Drop this player from any other slot, then set this team's slot.
-      for (let i = 0; i < next.length; i++) if (next[i] === playerId) next[i] = '';
-      next[idx] = playerId;
-      setCaptainIds(next);
-    }
-    markAdjusted();
-  }
-
-  function renameTeam(teamId: string, newName: string) {
-    setTeams(teams.map((t) => (t.id === teamId ? { ...t, name: newName } : t)));
-  }
-
-  function setTeeTime(teamId: string, teeTime: string) {
-    setTeams(teams.map((t) => (t.id === teamId ? { ...t, teeTime } : t)));
-  }
-
-  // Reorder teams (send-out order): move one team up or down the list.
-  function moveTeam(index: number, dir: -1 | 1) {
-    const j = index + dir;
-    if (j < 0 || j >= teams.length) return;
-    const next = [...teams];
-    [next[index], next[j]] = [next[j], next[index]];
-    setTeams(next);
-  }
-
-  // Order teams by tee time (blank times sink to the bottom).
-  function sortTeamsByTeeTime() {
-    const next = [...teams].sort((a, b) => {
-      const ta = (a.teeTime || '').trim(), tb = (b.teeTime || '').trim();
-      if (!ta && !tb) return 0;
-      if (!ta) return 1;
-      if (!tb) return -1;
-      return ta.localeCompare(tb);
-    });
-    setTeams(next);
-  }
-
-  function addTeam() {
-    setTeams([...teams, mk(teams.length, [])]);
-  }
-
-  function removeTeam(teamId: string) {
-    const removed = teams.find((t) => t.id === teamId);
-    if (!removed) return;
-    const remaining = teams.filter((t) => t.id !== teamId);
-    // Push orphaned players onto the first remaining team (if any).
-    if (removed.playerIds.length > 0 && remaining.length > 0) {
-      remaining[0] = { ...remaining[0], playerIds: sortPlayerIdsByHcap([...remaining[0].playerIds, ...removed.playerIds], players, course, handicapAllowance, handicapBasis) };
-    }
-    setTeams(remaining);
   }
 
   const assignedIds = new Set(teams.flatMap((t) => t.playerIds));
@@ -313,13 +178,6 @@ export function TeamsStep({
   const methodOfBuild: Record<string, string> = { balanced: 'optimal', serpentine: 'deal', sequential: 'sequential' };
   const builtWith = teams.length > 0 && teamBuild ? methodOfBuild[teamBuild.method] : undefined;
 
-  function teamCombinedHcap(team: PoolTeam): number {
-    return team.playerIds.reduce((sum, id) => {
-      const p = players.find((x) => x.id === id);
-      return p ? sum + hcapOf(p) : sum;
-    }, 0);
-  }
-
   // A money team with nobody on it would be a side the engine can't settle (the old sides editor
   // refused the same way); an empty tee group is merely an unused slot.
   const emptyTeams = teams.filter((t) => t.playerIds.length === 0);
@@ -331,6 +189,14 @@ export function TeamsStep({
       <button onClick={onBack} className="text-sm text-green-700 hover:underline mb-4">&larr; Back</button>
       <h2 className={`text-lg font-semibold text-gray-900 ${subtitle ? 'mb-1' : 'mb-4'}`}>Set Teams</h2>
       {subtitle && <p className="text-sm text-gray-500 mb-4">{subtitle}</p>}
+
+      {/* §5.de / §5.dg / §5.dh: THE team editor — who plays whom, on the game's own handicaps; tap two
+          players to swap. Team sizes are step 2's; names are typed on the cards. */}
+      <div ref={builtTeamsRef} className="bg-white rounded-lg shadow p-4 mb-4">
+        {cards && teams.length > 0
+          ? cards
+          : <p className="text-sm text-center text-gray-500">No teams yet. Use a button below to build them.</p>}
+      </div>
 
       {/* Team-building style: captains (default) vs plain balance by handicap. */}
       <div className="bg-white rounded-lg shadow p-4 mb-4">
@@ -447,25 +313,8 @@ export function TeamsStep({
           ))}
         </div>
         <p className="text-xs text-gray-400 mt-2">
-          Or build nothing — put each player on a team by hand with the &ldquo;Move to&rdquo; menus below.
+          Then tap two players on the cards above to swap them.
         </p>
-      </div>
-
-      <div className="flex gap-2 flex-wrap mb-4">
-        <button
-          onClick={addTeam}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 font-medium hover:bg-gray-100"
-        >
-          + Add team
-        </button>
-        {teams.length > 1 && !moneyTeams && (
-          <button
-            onClick={sortTeamsByTeeTime}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 font-medium hover:bg-gray-100"
-          >
-            Order by tee time
-          </button>
-        )}
       </div>
 
       {unassigned.length > 0 && (
@@ -480,143 +329,6 @@ export function TeamsStep({
               </span>
             ))}
           </div>
-        </div>
-      )}
-
-      {teams.length === 0 ? (
-        <div ref={builtTeamsRef} className="rounded-lg border-2 border-dashed border-gray-300 p-6 text-center text-gray-500 mb-4">
-          <p className="text-sm">No teams yet. Use a button above to build {moneyTeams ? 'them' : 'foursomes'}.</p>
-        </div>
-      ) : (
-        <div ref={builtTeamsRef} className="grid gap-3 mb-4 sm:grid-cols-2">
-          {teams.map((team, teamIdx) => (
-            <div key={team.id} className="bg-white rounded-lg shadow p-3">
-              <div className="flex items-center gap-2 mb-2">
-                {/* Reorder controls — the order teams are sent out in. Money teams have no
-                    send-out order of their own; the groups step orders the tee sheet. */}
-                {!moneyTeams && (
-                <div className="flex flex-col leading-none">
-                  <button
-                    onClick={() => moveTeam(teamIdx, -1)}
-                    disabled={teamIdx === 0}
-                    className="text-gray-400 hover:text-gray-700 disabled:opacity-30 text-xs"
-                    title="Move team up"
-                  >▲</button>
-                  <button
-                    onClick={() => moveTeam(teamIdx, 1)}
-                    disabled={teamIdx === teams.length - 1}
-                    className="text-gray-400 hover:text-gray-700 disabled:opacity-30 text-xs"
-                    title="Move team down"
-                  >▼</button>
-                </div>
-                )}
-                <input
-                  type="text"
-                  value={team.name}
-                  aria-label={`Team ${teamIdx + 1} name`}
-                  placeholder={namePlaceholder?.(team, teamIdx)}
-                  onChange={(e) => renameTeam(team.id, e.target.value)}
-                  className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm font-semibold shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
-                <button
-                  onClick={() => removeTeam(team.id)}
-                  className="text-red-500 hover:text-red-700 text-sm px-1"
-                  title="Remove team"
-                >
-                  &times;
-                </button>
-              </div>
-
-              {!moneyTeams && (
-              <div className="mb-2">
-                <label className="block text-xs text-gray-500 mb-1">Tee time</label>
-                <TeeTimePicker value={team.teeTime || ''} onChangeAction={(v) => setTeeTime(team.id, v)} />
-              </div>
-              )}
-
-              <p className="text-xs text-gray-500 mb-2">
-                {team.playerIds.length} player{team.playerIds.length === 1 ? '' : 's'}
-                {course ? ` · combined HCP ${formatHandicap(Math.round(teamCombinedHcap(team)))}` : ''}
-              </p>
-
-              <ul className="space-y-1">
-                {team.playerIds.map((pid) => {
-                  const p = players.find((x) => x.id === pid);
-                  if (!p) return null;
-                  const hcap = course ? Math.round(hcapOf(p)) : null;
-                  const isCaptain = team.captainId === pid;
-                  return (
-                    <li key={pid} className={`rounded px-2 py-2 ${isCaptain ? 'bg-green-50 ring-1 ring-green-200' : 'bg-gray-50'}`}>
-                      {/* Line 1: who + their course handicap. The chip opens the F-043 chain
-                          (index → CH → allowance → plays off) — flex-wrap so the panel drops
-                          to its own line under the name. */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        {isCaptain && (
-                          <span className="flex-shrink-0 rounded-full bg-green-700 text-white text-[10px] font-bold px-1.5 py-0.5" title="Captain">C</span>
-                        )}
-                        <span className="text-sm font-medium text-gray-900 truncate min-w-0 flex-1">{p.name}</span>
-                        {hcap !== null && (
-                          <HandicapChip
-                            player={p}
-                            course={course}
-                            allowance={handicapAllowance}
-                            basis={handicapBasis}
-                            nine={nine}
-                          />
-                        )}
-                      </div>
-                      {/* Line 2: clearly-labeled controls with real tap targets */}
-                      <div className="mt-1.5 flex items-end gap-2 flex-wrap">
-                        {useCaptains && !isCaptain && (
-                          <button
-                            onClick={() => makeCaptain(team.id, pid)}
-                            className="rounded-md border border-green-600 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50"
-                            title="Make this player the team captain"
-                          >
-                            Make captain
-                          </button>
-                        )}
-                        {teams.length > 1 && (
-                          <label className="flex flex-col gap-0.5">
-                            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Move to</span>
-                            <select
-                              value={team.id}
-                              onChange={(e) => movePlayer(pid, team.id, e.target.value)}
-                              className="text-sm rounded-md border border-gray-300 px-2 py-1 shadow-sm focus:border-green-500 focus:outline-none bg-white"
-                              title="Move this player to another team"
-                            >
-                              {teams.map((t, ti) => (
-                                // An unnamed money team reads as the board will name it, never blank.
-                                <option key={t.id} value={t.id}>{t.name || namePlaceholder?.(t, ti) || `Team ${ti + 1}`}</option>
-                              ))}
-                            </select>
-                          </label>
-                        )}
-                        {course && course.teeSets.length > 1 && (
-                          <label className="flex flex-col gap-0.5">
-                            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Tee</span>
-                            <select
-                              value={p.teeSetId ?? ''}
-                              onChange={(e) => changePlayerTee(pid, Number(e.target.value))}
-                              className="text-sm rounded-md border border-gray-300 px-2 py-1 shadow-sm focus:border-green-500 focus:outline-none bg-white"
-                              title="Tee"
-                            >
-                              {teeOptionsForPlayer(course, p).map((ts) => (
-                                <option key={ts.id} value={ts.id}>{ts.name}</option>
-                              ))}
-                            </select>
-                          </label>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-                {team.playerIds.length === 0 && (
-                  <li className="text-xs text-gray-400 px-2 py-1">Empty — move players here.</li>
-                )}
-              </ul>
-            </div>
-          ))}
         </div>
       )}
 

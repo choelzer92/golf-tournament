@@ -84,7 +84,7 @@ export type MoneyModel = 'pot' | 'legs' | 'per-hole' | 'per-point';
 
 export const MONEY_MODEL_LABELS: Record<MoneyModel, string> = {
   pot: 'Pot — everyone buys in, best team(s) paid',
-  legs: 'Head-to-head match — fixed $ per front / back / overall',
+  legs: 'Bet per nine & overall — fixed $ on front / back / overall',
   'per-hole': '$ per hole won',
   'per-point': '$ per point of margin',
 };
@@ -394,7 +394,7 @@ export function structureLabel(s: StructureShape): string {
 /** The money half of the label, one word a golfer would say. */
 export const MONEY_WORD: Record<MoneyModel, string> = {
   pot: 'pot',
-  legs: 'head-to-head',
+  legs: 'bet per nine',
   'per-hole': '$/hole',
   'per-point': '$/point',
 };

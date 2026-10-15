@@ -34,7 +34,7 @@ export default function PoolTeamsPage() {
     if (cached) setGame(cached);
     fetchPoolGame(id).then((g) => {
       if (g) setGame(g);
-      else if (!cached) router.push('/dashboard');
+      else if (!cached) router.push('/home');
     });
   }, [id, router]);
 

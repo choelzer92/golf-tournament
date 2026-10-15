@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import type { Tournament, SideGame } from '@/lib/tournament-state';
 import type { GameScore, Player } from '@/lib/game-state';
 import { parseGhinIndex, formatHandicap } from '@/lib/game-state';
-import { loadTournament, loadGameScores, fetchTournament, fetchGameScores, subscribeToTournament, subscribeToScores, saveTournament, saveGameScores } from '@/lib/tournament-state';
+import { loadTournament, loadGameScores, fetchTournament, fetchGameScores, subscribeToTournament, subscribeToScores, saveTournament, replaceGameScores } from '@/lib/tournament-state';
 import { computeSideGameResult, computeSideGamePlayerDetails } from '@/lib/side-game';
 import type { SideGameResult, SideGameTeamDetail, SideGameHoleResult } from '@/lib/side-game';
 
@@ -24,7 +24,7 @@ export default function SideGamesPage() {
     if (cached) setTournament(cached);
     fetchTournament(id).then((t) => {
       if (t) setTournament(t);
-      else if (!cached) router.push('/dashboard');
+      else if (!cached) router.push('/home');
     });
     const channel = subscribeToTournament(id, (t) => setTournament(t));
     return () => { channel.unsubscribe(); };
@@ -133,7 +133,7 @@ export default function SideGamesPage() {
           <button
             onClick={() => {
               if (!confirm('Reset all scores for the outside pair?')) return;
-              saveGameScores(sideGame.ownMatchupId, []);
+              replaceGameScores(sideGame.ownMatchupId, []);
               window.location.reload();
             }}
             className="text-xs text-gray-400 hover:text-red-600"

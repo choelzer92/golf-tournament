@@ -73,7 +73,7 @@ export default function PoolGamesListPage() {
             <PoolShareButton className="text-sm text-green-200 hover:text-white font-medium" label="Share" />
             {isOwner && (
               <button onClick={() => router.push('/dashboard')} className="text-sm text-green-200 hover:text-white">
-                Dashboard
+                Lookups
               </button>
             )}
           </div>

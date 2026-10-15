@@ -4,7 +4,7 @@ import { matchSizeOf } from '@/lib/game-modes/matches';
 import { useState, useEffect, useMemo } from 'react';
 import { type Player, type TeeSetOption, parseGhinIndex, type GameScore, formatHandicapIndex, formatHandicap } from '@/lib/game-state';
 import { type PoolGame, type PoolTeam, getPoolPlayingHandicap, gameNineBasis, balanceTeamsWithCaptains, captainsDealTeams, balanceTeamsWithLocks, pickCaptains, sortPlayerIdsByHcap, groupShapesFor, groupShapeLabel, dealBalancedIntoShape, TEE_GROUP_SHAPE_OPTS, orderPlayerIdsWithCaptain, teeOptionsForPlayer, playerTeeGenderMismatch, rankSwapCandidates, teamHandicapSpread, poolStrokeMap } from '@/lib/pool-game';
-import { loadGameScores, fetchGameScores, saveGameScores } from '@/lib/tournament-state';
+import { loadGameScores, fetchGameScores, replaceGameScores } from '@/lib/tournament-state';
 import { isAppOwner } from '@/lib/invite-gate';
 import { getCreatorGhin } from '@/lib/pool-identity';
 import { getGameMode } from '@/lib/game-modes';
@@ -282,7 +282,7 @@ export function EditFoursomes({ game, onSave: onSaveProp }: { game: PoolGame; on
         `players, so those scores will be cleared for the round. Continue?`
       );
       if (!ok) return;
-      for (const t of game.teams) saveGameScores(t.matchupId, []);
+      for (const t of game.teams) replaceGameScores(t.matchupId, []);
     }
     // Keep existing team slots (id, name, matchupId, teeTime); just swap playerIds
     // (captain first, then low->high within each foursome).
@@ -1053,7 +1053,7 @@ export function OversizedGroupPrompt({ game, onSave }: { game: PoolGame; onSave:
     // with them; a player who didn't is written back unchanged.
     for (const t of teams) {
       const rows = t.playerIds.flatMap((pid) => scoresByPlayer.get(pid) ?? []);
-      saveGameScores(t.matchupId, rows);
+      replaceGameScores(t.matchupId, rows);
     }
     // Empty any slot that's no longer in use. This is DEFENSIVE, not load-bearing: every reader
     // keys off `game.teams`, so an abandoned matchup's rows are already unreachable and a mutation
@@ -1062,7 +1062,7 @@ export function OversizedGroupPrompt({ game, onSave }: { game: PoolGame; onSave:
     // instead of teams would silently double-count a player. Cheap insurance against a bug class
     // that has already cost this project real money twice (§5.ac).
     for (const old of game.teams) {
-      if (!teams.some((t) => t.matchupId === old.matchupId)) saveGameScores(old.matchupId, []);
+      if (!teams.some((t) => t.matchupId === old.matchupId)) replaceGameScores(old.matchupId, []);
     }
 
     onSave({ ...game, teams });

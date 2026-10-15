@@ -1,7 +1,6 @@
 'use client';
 
-import { matchesOf, matchSizeOf } from '@/lib/game-modes/match-pairing';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import type { CourseSelection, Player } from '@/lib/game-state';
 import {
   type PoolTeam,
@@ -23,8 +22,10 @@ import { getGameMode, fitExplanation, formatSummaryLine, playerRangeText, type S
 import { sideNameFrom, allSidesAreSolo, MULTI_TEAM_ONLY_KEYS } from '@/lib/game-modes/team-game';
 import { GROSS_HIDES, isGross } from '@/components/net-gross-switch';
 import { ModeSettingsEditor } from '@/components/mode-settings-editor';
+import { PRESS_KEYS, PRESS_SETTINGS, pressesFit } from '@/lib/game-modes/presses';
+import { evenTeamSize, perPlayerAmount, TEAM_STAKE_KEYS } from '@/lib/game-modes/stake-unit';
 import { HandicapChip } from '@/components/handicap-chain';
-import { MONEY_WORD, structureLabel, type Container, type MoneyModel, type MoneyModelOption } from '@/lib/game-structure';
+import { type Container, type MoneyModel, type MoneyModelOption } from '@/lib/game-structure';
 import { type PotDollars, foldJunkStrings, legDollarsToStrings, potDollarsTotal } from './shared';
 import { formatHandicap } from '@/lib/game-state';
 
@@ -39,13 +40,16 @@ const SIDES_STAKES_KEYS = new Set([
   // F-037 (§5.co): how a match counts toward the team, Nassau legs, team tiebreak. Shown only with
   // matches on (showIf); the match SIZE itself is asked on the Compete step.
   'matchCounting', 'matchNassau', 'matchPtsFront', 'matchPtsBack', 'matchPtsOverall', 'teamTiebreak',
+  // Presses (§5.dk): match-play legs only (their showIf); two teams, or Team → Match games.
+  ...PRESS_KEYS,
 ]);
 // HOW JUNK PAYS — asked UNDER the bonus grid it depends on (F-093 A, §5.bs), not above it in the
 // stakes. Junk POINTS (birdie / eagle / albatross / all-par / closest) come from that shared grid
 // (§5.bq one vocabulary); these are only the payout: per point or a junk pot, and the pot's junk share.
 const SIDES_JUNK_KEYS = new Set(['junkPayout', 'junkPerPoint', 'junkPot', 'potJunk', 'junkBasis']);
 
-function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
+// `teamSize` (even teams only, §5.dd): state the stakes per player; otherwise per team.
+function sideMoneySummary(settings: SettingsBag, sideCount: number, teamSize: number | null = null): string {
   const num = (key: string, fallback: number) => {
     const v = settings[key];
     const n = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
@@ -53,6 +57,8 @@ function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
   };
   const model = String(settings.moneyModel ?? 'legs');
   const many = sideCount > 2;
+  const each = (perTeam: number) => (teamSize ? perPlayerAmount(perTeam, teamSize) : perTeam);
+  const unit = teamSize ? ' per player' : '';
   switch (model) {
     case 'pot': {
       const buyIn = num('sideBuyIn', 20);
@@ -67,22 +73,23 @@ function sideMoneySummary(settings: SettingsBag, sideCount: number): string {
         .filter(([k]) => shares[k] > 0 && total > 0)
         .map(([k, label]) => `$${dollars(shares[k])} ${label}`);
       const sliced = slices.length > 1 ? ` — ${slices.join(' · ')}` : '';
-      // §5.ag: the ante is PER TEAM whatever its size, which is the surprising part worth saying.
-      return `$${buyIn} per team in the pot ($${pot} total)${sliced}. `
-        + `${split === '100' ? (slices.length > 1 ? 'Best team takes each slice' : 'Best team takes it all') : `Each slice paid ${split} down the order`}; ties split. `
-        + 'Each team antes the same, whatever its size.';
+      // §5.ag: the ante is PER TEAM whatever its size, which is the surprising part worth saying —
+      // unless the teams are even, when it's simply each player's entry (§5.dd).
+      return `${teamSize ? `$${each(buyIn)} each` : `$${buyIn} per team`} in the pot ($${pot} total)${sliced}. `
+        + `${split === '100' ? (slices.length > 1 ? 'Best team takes each slice' : 'Best team takes it all') : `Each slice paid ${split} down the order`}; ties split.`
+        + (teamSize ? '' : ' Each team antes the same, whatever its size.');
     }
     case 'per-hole': {
       const d = num('dollarsPerHole', 2);
-      return `$${d} a hole won${many ? ', against each other team' : ''}.`;
+      return `$${each(d)} a hole won${unit}${many ? ', against each other team' : ''}.`;
     }
     case 'per-point': {
       const d = num('dollarsPerPoint', 1);
-      return `$${d} per point of margin${many ? ', against each other team' : ''}.`;
+      return `$${each(d)} per point of margin${unit}${many ? ', against each other team' : ''}.`;
     }
     default: {
       const f = num('legFront', 10), b = num('legBack', 10), o = num('legOverall', 10);
-      return `$${f} front / $${b} back / $${o} overall`
+      return `$${each(f)} front / $${each(b)} back / $${each(o)} overall${unit}`
         + (many ? ' — each leg paid to the winner by every team behind.' : '.');
     }
   }
@@ -107,7 +114,7 @@ export function CreateStep({
   junkValues, setJunkValues, customBonuses, setCustomBonuses,
   matchLegs, setMatchLegs, matchJunkPerPoint, setMatchJunkPerPoint,
   sides, modeSettings, setModeSettings, strokeMethod, hideHoles, onSaveFormat,
-  onCreate, onBack,
+  eventField, gameLabel, onCreate, onBack,
 }: {
   name: string;
   entryPerPlayer: number;
@@ -159,6 +166,10 @@ export function CreateStep({
   /** §5.ck: present only when each team is its own foursome. */
   hideHoles?: { checked: boolean; onChange: (v: boolean) => void };
   onSaveFormat: () => Promise<void>;
+  /** "Part of an event?" (§5.cv), rendered just above Create. */
+  eventField?: ReactNode;
+  /** The one-line game label (F-115) for the game Create would save. */
+  gameLabel: string;
   onCreate: () => void; onBack: () => void;
 }) {
   // Rendering follows the ROUTED container, not a picked mode: an aligned pot is the classic pool,
@@ -235,8 +246,11 @@ export function CreateStep({
   }
 
   // F-037: a matches game names its matches, as the hub's label does.
-  const matchCount = container === 'sides' ? (matchesOf(sides ?? [], teams, matchSizeOf(modeSettings))?.length ?? 0) : 0;
-  const matchCountLabel = matchCount > 0 ? ` · ${matchCount} match${matchCount === 1 ? '' : 'es'}` : '';
+
+  // §5.dd: with even teams the team engine's stakes are asked per player (stored × team size).
+  // Presses are a head-to-head bet (§5.dk): two teams, or Team → Match between even teams.
+  const pressesFitHere = pressesFit((sides ?? []).map((t) => t.playerIds.length), Number(modeSettings.matchSize ?? 0));
+  const stakeTeamSize = container === 'sides' ? evenTeamSize(((sides ?? []).length > 0 ? sides! : teams).map((t) => t.playerIds.length)) : null;
 
   return (
     <div>
@@ -250,11 +264,10 @@ export function CreateStep({
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
         <div>
-          {/* The same game-kind label the hub and list cards print (F-061): structure · money. */}
-          <p className="text-sm text-gray-500">
-            {container === 'individual'
-              ? mode!.name
-              : `${structureLabel({ kind: 'teams', teamSizes: (container === 'sides' ? (sides ?? []) : teams).map((t) => t.playerIds.length) })} · ${MONEY_WORD[moneyModel]}${matchCountLabel}`}
+          {/* The same game label the hub and list cards print (F-061, F-115), read off the game
+              Create will save — so it follows every money edit on this step. */}
+          <p className="text-sm text-gray-500" data-testid="game-label">
+            {container === 'individual' ? mode!.name : gameLabel}
           </p>
           <p className="text-lg font-bold text-gray-900">{name}</p>
           {container === 'individual' && <p className="text-xs text-gray-500 mt-0.5">{mode!.description}</p>}
@@ -268,7 +281,7 @@ export function CreateStep({
                   allowance: handicapAllowance,
                   strokeMethod,
                   handicapBasis,
-                })}
+                }, stakeTeamSize)}
               </p>
               {/* §5.ax part 4: the summary line IS the format — offer to keep it, right here. */}
               <button
@@ -381,9 +394,12 @@ export function CreateStep({
             schema={mode.settings}
             values={{ ...modeSettings, junkEnabled: !junkIsOff(junkValues) }}
             onChangeAction={(key, value) => setModeSettings({ [key]: value })}
+            perPlayer={stakeTeamSize ? { keys: TEAM_STAKE_KEYS, teamSize: stakeTeamSize } : undefined}
             hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_STAKES_KEYS.has(k)
               // A payout choice that only bites with 3+ teams is not asked of a smaller game.
-              || (MULTI_TEAM_ONLY_KEYS.has(k) && (sides ?? []).length < 3))}
+              || (MULTI_TEAM_ONLY_KEYS.has(k) && (sides ?? []).length < 3)
+              // Presses need a head-to-head: two teams, or matches between even teams (§5.dk Q4).
+              || (PRESS_KEYS.has(k) && !pressesFitHere))}
           />
           {/* F-096 A (§5.bs): the pot's SHARES as one row of small boxes — the classic pot-dollars
               layout — instead of three schema rows. Scaled to the pot, so any numbers that read
@@ -543,6 +559,17 @@ export function CreateStep({
           <p className="text-xs text-gray-500 mt-1">
             Each leg is paid by every player on the losing team to the winners; junk points settle at the per-point rate.
           </p>
+          {/* Presses (§5.dk): the team engine's own settings, so both containers ask them alike.
+              Hole-by-hole legs only (Q3); a press pays its leg's $ / player. */}
+          {teams.length === 2 && matchConfig.scoring === 'holes' && (
+            <div className="mt-3">
+              <ModeSettingsEditor
+                schema={PRESS_SETTINGS}
+                values={{ ...modeSettings, moneyModel: 'legs', result: 'match' }}
+                onChangeAction={(key, value) => setModeSettings({ [key]: value })}
+              />
+            </div>
+          )}
           {teams.length !== 2 && (
             <p className="text-xs text-amber-700 mt-2">
               Head-to-head needs exactly two foursomes — you have {teams.length}. Go back and make two teams, or switch to Pool (pot split).
@@ -664,6 +691,7 @@ export function CreateStep({
             schema={mode.settings}
             values={{ ...modeSettings, junkEnabled: !junkIsOff(junkValues) }}
             onChangeAction={(key, value) => setModeSettings({ [key]: value })}
+            perPlayer={stakeTeamSize ? { keys: TEAM_STAKE_KEYS, teamSize: stakeTeamSize } : undefined}
             hideKeys={mode.settings.map((s) => s.key).filter((k) => !SIDES_JUNK_KEYS.has(k)
               || (isGross(handicapAllowance) && GROSS_HIDES.includes(k)))}
           />
@@ -722,7 +750,7 @@ export function CreateStep({
             </div>
             {/* The stakes, in words. A review step that shows the pairings but not what they're
                 playing for is only half a confirmation. */}
-            <p className="text-xs text-gray-500 mt-2">{sideMoneySummary(modeSettings, sides.length)}</p>
+            <p className="text-xs text-gray-500 mt-2">{sideMoneySummary(modeSettings, sides.length, stakeTeamSize)}</p>
             {players.some((p) => !sides.some((s) => s.playerIds.includes(p.id))) && (
               <p className="text-xs text-amber-700 mt-1">
                 {players.filter((p) => !sides.some((s) => s.playerIds.includes(p.id)))
@@ -832,6 +860,8 @@ export function CreateStep({
           </span>
         </label>
       )}
+
+      {eventField}
 
       <button
         onClick={onCreate}

@@ -20,7 +20,7 @@ async function startWizard(page: Page, players: [string, string][], name: string
   await addPlayers(page, players);
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await expect(page.getByText('How do you want to compete?')).toBeVisible();
-  await page.getByPlaceholder('e.g. Saturday Pool').fill(name);
+  await page.getByPlaceholder('Leave blank to name it by the game and course').fill(name);
 }
 
 async function courseAndTees(page: Page) {
@@ -58,7 +58,7 @@ test('step 5: captains chosen for 4 + 2 + 2 teams (the pairs share a foursome) r
   await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await closeSendSheet(page);
-  await expect(page.getByText(/4 \+ 2 \+ 2 · \$\/point · 2 groups/)).toBeVisible();
+  await expect(page.getByText(/a point a team · 4 \+ 2 \+ 2 · /).first()).toBeVisible();
   // The hub's Teams list marks each captain.
   const teams = page.locator('section', { has: page.getByRole('heading', { name: 'Teams' }) });
   await expect(teams.getByTitle('Captain')).toHaveCount(3);
@@ -82,7 +82,7 @@ test('F-097: an aligned 3 + 3 + 2 on $ per point saves its three teams as the si
   await page.getByRole('button', { name: 'Create & send to players' }).click();
   await page.waitForURL(/\/pool\/(?!new$)[^/]+$/, { timeout: 15_000 });
   await closeSendSheet(page);
-  await expect(page.getByText(/3 \+ 3 \+ 2 · \$\/point · 3 groups/)).toBeVisible();
+  await expect(page.getByText(/a point a team · 3 \+ 3 \+ 2 · /).first()).toBeVisible();
   // Before the fix this game saved `sides: []`, the hub had no Teams list, and the engine settled two
   // invented sides. Now the Teams list is the three tee groups, each with its captain.
   const teams = page.locator('section', { has: page.getByRole('heading', { name: 'Teams' }) });

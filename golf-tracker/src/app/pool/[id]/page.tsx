@@ -12,7 +12,7 @@ import { getCreatorName } from '@/lib/pool-identity';
 import { getGameMode } from '@/lib/game-modes';
 import { matchLinesByGroup, matchShapeProblem } from '@/lib/game-modes/matches';
 import { matchSizeOf } from '@/lib/game-modes/match-pairing';
-import { gameKindLabel } from '@/lib/game-structure';
+import { gameLabel } from '@/lib/game-label';
 import { sideNameFrom, allSidesAreSolo } from '@/lib/game-modes/team-game';
 import { FeedbackButton } from '@/components/feedback-box';
 import { GhinLoginModal } from '@/components/ghin-login-modal';
@@ -24,6 +24,7 @@ import { GameSettingsEditor, CtpEditor } from './panels/settings-editor';
 import { MoneySummary, GuestSettleUp, GameCloseOut } from './panels/money-panels';
 import { EditFoursomes, OversizedGroupPrompt, WolfRotationEditor } from './panels/field-editor';
 import { RERUN_SEED_KEY } from '@/lib/group-seed';
+import { EventBanner } from '@/components/event-banner';
 
 // Pick a tee for a player, STRICTLY within their gender — mirrors the wizard
 // (src/app/pool/new/page.tsx). A course's men's and women's tees can share a
@@ -70,7 +71,7 @@ export default function PoolHubPage() {
     if (cached) setGame(cached);
     fetchPoolGame(id).then((g) => {
       if (g) setGame(g);
-      else if (!cached) router.push('/dashboard');
+      else if (!cached) router.push('/home');
     });
     const channel = subscribeToPoolGame(id, (g) => setGame(g));
     return () => { channel.unsubscribe(); };
@@ -317,14 +318,14 @@ export default function PoolHubPage() {
 
   const pot = game.players.length * game.entryPerPlayer;
 
-  // One game-kind label for every surface (F-061, Phase 2): "2 teams of 4 · pot",
-  // "4 pairs · $/point · 2 groups", "Skins · 4 players" — the list card, this header and the
-  // leaderboard header all print `gameKindLabel`, so the same game never reads two ways.
+  // One game label for every surface (F-061; F-115 §5.da): "$30 Nassau ($10/$10/$10) · 4v4 · best
+  // ball · match play", "Skins · 4 players" — the list card, this header and the leaderboard header
+  // all print `gameLabel`, so the same game never reads two ways.
   const hubMode = getGameMode(game.gameMode);
   const isSingleGroupHub = hubMode
     ? hubMode.category === 'individual' || hubMode.category === 'team-within-group'
     : false;
-  const hubSubtitle = gameKindLabel(game);
+  const hubSubtitle = gameLabel(game);
   // F-081: a team game whose teams share foursomes shows WHO IS PAIRED, with each team's tee
   // group beside it — the one thing the organizer opens the hub to confirm. The classic pool's
   // teams are its foursome cards below, so this list is for the shared-foursome game only.
@@ -332,6 +333,20 @@ export default function PoolHubPage() {
   const hubTeams = hubMode?.category === 'team-within-group' ? sidesOfGame(game) : [];
   const hubTeamsSolo = allSidesAreSolo(hubTeams);
   const groupNameOf = (playerId: string) => game.teams.find((t) => t.playerIds.includes(playerId))?.name;
+
+  const completed = game.status === 'completed';
+  const closeOut = (
+    <GameCloseOut
+      game={game}
+      onSave={persist}
+      onRunItBack={() => {
+        // A stale wizard draft must not mix into the rerun.
+        sessionStorage.removeItem('pool_wizard_draft');
+        sessionStorage.setItem(RERUN_SEED_KEY, game.id);
+        router.push('/pool/new');
+      }}
+    />
+  );
 
   return (
     <div className="min-h-full bg-gray-50">
@@ -389,8 +404,8 @@ export default function PoolHubPage() {
                 </button>
               </>
             )}
-            <button onClick={() => router.push(poolOnly ? '/pool' : '/dashboard')} className="text-sm text-green-200 hover:text-white">
-              {poolOnly ? 'My Games' : 'Dashboard'}
+            <button onClick={() => router.push(poolOnly ? '/pool' : '/home')} className="text-sm text-green-200 hover:text-white">
+              {poolOnly ? 'My Games' : 'Home'}
             </button>
           </div>
         </div>
@@ -413,6 +428,8 @@ export default function PoolHubPage() {
             <button type="button" onClick={() => setRefused(null)} className="text-xs font-medium text-amber-800 hover:underline">Dismiss</button>
           </div>
         )}
+        {/* §5.cv: a round of an event says so, links its standings, and adds the next round. */}
+        <EventBanner game={game} organizer={!poolOnly} />
         {/* Leaderboard + Teams + Scorecards CTAs. §5.cl: before any score, the organizer's
             filled button is "Send to players" and Leaderboard steps back to an outline. */}
         <div className="flex flex-wrap justify-center gap-3">
@@ -501,6 +518,11 @@ export default function PoolHubPage() {
           </section>
         )}
 
+        {/* F-119 a: a closed game leads with who pays whom, above the cards. F-032: a guest in the
+            parking lot needs the transfer list as much as the organizer (who gets it inside the
+            close-out panel). */}
+        {completed && (poolOnly ? <GuestSettleUp game={game} /> : closeOut)}
+
         {/* Foursome cards — a single-group game has just the one "Group" card, so
             "Foursomes" over it reads wrong; spread over several (F-101 d), they're its tee groups. */}
         <section>
@@ -540,7 +562,6 @@ export default function PoolHubPage() {
         {/* F-032: a completed game answers "who pays whom" for EVERYONE — a guest in
             the parking lot needs the transfer list as much as the organizer (who gets
             it inside the close-out panel below). */}
-        {poolOnly && game.status === 'completed' && <GuestSettleUp game={game} />}
 
         {/* Organizer-only surfaces. A guest tapping "Close out game" would end the
             round for every foursome, and CTP/Wolf setup is the organizer's job. */}
@@ -558,17 +579,8 @@ export default function PoolHubPage() {
                 gameCountsCtp — a legacy team game with junkCtp 0 still shows nothing. */}
             <CtpEditor game={game} onSave={persist} />
 
-            {/* Close out / reopen — the explicit lifecycle control. */}
-            <GameCloseOut
-              game={game}
-              onSave={persist}
-              onRunItBack={() => {
-                // A stale wizard draft must not mix into the rerun.
-                sessionStorage.removeItem('pool_wizard_draft');
-                sessionStorage.setItem(RERUN_SEED_KEY, game.id);
-                router.push('/pool/new');
-              }}
-            />
+            {/* Close out / reopen — the explicit lifecycle control. Once closed it leads the page. */}
+            {!completed && closeOut}
           </>
         )}
       </main>

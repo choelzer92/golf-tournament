@@ -26,3 +26,15 @@ export function strokesOnHole(playingHcap: number, holeHandicap: number, numHole
   const k = Math.floor(n / numHoles) + (rank <= n % numHoles ? 1 : 0);
   return k === 0 ? 0 : k * sign;   // never −0
 }
+
+/**
+ * A player's strokes off the low (§5.dl), matching the GHIN app in both kinds of play:
+ * - STROKE play rounds each Playing Handicap first, then subtracts the rounded low;
+ * - MATCH play subtracts the unrounded low, then rounds once.
+ * `hcap` and `low` are UNROUNDED Playing Handicaps (Course Handicap × allowance); `low` is the
+ * lowest in the match (or the field). Spring Creek 3 Stars, 100%: a 6.8 (7.685) v a 3.3 (3.318)
+ * gets 8 − 3 = 5 in stroke play and round(4.367) = 4 in match play, as GHIN shows.
+ */
+export function strokesOffTheLow(hcap: number, low: number, matchPlay: boolean): number {
+  return matchPlay ? Math.round(hcap - low) : Math.round(hcap) - Math.round(low);
+}

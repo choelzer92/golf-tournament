@@ -62,8 +62,8 @@ individually fine, only wrong when compared.
 - **The compute layer is pure.** Nothing in `lib/game-modes/*` or
   `money-games.ts` touches Supabase, fetch, storage, `Date.now()`, or randomness.
   Keep it that way — it's what makes the money math testable.
-- **All persistence is contained.** Every Supabase call lives in 5 lib files
-  (`pool-game`, `tournament-state`, `roster`, `roster-groups`, `solo-round`).
+- **All persistence is contained.** Every Supabase call lives in 6 lib files
+  (`pool-game`, `tournament-state`, `roster`, `roster-groups`, `solo-round`, `feedback`).
   Pages never talk to the DB directly. Don't add a call site in `app/`.
 - **Adding a game mode = one file + one registry line.** Settings render
   generically from each mode's `FormatSetting[]`; no bespoke settings screens.

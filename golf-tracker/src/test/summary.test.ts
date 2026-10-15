@@ -112,6 +112,16 @@ describe('stakesSummary', () => {
 
   it('a classic pool antes per player', () => {
     expect(stakesSummary(undefined, {}, 25)).toBe('$25/player pot');
+    expect(stakesSummary(undefined, { moneyMode: 'pot' }, 25)).toBe('$25/player pot');
+  });
+
+  // F-120: a head-to-head classic pool said "$25/player pot" (its unused ante) on a $10-a-leg match.
+  it('a classic head-to-head match states its legs and junk, never the ante', () => {
+    const match = { moneyMode: 'match', legFront: 10, legBack: 10, legOverall: 10, junkPerPoint: 5 };
+    expect(stakesSummary(undefined, match, 25)).toBe('$10 / $10 / $10 front·back·overall, $5 a junk point');
+    expect(stakesSummary(undefined, { ...match, legFront: 0, legBack: 0, legOverall: 20, junkPerPoint: 0 }, 25))
+      .toBe('$0 / $0 / $20 front·back·overall');
+    expect(stakesSummary(undefined, { ...match, legFront: 0, legBack: 0, legOverall: 0, junkPerPoint: 0 }, 25)).toBeNull();
   });
 
   // Returning null (not "$0") is what lets the caller DROP the segment, so a game with no money
@@ -172,5 +182,18 @@ describe('formatSummaryLine', () => {
       expect(line).not.toMatch(/undefined|NaN|\$0\b/);
       expect(line.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('§5.dd: a team game\'s stakes read per player when the teams are even', () => {
+  const sides = getGameMode('team-2v2')!;
+  it('divides the per-team stakes by the team size', () => {
+    expect(stakesSummary(sides, { moneyModel: 'legs', legFront: 12, legBack: 10, legOverall: 10 }, 0, 2)).toBe('$6 / $5 / $5 front·back·overall');
+    expect(stakesSummary(sides, { moneyModel: 'per-hole', dollarsPerHole: 4 }, 0, 2)).toBe('$2 a hole');
+    expect(stakesSummary(sides, { moneyModel: 'pot', sideBuyIn: 20 }, 0, 4)).toBe('$5/player pot');
+  });
+  it('no team size (uneven, or unknown) keeps the per-team figure; a classic pool never divides', () => {
+    expect(stakesSummary(sides, { moneyModel: 'pot', sideBuyIn: 20 }, 0, null)).toBe('$20 buy-in pot');
+    expect(stakesSummary(undefined, { moneyMode: 'match', legFront: 10, legBack: 10, legOverall: 10, junkPerPoint: 0 }, 0, 4)).toBe('$10 / $10 / $10 front·back·overall');
   });
 });

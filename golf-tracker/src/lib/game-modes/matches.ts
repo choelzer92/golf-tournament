@@ -12,6 +12,9 @@ import { ballsPerHole, evenValueOnHole, type TeamFormat } from './team-scoring';
 // Each match is scored by the ordinary team engine on just its two units, so a match IS a 2v2
 // (or singles) game, and its result rolls up into its team's total. Team totals settle the money.
 //
+// NO PRESSES HERE (§5.dm): the money is team against team, and a press must never move the team
+// result. A match could only be pressed on its own side bet, which doesn't exist yet (BACKLOG).
+//
 // Who meets whom is READ FROM THE TEE SHEET (§5.co Q6: the app builds the tee groups from the
 // matches, so a foursome holds one 2v2 or two singles). Nothing new is stored but the settings.
 //
@@ -126,6 +129,7 @@ export function computeMatchGame(
   let nineOnly: 'front' | 'back' | null = null;
   let thruHole = 0;
   const lines: MatchLine[] = [];
+
 
   for (const m of matches) {
     const ids = new Set(m.units.flatMap((u) => u.playerIds));

@@ -1,5 +1,6 @@
 'use client';
 
+import type { PressLine } from '@/lib/game-modes/presses';
 import { useState, useEffect, Fragment } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import type { GameScore } from '@/lib/game-state';
@@ -19,12 +20,13 @@ import {
   getGameHoles,
 } from '@/lib/pool-game';
 import { getGameMode, type IndividualResult } from '@/lib/game-modes';
-import { gameKindLabel } from '@/lib/game-structure';
+import { gameLabel } from '@/lib/game-label';
 import type { TeamFormat } from '@/lib/game-modes/team-scoring';
 import type { WolfHoleLine, NassauLegLine, JunkLine, MatchLine, PotSliceLine, SettingsBag } from '@/lib/game-modes/types';
 import { JUNK_SETTINGS, junkPayout, numberSetting } from '@/lib/game-modes/settings';
 import { computeGameResult, isModeEngineGame } from '@/lib/game-modes/result';
 import { defaultSideLabel, sideOfPlayer, sidesOfGame } from '@/lib/game-modes/sides';
+import { sidesForCompute } from '@/lib/game-modes/context';
 import { CardBoardToggle } from '@/components/card-board-toggle';
 
 const LEG_LABELS: Record<PoolLegKey, string> = {
@@ -61,7 +63,7 @@ export default function PoolLeaderboardPage() {
     if (cached) setGame(cached);
     fetchPoolGame(id).then((g) => {
       if (g) setGame(g);
-      else if (!cached) router.push('/dashboard');
+      else if (!cached) router.push('/home');
     });
     const channel = subscribeToPoolGame(id, (g) => setGame(g));
     return () => { channel.unsubscribe(); };
@@ -175,7 +177,7 @@ export default function PoolLeaderboardPage() {
                 to read only "Thru hole N", so a pot pool and a head-to-head match
                 pool were indistinguishable from the leaderboard. */}
             <p className="text-xs text-gray-400">
-              {isMatch ? 'Head-to-head match' : 'Pot pool'} · thru hole {result.thruHole}
+              {gameLabel(game)} · thru hole {result.thruHole}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -323,7 +325,12 @@ export default function PoolLeaderboardPage() {
 
         {/* Payout board — pot sub-pots, or head-to-head legs in match mode */}
         {isMatch ? (
-          <MatchLegBoard game={game} result={result} />
+          <>
+            <MatchLegBoard game={game} result={result} />
+            {result.presses && result.presses.length > 0 && (
+              <PressBoard presses={result.presses} stakeDivisor={1} matchLabel={() => null} toneOf={() => 'text-white'} />
+            )}
+          </>
         ) : (
         <div className="bg-gray-800 rounded-xl overflow-hidden">
           <div className="px-4 py-2 border-b border-gray-700">
@@ -400,7 +407,8 @@ export default function PoolLeaderboardPage() {
                   <div className="flex items-center gap-2">
                     {payout && payout.net !== 0 && (
                       <span className={`text-xs font-medium ${payout.net > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {money(payout.net)}
+                        {/* §5.dd: a team row shows one player's money (the team's is split evenly). */}
+                        {teamDetail && teamDetail.players.length > 1 ? `${money(payout.perPersonNet)} each` : money(payout.net)}
                       </span>
                     )}
                     <span className="text-gray-600 text-xs">{isTeamExpanded ? '▾' : '▸'}</span>
@@ -845,6 +853,48 @@ function MatchBoard({ matches, sideOrder }: { matches: MatchLine[]; sideOrder: s
   );
 }
 
+// PRESSES (§5.dj/§5.dk): each press is its own bet, so it gets its own line under the legs: what
+// it covers, where it stands and what it pays. Already settled into the money above.
+function PressBoard({ presses, stakeDivisor, matchLabel, toneOf, note }: {
+  presses: PressLine[];
+  note?: string;
+  /** Stakes are per team on a whole-game team match: divide for one player's share (null = per team). */
+  stakeDivisor: number | null;
+  matchLabel: (matchId: string) => string | null;
+  toneOf: (sideId: string) => string;
+}) {
+  const legName = (k: PressLine['leg']) => (k === 'front' ? 'front 9' : k === 'back' ? 'back 9' : 'overall');
+  const stake = (d: number) => {
+    const each = stakeDivisor ? d / stakeDivisor : d;
+    return `$${Number.isInteger(each) ? each : each.toFixed(2)} ${stakeDivisor !== null ? 'a player' : 'a team'}`;
+  };
+  return (
+    <div className="bg-gray-800 rounded-xl overflow-hidden" data-testid="press-board">
+      <div className="px-4 py-2 border-b border-gray-700">
+        <p className="text-[10px] text-gray-500 uppercase font-medium tracking-wider">Presses</p>
+        {note && <p className="text-[10px] text-gray-500 mt-0.5">{note}</p>}
+      </div>
+      <div className="divide-y divide-gray-700/30">
+        {presses.map((p) => {
+          const m = p.match !== undefined ? matchLabel(p.match) : null;
+          return (
+            <div key={`${p.match ?? ''}|${p.id}`} className="px-4 py-2.5 flex items-center justify-between gap-3" data-testid="press-row">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-200">{p.label} <span className="text-gray-500">· {legName(p.leg)}</span></p>
+                <p className="text-[10px] text-gray-500">{m ? `${m} · ` : ''}pressed by {p.byName} · {stake(p.stake)}{p.thru > 0 && !p.complete ? ` · ${p.thru} of ${p.holes.length} holes` : ''}</p>
+                {p.voided && <p className="text-[10px] text-amber-500">pays nothing — its leg is unfinished</p>}
+              </div>
+              <p className={`text-sm font-medium text-right whitespace-nowrap ${p.voided ? 'text-gray-500 line-through' : p.leader ? toneOf(p.leader) : 'text-gray-400'}`}>
+                {p.status}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function sideTone(sideId: string, order: string[]): string {
   const idx = order.indexOf(sideId);
   // Unknown side (stale id) falls back to neutral rather than colouring it as side A.
@@ -987,6 +1037,8 @@ function IndividualLeaderboard({ id }: { id: string }) {
   // collection so a 3+ side game labels every player, not just the first two (it used to read
   // game.subTeams directly and hard-code a/b).
   const gameSides = isWithinGroup ? sidesOfGame(game) : [];
+  // Each team's size as the engine settles it, keyed by side id, for the per-player money column.
+  const teamSizeById = new Map<string, number>(isWithinGroup ? sidesForCompute(game).map((t) => [t.id, t.playerIds.length] as [string, number]) : []);
   const sideOf = isWithinGroup && result?.sideLabels
     ? (playerId: string): { label: string; sideId: string } | null => {
         const found = sideOfPlayer(gameSides, playerId);
@@ -1006,7 +1058,7 @@ function IndividualLeaderboard({ id }: { id: string }) {
           <div>
             <h1 className="text-lg font-bold">{game.name}</h1>
             <p className="text-xs text-gray-400">
-              {gameKindLabel(game)}{result && result.thruHole > 0 ? ` · thru hole ${result.thruHole}` : ''}
+              {gameLabel(game)}{result && result.thruHole > 0 ? ` · thru hole ${result.thruHole}` : ''}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -1114,7 +1166,12 @@ function IndividualLeaderboard({ id }: { id: string }) {
                           })()}
                           <td className="text-center px-2 py-1.5 text-gray-400">{s.thru || '-'}</td>
                           <td className={`text-right px-3 py-1.5 font-medium ${s.moneyNet > 0 ? 'text-green-400' : s.moneyNet < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                            {money(s.moneyNet)}
+                            {/* §5.dd: a team row shows one player's share; the engine splits a team's
+                                money evenly across its players (perPlayerNets). */}
+                            {(() => {
+                              const size = isWithinGroup ? (teamSizeById.get(s.playerId.toLowerCase()) ?? 1) : 1;
+                              return size > 1 ? `${money(s.moneyNet / size)} each` : money(s.moneyNet);
+                            })()}
                           </td>
                         </tr>
                         {canExpand && isOpen && (
@@ -1288,6 +1345,22 @@ function IndividualLeaderboard({ id }: { id: string }) {
               </div>
               );
             })()}
+
+            {result.presses && result.presses.length > 0 && (
+              <PressBoard
+                presses={result.presses}
+                // A match's press is already per player; a whole-game match's is per team.
+                stakeDivisor={result.matches ? 1 : (() => {
+                  const sizes = [...teamSizeById.values()];
+                  return sizes.length > 0 && sizes.every((k) => k === sizes[0]) ? sizes[0] : null;
+                })()}
+                matchLabel={(id) => {
+                  const i = result.matches?.findIndex((m) => m.id === id) ?? -1;
+                  return i >= 0 ? `Match ${i + 1}` : null;
+                }}
+                toneOf={(id) => sideTone(id, sideOrder)}
+              />
+            )}
 
             {/* Per-player scorecard (reuses the same grid + strokes box as the team view).
                 F-028: in a game PLAYED in points (Stableford/quota/Nines/Wolf) the grid shows

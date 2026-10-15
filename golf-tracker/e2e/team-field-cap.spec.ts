@@ -18,7 +18,7 @@ test('§5.bv: 32 players / 16 pairs — standings carry all 16 teams', async ({ 
   await goToGame(page, id, '/leaderboard');
   await page.waitForURL(/\/leaderboard/);
   await expect(page.getByText('Big Field Pairs')).toBeVisible();
-  await expect(page.getByText(/16 pairs · \$\/point · 8 groups/)).toBeVisible();
+  await expect(page.getByText(/a point · 16 pairs · /).first()).toBeVisible();
   // Rank 16 exists: the 16th team made the board.
   const standings = page.locator('table', { has: page.getByText('To par') }).first();
   await expect(standings.locator('tbody tr')).toHaveCount(16);
@@ -64,7 +64,7 @@ test('§5.bv: twelve players as three teams of 4 on head-to-head legs is no long
   const twelve: [string, string][] = Array.from({ length: 12 }, (_, i) => [`G${i + 1}`, String(i * 2)]);
   await addPlayers(page, twelve);
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-  await page.getByPlaceholder('e.g. Saturday Pool').fill('Twelve On Legs');
+  await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Twelve On Legs');
   await toScoringStep(page, 'teams:4+4+4');
   await page.getByRole('button', { name: /Next: Select Course/ }).click();
   await page.getByRole('button', { name: /Sandbox National/ }).first().click();

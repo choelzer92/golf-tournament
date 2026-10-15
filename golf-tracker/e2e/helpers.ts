@@ -147,7 +147,7 @@ export async function chooseStructure(page: Page, idOrLabel: string) {
  *  Names the game when nothing has (the step requires a name, as the old game step did). */
 export async function toScoringStep(page: Page, structure?: string) {
   if (structure) await chooseStructure(page, structure);
-  const nameBox = page.getByPlaceholder('e.g. Saturday Pool');
+  const nameBox = page.getByPlaceholder('Leave blank to name it by the game and course');
   if ((await nameBox.count()) && (await nameBox.inputValue()).trim() === '') await nameBox.fill('Test Game');
   await page.getByRole('button', { name: 'Next: Scoring' }).click();
   await expect(page.getByText('How is it scored?')).toBeVisible();
