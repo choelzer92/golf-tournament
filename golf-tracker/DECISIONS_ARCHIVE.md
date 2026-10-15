@@ -2881,3 +2881,12 @@ the server second; or B, the later arrival wins. Craig: **"A, but at the same ti
 one person scoring a round per 4some. but better safe than sorry here. so I like A."** So a correction made on the
 course is never undone by an old tap catching up from a dead spot. The audit keeps both values. One scorer per
 foursome stays the norm; the rule only matters when it isn't followed.
+
+### 5.do — B5 "paste names" is not built (2026-10-15; closes F-126)
+
+Offered as a paste-a-list box for the players step (F-126: 16 of walk #1's 21 typed fields were names and
+handicaps), then reshaped as paste-names-matched-to-GHIN after Craig: **"the majority of players will be
+lookupable in ghin, which is one of the best features here and it auto updates each day."** Then: **"honestly,
+thats the same thing that is there on the ghin lookup in the first place, and why we add players to groups. I dont
+think we need this."** So GHIN lookup + saved groups are the answer to a big field: the first game's typing is a
+one-time cost, and the group makes every game after it cheap. F-126 closed, not built; B5 off the road.

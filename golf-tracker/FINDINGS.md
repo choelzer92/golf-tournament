@@ -70,7 +70,7 @@ still reads "Pool · $25/player pot · off the low", not the F-115 label the hub
 (plain labels or an info tip at each), and show the F-115 label on "Same game as last time". The
 wording of each is Craig's to see on the walk, so build first, then show.
 
-### F-126 — Typing the field is most of the first-time cost (2026-10-14)  [P2] [start] [beta #1] — **OPEN; roadmap B5**
+### F-126 — Typing the field is most of the first-time cost (2026-10-14)  [P2] [start] [beta #1] — **CLOSED, not built (§5.do): GHIN lookup + saved groups cover it**
 
 8 players by hand = 16 of walk #1's 21 typed fields and 8 of its 21 taps. Roadmap B5 is the lever: a
 "paste names" box (one field for the whole list, handicaps optional, GHIN later). GHIN search per player

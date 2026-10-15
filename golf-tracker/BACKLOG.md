@@ -22,7 +22,6 @@ The ≤3 items NEXT_SESSION_PROMPT.md promotes (BETA §3), plus a warm-up.
 | Item | Size | Source |
 |---|---|---|
 | **[beta #5] PROMOTED 2026-10-14 (2nd session):** **F-063 C — per-cell score rows + an outbox.** Approved (§5.ce). Investigate (schema, migration, dual-read + backfill, RLS, realtime), write the plan into roadmap Phase C, build it sandbox-first (the fake gains the table). **Hard stop: show Craig the live migration before it touches live** | M–L | F-063, §5.ce |
-| **[beta #1] PROMOTED:** **B5 paste names (F-126):** one box on the players step takes a whole list ("Lou Park 14", one per line; handicap optional), so 8 players stop costing 16 typed fields. Re-run `persona-walks.spec.ts` after and record walk #1's new count | S–M | F-126, roadmap B5 |
 | **WARM-UPS (decided §5.di):** F-122 a blank game name → the game label; F-127 Run it back on Home's card; the groups step's duplicate tee times (§5.dh) | XS–S | §5.di, §5.dh |
 
 ## Done recently
