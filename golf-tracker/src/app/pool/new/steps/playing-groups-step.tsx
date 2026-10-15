@@ -8,7 +8,7 @@ import { proposePlayingGroups } from './shared';
 
 export function PlayingGroupsStep({
   course, players, teams, setTeams, handicapAllowance, handicapBasis, nine, onNext, onBack,
-  partnerTeams, nextLabel = 'Next: Review & Create', blockedReason, matchesNote, groupLines,
+  partnerTeams, nextLabel = 'Next: Review & Create', blockedReason, matchesNote, groupLines, teeTimesOnCards = false,
 }: {
   course: CourseSelection | null;
   players: Player[];
@@ -29,6 +29,9 @@ export function PlayingGroupsStep({
   matchesNote?: string;
   /** F-037 / §5.cq (C): who plays whom in each group, by tee-group id. */
   groupLines?: Record<string, string[]>;
+  /** §5.de/§5.dh: the teams step's match cards already set each group's tee time, so this step
+   *  confirms it instead of asking it a second time (one editor per thing). */
+  teeTimesOnCards?: boolean;
 }) {
   // The player being moved. Tap a player, then tap the group to move them to — the same
   // two-tap idiom the sides step already uses, so there's one gesture to learn.
@@ -166,6 +169,12 @@ export function PlayingGroupsStep({
                   <p key={l} className="text-xs text-gray-600" data-testid="group-match-line">{l}</p>
                 ))}
               </div>
+              {teeTimesOnCards ? (
+                <p className="text-xs text-gray-500 text-right" data-testid="group-tee-time">
+                  {team.teeTime ? <>Tee time <span className="font-medium text-gray-900">{team.teeTime}</span></> : 'No tee time'}
+                  <span className="block text-[11px] text-gray-400">{team.teeTime ? 'set on the match cards' : 'add one on the match cards (Back)'}</span>
+                </p>
+              ) : (
               <label className="flex items-center gap-1.5 text-xs text-gray-500">
                 Tee time
                 <input
@@ -175,6 +184,7 @@ export function PlayingGroupsStep({
                   className="rounded border border-gray-300 px-2 py-1 text-sm text-gray-900"
                 />
               </label>
+              )}
             </div>
             <ul>
               {clustersOf(team.playerIds).map((cluster, ci) => cluster.map((pid, pi) => (

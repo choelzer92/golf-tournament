@@ -157,7 +157,7 @@ test.describe('F-018: the wizard review step confirms the sides', () => {
       await manualAddButton(page).click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Review Test');
+    await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Review Test');
     // §5.bk: the STRUCTURE says the sides — two pairs, or three pairs for six.
     await toScoringStep(page, opts.thirdSide ? 'teams:2+2+2' : 'teams:2+2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();

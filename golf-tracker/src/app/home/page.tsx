@@ -14,7 +14,7 @@ import { unstartedGameIds } from '@/lib/stats-ledger';
 import { gameListSubtitle } from '@/lib/game-modes/result';
 import { buildHomeFeed, type FeedItem, type HomeFeed } from '@/lib/home-feed';
 import { shortDate } from '@/lib/series';
-import { EVENT_SEED_KEY, type EventSeed } from '@/lib/group-seed';
+import { EVENT_SEED_KEY, RERUN_SEED_KEY, type EventSeed } from '@/lib/group-seed';
 import { getViewer, hydrateGroups, upsertGroup, type RosterGroup } from '@/lib/roster-groups';
 import { getViewablePlayerGroups } from '@/lib/pool-formats';
 import { hydrateRoster } from '@/lib/roster';
@@ -81,6 +81,22 @@ function describe(item: FeedItem, unstarted: Set<string>): { pill: string; pillC
 
 export default function HomePage() {
   const router = useRouter();
+  // F-127 A (§5.di): Run it back straight from Home's finished-game card, as the hub's button does
+  // (B1, §5.cm): a stale wizard draft must not mix into the rerun.
+  function runItBack(gameId: string) {
+    sessionStorage.removeItem('pool_wizard_draft');
+    sessionStorage.setItem(RERUN_SEED_KEY, gameId);
+    router.push('/pool/new');
+  }
+  const rerunButton = (item: FeedItem, status: string) => (item.kind === 'game' && status === 'completed' ? (
+    <button
+      type="button"
+      onClick={() => runItBack(item.game.id)}
+      className="w-full text-left border-t border-gray-100 px-4 py-2 min-h-[44px] text-sm font-medium text-green-700 hover:bg-green-50 rounded-b-lg"
+    >
+      Run it back
+    </button>
+  ) : null);
   const [ready, setReady] = useState(false);
   const [name, setName] = useState<string | null>(null);
   const [feed, setFeed] = useState<HomeFeed | null>(null);
@@ -351,6 +367,7 @@ export default function HomePage() {
                         <span className="block text-xs text-gray-500 mt-0.5">{d.line}</span>
                       </button>
                     )}
+                    {latest && d && rerunButton(latest, d.status)}
                   </div>
                 );
               })}
@@ -375,10 +392,10 @@ export default function HomePage() {
               {(allOther ? feed.other : feed.other.slice(0, OTHER_SHOWN)).map((item) => {
                 const d = describe(item, unstarted);
                 return (
+                  <div key={item.key} className="bg-white rounded-lg shadow">
                   <button
-                    key={item.key}
                     onClick={() => router.push(d.href)}
-                    className={`w-full text-left bg-white rounded-lg shadow p-4 hover:shadow-md transition ${d.status === 'completed' ? 'opacity-75' : ''}`}
+                    className={`w-full text-left p-4 hover:shadow-md transition rounded-lg ${d.status === 'completed' ? 'opacity-75' : ''}`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
@@ -389,6 +406,8 @@ export default function HomePage() {
                     </div>
                     <p className="text-sm text-gray-600 mt-1">{d.line}</p>
                   </button>
+                  {rerunButton(item, d.status)}
+                  </div>
                 );
               })}
               {feed.other.length > OTHER_SHOWN && (

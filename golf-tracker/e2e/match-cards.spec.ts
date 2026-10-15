@@ -108,6 +108,11 @@ test('§5.de: pairs — a cross-team swap moves the teams, and the tee time set 
 
   await page.getByRole('button', { name: 'Next: Groups' }).click();
   await expect(page.getByText(/Each foursome plays a 2 v 2 match between two teams/)).toBeVisible();
+  // §5.dh: the groups step confirms the card's tee time; it doesn't ask it a second time.
+  await expect(page.locator('input[type="time"]')).toHaveCount(0);
+  await expect(page.getByTestId('group-tee-time').first()).toContainText('8:10');
+  await expect(page.getByTestId('group-tee-time').first()).toContainText('set on the match cards');
+  await page.screenshot({ path: 'e2e/screenshots/match-cards-groups-confirm.png', fullPage: true });
   await page.getByRole('button', { name: /Next: Review & Create/ }).click();
   await signInOrganizer(page);
   await page.getByRole('button', { name: 'Create & send to players' }).click();

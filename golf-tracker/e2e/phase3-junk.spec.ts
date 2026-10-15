@@ -56,7 +56,7 @@ test('step 2: two pairs with closest-to-pin — routed to the team engine, hub s
   await addPlayers(page, FOUR_PLAYERS);
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await expect(page.getByText('How do you want to compete?')).toBeVisible();
-  await page.getByPlaceholder('e.g. Saturday Pool').fill('Pairs CTP');
+  await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Pairs CTP');
   await toScoringStep(page, 'teams:2+2');
   await page.getByRole('button', { name: /Next: Select Course/ }).click();
   await page.getByRole('button', { name: /Sandbox National/ }).first().click();

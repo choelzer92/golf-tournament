@@ -949,7 +949,9 @@ export default function NewPoolGamePage() {
   // formatFromGame (pool-formats.ts), built from wizard state instead of a saved
   // game — mode + settings + money + handicap rule, never players or course.
   async function saveCurrentFormat() {
-    await saveFormat(name || 'Format', {
+    // F-122: an unnamed game's format is called by its game type (a format has no course).
+    const draft = name.trim() ? null : draftPoolGame();
+    await saveFormat(name.trim() || (draft ? gameTypeName(draft) : '') || 'Format', {
       kind: 'format',
       gameMode: savedGameMode,
       modeSettings: savedModeSettings,
@@ -1068,7 +1070,8 @@ export default function NewPoolGamePage() {
     const game: PoolGame = {
       ...base,
       id,
-      name: series && autoNamed && defaultEventName ? defaultEventName : name || 'Pool Game',
+      // F-122 A (§5.di): a blank name is the game and course, for any game, not just an event's round.
+      name: (series && autoNamed) || !name.trim() ? defaultEventName || name.trim() || 'Pool Game' : name.trim(),
       createdAt: new Date().toISOString(),
       handicapsRefreshedAt: new Date().toISOString(),
       createdByGhin: getCreatorGhin() ?? undefined,
@@ -1401,6 +1404,9 @@ export default function NewPoolGamePage() {
               }))
               : setTeams}
             groupLines={matchSize > 0 ? groupLinesById : undefined}
+            // Only when the tee sheet IS the match cards (built from the matches, no reshape buttons); a
+            // side game can reshape into groups no card had, so it keeps the tee-time box here.
+            teeTimesOnCards={showCards && matchSize > 0}
             partnerTeams={everyoneAlone ? undefined : (sides ?? []).map((s) => s.playerIds)}
             handicapAllowance={parseAllowance(handicapAllowance)}
             handicapBasis={handicapBasis}

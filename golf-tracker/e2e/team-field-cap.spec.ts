@@ -64,7 +64,7 @@ test('§5.bv: twelve players as three teams of 4 on head-to-head legs is no long
   const twelve: [string, string][] = Array.from({ length: 12 }, (_, i) => [`G${i + 1}`, String(i * 2)]);
   await addPlayers(page, twelve);
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-  await page.getByPlaceholder('e.g. Saturday Pool').fill('Twelve On Legs');
+  await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Twelve On Legs');
   await toScoringStep(page, 'teams:4+4+4');
   await page.getByRole('button', { name: /Next: Select Course/ }).click();
   await page.getByRole('button', { name: /Sandbox National/ }).first().click();

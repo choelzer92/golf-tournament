@@ -30,7 +30,7 @@ test('F-060: Captains’ deal marks its card as the one that built the teams', a
     await manualAddButton(page).click();
   }
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-  await page.getByPlaceholder('e.g. Saturday Pool').fill('Deal Feedback Test');
+  await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Deal Feedback Test');
   await page.getByRole('button', { name: 'Next: Scoring' }).click();
   await page.getByRole('button', { name: /Next: Select Course/ }).click();
   await page.getByRole('button', { name: /Sandbox National/ }).first().click();

@@ -24,7 +24,7 @@ const labelled = (page: Page, label: string) =>
 test('F-109: the old Money Game is a wizard game — 2 best net, match play, Nassau legs, birdie/eagle junk', async ({ page }) => {
   await addPlayers(page, EIGHT_PLAYERS);
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-  await page.getByPlaceholder('e.g. Saturday Pool').fill('Money Game');
+  await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Money Game');
   await toScoringStep(page, 'teams:4+4');
   await page.getByLabel('Which scores count for the team?').selectOption('two-best-net');
   await page.getByRole('button', { name: 'Hole by hole (match play)' }).click();

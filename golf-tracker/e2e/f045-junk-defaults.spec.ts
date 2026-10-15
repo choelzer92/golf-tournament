@@ -42,7 +42,7 @@ async function walkToClassicMoneyStep(page: Page) {
     await manualAddButton(page).click();
   }
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-  await page.getByPlaceholder('e.g. Saturday Pool').fill('No Bonus Pool');
+  await page.getByPlaceholder('Leave blank to name it by the game and course').fill('No Bonus Pool');
   // §5.bk: two teams of 4 is the recommendation for eight — no structure tap needed.
   await page.getByRole('button', { name: 'Next: Scoring' }).click();
   await page.getByRole('button', { name: /Next: Select Course/ }).click();

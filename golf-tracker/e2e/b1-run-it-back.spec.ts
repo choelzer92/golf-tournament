@@ -85,3 +85,26 @@ test('B1: Run it back from a closed game — same format, field, course and team
   await expect(page.getByRole('button', { name: /Even them out/ }).getByText('✓ Built these teams')).toBeVisible();
   await expect(page.getByText(/hand-adjusted since/)).toHaveCount(0);
 });
+
+// F-127 A (§5.di): the same rerun, one tap sooner — straight from the finished game's card on Home.
+test('F-127: Run it back from Home\'s finished-game card opens the rerun', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  const oldId = await seed(page, 'Classic pool — 2 foursomes, FULLY scored');
+  await page.goto(`${BASE}/pool/${oldId}`);
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'Close out game' }).first().click();
+  await expect(page.getByText('Game closed out')).toBeVisible();
+
+  await signInOrganizer(page);
+  await page.goto(`${BASE}/home`);
+  await page.waitForURL(/\/home$/);
+  const card = page.locator('div.bg-white', { hasText: 'Closeout Test Pool' }).filter({ has: page.getByRole('button', { name: 'Run it back' }) }).first();
+  await expect(card).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/f127-home-run-it-back.png', fullPage: true });
+  await card.getByRole('button', { name: 'Run it back' }).click();
+  await page.waitForURL(/\/pool\/new$/);
+  await expect(page.getByRole('button', { name: 'Remove' })).toHaveCount(8);
+  await page.getByRole('button', { name: /Next: Choose Game/ }).click();
+  await expect(page.getByText('Same game as last time')).toBeVisible();
+  await expect(page.getByLabel('Game style name')).toHaveValue('Closeout Test Pool');
+});

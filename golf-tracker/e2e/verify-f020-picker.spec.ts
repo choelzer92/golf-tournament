@@ -32,7 +32,7 @@ test.describe('F-020: the game picker annotates fit', () => {
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
     await expect(page.getByText('How do you want to compete?')).toBeVisible();
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Fit Test');
+    await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Fit Test');
   }
 
   // From the details step, walk course → tees (the steps after the game now).
@@ -520,7 +520,7 @@ test.describe('a 1 v 1 singles match', () => {
     // no group to be within (§5.at).
     expect(picker).not.toContain('within group');
 
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Craig v Jym');
+    await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Craig v Jym');
     await toScoringStep(page, 'teams:1+1');
 
     // F-079: a 1 v 1 has no teams to build — the structure decided membership — so tees go
@@ -580,7 +580,7 @@ test.describe('F-020: the wizard proposes splits', () => {
       await manualAddButton(page).click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Split Test');
+    await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Split Test');
     // §5.bk: the split is chosen on the structure step; five players take 2 + 2 + 1 here (3 + 2
     // is two teams that are their own groups, which builds with the foursome builder instead).
     await toScoringStep(page, players.length === 5 ? 'teams:2+2+1' : 'teams:2+2');
@@ -668,7 +668,7 @@ test.describe('F-020: the wizard proposes splits', () => {
     await page.getByRole('button', { name: /Other split/ }).click();
     expect(await page.locator('body').innerText()).toContain('Three teams, 2 + 1 + 1');
     // Forward: the teams step does not ask the same question a second time.
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Split Test');
+    await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Split Test');
     await toScoringStep(page);
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();

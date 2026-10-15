@@ -104,9 +104,8 @@ test('bars #1–#3: first-time organizer, invited player, returning organizer', 
   for (let i = 0; i < 10; i++) {
     const create = page.getByRole('button', { name: 'Create & send to players' });
     if (await create.isVisible()) break;
-    // F-122: step 2's Next stays disabled, unexplained, until the game is named.
-    const nameBox = page.getByPlaceholder('e.g. Saturday Pool');
-    if (await nameBox.isVisible() && (await nameBox.inputValue()) === '') await type(nameBox, 'Saturday game');
+    // F-122 A (§5.di): a first-timer leaves the name blank and Next is live; the game is named by
+    // its game and course at Create (checked below).
     const courseBox = page.getByPlaceholder('Course name');
     if (await courseBox.isVisible() && !(await page.getByText('Persona Pines').isVisible())) {
       // A first-timer has no recent courses: type the name, Search, pick the result.
@@ -123,6 +122,8 @@ test('bars #1–#3: first-time organizer, invited player, returning organizer', 
   }
   await tap(page.getByRole('button', { name: 'Create & send to players' }));
   await page.waitForURL(/\/pool\/(?!new$)[^/?]+$/, { timeout: 20_000 });
+  // F-122: the unnamed game is called by its game and course, never "Pool Game".
+  await expect(page.locator('body')).toContainText('– Persona Pines');
   await expect(page.getByText('Player scoring link')).toBeVisible();
   await capture(page, 'created-send-sheet');
   const link = await page.locator('input[readonly]').first().inputValue();

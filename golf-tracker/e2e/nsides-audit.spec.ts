@@ -98,7 +98,7 @@ test.describe('the ORDINARY 2v2 — two guys against two guys, best ball, usual 
     await countScreen(page, '03-game-default-pool');
 
     await tap('type game name', async () => {
-      await page.getByPlaceholder('e.g. Saturday Pool').fill('Saturday 2v2');
+      await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Saturday 2v2');
     });
 
     // §5.bk: the STRUCTURE step. Four players' usual is two pairs — the 2v2 — pre-selected.

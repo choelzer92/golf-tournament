@@ -29,7 +29,7 @@ test.describe('F-025/F-026: skins review step', () => {
       await manualAddButton(page).click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Sunday Skins');
+    await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Sunday Skins');
     // §5.bk: everyone for themselves, then skins on the scoring step (by VALUE).
     await toScoringStep(page, 'solo');
     await chooseSolo(page, 'skins');
@@ -285,7 +285,7 @@ test.describe('F-043: the handicap chip shows its work', () => {
       await manualAddButton(page).click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Chain Test');
+    await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Chain Test');
     await toScoringStep(page, 'teams:2+2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();

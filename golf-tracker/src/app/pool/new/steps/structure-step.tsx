@@ -131,7 +131,9 @@ export function StructureStep({
     setStructure({ kind: o.kind, teamSizes: o.teamSizes });
   }
 
-  const canProceed = name.trim().length > 0 && structure !== undefined;
+  // F-122 A (§5.di): the name is optional; a blank one is called by its game and course at Create,
+  // as an event's is (F-118). So Next only waits for the structure.
+  const canProceed = structure !== undefined;
 
   function row(o: StructureOption) {
     const disabled = o.kind === 'solo' && !soloFits;
@@ -185,12 +187,14 @@ export function StructureStep({
             to one value. */}
         {!appliedFormat && (
           <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1">What should we call it?</label>
+            <label className="block text-sm font-medium text-gray-800 mb-1">
+              What should we call it? <span className="font-normal text-gray-400">(optional)</span>
+            </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Saturday Pool"
+              placeholder="Leave blank to name it by the game and course"
               className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
             />
           </div>

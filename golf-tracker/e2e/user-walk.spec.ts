@@ -67,7 +67,7 @@ test('walk 1: cold start — home, empty, then the wizard with NO group', async 
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await page.getByText('How do you want to compete?').waitFor();
   await capture(page, '04-wizard-picker-annotated');
-  await page.getByPlaceholder('e.g. Saturday Pool').fill('Sunday Skins');
+  await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Sunday Skins');
   {
     // §5.bk: the structure first ("Everyone for themselves"), then the game on the scoring step.
     const structures = await page.locator('input[name="structure"]').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
@@ -175,7 +175,7 @@ test('walk 4: classic pool with teams — captains, deal, teams step', async ({ 
   }
   await capture(page, '16-pool-eight-players');
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-  await page.getByPlaceholder('e.g. Saturday Pool').fill('Saturday Pool');
+  await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Saturday Pool');
   await page.getByRole('button', { name: 'Next: Scoring' }).click();
   await page.getByRole('button', { name: /Next: Select Course/ }).click();
   const sandboxCourse = page.getByRole('button', { name: /Sandbox National/ }).first();

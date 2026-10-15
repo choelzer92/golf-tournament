@@ -30,7 +30,7 @@ async function field(page: Page, flow: string, players: [string, string][], name
   await cap(page, flow, 'field');
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await expect(page.getByText('How do you want to compete?')).toBeVisible();
-  await page.getByPlaceholder('e.g. Saturday Pool').fill(name);
+  await page.getByPlaceholder('Leave blank to name it by the game and course').fill(name);
 }
 
 async function courseTees(page: Page, flow: string) {

@@ -29,7 +29,7 @@ test('F-062: review and captain chips explain themselves; the team total reads "
     await manualAddButton(page).click();
   }
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-  await page.getByPlaceholder('e.g. Saturday Pool').fill('Handicap Display Test');
+  await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Handicap Display Test');
   await page.getByRole('button', { name: 'Next: Scoring' }).click();
   await page.getByRole('button', { name: /Next: Select Course/ }).click();
   await page.getByRole('button', { name: /Sandbox National/ }).first().click();

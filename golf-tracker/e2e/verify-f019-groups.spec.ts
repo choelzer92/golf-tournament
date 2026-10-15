@@ -357,7 +357,7 @@ test.describe('F-019: the wizard builds real playing groups', () => {
       await manualAddButton(page).click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Groups Test');
+    await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Groups Test');
     // §5.bk: teams smaller than a foursome — pairs (8 → four, 4 → two) or 2 + 2 + 1 at five — are
     // the structures that need real tee groups; select by VALUE.
     await toScoringStep(page, players.length === 8 ? 'teams:2+2+2+2' : players.length === 5 ? 'teams:2+2+1' : 'teams:2+2');
@@ -456,7 +456,7 @@ test.describe('F-019: the wizard builds real playing groups', () => {
       await manualAddButton(page).click();
     }
     await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-    await page.getByPlaceholder('e.g. Saturday Pool').fill('Four Pairs');
+    await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Four Pairs');
     await toScoringStep(page, 'teams:2+2+2+2');
     await page.getByRole('button', { name: /Next: Select Course/ }).click();
     await page.getByRole('button', { name: /Sandbox National/ }).first().click();

@@ -37,7 +37,7 @@ test('F-034: a name auto-filled by one group is replaced by the next group — a
   await expect(page.getByText(/Loaded “Tuesday Crew”/)).toBeVisible();
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await expect(page.getByText('How do you want to compete?')).toBeVisible();
-  await expect(page.getByPlaceholder('e.g. Saturday Pool')).toHaveValue('Tuesday Crew');
+  await expect(page.getByPlaceholder('Leave blank to name it by the game and course')).toHaveValue('Tuesday Crew');
 });
 
 test('F-034: a hand-typed name survives switching groups', async ({ context, page }) => {
@@ -53,7 +53,7 @@ test('F-034: a hand-typed name survives switching groups', async ({ context, pag
   await expect(page.getByText('How do you want to compete?')).toBeVisible();
 
   // The organizer names the game themself — that must never be clobbered.
-  const nameBox = page.getByPlaceholder('e.g. Saturday Pool');
+  const nameBox = page.getByPlaceholder('Leave blank to name it by the game and course');
   await nameBox.fill("Craig's Grudge Match");
 
   await page.getByRole('button', { name: '← Back' }).click();
@@ -61,5 +61,5 @@ test('F-034: a hand-typed name survives switching groups', async ({ context, pag
   await page.getByRole('button', { name: /^Tuesday Crew\d+$/ }).first().click();
   await expect(page.getByText(/Loaded “Tuesday Crew”/)).toBeVisible();
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-  await expect(page.getByPlaceholder('e.g. Saturday Pool')).toHaveValue("Craig's Grudge Match");
+  await expect(page.getByPlaceholder('Leave blank to name it by the game and course')).toHaveValue("Craig's Grudge Match");
 });

@@ -20,7 +20,7 @@ async function startWizard(page: Page, players: [string, string][], name: string
   await addPlayers(page, players);
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
   await expect(page.getByText('How do you want to compete?')).toBeVisible();
-  await page.getByPlaceholder('e.g. Saturday Pool').fill(name);
+  await page.getByPlaceholder('Leave blank to name it by the game and course').fill(name);
 }
 
 async function courseAndTees(page: Page) {

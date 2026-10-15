@@ -20,7 +20,7 @@ async function toTeesStep(page: import('@playwright/test').Page) {
     await manualAddButton(page).click();
   }
   await page.getByRole('button', { name: /Next: Choose Game/ }).click();
-  await page.getByPlaceholder('e.g. Saturday Pool').fill('Step Bar Test');
+  await page.getByPlaceholder('Leave blank to name it by the game and course').fill('Step Bar Test');
   await page.getByRole('button', { name: 'Next: Scoring' }).click();
   await page.getByRole('button', { name: /Next: Select Course/ }).click();
   await page.getByRole('button', { name: /Sandbox National/ }).first().click();
