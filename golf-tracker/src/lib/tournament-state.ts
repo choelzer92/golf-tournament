@@ -420,9 +420,10 @@ export async function fetchTournament(id: string): Promise<Tournament | null> {
 // server's copy, so a queued tap never disappears from the screen.
 export async function fetchGameScores(matchupId: string): Promise<any | null> {
   const { data, error } = await supabase.from('score_cells').select('player_id, hole, gross_score').eq('matchup_id', matchupId);
-  if (error || !data) return scoresCache.get(matchupId) || null;
-  let server: GameScore[] | null = cellsToScores(data as ScoreCellRow[]);
-  if ((data as unknown[]).length === 0) {
+  // No rows, OR the table isn't there yet (a database the migration hasn't reached): read the blob.
+  const rows = error || !data ? [] : (data as ScoreCellRow[]);
+  let server: GameScore[] | null = cellsToScores(rows);
+  if (rows.length === 0) {
     const blob = await supabase.from('game_scores').select('data').eq('matchup_id', matchupId).single();
     server = blob.data ? ((blob.data.data as GameScore[]) ?? []) : null;
   }
